@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.score;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -89,4 +90,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("SELECT DISTINCT s.mapDifficulty.id FROM Score s")
         List<UUID> findDistinctMapDifficultyIds();
+
+        @Query("SELECT DISTINCT s.user FROM Score s WHERE s.createdAt >= :since AND s.active = true")
+        List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(@Param("since") Instant since);
 }

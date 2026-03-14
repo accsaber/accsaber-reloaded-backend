@@ -1,5 +1,6 @@
 package com.accsaber.backend.scheduler;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.scheduling.annotation.Async;
@@ -7,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.player.PlayerImportService;
 
 import lombok.RequiredArgsConstructor;
@@ -18,13 +19,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PlayerRefreshScheduler {
 
-    private final UserRepository userRepository;
+    private final ScoreRepository scoreRepository;
     private final PlayerImportService playerImportService;
 
     @Scheduled(cron = "${accsaber.scheduler.player-refresh-cron:0 0 4 * * *}")
     public void refreshAllPlayers() {
-        List<User> users = userRepository.findByActiveTrue();
-        log.info("Starting scheduled player refresh for {} users", users.size());
+        Instant since = Instant.now().minusSeconds(24 * 60 * 60);
+        List<User> users = scoreRepository.findDistinctUsersWithScoresSince(since);
+        log.info("Starting scheduled player refresh for {} active users (scored in last 24h)", users.size());
 
         int success = 0;
         int failed = 0;

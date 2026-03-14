@@ -48,6 +48,7 @@ public class PlayerImportService {
                                 .orElse(null);
 
                 String country = blProfile.map(BeatLeaderPlayerResponse::getCountry)
+                                .filter(c -> !c.isBlank() && !c.equalsIgnoreCase("not set"))
                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getCountry))
                                 .orElse(null);
 
@@ -79,6 +80,7 @@ public class PlayerImportService {
                                 .orElse(null);
 
                 String country = blProfile.map(BeatLeaderPlayerResponse::getCountry)
+                                .filter(c -> !c.isBlank() && !c.equalsIgnoreCase("not set"))
                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getCountry))
                                 .orElse(null);
 
