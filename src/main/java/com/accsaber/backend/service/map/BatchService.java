@@ -132,7 +132,8 @@ public class BatchService {
         batch.setReleasedAt(releasedAt);
         batchRepository.save(batch);
 
-        difficulties.forEach(d -> scoreImportService.backfillDifficultyAsync(d.getId()));
+        scoreImportService.backfillDifficultiesSequentiallyAsync(
+                difficulties.stream().map(MapDifficulty::getId).toList());
 
         return toResponse(batch, enrich(difficulties));
     }

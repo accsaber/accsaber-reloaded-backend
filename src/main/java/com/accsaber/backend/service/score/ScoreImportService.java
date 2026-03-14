@@ -111,6 +111,30 @@ public class ScoreImportService {
     }
 
     @Async("taskExecutor")
+    public void backfillDifficultiesSequentiallyAsync(List<UUID> mapDifficultyIds) {
+        log.info("Starting sequential backfill for {} difficulties", mapDifficultyIds.size());
+        for (UUID id : mapDifficultyIds) {
+            try {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(id)
+                        .orElse(null);
+                if (difficulty == null) {
+                    log.warn("Cannot backfill: difficulty {} not found or inactive", id);
+                    continue;
+                }
+                backfillDifficulty(difficulty);
+                Thread.sleep(properties.getBackfillPageDelay());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Sequential backfill interrupted");
+                return;
+            } catch (Exception e) {
+                log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
+            }
+        }
+        log.info("Sequential backfill complete for {} difficulties", mapDifficultyIds.size());
+    }
+
+    @Async("taskExecutor")
     public void backfillAllRankedDifficulties() {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
