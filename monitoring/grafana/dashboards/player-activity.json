@@ -1,0 +1,325 @@
+{
+  "uid": "accsaber-player-activity",
+  "title": "AccSaber - Player Activity",
+  "tags": ["accsaber"],
+  "timezone": "browser",
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "title": "Active Players",
+      "description": "Players who set a score within the dashboard time range",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(DISTINCT s.user_id) AS \"Active Players\" FROM scores s WHERE s.active = true AND s.time_set IS NOT NULL AND $__timeFilter(s.time_set);",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Total Registered Users",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Total Users\" FROM users WHERE active = true;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Total Ranked Maps",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Ranked Maps\" FROM map_difficulties WHERE active = true AND status = 'ranked';",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Total Active Scores",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Total Scores\" FROM scores WHERE active = true;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Scores Submitted Per Day",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', time_set) AS time, COUNT(*) AS \"Scores\" FROM scores WHERE active = true AND time_set IS NOT NULL AND $__timeFilter(time_set) GROUP BY 1 ORDER BY 1;",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "title": "New Users Per Day",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, COUNT(*) AS \"New Users\" FROM users WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1;",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "title": "Scores by Category",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT c.name AS \"Category\", COUNT(s.id) AS \"Scores\" FROM scores s JOIN map_difficulties md ON s.map_difficulty_id = md.id JOIN categories c ON md.category_id = c.id WHERE s.active = true GROUP BY c.name ORDER BY \"Scores\" DESC;",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "title": "Database Size (bytes)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT pg_database_size(current_database()) AS \"DB Size\";",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "Top Tables by Size",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT relname AS \"Table\", pg_size_pretty(pg_relation_size(relid)) AS \"Size\", n_live_tup AS \"Rows\" FROM pg_stat_user_tables ORDER BY pg_relation_size(relid) DESC LIMIT 10;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "DB Cache Hit Ratio",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(blks_hit::numeric / NULLIF(blks_hit + blks_read, 0), 4) AS \"Cache Hit Ratio\" FROM pg_stat_database WHERE datname = current_database();",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Active DB Connections",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Active Connections\" FROM pg_stat_activity WHERE state = 'active';",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Long-Running Queries (>5s)",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT pid, NOW() - query_start AS duration, LEFT(query, 100) AS query FROM pg_stat_activity WHERE state = 'active' AND query_start < NOW() - INTERVAL '5 seconds' ORDER BY query_start LIMIT 5;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Most Replayed Maps",
+      "description": "Maps with the most total score submissions (active + superseded), indicating grind/replay activity",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT m.song_name || ' [' || md.difficulty || ']' AS \"Map\", c.name AS \"Category\", COUNT(*) AS \"Total Submissions\", COUNT(*) FILTER (WHERE s.active = true) AS \"Active\", COUNT(*) FILTER (WHERE s.active = false) AS \"Superseded\", COUNT(DISTINCT s.user_id) AS \"Unique Players\", ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT s.user_id), 0), 1) AS \"Avg Plays/Player\" FROM scores s JOIN map_difficulties md ON s.map_difficulty_id = md.id JOIN maps m ON md.map_id = m.id JOIN categories c ON md.category_id = c.id GROUP BY m.song_name, md.difficulty, c.name ORDER BY \"Total Submissions\" DESC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Biggest Score Improvers (time range)",
+      "description": "Players who superseded the most of their own scores - grinding for accuracy",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT u.name AS \"Player\", COUNT(*) AS \"Scores Improved\", ROUND(AVG(new_s.ap - old_s.ap), 2) AS \"Avg AP Gain\", ROUND(MAX(new_s.ap - old_s.ap), 2) AS \"Best AP Gain\" FROM scores new_s JOIN scores old_s ON new_s.supersedes_id = old_s.id JOIN users u ON new_s.user_id = u.id WHERE new_s.active = true AND new_s.supersedes_id IS NOT NULL AND $__timeFilter(new_s.created_at) GROUP BY u.name HAVING COUNT(*) >= 2 ORDER BY \"Scores Improved\" DESC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Country Leaderboard (player count)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT COALESCE(u.country, 'Unknown') AS \"Country\", COUNT(*) AS \"Players\" FROM users u WHERE u.active = true AND u.country IS NOT NULL GROUP BY u.country ORDER BY \"Players\" DESC LIMIT 20;",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "title": "Accuracy Distribution",
+      "description": "How many active scores fall into each accuracy bucket",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "WITH acc AS (SELECT s.score::numeric / NULLIF(md.max_score, 0) AS accuracy FROM scores s JOIN map_difficulties md ON s.map_difficulty_id = md.id WHERE s.active = true AND md.max_score > 0) SELECT CASE WHEN accuracy < 0.80 THEN '<80%' WHEN accuracy < 0.85 THEN '80-85%' WHEN accuracy < 0.90 THEN '85-90%' WHEN accuracy < 0.93 THEN '90-93%' WHEN accuracy < 0.95 THEN '93-95%' WHEN accuracy < 0.97 THEN '95-97%' WHEN accuracy < 0.99 THEN '97-99%' ELSE '99%+' END AS \"Accuracy Range\", COUNT(*) AS \"Scores\" FROM acc GROUP BY 1 ORDER BY MIN(accuracy);",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Hardest Maps (lowest avg accuracy)",
+      "description": "Ranked maps where players struggle the most",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 46 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT m.song_name || ' [' || md.difficulty || ']' AS \"Map\", c.name AS \"Category\", mdc.complexity AS \"Complexity\", COUNT(s.id) AS \"Plays\", ROUND(AVG(s.score::numeric / NULLIF(md.max_score, 0)) * 100, 2) AS \"Avg Acc %\", ROUND(MAX(s.score::numeric / NULLIF(md.max_score, 0)) * 100, 2) AS \"Best Acc %\" FROM scores s JOIN map_difficulties md ON s.map_difficulty_id = md.id JOIN maps m ON md.map_id = m.id JOIN categories c ON md.category_id = c.id LEFT JOIN map_difficulty_complexities mdc ON mdc.map_difficulty_id = md.id AND mdc.active = true WHERE s.active = true AND md.status = 'ranked' AND md.max_score > 0 GROUP BY m.song_name, md.difficulty, c.name, mdc.complexity HAVING COUNT(s.id) >= 3 ORDER BY AVG(s.score::numeric / md.max_score) ASC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Highest AP Scores Ever Set",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 46 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT u.name AS \"Player\", m.song_name || ' [' || md.difficulty || ']' AS \"Map\", c.name AS \"Category\", ROUND(s.ap, 2) AS \"AP\", ROUND(s.score::numeric / NULLIF(md.max_score, 0) * 100, 2) AS \"Acc %\", s.time_set AS \"When\" FROM scores s JOIN users u ON s.user_id = u.id JOIN map_difficulties md ON s.map_difficulty_id = md.id JOIN maps m ON md.map_id = m.id JOIN categories c ON md.category_id = c.id WHERE s.active = true AND md.max_score > 0 ORDER BY s.ap DESC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Score Velocity (scores/hour over time)",
+      "description": "Hourly score submission rate - shows peak play times",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 56 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('hour', time_set) AS time, COUNT(*) AS \"Scores/Hour\" FROM scores WHERE active = true AND time_set IS NOT NULL AND $__timeFilter(time_set) GROUP BY 1 ORDER BY 1;",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "title": "XP Leaderboard (top earners)",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 64 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT u.name AS \"Player\", u.country AS \"Country\", ROUND(u.total_xp, 0) AS \"Total XP\", lt.level AS \"Level\", lt.title AS \"Title\" FROM users u LEFT JOIN LATERAL (SELECT level, title FROM level_thresholds WHERE xp_required <= u.total_xp ORDER BY level DESC LIMIT 1) lt ON true WHERE u.active = true AND u.total_xp > 0 ORDER BY u.total_xp DESC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "Versioning Churn (supersedes/day)",
+      "description": "Rate of INSERT-ONLY versioning across tables - spikes indicate reweights or mass recalcs",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 64 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, COUNT(*) AS \"Score Versions\" FROM scores WHERE active = false AND supersedes_id IS NOT NULL AND $__timeFilter(created_at) GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "alias": "Scores"
+        },
+        {
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, COUNT(*) AS \"Stat Versions\" FROM user_category_statistics WHERE active = false AND supersedes_id IS NOT NULL AND $__timeFilter(created_at) GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "alias": "Stats"
+        }
+      ]
+    },
+    {
+      "title": "Most Competitive Maps (tightest AP spread)",
+      "description": "Maps where the gap between best and worst score is smallest - everyone is close",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 74 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "SELECT m.song_name || ' [' || md.difficulty || ']' AS \"Map\", c.name AS \"Category\", COUNT(s.id) AS \"Players\", ROUND(MAX(s.ap) - MIN(s.ap), 2) AS \"AP Spread\", ROUND(AVG(s.ap), 2) AS \"Avg AP\", ROUND(STDDEV(s.ap), 2) AS \"Std Dev\" FROM scores s JOIN map_difficulties md ON s.map_difficulty_id = md.id JOIN maps m ON md.map_id = m.id JOIN categories c ON md.category_id = c.id WHERE s.active = true AND md.status = 'ranked' GROUP BY m.song_name, md.difficulty, c.name HAVING COUNT(s.id) >= 5 ORDER BY STDDEV(s.ap) ASC LIMIT 15;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "title": "One-and-Done vs Grinders",
+      "description": "Players grouped by how many maps they've replayed (superseded their own score on)",
+      "type": "barchart",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 74 },
+      "datasource": { "type": "postgres", "uid": "accsaber-postgres" },
+      "targets": [
+        {
+          "rawSql": "WITH player_replays AS (SELECT user_id, COUNT(DISTINCT map_difficulty_id) AS maps_replayed FROM scores WHERE supersedes_id IS NOT NULL AND active = true GROUP BY user_id) SELECT CASE WHEN maps_replayed = 0 THEN '0 replays' WHEN maps_replayed BETWEEN 1 AND 2 THEN '1-2' WHEN maps_replayed BETWEEN 3 AND 5 THEN '3-5' WHEN maps_replayed BETWEEN 6 AND 10 THEN '6-10' WHEN maps_replayed BETWEEN 11 AND 25 THEN '11-25' ELSE '25+' END AS \"Maps Replayed\", COUNT(*) AS \"Players\" FROM player_replays GROUP BY 1 ORDER BY MIN(maps_replayed);",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39
+}

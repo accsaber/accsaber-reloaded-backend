@@ -1,0 +1,33 @@
+# Production Profile
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+  # never allow clean
+  flyway:
+    clean-disabled: true
+
+  datasource:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      leak-detection-threshold: 60000
+      max-lifetime: 1800000
+      validation-timeout: 5000
+
+logging:
+  level:
+    root: WARN
+    "[com.accsaber]": INFO
+    "[org.springframework.security]": WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized

@@ -1,0 +1,117 @@
+# ==========================================
+# 1. Dependency Directories
+# ==========================================
+node_modules/
+jspm_packages/
+web_modules/
+
+# ==========================================
+# 2. Environment & Secrets (Remove this and you're in for a treat)
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+.envrc
+.vault
+*.pem
+*.key
+
+# ==========================================
+# 3. Build & Distribution Outputs
+# ==========================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.serverless/
+.docusaurus/
+target/
+*.tsbuildinfo
+
+# ==========================================
+# 4. Logs & Debugging
+# ==========================================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+logs/
+*.lcov
+.eslintcache
+.stylelintcache
+
+# ==========================================
+# 5. Testing & Coverage
+# ==========================================
+coverage/
+.nyc_output/
+junit.xml
+reports/
+
+# Depends if I want snapshots or not
+__snapshots__/ 
+
+.playwright/
+test-results/
+
+# ==========================================
+# 6. Editors, IDEs & AI Assistants
+# ==========================================
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (WebStorm, IntelliJ, etc.)
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim / Emacs
+*~
+*.swp
+*.swo
+.DS_Store
+
+# VS Code
+.vscode/
+
+# AI Assistants
+*claude*
+*copilot*
+
+# ==========================================
+# 7. Package Manager Artifacts
+# ==========================================
+# These are here in case I use local storage/caching. Delete if needed
+.npm/
+.eslintcache
+.yarn-integrity
+.yarn/install-state.gz
+
+# ==========================================
+# 8. System Files
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# 9. Project-Specific Ignores (EDIT HERE!)
+# ==========================================
+#Only ignoring markdown files that aren't the README for now. A bunch of ideas on these
+*.md*
+!README.md

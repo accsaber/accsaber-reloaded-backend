@@ -1,0 +1,119 @@
+spring:
+  application:
+    name: accsaber-backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/accsaber}
+    username: ${SPRING_DATASOURCE_USERNAME:accsaber}
+    password: ${SPRING_DATASOURCE_PASSWORD:accsaber}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        "[format_sql]": true
+        "[default_batch_fetch_size]": 25
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: 6379
+      repositories:
+        enabled: false
+
+  cache:
+    type: redis
+
+  jackson:
+    default-property-inclusion: non_null
+
+  web:
+    error:
+      include-message: always
+      include-binding-errors: always
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      internal-proxies: "10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|172\\.1[6-9]\\.\\d{1,3}\\.\\d{1,3}|172\\.2[0-9]\\.\\d{1,3}\\.\\d{1,3}|172\\.3[0-1]\\.\\d{1,3}\\.\\d{1,3}|192\\.168\\.\\d{1,3}\\.\\d{1,3}"
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+
+springdoc:
+  swagger-ui:
+    path: /v1/docs
+  api-docs:
+    path: /v1/api-docs
+
+accsaber:
+  voting:
+    qualify-threshold: 3
+    reweight-threshold: 3
+    unrank-threshold: 3
+  cache:
+    leaderboard-ttl: 300
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-ttl: 3600
+    refresh-token-ttl: 2592000
+  service:
+    api-key: ${SERVICE_API_KEY}
+  platforms:
+    beatleader:
+      base-url: https://api.beatleader.com
+      websocket-url: wss://sockets.api.beatleader.com/scores
+      timeout-ms: 20000
+      max-retries: 3
+    scoresaber:
+      base-url: https://scoresaber.com/api
+      websocket-url: wss://scoresaber.com/ws
+      timeout-ms: 20000
+      max-retries: 3
+    beatsaver:
+      base-url: https://api.beatsaver.com
+      timeout-ms: 10000
+      max-retries: 3
+    ss-wait-for-bl-seconds: 30
+    gap-fill-window-seconds: 60
+    backfill-page-delay: 500
+    ws-reconnect-interval-ms: 10000
+    ws-max-reconnect-interval-ms: 60000
+  xp:
+    base-xp-per-score: 25
+    max-bonus-xp-per-score: 1000
+    improvement-multiplier: 1.5
+  backfill:
+    on-startup: true
+  rate-limit:
+    capacity: 400
+    window-seconds: 60
+  scheduler:
+    player-refresh-cron: "0 0 4 * * *"
+
+logging:
+  level:
+    root: INFO
+    "[com.accsaber]": INFO
+    "[org.springframework.security]": INFO

@@ -1,0 +1,181 @@
+{
+  "uid": "accsaber-system-health",
+  "title": "AccSaber - System Health",
+  "tags": ["accsaber"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "title": "JVM Heap Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "Used" },
+        { "expr": "jvm_memory_committed_bytes{area=\"heap\"}", "legendFormat": "Committed" },
+        { "expr": "jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "Max" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "process_cpu_usage", "legendFormat": "Process CPU" },
+        { "expr": "system_cpu_usage", "legendFormat": "System CPU" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+      }
+    },
+    {
+      "title": "HikariCP Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "hikaricp_connections_active", "legendFormat": "Active" },
+        { "expr": "hikaricp_connections_idle", "legendFormat": "Idle" },
+        { "expr": "hikaricp_connections_pending", "legendFormat": "Pending" },
+        { "expr": "hikaricp_connections_max", "legendFormat": "Max" }
+      ]
+    },
+    {
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "rate(http_server_requests_seconds_count[5m])", "legendFormat": "{{uri}} {{status}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "HTTP Error Rate (4xx/5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{status=~\"4..\"}[5m]))", "legendFormat": "4xx" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))", "legendFormat": "5xx" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "Outbound API Calls",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "rate(accsaber_requests_outbound_total{target=\"beatleader\"}[5m])", "legendFormat": "BeatLeader" },
+        { "expr": "rate(accsaber_requests_outbound_total{target=\"scoresaber\"}[5m])", "legendFormat": "ScoreSaber" },
+        { "expr": "rate(accsaber_requests_outbound_total{target=\"beatsaver\"}[5m])", "legendFormat": "BeatSaver" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "title": "Score Submission Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "rate(accsaber_scores_submitted_total[5m]) * 60", "legendFormat": "Submitted/min" },
+        { "expr": "rate(accsaber_scores_ingested_total{platform=\"beatleader\"}[5m]) * 60", "legendFormat": "BL Ingested/min" },
+        { "expr": "rate(accsaber_scores_ingested_total{platform=\"scoresaber\"}[5m]) * 60", "legendFormat": "SS Ingested/min" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    },
+    {
+      "title": "Score Processing Duration (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(accsaber_scores_processing_duration_seconds_bucket[5m]))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, rate(accsaber_scores_processing_duration_seconds_bucket[5m]))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, rate(accsaber_scores_processing_duration_seconds_bucket[5m]))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Executor Queue Depth",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "accsaber_executor_queue_depth{executor=\"task\"}", "legendFormat": "Task Queue" },
+        { "expr": "accsaber_executor_queue_depth{executor=\"ranking\"}", "legendFormat": "Ranking Queue" },
+        { "expr": "accsaber_executor_queue_depth{executor=\"backfill\"}", "legendFormat": "Backfill Queue" }
+      ]
+    },
+    {
+      "title": "Recalculation Job Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(accsaber_ap_recalculation_duration_seconds_bucket[5m]))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, rate(accsaber_ap_recalculation_duration_seconds_bucket[5m]))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Async Task Failures",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "increase(accsaber_async_failures_total[1h])", "legendFormat": "Failures (1h)" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Outbound API Failures",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        { "expr": "increase(accsaber_requests_outbound_failures_total[1h])", "legendFormat": "Failures (1h)" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39
+}

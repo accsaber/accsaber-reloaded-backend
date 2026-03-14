@@ -1,0 +1,35 @@
+package com.accsaber.backend.model.dto.response.map;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+import com.accsaber.backend.model.entity.CriteriaStatus;
+import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+
+import lombok.Builder;
+import lombok.Value;
+
+@Value
+@Builder
+public class MapDifficultyResponse {
+
+    UUID id;
+    UUID mapId;
+    UUID categoryId;
+    UUID previousVersionId;
+    Difficulty difficulty;
+    String characteristic;
+    boolean active;
+    MapDifficultyStatus status;
+    CriteriaStatus criteriaStatus;
+    String ssLeaderboardId;
+    String blLeaderboardId;
+    Integer maxScore;
+    BigDecimal complexity;
+    Instant rankedAt;
+    UUID lastUpdatedBy;
+    String lastUpdatedByUsername;
+    MapDifficultyStatisticsResponse statistics;
+}

@@ -1,0 +1,31 @@
+# Development Profile
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+  # Permissive aah flyway
+  flyway:
+    clean-disabled: false
+
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      leak-detection-threshold: 30000
+
+logging:
+  level:
+    "[com.accsaber]": DEBUG
+    "[org.springframework.web]": DEBUG
+
+# Dev actuator - expose all
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
