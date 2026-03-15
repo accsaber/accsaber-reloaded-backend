@@ -112,7 +112,7 @@ public class ScoreIngestionService {
                     blScore, difficulty.getId(), steamId, modifierCacheService.getModifierCodeToId());
             metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
             metricsService.getBlScoresIngested().increment();
-            log.debug("Ingested BL score for player {} on difficulty {}", steamId, difficulty.getId());
+            log.info("Ingested BL score for player {} on difficulty {}", steamId, difficulty.getId());
         } catch (Exception e) {
             log.error("Error handling BL score: {}", e.getMessage());
         }
@@ -151,7 +151,7 @@ public class ScoreIngestionService {
                             ssScore, difficulty.getId(), steamId, modifierCacheService.getModifierCodeToId());
                     metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
                     metricsService.getSsScoresIngested().increment();
-                    log.debug("Ingested SS score for player {} on difficulty {}", steamId, difficulty.getId());
+                    log.info("Ingested SS score for player {} on difficulty {}", steamId, difficulty.getId());
                 } catch (Exception e) {
                     log.error("Error submitting delayed SS score: {}", e.getMessage());
                 }

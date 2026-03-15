@@ -30,7 +30,7 @@ public class OpenApiConfig {
 
                                                                 Accsaber Reloaded further expands on the original Accsaber concept with new QOL features.
                                                                 """)
-                                                .version("0.1.7")
+                                                .version("0.2.0")
                                                 .contact(new Contact()
                                                                 .name("AccSaber Reloaded")
                                                                 .url(baseUrl)))
