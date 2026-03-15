@@ -1,4 +1,4 @@
-package com.accsaber.backend.controller;
+package com.accsaber.backend.controller.infra;
 
 import java.time.Instant;
 import java.util.Map;
@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/public")
+@RequestMapping("/v1/health")
 @Tag(name = "Health")
 public class HealthController {
 

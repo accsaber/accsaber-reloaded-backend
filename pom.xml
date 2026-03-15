@@ -11,7 +11,7 @@
 
 	<groupId>com.accsaber</groupId>
 	<artifactId>backend</artifactId>
-	<version>0.2.0</version>
+	<version>0.3.0</version>
 	<name>AccSaber Reloaded Backend</name>
 	<description>REST API for Beat Saber accuracy leaderboard platform</description>
 

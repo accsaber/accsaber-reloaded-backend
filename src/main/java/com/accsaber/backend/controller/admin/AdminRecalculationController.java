@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.service.score.ScoreRecalculationService;
+import com.accsaber.backend.service.score.XPReweightService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
 
@@ -28,6 +29,7 @@ public class AdminRecalculationController {
     private final ScoreRecalculationService scoreRecalculationService;
     private final StatisticsService statisticsService;
     private final RankingService rankingService;
+    private final XPReweightService xpReweightService;
 
     @Operation(summary = "Recalculate all scores in a category")
     @PostMapping("/leaderboard/{categoryId}")
@@ -69,6 +71,13 @@ public class AdminRecalculationController {
     @PostMapping("/weight-curve/{curveId}")
     public ResponseEntity<Void> recalculateWeightCurve(@PathVariable UUID curveId) {
         scoreRecalculationService.recalculateWeightCurveAsync(curveId);
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Reweight XP for all scores")
+    @PostMapping("/xp-reweight")
+    public ResponseEntity<Void> reweightAllXp() {
+        xpReweightService.reweightAllScores();
         return ResponseEntity.accepted().build();
     }
 }

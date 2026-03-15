@@ -1,4 +1,4 @@
-package com.accsaber.backend.controller.player;
+package com.accsaber.backend.controller.user;
 
 import java.util.UUID;
 

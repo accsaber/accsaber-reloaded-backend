@@ -36,7 +36,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/staff/users")
 @RequiredArgsConstructor
-@Tag(name = "Admin")
+@Tag(name = "Staff Users")
 @PreAuthorize("hasRole('ADMIN')")
 public class StaffUserController {
 
@@ -54,7 +54,7 @@ public class StaffUserController {
 
     @Operation(summary = "List all active staff users")
     @GetMapping
-    public ResponseEntity<Page<StaffUserResponse>> getAll(
+    public ResponseEntity<Page<StaffUserResponse>> listStaffUsers(
             @PageableDefault(size = 20, sort = "username") Pageable pageable) {
         return ResponseEntity.ok(staffUserService.getAll(pageable));
     }

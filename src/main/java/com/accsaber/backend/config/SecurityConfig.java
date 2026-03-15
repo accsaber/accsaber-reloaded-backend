@@ -44,7 +44,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/v1/public/**").permitAll()
+                .requestMatchers("/v1/health/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v1/swagger-ui/**", "/v1/docs/**", "/v1/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/staff/auth/login", "/v1/staff/auth/refresh").permitAll()
@@ -56,9 +56,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/leaderboards/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/milestones/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/levels/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/campaigns/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/discord/links/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/discord/links").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/v1/ranking/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
