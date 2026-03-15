@@ -172,6 +172,32 @@ public class ScoreRecalculationService {
         }
     }
 
+    @Async("taskExecutor")
+    public void recalculateAllWeightedApAsync() {
+        List<Category> categories = categoryRepository.findByActiveTrue().stream()
+                .filter(c -> !"overall".equals(c.getCode()))
+                .toList();
+
+        for (Category category : categories) {
+            UUID categoryId = category.getId();
+            List<UserCategoryStatistics> stats = userCategoryStatisticsRepository
+                    .findActiveByCategoryOrderByApDesc(categoryId);
+            Set<Long> userIds = ConcurrentHashMap.newKeySet();
+            stats.forEach(s -> userIds.add(s.getUser().getId()));
+
+            if (userIds.isEmpty()) {
+                log.info("No users with stats in category {}", categoryId);
+                continue;
+            }
+
+            batchRecalculateStats(userIds, categoryId);
+            rankingService.updateRankings(categoryId);
+            log.info("Weighted AP recalculation complete for category {} ({} users)", categoryId, userIds.size());
+        }
+        overallStatisticsService.updateOverallRankings();
+        log.info("Weighted AP recalculation complete for all categories");
+    }
+
     private void batchRecalculateScoresForDifficulty(MapDifficulty difficulty, boolean triggerMapStats) {
         Set<Long> affected = recalculateScoreAps(difficulty);
 

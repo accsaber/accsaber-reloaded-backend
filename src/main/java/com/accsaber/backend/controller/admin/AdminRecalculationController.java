@@ -80,4 +80,12 @@ public class AdminRecalculationController {
         xpReweightService.reweightAllScores();
         return ResponseEntity.accepted().build();
     }
+
+    @Operation(summary = "Recalculate weighted AP for all scores in all categories",
+            description = "Recalculates weighted AP per category for every user, then updates all rankings. Runs async.")
+    @PostMapping("/weighted-ap")
+    public ResponseEntity<Void> recalculateAllWeightedAp() {
+        scoreRecalculationService.recalculateAllWeightedApAsync();
+        return ResponseEntity.accepted().build();
+    }
 }
