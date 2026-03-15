@@ -49,7 +49,7 @@ Dev mode exposes all ports for local debugging:
 
 ### Test Data
 1. Create an administrator account via directly in the database.
-2. Manually insert some data via the batch ranking process (`/v1/maps/admin`, `/v1/batches`, `/v1/batches/{id}/release`) & milestones (`/v1/admin/milestones`). 
+2. Manually insert some data via the ranking workflow (`/v1/ranking/maps/import`, `/v1/batches`, `/v1/batches/{id}/release`) & milestones (`/v1/admin/milestones`).
 3. Scores and players will sync automatically from ScoreSaber and BeatLeader!
 > Note: I do not recommend running a full import of ALL ranked maps in dev mode, as the backfill is slow and intensive. Use the admin endpoints to create a smaller test dataset.
 
@@ -68,7 +68,7 @@ The backend exposes metrics at `/actuator/prometheus` and health details at `/ac
 ```
 src/main/java/com/accsaber/backend/
   config/           Spring configuration (security, async, caching, health indicators)
-  controller/       REST endpoints grouped by domain (map/, player/, milestone/, staff/, admin/)
+  controller/       REST endpoints grouped by access tier and domain
   service/          Business logic grouped by domain (score/, map/, stats/, milestone/, campaign/, player/, staff/, infra/)
   repository/       Data access interfaces grouped by domain
   model/
