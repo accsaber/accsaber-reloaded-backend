@@ -27,16 +27,6 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: 6379
-      repositories:
-        enabled: false
-
-  cache:
-    type: redis
-
   jackson:
     default-property-inclusion: non_null
 
@@ -72,8 +62,6 @@ accsaber:
     qualify-threshold: 3
     reweight-threshold: 3
     unrank-threshold: 3
-  cache:
-    leaderboard-ttl: 300
   jwt:
     secret: ${JWT_SECRET}
     access-token-ttl: 86400

@@ -1,6 +1,6 @@
 # AccSaber Backend
 
-REST API for the AccSaber Reloaded platform, an accuracy-based leaderboard system for Beat Saber. Built with Java 25, Spring Boot 4, PostgreSQL, and Redis.
+REST API for the AccSaber Reloaded platform, an accuracy-based leaderboard system for Beat Saber. Built with Java 25, Spring Boot 4 and PostgreSQL.
 
 ## Requirements
 
@@ -43,7 +43,6 @@ Dev mode exposes all ports for local debugging:
 | API        | http://localhost:8080       |
 | Swagger    | http://localhost:8080/v1/docs |
 | PostgreSQL | localhost:5433              |
-| Redis      | localhost:6379              |
 | Prometheus | http://localhost:9090       |
 | Grafana    | http://localhost:3000       |
 

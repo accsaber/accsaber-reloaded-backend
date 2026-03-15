@@ -16,19 +16,6 @@ services:
     networks:
       - accsaber-network
 
-  redis:
-    image: redis:8-alpine
-    container_name: accsaber-redis
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - accsaber-network
-
   backend:
     build:
       context: .
@@ -39,14 +26,11 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATA_REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
       JAVA_OPTS: -Xms256m -Xmx768m
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/v1/health/ping || exit 1"]
@@ -96,7 +80,6 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
   prometheus-data:
   grafana-data:
 

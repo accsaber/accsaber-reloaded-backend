@@ -1,13 +1,13 @@
 package com.accsaber.backend.config;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,35 +20,25 @@ import jakarta.servlet.http.HttpServletResponse;
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final String KEY_PREFIX = "rate_limit:";
+    private final ConcurrentHashMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
+    private final int capacity;
 
-    private final StringRedisTemplate redisTemplate;
-    private final long capacity;
-    private final Duration window;
-
-    public RateLimitFilter(StringRedisTemplate redisTemplate,
-            @Value("${accsaber.rate-limit.capacity:100}") long capacity,
-            @Value("${accsaber.rate-limit.window-seconds:60}") long windowSeconds) {
-        this.redisTemplate = redisTemplate;
+    public RateLimitFilter(@Value("${accsaber.rate-limit.capacity:400}") int capacity) {
         this.capacity = capacity;
-        this.window = Duration.ofSeconds(windowSeconds);
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String key = KEY_PREFIX + request.getRemoteAddr();
+        String key = request.getRemoteAddr();
+        AtomicInteger counter = counters.computeIfAbsent(key, k -> new AtomicInteger(0));
+        int count = counter.incrementAndGet();
 
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redisTemplate.expire(key, window);
-        }
-
-        long remaining = Math.max(0, capacity - (count != null ? count : 0));
+        long remaining = Math.max(0, capacity - count);
         response.setHeader("X-Rate-Limit-Remaining", String.valueOf(remaining));
 
-        if (count != null && count > capacity) {
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        if (count > capacity) {
+            response.setStatus(429);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"Rate limit exceeded. Try again later.\"}");
             return;
@@ -61,5 +51,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return !path.startsWith("/v1/");
+    }
+
+    @Scheduled(fixedRateString = "${accsaber.rate-limit.window-seconds:60}000")
+    public void resetCounters() {
+        counters.clear();
     }
 }

@@ -13,16 +13,6 @@ services:
     networks:
       - accsaber-network
 
-  redis:
-    image: redis:8-alpine
-    container_name: accsaber-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - accsaber-network
-
   backend:
     build:
       context: .
@@ -35,12 +25,10 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
-      SPRING_DATA_REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
     depends_on:
       - postgres
-      - redis
     networks:
       - accsaber-network
 
@@ -76,7 +64,6 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
   prometheus-data:
   grafana-data:
 

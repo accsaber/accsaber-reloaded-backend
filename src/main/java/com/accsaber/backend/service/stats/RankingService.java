@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
-import com.accsaber.backend.service.infra.CacheService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 public class RankingService {
 
     private final UserCategoryStatisticsRepository statisticsRepository;
-    private final CacheService cacheService;
     private final TransactionTemplate transactionTemplate;
 
     private final ConcurrentHashMap<UUID, ReentrantLock> categoryLocks = new ConcurrentHashMap<>();
@@ -32,7 +30,6 @@ public class RankingService {
                 statisticsRepository.assignGlobalRankings(categoryId);
                 statisticsRepository.assignCountryRankings(categoryId);
             });
-            cacheService.evictLeaderboard(categoryId);
         } finally {
             lock.unlock();
         }
