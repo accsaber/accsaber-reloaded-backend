@@ -1,5 +1,8 @@
 package com.accsaber.backend.runner;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -20,13 +23,25 @@ public class StartupBackfillRunner implements ApplicationRunner {
     @Value("${accsaber.backfill.on-startup:true}")
     private boolean backfillOnStartup;
 
+    @Value("${accsaber.backfill.startup-mode:gap-fill}")
+    private String startupMode;
+
+    @Value("${accsaber.backfill.gap-fill-days:7}")
+    private int gapFillDays;
+
     @Override
     public void run(ApplicationArguments args) {
         if (!backfillOnStartup) {
             log.info("Startup backfill disabled");
             return;
         }
-        log.info("Starting backfill of all ranked difficulties");
-        scoreImportService.backfillAllRankedDifficulties();
+        if ("full".equalsIgnoreCase(startupMode)) {
+            log.info("Starting full backfill of all ranked difficulties");
+            scoreImportService.backfillAllRankedDifficulties();
+        } else {
+            Instant since = Instant.now().minus(gapFillDays, ChronoUnit.DAYS);
+            log.info("Starting startup gap-fill for last {} days (since {})", gapFillDays, since);
+            scoreImportService.startupGapFillAllRankedDifficulties(since);
+        }
     }
 }

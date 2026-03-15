@@ -84,6 +84,26 @@ public class BeatLeaderClient {
         }
     }
 
+    public List<BeatLeaderScoreResponse> getLeaderboardScoresSortedByDate(String leaderboardId, int page, int count) {
+        try {
+            BeatLeaderLeaderboardResponse response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/leaderboard/{id}")
+                            .queryParam("page", page)
+                            .queryParam("count", count)
+                            .queryParam("sortBy", "date")
+                            .build(leaderboardId))
+                    .retrieve()
+                    .bodyToMono(BeatLeaderLeaderboardResponse.class)
+                    .retryWhen(retrySpec())
+                    .block(timeout());
+            return response != null && response.getScores() != null ? response.getScores() : List.of();
+        } catch (Exception e) {
+            log.error("Failed to fetch BL leaderboard scores (by date) for {}: {}", leaderboardId, e.getMessage());
+            return List.of();
+        }
+    }
+
     public List<BeatLeaderScoreResponse> getRecentScores(String leaderboardId, long afterTimestamp) {
         try {
             BeatLeaderLeaderboardResponse response = webClient.get()

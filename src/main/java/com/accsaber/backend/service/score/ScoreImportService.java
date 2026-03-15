@@ -2,6 +2,7 @@ package com.accsaber.backend.service.score;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.concurrent.Executor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -67,6 +69,9 @@ public class ScoreImportService {
     @Autowired
     @Qualifier("backfillExecutor")
     private Executor backfillExecutor;
+
+    @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
+    private long gapFillPageDelayMs;
 
     public void backfillDifficulty(MapDifficulty difficulty) {
         BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
@@ -153,6 +158,92 @@ public class ScoreImportService {
             }
         }
         log.info("Backfill of all ranked difficulties complete");
+    }
+
+    @Async("taskExecutor")
+    public void startupGapFillAllRankedDifficulties(Instant since) {
+        List<MapDifficulty> ranked = mapDifficultyRepository
+                .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
+        log.info("Starting startup gap-fill for {} ranked difficulties since {}", ranked.size(), since);
+
+        for (MapDifficulty difficulty : ranked) {
+            try {
+                startupGapFillDifficulty(difficulty, since);
+                Thread.sleep(properties.getBackfillPageDelay());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Startup gap-fill interrupted");
+                return;
+            } catch (Exception e) {
+                log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
+            }
+        }
+        log.info("Startup gap-fill complete");
+    }
+
+    private void startupGapFillDifficulty(MapDifficulty difficulty, Instant since) {
+        BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
+        if (complexity == null) {
+            log.warn("No active complexity for difficulty {} - skipping gap-fill", difficulty.getId());
+            return;
+        }
+
+        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        Set<Long> affectedUserIds = new HashSet<>();
+
+        if (difficulty.getBlLeaderboardId() != null) {
+            affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
+        }
+
+        batchRecalculateAfterBackfill(difficulty, affectedUserIds);
+    }
+
+    private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
+            Map<String, UUID> modifiers, Instant since) {
+        Set<Long> affected = new HashSet<>();
+        int page = 1;
+        int pageSize = 100;
+        long sinceEpoch = since.getEpochSecond();
+
+        while (true) {
+            List<BeatLeaderScoreResponse> scores = beatLeaderClient.getLeaderboardScoresSortedByDate(
+                    difficulty.getBlLeaderboardId(), page, pageSize);
+
+            if (scores.isEmpty())
+                break;
+
+            List<BeatLeaderScoreResponse> recent = new ArrayList<>();
+            boolean reachedThreshold = false;
+            for (BeatLeaderScoreResponse score : scores) {
+                if (score.getTimepost() != null && score.getTimepost() <= sinceEpoch) {
+                    reachedThreshold = true;
+                    break;
+                }
+                recent.add(score);
+            }
+
+            recent.stream()
+                    .map(s -> CompletableFuture.supplyAsync(
+                            () -> importBeatLeaderScore(s, difficulty, complexity, modifiers, true),
+                            backfillExecutor))
+                    .toList()
+                    .stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .forEach(affected::add);
+
+            if (reachedThreshold || scores.size() < pageSize)
+                break;
+            page++;
+
+            try {
+                Thread.sleep(gapFillPageDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return affected;
     }
 
     public void gapFillDifficulty(MapDifficulty difficulty, Instant since) {
