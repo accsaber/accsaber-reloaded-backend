@@ -13,12 +13,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.model.event.ScoreSubmittedEvent;
-import com.accsaber.backend.repository.ModifierRepository;
-import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
-import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.APResult;
@@ -32,6 +26,12 @@ import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ScoreSubmittedEvent;
+import com.accsaber.backend.repository.ModifierRepository;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
@@ -344,10 +344,22 @@ public class ScoreService {
                 return score.getUser().getId();
         }
 
-        public Page<ScoreResponse> findByUser(Long userId, UUID categoryId, Pageable pageable) {
-                Page<Score> scores = categoryId != null
-                                ? scoreRepository.findActiveByUserAndCategory(userId, categoryId, pageable)
-                                : scoreRepository.findByUser_IdAndActiveTrueOrderByApDesc(userId, pageable);
+        public Page<ScoreResponse> findByUser(Long userId, UUID categoryId, String search, Pageable pageable) {
+                boolean hasSearch = search != null && !search.isBlank();
+                Page<Score> scores;
+
+                if (categoryId != null && hasSearch) {
+                        scores = scoreRepository.findActiveByUserAndCategoryAndSongNameSearch(
+                                        userId, categoryId, search.trim(), pageable);
+                } else if (categoryId != null) {
+                        scores = scoreRepository.findActiveByUserAndCategory(userId, categoryId, pageable);
+                } else if (hasSearch) {
+                        scores = scoreRepository.findActiveByUserAndSongNameSearch(
+                                        userId, search.trim(), pageable);
+                } else {
+                        scores = scoreRepository.findByUser_IdAndActiveTrueOrderByApDesc(userId, pageable);
+                }
+
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
                                 loadModifierIds(s.getId())));
         }

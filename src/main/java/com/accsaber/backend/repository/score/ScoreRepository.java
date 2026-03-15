@@ -54,6 +54,32 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId,
                         Pageable pageable);
 
+        @Query("""
+                        SELECT s FROM Score s
+                        WHERE s.user.id = :userId
+                        AND s.active = true
+                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+                        ORDER BY s.ap DESC
+                        """)
+        Page<Score> findActiveByUserAndSongNameSearch(
+                        @Param("userId") Long userId,
+                        @Param("search") String search,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        WHERE s.user.id = :userId
+                        AND s.mapDifficulty.category.id = :categoryId
+                        AND s.active = true
+                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+                        ORDER BY s.ap DESC
+                        """)
+        Page<Score> findActiveByUserAndCategoryAndSongNameSearch(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("search") String search,
+                        Pageable pageable);
+
         @Query("SELECT COALESCE(SUM(s.score), 0) FROM Score s WHERE s.user.id = :userId AND s.active = true")
         long sumActiveScoreByUser(@Param("userId") Long userId);
 

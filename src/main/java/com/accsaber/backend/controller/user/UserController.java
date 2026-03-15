@@ -66,13 +66,14 @@ public class UserController {
         return ResponseEntity.ok(statisticsService.findByUser(steamId));
     }
 
-    @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category")
+    @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category and/or song name")
     @GetMapping("/{steamId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getUserScores(
             @PathVariable Long steamId,
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(scoreService.findByUser(steamId, categoryId, pageable));
+        return ResponseEntity.ok(scoreService.findByUser(steamId, categoryId, search, pageable));
     }
 
     @Operation(summary = "Get user milestone progress")
