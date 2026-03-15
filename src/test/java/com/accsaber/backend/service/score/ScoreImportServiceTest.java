@@ -42,6 +42,7 @@ import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
+import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
@@ -82,6 +83,8 @@ class ScoreImportServiceTest {
         private MilestoneEvaluationService milestoneEvaluationService;
         @Mock
         private MapDifficultyStatisticsService mapDifficultyStatisticsService;
+        @Mock
+        private DuplicateUserService duplicateUserService;
 
         private ScoreImportService scoreImportService;
         private MapDifficulty difficulty;
@@ -96,13 +99,15 @@ class ScoreImportServiceTest {
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,
                                 mapDifficultyRepository, mapComplexityService, scoreRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
-                                milestoneEvaluationService, mapDifficultyStatisticsService, properties);
+                                milestoneEvaluationService, mapDifficultyStatisticsService, duplicateUserService,
+                                properties);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",
                                 (java.util.concurrent.Executor) Runnable::run);
 
                 lenient().when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", NF_ID));
                 lenient().when(mapComplexityService.findActiveComplexity(any())).thenReturn(Optional.of(COMPLEXITY));
+                lenient().when(duplicateUserService.resolvePrimaryUserId(anyLong())).thenAnswer(inv -> inv.getArgument(0));
 
                 categoryId = UUID.randomUUID();
                 Category category = Category.builder().id(categoryId).build();

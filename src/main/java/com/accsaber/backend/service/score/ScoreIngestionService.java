@@ -24,6 +24,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
+import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 import com.accsaber.backend.util.PlatformScoreMapper;
 
@@ -44,6 +45,7 @@ public class ScoreIngestionService {
     private final ScheduledExecutorService ingestionScheduler;
 
     private final MetricsService metricsService;
+    private final DuplicateUserService duplicateUserService;
 
     private final ConcurrentHashMap<String, ScheduledFuture<?>> pendingSsScores = new ConcurrentHashMap<>();
     private volatile Set<String> rankedBlIds = Set.of();
@@ -57,7 +59,8 @@ public class ScoreIngestionService {
             ModifierCacheService modifierCacheService,
             PlatformProperties properties,
             @Qualifier("ingestionScheduler") ScheduledExecutorService ingestionScheduler,
-            MetricsService metricsService) {
+            MetricsService metricsService,
+            DuplicateUserService duplicateUserService) {
         this.scoreService = scoreService;
         this.playerImportService = playerImportService;
         this.mapDifficultyRepository = mapDifficultyRepository;
@@ -67,6 +70,7 @@ public class ScoreIngestionService {
         this.properties = properties;
         this.ingestionScheduler = ingestionScheduler;
         this.metricsService = metricsService;
+        this.duplicateUserService = duplicateUserService;
     }
 
     @PostConstruct
@@ -98,7 +102,8 @@ public class ScoreIngestionService {
                 return;
             MapDifficulty difficulty = diffOpt.get();
 
-            Long steamId = Long.parseLong(blScore.getPlayer().getId());
+            Long steamId = duplicateUserService.resolvePrimaryUserId(
+                    Long.parseLong(blScore.getPlayer().getId()));
             String playKey = steamId + "_" + difficulty.getId();
 
             ScheduledFuture<?> pending = pendingSsScores.remove(playKey);
@@ -119,6 +124,7 @@ public class ScoreIngestionService {
     }
 
     public void handleScoreSaberScore(ScoreSaberScoreResponse ssScore, Long steamId, String ssLeaderboardId) {
+        Long resolvedSteamId = duplicateUserService.resolvePrimaryUserId(steamId);
         if (!rankedSsIds.contains(ssLeaderboardId)) {
             return;
         }
@@ -135,9 +141,9 @@ public class ScoreIngestionService {
                 return;
             MapDifficulty difficulty = diffOpt.get();
 
-            String playKey = steamId + "_" + difficulty.getId();
+            String playKey = resolvedSteamId + "_" + difficulty.getId();
 
-            if (scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(steamId, difficulty.getId())
+            if (scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(resolvedSteamId, difficulty.getId())
                     .isPresent()) {
                 return;
             }
@@ -146,12 +152,12 @@ public class ScoreIngestionService {
             ScheduledFuture<?> future = ingestionScheduler.schedule(() -> {
                 try {
                     pendingSsScores.remove(playKey);
-                    playerImportService.ensurePlayerExists(steamId);
+                    playerImportService.ensurePlayerExists(resolvedSteamId);
                     SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(
-                            ssScore, difficulty.getId(), steamId, modifierCacheService.getModifierCodeToId());
+                            ssScore, difficulty.getId(), resolvedSteamId, modifierCacheService.getModifierCodeToId());
                     metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
                     metricsService.getSsScoresIngested().increment();
-                    log.info("Ingested SS score for player {} on difficulty {}", steamId, difficulty.getId());
+                    log.info("Ingested SS score for player {} on difficulty {}", resolvedSteamId, difficulty.getId());
                 } catch (Exception e) {
                     log.error("Error submitting delayed SS score: {}", e.getMessage());
                 }

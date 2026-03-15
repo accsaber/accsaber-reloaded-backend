@@ -22,6 +22,8 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         @Query("SELECT s FROM Score s JOIN FETCH s.user WHERE s.id = :id")
         Optional<Score> findByIdWithUser(@Param("id") UUID id);
 
+        List<Score> findByUser_IdAndActiveTrue(Long userId);
+
         List<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId);
 
         Page<Score> findByUser_IdAndActiveTrueOrderByApDesc(Long userId, Pageable pageable);
@@ -92,5 +94,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         List<UUID> findDistinctMapDifficultyIds();
 
         @Query("SELECT DISTINCT s.user FROM Score s WHERE s.timeSet >= :since AND s.active = true")
-        List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(@Param("since") Instant since);
+        List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(
+                        @Param("since") Instant since);
 }

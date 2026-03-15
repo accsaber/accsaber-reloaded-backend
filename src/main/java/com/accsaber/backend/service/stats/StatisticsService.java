@@ -98,7 +98,7 @@ public class StatisticsService {
     private void recalculateWeightedAps(List<Score> scores, Category category) {
         for (int i = 0; i < scores.size(); i++) {
             Score s = scores.get(i);
-            BigDecimal weighted = apCalculationService.calculateWeightedAP(s.getAp(), i + 1, category.getWeightCurve());
+            BigDecimal weighted = apCalculationService.calculateWeightedAP(s.getAp(), i, category.getWeightCurve());
             s.setWeightedAp(weighted);
         }
         scoreRepository.saveAll(scores);

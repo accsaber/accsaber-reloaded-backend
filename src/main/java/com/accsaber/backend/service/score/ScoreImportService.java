@@ -36,6 +36,7 @@ import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
+import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
@@ -64,6 +65,7 @@ public class ScoreImportService {
     private final RankingService rankingService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
+    private final DuplicateUserService duplicateUserService;
     private final PlatformProperties properties;
 
     @Autowired
@@ -413,7 +415,8 @@ public class ScoreImportService {
         try {
             if (PlatformScoreMapper.hasBannedModifier(blScore.getModifiers()))
                 return null;
-            Long steamId = Long.parseLong(blScore.getPlayer().getId());
+            Long steamId = duplicateUserService.resolvePrimaryUserId(
+                    Long.parseLong(blScore.getPlayer().getId()));
             if (scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(steamId, difficulty.getId())
                     .isPresent()) {
                 return null;
@@ -444,7 +447,8 @@ public class ScoreImportService {
         try {
             if (PlatformScoreMapper.hasBannedModifier(ssScore.getModifiers()))
                 return null;
-            Long steamId = Long.parseLong(ssScore.getLeaderboardPlayerInfo().getId());
+            Long steamId = duplicateUserService.resolvePrimaryUserId(
+                    Long.parseLong(ssScore.getLeaderboardPlayerInfo().getId()));
             if (scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(steamId, difficulty.getId())
                     .isPresent()) {
                 return null;

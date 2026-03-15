@@ -129,7 +129,7 @@ class StatisticsServiceTest {
                         Score score = buildScore(new BigDecimal("500.000000"), 950_000);
                         when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(user.getId(), category.getId()))
                                         .thenReturn(List.of(score));
-                        when(apCalculationService.calculateWeightedAP(score.getAp(), 1, weightCurve))
+                        when(apCalculationService.calculateWeightedAP(score.getAp(), 0, weightCurve))
                                         .thenReturn(new BigDecimal("500.000000"));
                         when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
                                         category.getId()))
@@ -150,11 +150,11 @@ class StatisticsServiceTest {
                         Score s3 = buildScore(new BigDecimal("300.000000"), 950_000);
                         when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(user.getId(), category.getId()))
                                         .thenReturn(List.of(s1, s2, s3));
-                        when(apCalculationService.calculateWeightedAP(s1.getAp(), 1, weightCurve))
+                        when(apCalculationService.calculateWeightedAP(s1.getAp(), 0, weightCurve))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(apCalculationService.calculateWeightedAP(s2.getAp(), 2, weightCurve))
+                        when(apCalculationService.calculateWeightedAP(s2.getAp(), 1, weightCurve))
                                         .thenReturn(new BigDecimal("386.000000"));
-                        when(apCalculationService.calculateWeightedAP(s3.getAp(), 3, weightCurve))
+                        when(apCalculationService.calculateWeightedAP(s3.getAp(), 2, weightCurve))
                                         .thenReturn(new BigDecimal("279.490000"));
                         when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
                                         category.getId()))

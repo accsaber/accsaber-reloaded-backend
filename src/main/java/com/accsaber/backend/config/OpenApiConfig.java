@@ -71,6 +71,8 @@ public class OpenApiConfig {
                                                                 .description("Create, deactivate, backfill milestones and refresh completion stats (Admin role)"),
                                                 new Tag().name("Admin Campaigns")
                                                                 .description("Create, update, deactivate campaigns and manage campaign maps (Admin role)"),
+                                                new Tag().name("Admin User Duplicates")
+                                                                .description("Detect, link, and merge duplicate user accounts across platforms (Admin role)"),
                                                 new Tag().name("Admin WebSocket")
                                                                 .description("Monitor and reconnect BeatLeader/ScoreSaber WebSocket feeds (Admin role)"),
 

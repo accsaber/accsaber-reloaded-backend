@@ -36,6 +36,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
+import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +58,8 @@ class ScoreIngestionServiceTest {
         private ScoreRepository scoreRepository;
         @Mock
         private ScoreImportService scoreImportService;
+        @Mock
+        private DuplicateUserService duplicateUserService;
 
         private MetricsService metricsService;
         private ScheduledExecutorService scheduler;
@@ -81,6 +84,7 @@ class ScoreIngestionServiceTest {
                                 noopExecutor, noopExecutor, noopExecutor);
 
                 when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", NF_ID));
+                when(duplicateUserService.resolvePrimaryUserId(STEAM_ID)).thenReturn(STEAM_ID);
 
                 difficulty = MapDifficulty.builder()
                                 .id(UUID.randomUUID())
@@ -99,7 +103,7 @@ class ScoreIngestionServiceTest {
                 ingestionService = new ScoreIngestionService(
                                 scoreService, playerImportService, mapDifficultyRepository,
                                 scoreRepository, scoreImportService, modifierCacheService,
-                                properties, scheduler, metricsService);
+                                properties, scheduler, metricsService, duplicateUserService);
                 ingestionService.init();
         }
 
