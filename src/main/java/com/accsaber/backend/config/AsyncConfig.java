@@ -45,8 +45,8 @@ public class AsyncConfig {
     @Bean(name = "backfillExecutor")
     public Executor backfillExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(4);
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(10);
         executor.setQueueCapacity(Integer.MAX_VALUE);
         executor.setThreadNamePrefix("accsaber-backfill-");
         executor.setTaskDecorator(mdcTaskDecorator());
