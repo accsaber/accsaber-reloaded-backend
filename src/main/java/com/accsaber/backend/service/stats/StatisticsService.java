@@ -91,10 +91,11 @@ public class StatisticsService {
         return toResponse(newStats);
     }
 
-    public List<UserCategoryStatisticsResponse> findByUser(Long userId) {
-        return statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
-                .map(StatisticsService::toResponse)
-                .toList();
+    public UserCategoryStatisticsResponse findByUserAndCategoryCode(Long userId, String categoryCode) {
+        UserCategoryStatistics stats = statisticsRepository
+                .findByUser_IdAndCategory_CodeAndActiveTrue(userId, categoryCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Statistics", userId + "/" + categoryCode));
+        return toResponse(stats);
     }
 
     private void recalculateWeightedAps(List<Score> scores, Category category) {

@@ -17,6 +17,8 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
 
         Optional<UserCategoryStatistics> findByUser_IdAndCategory_IdAndActiveTrue(Long userId, UUID categoryId);
 
+        Optional<UserCategoryStatistics> findByUser_IdAndCategory_CodeAndActiveTrue(Long userId, String categoryCode);
+
         List<UserCategoryStatistics> findByUser_IdAndActiveTrue(Long userId);
 
         @Query("""

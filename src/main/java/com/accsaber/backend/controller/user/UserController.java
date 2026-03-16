@@ -60,10 +60,12 @@ public class UserController {
         return ResponseEntity.ok(history);
     }
 
-    @Operation(summary = "Get user category statistics", description = "Returns all active category statistics for a player")
+    @Operation(summary = "Get user category statistics", description = "Returns active category statistics for a player by category code (tech_acc, standard_acc, true_acc) (defaults to 'overall')")
     @GetMapping("/{steamId}/statistics")
-    public ResponseEntity<List<UserCategoryStatisticsResponse>> getUserStatistics(@PathVariable Long steamId) {
-        return ResponseEntity.ok(statisticsService.findByUser(steamId));
+    public ResponseEntity<UserCategoryStatisticsResponse> getUserStatistics(
+            @PathVariable Long steamId,
+            @RequestParam(defaultValue = "overall") String category) {
+        return ResponseEntity.ok(statisticsService.findByUserAndCategoryCode(steamId, category));
     }
 
     @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category and/or song name")

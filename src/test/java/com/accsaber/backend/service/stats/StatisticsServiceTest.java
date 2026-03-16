@@ -21,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
@@ -289,6 +290,41 @@ class StatisticsServiceTest {
                         statisticsService.recalculate(user.getId(), countForOverallCategory.getId());
 
                         org.mockito.Mockito.verify(overallStatisticsService).recalculate(user.getId(), true);
+                }
+        }
+
+        @Nested
+        class FindByUserAndCategoryCode {
+
+                @Test
+                void returnsStatsForMatchingCode() {
+                        UserCategoryStatistics stats = UserCategoryStatistics.builder()
+                                        .id(UUID.randomUUID())
+                                        .user(user)
+                                        .category(category)
+                                        .ap(new BigDecimal("500.000000"))
+                                        .scoreXp(new BigDecimal("200.000000"))
+                                        .rankedPlays(5)
+                                        .active(true)
+                                        .build();
+                        when(statisticsRepository.findByUser_IdAndCategory_CodeAndActiveTrue(user.getId(), "true_acc"))
+                                        .thenReturn(Optional.of(stats));
+
+                        UserCategoryStatisticsResponse response = statisticsService
+                                        .findByUserAndCategoryCode(user.getId(), "true_acc");
+
+                        assertThat(response.getAp()).isEqualByComparingTo(new BigDecimal("500.000000"));
+                        assertThat(response.getScoreXp()).isEqualByComparingTo(new BigDecimal("200.000000"));
+                        assertThat(response.getRankedPlays()).isEqualTo(5);
+                }
+
+                @Test
+                void throwsWhenNotFound() {
+                        when(statisticsRepository.findByUser_IdAndCategory_CodeAndActiveTrue(user.getId(), "nonexistent"))
+                                        .thenReturn(Optional.empty());
+
+                        org.junit.jupiter.api.Assertions.assertThrows(ResourceNotFoundException.class,
+                                        () -> statisticsService.findByUserAndCategoryCode(user.getId(), "nonexistent"));
                 }
         }
 }
