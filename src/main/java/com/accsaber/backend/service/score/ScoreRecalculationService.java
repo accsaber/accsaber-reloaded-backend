@@ -174,6 +174,7 @@ public class ScoreRecalculationService {
 
     @Async("taskExecutor")
     public void recalculateAllWeightedApAsync() {
+        log.info("Starting weighted AP recalculation for all categories");
         List<Category> categories = categoryRepository.findByActiveTrue().stream()
                 .filter(c -> !"overall".equals(c.getCode()))
                 .toList();
