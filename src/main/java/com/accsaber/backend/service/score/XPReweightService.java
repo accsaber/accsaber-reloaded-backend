@@ -54,7 +54,7 @@ public class XPReweightService {
             updated += reweightScoresForDifficulty(difficultyId);
         }
 
-        recalculateTotalXpForAllUsers();
+        doRecalculateTotalXpForAllUsers();
         log.info("XP reweight complete. Updated {} scores across {} difficulties", updated, difficultyIds.size());
     }
 
@@ -105,7 +105,13 @@ public class XPReweightService {
         scoreRepository.save(managed);
     }
 
-    private void recalculateTotalXpForAllUsers() {
+    @Async("taskExecutor")
+    public void recalculateTotalXpForAllUsers() {
+        doRecalculateTotalXpForAllUsers();
+    }
+
+    private void doRecalculateTotalXpForAllUsers() {
+        log.info("Starting total XP recalculation for all users");
         List<User> users = userRepository.findByActiveTrue();
 
         List<CompletableFuture<Void>> futures = users.stream()
@@ -119,6 +125,7 @@ public class XPReweightService {
                 .toList();
 
         futures.forEach(CompletableFuture::join);
+        log.info("Total XP recalculation complete for {} users", users.size());
     }
 
     @Transactional

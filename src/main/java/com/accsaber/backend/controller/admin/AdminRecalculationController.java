@@ -60,13 +60,6 @@ public class AdminRecalculationController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Recalculate XP for all scores after XP curve change")
-    @PostMapping("/xp-curve")
-    public ResponseEntity<Void> recalculateXpCurve() {
-        scoreRecalculationService.recalculateAllXpAsync();
-        return ResponseEntity.accepted().build();
-    }
-
     @Operation(summary = "Recalculate weighted AP for all users after weight curve change")
     @PostMapping("/weight-curve/{curveId}")
     public ResponseEntity<Void> recalculateWeightCurve(@PathVariable UUID curveId) {
@@ -78,6 +71,14 @@ public class AdminRecalculationController {
     @PostMapping("/xp-reweight")
     public ResponseEntity<Void> reweightAllXp() {
         xpReweightService.reweightAllScores();
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Recalculate total XP for all users",
+            description = "Recomputes totalXp from score XP + milestone XP + set bonus XP. Does not recalculate per-score XP. Runs async.")
+    @PostMapping("/total-xp")
+    public ResponseEntity<Void> recalculateTotalXp() {
+        xpReweightService.recalculateTotalXpForAllUsers();
         return ResponseEntity.accepted().build();
     }
 
