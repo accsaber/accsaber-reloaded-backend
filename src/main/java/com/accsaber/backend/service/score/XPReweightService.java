@@ -49,8 +49,7 @@ public class XPReweightService {
             updated += reweightScoresForDifficulty(difficultyId);
         }
 
-        userRepository.recalculateTotalXpForAllActiveUsers();
-        log.info("XP reweight complete. Updated {} scores across {} difficulties", updated, difficultyIds.size());
+        log.info("XP reweight complete. Updated {} scores across {} difficulties. Run /total-xp to update user totals.", updated, difficultyIds.size());
     }
 
     private int reweightScoresForDifficulty(UUID difficultyId) {

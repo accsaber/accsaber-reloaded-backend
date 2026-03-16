@@ -142,7 +142,6 @@ class XPReweightServiceTest {
 
                         verify(scoreRepository).save(score1);
                         verify(scoreRepository).save(score2);
-                        verify(userRepository).recalculateTotalXpForAllActiveUsers();
                 }
 
                 @Test
@@ -156,7 +155,6 @@ class XPReweightServiceTest {
                         service.reweightAllScores();
 
                         verify(scoreRepository, never()).save(any());
-                        verify(userRepository).recalculateTotalXpForAllActiveUsers();
                 }
 
                 @Test
