@@ -48,6 +48,7 @@ public class OverallStatisticsService {
                                 .findActiveByUserWhereCountForOverall(userId);
 
                 BigDecimal totalAp = sumAp(sourceStats);
+                BigDecimal totalScoreXp = sumScoreXp(sourceStats);
                 int totalPlays = sumRankedPlays(sourceStats);
                 BigDecimal avgAcc = computeWeightedAverageAcc(sourceStats, totalPlays);
                 BigDecimal avgAp = totalPlays == 0
@@ -73,6 +74,7 @@ public class OverallStatisticsService {
                                 .user(user)
                                 .category(overallCategory)
                                 .ap(totalAp)
+                                .scoreXp(totalScoreXp)
                                 .averageAcc(avgAcc)
                                 .averageAp(avgAp)
                                 .rankedPlays(totalPlays)
@@ -105,6 +107,13 @@ public class OverallStatisticsService {
                 return stats.stream()
                                 .mapToInt(UserCategoryStatistics::getRankedPlays)
                                 .sum();
+        }
+
+        private BigDecimal sumScoreXp(List<UserCategoryStatistics> stats) {
+                return stats.stream()
+                                .map(UserCategoryStatistics::getScoreXp)
+                                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b, MC))
+                                .setScale(SCALE, RoundingMode.HALF_UP);
         }
 
         private BigDecimal computeWeightedAverageAcc(List<UserCategoryStatistics> stats, int totalPlays) {

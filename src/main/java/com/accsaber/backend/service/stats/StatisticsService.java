@@ -54,6 +54,7 @@ public class StatisticsService {
         recalculateWeightedAps(scores, category);
 
         BigDecimal totalAp = sumWeightedAps(scores);
+        BigDecimal scoreXp = sumScoreXp(scores);
         BigDecimal averageAcc = computeAverageAcc(scores);
         BigDecimal averageAp = computeAverageAp(scores, totalAp);
         Score topPlay = scores.isEmpty() ? null : scores.get(0);
@@ -71,6 +72,7 @@ public class StatisticsService {
                 .user(user)
                 .category(category)
                 .ap(totalAp)
+                .scoreXp(scoreXp)
                 .averageAcc(averageAcc)
                 .averageAp(averageAp)
                 .rankedPlays(scores.size())
@@ -111,6 +113,14 @@ public class StatisticsService {
                 .setScale(SCALE, RoundingMode.HALF_UP);
     }
 
+    private BigDecimal sumScoreXp(List<Score> scores) {
+        return scores.stream()
+                .map(Score::getXpGained)
+                .filter(xp -> xp != null)
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b, MC))
+                .setScale(SCALE, RoundingMode.HALF_UP);
+    }
+
     private BigDecimal computeAverageAcc(List<Score> scores) {
         if (scores.isEmpty())
             return null;
@@ -135,6 +145,7 @@ public class StatisticsService {
                 .ranking(s.getRanking())
                 .countryRanking(s.getCountryRanking())
                 .ap(s.getAp())
+                .scoreXp(s.getScoreXp())
                 .averageAcc(s.getAverageAcc())
                 .averageAp(s.getAverageAp())
                 .rankedPlays(s.getRankedPlays())

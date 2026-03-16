@@ -61,6 +61,10 @@ public class UserCategoryStatistics {
     @Column(name = "average_ap", precision = 20, scale = 6)
     private BigDecimal averageAp;
 
+    @Column(name = "score_xp", nullable = false, precision = 20, scale = 6)
+    @Builder.Default
+    private BigDecimal scoreXp = BigDecimal.ZERO;
+
     @Column(name = "ranked_plays", nullable = false)
     @Builder.Default
     private Integer rankedPlays = 0;

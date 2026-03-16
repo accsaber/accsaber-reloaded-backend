@@ -72,6 +72,11 @@ class OverallStatisticsServiceTest {
         }
 
         private UserCategoryStatistics buildStat(BigDecimal ap, BigDecimal averageAcc, int rankedPlays) {
+                return buildStat(ap, averageAcc, rankedPlays, BigDecimal.ZERO);
+        }
+
+        private UserCategoryStatistics buildStat(BigDecimal ap, BigDecimal averageAcc, int rankedPlays,
+                        BigDecimal scoreXp) {
                 Category cat = Category.builder()
                                 .id(UUID.randomUUID())
                                 .code("true_acc")
@@ -83,6 +88,7 @@ class OverallStatisticsServiceTest {
                                 .user(user)
                                 .category(cat)
                                 .ap(ap)
+                                .scoreXp(scoreXp)
                                 .averageAcc(averageAcc)
                                 .rankedPlays(rankedPlays)
                                 .active(true)
@@ -132,6 +138,28 @@ class OverallStatisticsServiceTest {
                                         .forClass(UserCategoryStatistics.class);
                         verify(statisticsRepository).saveAndFlush(captor.capture());
                         assertThat(captor.getValue().getRankedPlays()).isEqualTo(15);
+                }
+
+                @Test
+                void scoreXpSummedAcrossMultipleCategories() {
+                        UserCategoryStatistics s1 = buildStat(new BigDecimal("500.000000"),
+                                        new BigDecimal("0.980000"), 10, new BigDecimal("300.000000"));
+                        UserCategoryStatistics s2 = buildStat(new BigDecimal("300.000000"),
+                                        new BigDecimal("0.960000"), 5, new BigDecimal("150.000000"));
+                        when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
+                                        .thenReturn(List.of(s1, s2));
+                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                                        overallCategory.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                        overallStatisticsService.recalculate(userId);
+
+                        ArgumentCaptor<UserCategoryStatistics> captor = ArgumentCaptor
+                                        .forClass(UserCategoryStatistics.class);
+                        verify(statisticsRepository, times(1)).saveAndFlush(captor.capture());
+                        assertThat(captor.getValue().getScoreXp())
+                                        .isEqualByComparingTo(new BigDecimal("450.000000"));
                 }
 
                 @Test

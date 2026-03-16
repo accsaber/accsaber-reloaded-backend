@@ -97,6 +97,10 @@ class StatisticsServiceTest {
         }
 
         private Score buildScore(BigDecimal ap, int scoreValue) {
+                return buildScore(ap, scoreValue, null);
+        }
+
+        private Score buildScore(BigDecimal ap, int scoreValue, BigDecimal xpGained) {
                 MapDifficulty diff = MapDifficulty.builder()
                                 .id(UUID.randomUUID())
                                 .map(Map.builder().id(UUID.randomUUID()).songName("Song").songHash("hash").build())
@@ -117,6 +121,7 @@ class StatisticsServiceTest {
                                 .rankWhenSet(1)
                                 .ap(ap)
                                 .weightedAp(ap)
+                                .xpGained(xpGained)
                                 .active(true)
                                 .build();
         }
@@ -218,6 +223,43 @@ class StatisticsServiceTest {
                         verify(statisticsRepository, times(1)).saveAndFlush(captor.capture());
                         assertThat(captor.getValue().getSupersedes()).isNull();
                         assertThat(captor.getValue().isActive()).isTrue();
+                }
+
+                @Test
+                void scoreXp_summedFromXpGained() {
+                        Score s1 = buildScore(new BigDecimal("500.000000"), 990_000, new BigDecimal("125.500000"));
+                        Score s2 = buildScore(new BigDecimal("400.000000"), 970_000, new BigDecimal("80.250000"));
+                        when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(user.getId(), category.getId()))
+                                        .thenReturn(List.of(s1, s2));
+                        when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
+                                        .thenReturn(new BigDecimal("450.000000"));
+                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                                        category.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                        UserCategoryStatisticsResponse response = statisticsService.recalculate(user.getId(),
+                                        category.getId());
+
+                        assertThat(response.getScoreXp()).isEqualByComparingTo(new BigDecimal("205.750000"));
+                }
+
+                @Test
+                void scoreXp_zeroWhenNoXpGained() {
+                        Score s1 = buildScore(new BigDecimal("500.000000"), 990_000);
+                        when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(user.getId(), category.getId()))
+                                        .thenReturn(List.of(s1));
+                        when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
+                                        .thenReturn(new BigDecimal("500.000000"));
+                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                                        category.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                        UserCategoryStatisticsResponse response = statisticsService.recalculate(user.getId(),
+                                        category.getId());
+
+                        assertThat(response.getScoreXp()).isEqualByComparingTo(BigDecimal.ZERO);
                 }
 
                 @Test

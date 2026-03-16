@@ -17,6 +17,7 @@ public class UserCategoryStatisticsResponse {
     private Integer ranking;
     private Integer countryRanking;
     private BigDecimal ap;
+    private BigDecimal scoreXp;
     private BigDecimal averageAcc;
     private BigDecimal averageAp;
     private Integer rankedPlays;
