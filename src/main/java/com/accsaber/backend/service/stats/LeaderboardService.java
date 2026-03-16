@@ -3,7 +3,9 @@ package com.accsaber.backend.service.stats;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +27,15 @@ public class LeaderboardService {
 
     public Page<LeaderboardResponse> getGlobal(UUID categoryId, Pageable pageable) {
         verifyCategory(categoryId);
-        return statisticsRepository.findActiveByCategoryPaged(categoryId, pageable)
+        Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "ranking"));
+        return statisticsRepository.findActiveByCategoryPaged(categoryId, effective)
                 .map(this::toResponse);
     }
 
     public Page<LeaderboardResponse> getByCountry(UUID categoryId, String country, Pageable pageable) {
         verifyCategory(categoryId);
-        return statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, pageable)
+        Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "countryRanking"));
+        return statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, effective)
                 .map(this::toResponse);
     }
 
@@ -49,6 +53,13 @@ public class LeaderboardService {
                 .rankedPlays(stats.getRankedPlays())
                 .topPlayId(stats.getTopPlay() != null ? stats.getTopPlay().getId() : null)
                 .build();
+    }
+
+    private Pageable withDefaultSort(Pageable pageable, Sort defaultSort) {
+        if (pageable.getSort().isSorted()) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
     }
 
     private void verifyCategory(UUID categoryId) {

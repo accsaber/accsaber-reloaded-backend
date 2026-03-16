@@ -31,7 +31,6 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
-                        ORDER BY s.ranking ASC
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
@@ -45,7 +44,6 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         JOIN FETCH s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
                           AND LOWER(u.country) = LOWER(:country)
-                        ORDER BY s.countryRanking ASC
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u

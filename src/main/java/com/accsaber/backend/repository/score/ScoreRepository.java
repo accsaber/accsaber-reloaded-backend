@@ -35,9 +35,9 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         List<Score> findByMapDifficultyIdAndActiveTrueWithCategory(@Param("mapDifficultyId") UUID mapDifficultyId);
 
-        Page<Score> findByUser_IdAndActiveTrueOrderByApDesc(Long userId, Pageable pageable);
+        Page<Score> findByUser_IdAndActiveTrue(Long userId, Pageable pageable);
 
-        Page<Score> findByMapDifficulty_IdAndActiveTrueOrderByScoreDesc(UUID mapDifficultyId, Pageable pageable);
+        Page<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId, Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
@@ -56,7 +56,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         WHERE s.user.id = :userId
                         AND s.mapDifficulty.category.id = :categoryId
                         AND s.active = true
-                        ORDER BY s.ap DESC
                         """)
         Page<Score> findActiveByUserAndCategory(
                         @Param("userId") Long userId,
@@ -68,7 +67,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         WHERE s.user.id = :userId
                         AND s.active = true
                         AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
-                        ORDER BY s.ap DESC
                         """)
         Page<Score> findActiveByUserAndSongNameSearch(
                         @Param("userId") Long userId,
@@ -81,7 +79,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND s.mapDifficulty.category.id = :categoryId
                         AND s.active = true
                         AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
-                        ORDER BY s.ap DESC
                         """)
         Page<Score> findActiveByUserAndCategoryAndSongNameSearch(
                         @Param("userId") Long userId,

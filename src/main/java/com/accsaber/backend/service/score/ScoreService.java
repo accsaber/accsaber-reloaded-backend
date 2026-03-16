@@ -9,7 +9,9 @@ import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -348,18 +350,19 @@ public class ScoreService {
 
         public Page<ScoreResponse> findByUser(Long userId, UUID categoryId, String search, Pageable pageable) {
                 boolean hasSearch = search != null && !search.isBlank();
+                Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.DESC, "ap"));
                 Page<Score> scores;
 
                 if (categoryId != null && hasSearch) {
                         scores = scoreRepository.findActiveByUserAndCategoryAndSongNameSearch(
-                                        userId, categoryId, search.trim(), pageable);
+                                        userId, categoryId, search.trim(), effective);
                 } else if (categoryId != null) {
-                        scores = scoreRepository.findActiveByUserAndCategory(userId, categoryId, pageable);
+                        scores = scoreRepository.findActiveByUserAndCategory(userId, categoryId, effective);
                 } else if (hasSearch) {
                         scores = scoreRepository.findActiveByUserAndSongNameSearch(
-                                        userId, search.trim(), pageable);
+                                        userId, search.trim(), effective);
                 } else {
-                        scores = scoreRepository.findByUser_IdAndActiveTrueOrderByApDesc(userId, pageable);
+                        scores = scoreRepository.findByUser_IdAndActiveTrue(userId, effective);
                 }
 
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
@@ -372,7 +375,8 @@ public class ScoreService {
                 if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
-                return scoreRepository.findByMapDifficulty_IdAndActiveTrueOrderByScoreDesc(mapDifficultyId, pageable)
+                Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
+                return scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficultyId, effective)
                                 .map(s -> toResponse(s, computeAccuracy(s.getScore(), difficulty.getMaxScore()),
                                                 loadModifierIds(s.getId())));
         }
@@ -481,6 +485,13 @@ public class ScoreService {
                 return modifierLinkRepository.findByScore_Id(scoreId).stream()
                                 .map(l -> l.getModifier().getId())
                                 .toList();
+        }
+
+        private Pageable withDefaultSort(Pageable pageable, Sort defaultSort) {
+                if (pageable.getSort().isSorted()) {
+                        return pageable;
+                }
+                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
         }
 
         private ScoreResponse toResponse(Score s, BigDecimal accuracy, List<UUID> modifierIds) {
