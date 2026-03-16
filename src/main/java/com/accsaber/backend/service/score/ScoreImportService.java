@@ -65,6 +65,7 @@ public class ScoreImportService {
     private final RankingService rankingService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
+    private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
     private final PlatformProperties properties;
 
@@ -305,6 +306,7 @@ public class ScoreImportService {
 
         futures.forEach(CompletableFuture::join);
 
+        scoreRankingService.reassignRanks(difficulty.getId());
         mapDifficultyStatisticsService.recalculate(difficulty, null);
         rankingService.updateRankings(categoryId);
         if (difficulty.getCategory().isCountForOverall()) {

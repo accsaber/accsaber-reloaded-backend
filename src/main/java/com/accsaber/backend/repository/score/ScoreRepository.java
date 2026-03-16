@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,122 +16,160 @@ import com.accsaber.backend.model.entity.score.Score;
 
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
-        Optional<Score> findByUser_IdAndMapDifficulty_IdAndActiveTrue(Long userId, UUID mapDifficultyId);
+    Optional<Score> findByUser_IdAndMapDifficulty_IdAndActiveTrue(Long userId, UUID mapDifficultyId);
 
-        List<Score> findByUser_IdAndMapDifficulty_IdInAndActiveTrue(Long userId, List<UUID> mapDifficultyIds);
+    List<Score> findByUser_IdAndMapDifficulty_IdInAndActiveTrue(Long userId, List<UUID> mapDifficultyIds);
 
-        @Query("SELECT s FROM Score s JOIN FETCH s.user WHERE s.id = :id")
-        Optional<Score> findByIdWithUser(@Param("id") UUID id);
+    @Query("SELECT s FROM Score s JOIN FETCH s.user WHERE s.id = :id")
+    Optional<Score> findByIdWithUser(@Param("id") UUID id);
 
-        List<Score> findByUser_IdAndActiveTrue(Long userId);
+    List<Score> findByUser_IdAndActiveTrue(Long userId);
 
-        List<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId);
+    List<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.category c
-                        LEFT JOIN FETCH c.scoreCurve
-                        WHERE d.id = :mapDifficultyId AND s.active = true
-                        """)
-        List<Score> findByMapDifficultyIdAndActiveTrueWithCategory(@Param("mapDifficultyId") UUID mapDifficultyId);
+    @Query("""
+            SELECT s FROM Score s
+            JOIN FETCH s.mapDifficulty d
+            JOIN FETCH d.category c
+            LEFT JOIN FETCH c.scoreCurve
+            WHERE d.id = :mapDifficultyId AND s.active = true
+            """)
+    List<Score> findByMapDifficultyIdAndActiveTrueWithCategory(@Param("mapDifficultyId") UUID mapDifficultyId);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.active = true
-                        """)
-        Page<Score> findActiveByUser(@Param("userId") Long userId, Pageable pageable);
+    @Query("""
+            SELECT s FROM Score s
+            WHERE s.user.id = :userId
+            AND s.active = true
+            """)
+    Page<Score> findActiveByUser(@Param("userId") Long userId, Pageable pageable);
 
-        Page<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId, Pageable pageable);
+    Page<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId, Pageable pageable);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.mapDifficulty d
-                        WHERE s.user.id = :userId
-                        AND d.category.id = :categoryId
-                        AND s.active = true
-                        ORDER BY s.ap DESC
-                        """)
-        List<Score> findActiveByUserAndCategoryOrderByApDesc(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId);
+    @Query("""
+            SELECT s FROM Score s
+            JOIN FETCH s.mapDifficulty d
+            WHERE s.user.id = :userId
+            AND d.category.id = :categoryId
+            AND s.active = true
+            ORDER BY s.ap DESC
+            """)
+    List<Score> findActiveByUserAndCategoryOrderByApDesc(
+            @Param("userId") Long userId,
+            @Param("categoryId") UUID categoryId);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        """)
-        Page<Score> findActiveByUserAndCategory(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId,
-                        Pageable pageable);
+    @Query("""
+            SELECT s FROM Score s
+            WHERE s.user.id = :userId
+            AND s.mapDifficulty.category.id = :categoryId
+            AND s.active = true
+            """)
+    Page<Score> findActiveByUserAndCategory(
+            @Param("userId") Long userId,
+            @Param("categoryId") UUID categoryId,
+            Pageable pageable);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.active = true
-                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
-                        """)
-        Page<Score> findActiveByUserAndSongNameSearch(
-                        @Param("userId") Long userId,
-                        @Param("search") String search,
-                        Pageable pageable);
+    @Query("""
+            SELECT s FROM Score s
+            WHERE s.user.id = :userId
+            AND s.active = true
+            AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+            """)
+    Page<Score> findActiveByUserAndSongNameSearch(
+            @Param("userId") Long userId,
+            @Param("search") String search,
+            Pageable pageable);
 
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
-                        """)
-        Page<Score> findActiveByUserAndCategoryAndSongNameSearch(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId,
-                        @Param("search") String search,
-                        Pageable pageable);
+    @Query("""
+            SELECT s FROM Score s
+            WHERE s.user.id = :userId
+            AND s.mapDifficulty.category.id = :categoryId
+            AND s.active = true
+            AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+            """)
+    Page<Score> findActiveByUserAndCategoryAndSongNameSearch(
+            @Param("userId") Long userId,
+            @Param("categoryId") UUID categoryId,
+            @Param("search") String search,
+            Pageable pageable);
 
-        @Query("SELECT COALESCE(SUM(s.score), 0) FROM Score s WHERE s.user.id = :userId AND s.active = true")
-        long sumActiveScoreByUser(@Param("userId") Long userId);
+    @Query("SELECT COALESCE(SUM(s.score), 0) FROM Score s WHERE s.user.id = :userId AND s.active = true")
+    long sumActiveScoreByUser(@Param("userId") Long userId);
 
-        @Query("""
-                        SELECT COALESCE(SUM(s.score), 0) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        AND s.mapDifficulty.category.id = :categoryId
-                        """)
-        long sumActiveScoreByUserAndCategory(@Param("userId") Long userId, @Param("categoryId") UUID categoryId);
+    @Query("""
+            SELECT COALESCE(SUM(s.score), 0) FROM Score s
+            WHERE s.user.id = :userId AND s.active = true
+            AND s.mapDifficulty.category.id = :categoryId
+            """)
+    long sumActiveScoreByUserAndCategory(@Param("userId") Long userId, @Param("categoryId") UUID categoryId);
 
-        @Query("""
-                        SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        AND s.mapDifficulty.category.id = :categoryId
-                        """)
-        long countDistinctMapDifficultiesByUserAndCategory(
-                        @Param("userId") Long userId, @Param("categoryId") UUID categoryId);
+    @Query("""
+            SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
+            WHERE s.user.id = :userId AND s.active = true
+            AND s.mapDifficulty.category.id = :categoryId
+            """)
+    long countDistinctMapDifficultiesByUserAndCategory(
+            @Param("userId") Long userId, @Param("categoryId") UUID categoryId);
 
-        @Query("""
-                        SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        """)
-        long countDistinctMapDifficultiesByUser(@Param("userId") Long userId);
+    @Query("""
+            SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
+            WHERE s.user.id = :userId AND s.active = true
+            """)
+    long countDistinctMapDifficultiesByUser(@Param("userId") Long userId);
 
-        @Query("""
-                        SELECT DISTINCT s.user.id FROM Score s
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        """)
-        List<Long> findDistinctUserIdsByMapDifficultyIdAndActiveTrue(
-                        @Param("mapDifficultyId") UUID mapDifficultyId);
+    @Query("""
+            SELECT DISTINCT s.user.id FROM Score s
+            WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+            """)
+    List<Long> findDistinctUserIdsByMapDifficultyIdAndActiveTrue(
+            @Param("mapDifficultyId") UUID mapDifficultyId);
 
-        List<Score> findByMapDifficulty_Id(UUID mapDifficultyId);
+    List<Score> findByMapDifficulty_Id(UUID mapDifficultyId);
 
-        @Query("SELECT COALESCE(SUM(s.xpGained), 0) FROM Score s WHERE s.user.id = :userId")
-        java.math.BigDecimal sumXpGainedByUserId(@Param("userId") Long userId);
+    @Query("SELECT COALESCE(SUM(s.xpGained), 0) FROM Score s WHERE s.user.id = :userId")
+    java.math.BigDecimal sumXpGainedByUserId(@Param("userId") Long userId);
 
-        @Query("SELECT DISTINCT s.mapDifficulty.id FROM Score s")
-        List<UUID> findDistinctMapDifficultyIds();
+    @Query("SELECT DISTINCT s.mapDifficulty.id FROM Score s")
+    List<UUID> findDistinctMapDifficultyIds();
 
-        @Query("SELECT DISTINCT s.user FROM Score s WHERE s.timeSet >= :since AND s.active = true")
-        List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(
-                        @Param("since") Instant since);
+    @Query("SELECT DISTINCT s.user FROM Score s WHERE s.timeSet >= :since AND s.active = true")
+    List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(
+            @Param("since") Instant since);
+
+    @Modifying
+    @Query(value = """
+            WITH ranked AS (
+                SELECT id, ROW_NUMBER() OVER (ORDER BY ap DESC, time_set ASC) AS new_rank
+                FROM scores
+                WHERE map_difficulty_id = :difficultyId AND active = true
+            )
+            UPDATE scores s SET rank = r.new_rank, updated_at = NOW()
+            FROM ranked r WHERE s.id = r.id
+            """, nativeQuery = true)
+    void reassignScoreRanks(@Param("difficultyId") UUID difficultyId);
+
+    @Query(value = """
+            SELECT DISTINCT map_difficulty_id FROM scores WHERE active = true
+            """, nativeQuery = true)
+    List<UUID> findDistinctActiveDifficultyIds();
+
+    @Query(value = """
+            SELECT COUNT(*) FROM scores
+            WHERE map_difficulty_id = :difficultyId AND active = true AND ap > :ap
+            """, nativeQuery = true)
+    int countActiveScoresWithHigherAp(@Param("difficultyId") UUID difficultyId,
+            @Param("ap") java.math.BigDecimal ap);
+
+    @Modifying
+    @Query(value = """
+            UPDATE scores SET rank = rank + 1, updated_at = NOW()
+            WHERE map_difficulty_id = :difficultyId AND active = true AND rank >= :fromRank
+            """, nativeQuery = true)
+    void shiftScoreRanksDown(@Param("difficultyId") UUID difficultyId, @Param("fromRank") int fromRank);
+
+    @Modifying
+    @Query(value = """
+            UPDATE scores SET rank = rank - 1, updated_at = NOW()
+            WHERE map_difficulty_id = :difficultyId AND active = true AND rank > :removedRank
+            """, nativeQuery = true)
+    void shiftScoreRanksUp(@Param("difficultyId") UUID difficultyId, @Param("removedRank") int removedRank);
 }

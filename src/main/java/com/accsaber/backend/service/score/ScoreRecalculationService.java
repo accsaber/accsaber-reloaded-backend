@@ -56,6 +56,7 @@ public class ScoreRecalculationService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository userCategoryStatisticsRepository;
+    private final ScoreRankingService scoreRankingService;
     private final MetricsService metricsService;
 
     @Autowired
@@ -94,6 +95,7 @@ public class ScoreRecalculationService {
         for (MapDifficulty difficulty : difficulties) {
             Set<Long> affected = recalculateScoreAps(difficulty);
             allAffectedUsers.addAll(affected);
+            scoreRankingService.reassignRanks(difficulty.getId());
             mapDifficultyStatisticsService.recalculate(difficulty, null);
         }
 
@@ -208,6 +210,7 @@ public class ScoreRecalculationService {
         }
 
         UUID categoryId = difficulty.getCategory().getId();
+        scoreRankingService.reassignRanks(difficulty.getId());
         batchRecalculateStats(affected, categoryId);
 
         if (triggerMapStats) {

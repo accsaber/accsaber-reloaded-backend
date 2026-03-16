@@ -20,15 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import org.springframework.context.ApplicationEventPublisher;
 
-import com.accsaber.backend.model.event.ScoreSubmittedEvent;
-import com.accsaber.backend.repository.ModifierRepository;
-import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
-import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.APResult;
@@ -43,6 +36,12 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ScoreSubmittedEvent;
+import com.accsaber.backend.repository.ModifierRepository;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
@@ -76,6 +75,8 @@ class ScoreServiceTest {
         private MilestoneEvaluationService milestoneEvaluationService;
         @Mock
         private MapDifficultyStatisticsService mapDifficultyStatisticsService;
+        @Mock
+        private ScoreRankingService scoreRankingService;
         @Mock
         private ApplicationEventPublisher eventPublisher;
 

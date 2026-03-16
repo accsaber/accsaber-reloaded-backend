@@ -62,6 +62,7 @@ public class ScoreService {
         private final XPCalculationService xpCalculationService;
         private final MilestoneEvaluationService milestoneEvaluationService;
         private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
+        private final ScoreRankingService scoreRankingService;
         private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
@@ -103,17 +104,22 @@ public class ScoreService {
                 }
 
                 Score supersedes = existing.orElse(null);
+                int newRank;
                 if (supersedes != null) {
                         xpGained = xpCalculationService.calculateXpForImprovement(
                                         accuracy, complexity, supersedes.getXpGained());
+                        int oldRank = supersedes.getRank();
                         supersedes.setActive(false);
                         supersedes.setSupersedesReason("Score improved");
                         scoreRepository.saveAndFlush(supersedes);
+                        newRank = scoreRankingService.rankImprovedScore(difficulty.getId(), oldRank, rawAp);
                 } else {
                         xpGained = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
+                        newRank = scoreRankingService.rankNewScore(difficulty.getId(), rawAp);
                 }
 
                 Score newScore = buildScore(request, user, difficulty, rawAp, supersedes);
+                newScore.setRank(newRank);
                 newScore.setXpGained(xpGained);
                 Score saved = scoreRepository.saveAndFlush(newScore);
                 saveModifierLinks(saved, request.getModifierIds());
@@ -190,7 +196,7 @@ public class ScoreService {
                 updateUserXp(user, xpGained);
         }
 
-        record RecalcResult(Long userId, UUID categoryId) {
+        record RecalcResult(Long userId, UUID categoryId, UUID difficultyId) {
         }
 
         @Transactional
@@ -198,6 +204,7 @@ public class ScoreService {
                 RecalcResult result = recalculateScoreForBatch(scoreId);
                 if (result == null)
                         return;
+                scoreRankingService.reassignRanks(result.difficultyId());
                 statisticsService.recalculate(result.userId(), result.categoryId());
                 rankingService.updateRankings(result.categoryId());
         }
@@ -275,7 +282,7 @@ public class ScoreService {
                         userRepository.addXp(score.getUser().getId(), xpDelta);
                 }
 
-                return new RecalcResult(score.getUser().getId(), difficulty.getCategory().getId());
+                return new RecalcResult(score.getUser().getId(), difficulty.getCategory().getId(), difficulty.getId());
         }
 
         @Transactional

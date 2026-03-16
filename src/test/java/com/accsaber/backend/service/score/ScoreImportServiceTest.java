@@ -84,6 +84,8 @@ class ScoreImportServiceTest {
         @Mock
         private MapDifficultyStatisticsService mapDifficultyStatisticsService;
         @Mock
+        private ScoreRankingService scoreRankingService;
+        @Mock
         private DuplicateUserService duplicateUserService;
 
         private ScoreImportService scoreImportService;
@@ -99,15 +101,16 @@ class ScoreImportServiceTest {
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,
                                 mapDifficultyRepository, mapComplexityService, scoreRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
-                                milestoneEvaluationService, mapDifficultyStatisticsService, duplicateUserService,
-                                properties);
+                                milestoneEvaluationService, mapDifficultyStatisticsService, scoreRankingService,
+                                duplicateUserService, properties);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",
                                 (java.util.concurrent.Executor) Runnable::run);
 
                 lenient().when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", NF_ID));
                 lenient().when(mapComplexityService.findActiveComplexity(any())).thenReturn(Optional.of(COMPLEXITY));
-                lenient().when(duplicateUserService.resolvePrimaryUserId(anyLong())).thenAnswer(inv -> inv.getArgument(0));
+                lenient().when(duplicateUserService.resolvePrimaryUserId(anyLong()))
+                                .thenAnswer(inv -> inv.getArgument(0));
 
                 categoryId = UUID.randomUUID();
                 Category category = Category.builder().id(categoryId).build();
