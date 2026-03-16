@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -77,6 +79,7 @@ class DuplicateUserServiceTest {
 
         @BeforeEach
         void setUp() {
+                TransactionSynchronizationManager.initSynchronization();
                 service = new DuplicateUserService(
                                 linkRepository, userRepository, scoreRepository, modifierLinkRepository,
                                 staffUserRepository, categoryRepository, statisticsService,
@@ -100,6 +103,13 @@ class DuplicateUserServiceTest {
                                 .build();
 
                 lenient().when(linkRepository.findAll()).thenReturn(List.of());
+        }
+
+        @AfterEach
+        void tearDown() {
+                if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                        TransactionSynchronizationManager.clearSynchronization();
+                }
         }
 
         @Nested
@@ -232,7 +242,7 @@ class DuplicateUserServiceTest {
                                 return s;
                         });
                         when(modifierLinkRepository.findByScore_Id(any())).thenReturn(List.of());
-                        when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
+                        lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         DuplicateLinkResponse response = service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
 
@@ -286,7 +296,7 @@ class DuplicateUserServiceTest {
                                         .thenReturn(Optional.of(Score.builder().id(UUID.randomUUID())
                                                         .ap(new BigDecimal("500")).build()));
                         when(scoreRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-                        when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
+                        lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
 
@@ -357,7 +367,7 @@ class DuplicateUserServiceTest {
                         });
                         when(modifierLinkRepository.findByScore_Id(secScore.getId()))
                                         .thenReturn(List.of(modLink));
-                        when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
+                        lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
 
@@ -385,7 +395,7 @@ class DuplicateUserServiceTest {
                         when(linkRepository.findBySecondaryUser_Id(SECONDARY_ID)).thenReturn(Optional.of(existing));
                         when(scoreRepository.findByUser_IdAndActiveTrue(SECONDARY_ID)).thenReturn(List.of());
                         when(linkRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-                        when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
+                        lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         DuplicateLinkResponse response = service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
 

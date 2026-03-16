@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -208,7 +210,12 @@ public class DuplicateUserService {
         duplicateCache.put(secondaryUserId, primaryUserId);
         log.info("Merged user {} into {}: {} scores reassigned", secondaryUserId, primaryUserId, reassigned);
 
-        self.recalculateAfterMerge(primaryUserId);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.recalculateAfterMerge(primaryUserId);
+            }
+        });
 
         return toLinkResponse(link);
     }
