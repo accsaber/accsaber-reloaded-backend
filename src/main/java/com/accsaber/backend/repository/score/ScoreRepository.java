@@ -35,7 +35,12 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         List<Score> findByMapDifficultyIdAndActiveTrueWithCategory(@Param("mapDifficultyId") UUID mapDifficultyId);
 
-        Page<Score> findByUser_IdAndActiveTrue(Long userId, Pageable pageable);
+        @Query("""
+                        SELECT s FROM Score s
+                        WHERE s.user.id = :userId
+                        AND s.active = true
+                        """)
+        Page<Score> findActiveByUser(@Param("userId") Long userId, Pageable pageable);
 
         Page<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId, Pageable pageable);
 

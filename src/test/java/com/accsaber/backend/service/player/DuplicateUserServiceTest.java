@@ -81,6 +81,7 @@ class DuplicateUserServiceTest {
                                 linkRepository, userRepository, scoreRepository, modifierLinkRepository,
                                 staffUserRepository, categoryRepository, statisticsService,
                                 overallStatisticsService, rankingService, entityManager);
+                service.setSelf(service);
 
                 primaryUser = User.builder()
                                 .id(PRIMARY_ID)
@@ -189,7 +190,7 @@ class DuplicateUserServiceTest {
         class Merge {
 
                 @Test
-                void reassignsUniqueScores_deactivatesSecondary_transfersXp() {
+                void reassignsUniqueScores_deactivatesSecondary() {
                         UUID diffId1 = UUID.randomUUID();
                         UUID diffId2 = UUID.randomUUID();
                         MapDifficulty diff1 = MapDifficulty.builder().id(diffId1).build();
@@ -220,7 +221,8 @@ class DuplicateUserServiceTest {
                         when(scoreRepository.findByUser_IdAndActiveTrue(SECONDARY_ID))
                                         .thenReturn(List.of(secScore1, secScore2));
                         when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(PRIMARY_ID, diffId1))
-                                        .thenReturn(Optional.of(Score.builder().id(UUID.randomUUID()).build()));
+                                        .thenReturn(Optional.of(Score.builder().id(UUID.randomUUID())
+                                                        .ap(new BigDecimal("500")).build()));
                         when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(PRIMARY_ID, diffId2))
                                         .thenReturn(Optional.empty());
                         when(scoreRepository.saveAndFlush(any())).thenAnswer(inv -> {
@@ -243,7 +245,7 @@ class DuplicateUserServiceTest {
                         assertThat(secondaryUser.isActive()).isFalse();
 
                         assertThat(primaryUser.getTotalXp())
-                                        .isEqualByComparingTo(new BigDecimal("1500"));
+                                        .isEqualByComparingTo(new BigDecimal("1000"));
 
                         ArgumentCaptor<Score> savedScores = ArgumentCaptor.forClass(Score.class);
                         verify(scoreRepository, org.mockito.Mockito.atLeast(3)).saveAndFlush(savedScores.capture());
@@ -259,13 +261,13 @@ class DuplicateUserServiceTest {
                 }
 
                 @Test
-                void skipsAllScores_whenPrimaryHasEveryDifficulty() {
+                void skipsAllScores_whenPrimaryHasBetterScoreOnEveryDifficulty() {
                         UUID diffId = UUID.randomUUID();
                         MapDifficulty diff = MapDifficulty.builder().id(diffId).build();
 
                         Score secScore = Score.builder()
                                         .id(UUID.randomUUID()).user(secondaryUser).mapDifficulty(diff)
-                                        .score(900000).ap(new BigDecimal("400")).active(true).build();
+                                        .score(900000).ap(new BigDecimal("300")).active(true).build();
 
                         when(userRepository.findById(PRIMARY_ID)).thenReturn(Optional.of(primaryUser));
                         when(userRepository.findById(SECONDARY_ID)).thenReturn(Optional.of(secondaryUser));
@@ -281,7 +283,8 @@ class DuplicateUserServiceTest {
                         when(scoreRepository.findByUser_IdAndActiveTrue(SECONDARY_ID))
                                         .thenReturn(List.of(secScore));
                         when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(PRIMARY_ID, diffId))
-                                        .thenReturn(Optional.of(Score.builder().id(UUID.randomUUID()).build()));
+                                        .thenReturn(Optional.of(Score.builder().id(UUID.randomUUID())
+                                                        .ap(new BigDecimal("500")).build()));
                         when(scoreRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
                         when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 

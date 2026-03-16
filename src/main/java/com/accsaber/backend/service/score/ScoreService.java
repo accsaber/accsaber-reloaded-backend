@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -350,7 +351,7 @@ public class ScoreService {
 
         public Page<ScoreResponse> findByUser(Long userId, UUID categoryId, String search, Pageable pageable) {
                 boolean hasSearch = search != null && !search.isBlank();
-                Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.DESC, "ap"));
+                Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "ap"));
                 Page<Score> scores;
 
                 if (categoryId != null && hasSearch) {
@@ -362,7 +363,7 @@ public class ScoreService {
                         scores = scoreRepository.findActiveByUserAndSongNameSearch(
                                         userId, search.trim(), effective);
                 } else {
-                        scores = scoreRepository.findByUser_IdAndActiveTrue(userId, effective);
+                        scores = scoreRepository.findActiveByUser(userId, effective);
                 }
 
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
@@ -375,7 +376,7 @@ public class ScoreService {
                 if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
-                Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
+                Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
                 return scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficultyId, effective)
                                 .map(s -> toResponse(s, computeAccuracy(s.getScore(), difficulty.getMaxScore()),
                                                 loadModifierIds(s.getId())));
@@ -487,11 +488,22 @@ public class ScoreService {
                                 .toList();
         }
 
-        private Pageable withDefaultSort(Pageable pageable, Sort defaultSort) {
-                if (pageable.getSort().isSorted()) {
-                        return pageable;
+        private static final String ACCURACY_SORT_EXPRESSION = "CAST(s.score AS double) / s.mapDifficulty.maxScore";
+
+        private Pageable resolveSort(Pageable pageable, Sort defaultSort) {
+                if (!pageable.getSort().isSorted()) {
+                        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
                 }
-                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
+
+                Sort resolved = Sort.unsorted();
+                for (Sort.Order order : pageable.getSort()) {
+                        if ("accuracy".equalsIgnoreCase(order.getProperty())) {
+                                resolved = resolved.and(JpaSort.unsafe(order.getDirection(), ACCURACY_SORT_EXPRESSION));
+                        } else {
+                                resolved = resolved.and(Sort.by(order.getDirection(), order.getProperty()));
+                        }
+                }
+                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
         }
 
         private ScoreResponse toResponse(Score s, BigDecimal accuracy, List<UUID> modifierIds) {

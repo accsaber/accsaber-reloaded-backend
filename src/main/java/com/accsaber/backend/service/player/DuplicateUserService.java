@@ -32,6 +32,8 @@ import com.accsaber.backend.service.stats.StatisticsService;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +51,14 @@ public class DuplicateUserService {
     private final OverallStatisticsService overallStatisticsService;
     private final RankingService rankingService;
     private final EntityManager entityManager;
+
+    private DuplicateUserService self;
+
+    @Autowired
+    @Lazy
+    public void setSelf(DuplicateUserService self) {
+        this.self = self;
+    }
 
     private final ConcurrentHashMap<Long, Long> duplicateCache = new ConcurrentHashMap<>();
 
@@ -186,9 +196,6 @@ public class DuplicateUserService {
 
         int reassigned = reassignScores(secondary, primary);
 
-        primary.setTotalXp(primary.getTotalXp().add(secondary.getTotalXp()));
-        userRepository.save(primary);
-
         secondary.setActive(false);
         userRepository.save(secondary);
 
@@ -201,7 +208,7 @@ public class DuplicateUserService {
         duplicateCache.put(secondaryUserId, primaryUserId);
         log.info("Merged user {} into {}: {} scores reassigned", secondaryUserId, primaryUserId, reassigned);
 
-        recalculateAfterMerge(primaryUserId);
+        self.recalculateAfterMerge(primaryUserId);
 
         return toLinkResponse(link);
     }
@@ -228,14 +235,18 @@ public class DuplicateUserService {
         int count = 0;
         for (Score score : secondaryScores) {
             UUID mapDiffId = score.getMapDifficulty().getId();
-            boolean primaryHasScore = scoreRepository
-                    .findByUser_IdAndMapDifficulty_IdAndActiveTrue(primary.getId(), mapDiffId)
-                    .isPresent();
+            var primaryScore = scoreRepository
+                    .findByUser_IdAndMapDifficulty_IdAndActiveTrue(primary.getId(), mapDiffId);
 
             score.setActive(false);
             scoreRepository.saveAndFlush(score);
 
-            if (!primaryHasScore) {
+            if (primaryScore.isEmpty()) {
+                createMergedScore(score, primary);
+                count++;
+            } else if (score.getAp().compareTo(primaryScore.get().getAp()) > 0) {
+                primaryScore.get().setActive(false);
+                scoreRepository.saveAndFlush(primaryScore.get());
                 createMergedScore(score, primary);
                 count++;
             }
