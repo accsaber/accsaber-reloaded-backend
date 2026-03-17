@@ -67,6 +67,22 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         Page<Score> findByMapDifficultyIdAndActiveTrueWithUser(
                         @Param("mapDifficultyId") UUID mapDifficultyId, Pageable pageable);
 
+        @Query(value = """
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.country = :country
+                        """, countQuery = """
+                        SELECT COUNT(s) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.country = :country
+                        """)
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("country") String country,
+                        Pageable pageable);
+
         @Query("""
                         SELECT s FROM Score s
                         JOIN FETCH s.mapDifficulty d

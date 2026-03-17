@@ -394,17 +394,22 @@ public class ScoreService {
                                                 loadModifierIds(s.getId())));
         }
 
-        public Page<ScoreLeaderboardResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, Pageable pageable) {
+        public Page<ScoreLeaderboardResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, String country,
+                        Pageable pageable) {
                 MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(mapDifficultyId)
                                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
                 if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
                 Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
-                return scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(mapDifficultyId, effective)
-                                .map(s -> toLeaderboardResponse(s,
-                                                computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                                loadModifierIds(s.getId())));
+                Page<Score> scores = (country != null && !country.isBlank())
+                                ? scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
+                                                mapDifficultyId, country.toUpperCase(), effective)
+                                : scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(mapDifficultyId,
+                                                effective);
+                return scores.map(s -> toLeaderboardResponse(s,
+                                computeAccuracy(s.getScore(), difficulty.getMaxScore()),
+                                loadModifierIds(s.getId())));
         }
 
         public List<ScoreResponse> findHistoric(Long userId, UUID mapDifficultyId, int amount, String unit) {
