@@ -84,10 +84,11 @@ class LeaderboardServiceTest {
 
                         when(categoryRepository.findByIdAndActiveTrue(category.getId()))
                                         .thenReturn(Optional.of(category));
-                        when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), eq(null), any()))
+                        when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), any()))
                                         .thenReturn(page);
 
-                        Page<LeaderboardResponse> result = leaderboardService.getGlobal(category.getId(), null, pageable);
+                        Page<LeaderboardResponse> result = leaderboardService.getGlobal(category.getId(), null,
+                                        pageable);
 
                         assertThat(result.getTotalElements()).isEqualTo(3);
                         assertThat(result.getContent()).hasSize(2);
@@ -117,7 +118,7 @@ class LeaderboardServiceTest {
                         when(categoryRepository.findByIdAndActiveTrue(category.getId()))
                                         .thenReturn(Optional.of(category));
                         when(statisticsRepository.findActiveByCategoryAndCountryPaged(
-                                        eq(category.getId()), eq("US"), eq(null), any()))
+                                        eq(category.getId()), eq("US"), any()))
                                         .thenReturn(page);
 
                         Page<LeaderboardResponse> result = leaderboardService.getByCountry(
@@ -133,7 +134,8 @@ class LeaderboardServiceTest {
                         when(categoryRepository.findByIdAndActiveTrue(unknownId)).thenReturn(Optional.empty());
 
                         assertThatThrownBy(
-                                        () -> leaderboardService.getByCountry(unknownId, "US", null, PageRequest.of(0, 20)))
+                                        () -> leaderboardService.getByCountry(unknownId, "US", null,
+                                                        PageRequest.of(0, 20)))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
         }

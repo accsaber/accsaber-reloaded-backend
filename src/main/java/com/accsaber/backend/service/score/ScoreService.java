@@ -402,10 +402,22 @@ public class ScoreService {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
                 Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
-                String countryParam = (country != null && !country.isBlank()) ? country.toUpperCase() : null;
-                String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
-                Page<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
-                                mapDifficultyId, countryParam, searchParam, effective);
+                boolean hasCountry = country != null && !country.isBlank();
+                boolean hasSearch = search != null && !search.isBlank();
+                Page<Score> scores;
+                if (hasCountry && hasSearch) {
+                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountryAndSearch(
+                                        mapDifficultyId, country.toUpperCase(), search.trim(), effective);
+                } else if (hasCountry) {
+                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
+                                        mapDifficultyId, country.toUpperCase(), effective);
+                } else if (hasSearch) {
+                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndSearch(
+                                        mapDifficultyId, search.trim(), effective);
+                } else {
+                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
+                                        mapDifficultyId, effective);
+                }
                 return scores.map(s -> toLeaderboardResponse(s,
                                 computeAccuracy(s.getScore(), difficulty.getMaxScore()),
                                 loadModifierIds(s.getId())));

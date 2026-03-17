@@ -90,14 +90,27 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
             SELECT s FROM UserCategoryStatistics s
             JOIN FETCH s.user u
             WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
-            AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """, countQuery = """
             SELECT COUNT(s) FROM UserCategoryStatistics s
             JOIN s.user u
             WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
-            AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<UserCategoryStatistics> findActiveByCategoryPaged(
+            @Param("categoryId") UUID categoryId,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT s FROM UserCategoryStatistics s
+            JOIN FETCH s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+            AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            """, countQuery = """
+            SELECT COUNT(s) FROM UserCategoryStatistics s
+            JOIN s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+            AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            """)
+    Page<UserCategoryStatistics> findActiveByCategoryPagedWithSearch(
             @Param("categoryId") UUID categoryId,
             @Param("search") String search,
             Pageable pageable);
@@ -107,15 +120,31 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
             JOIN FETCH s.user u
             WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
               AND LOWER(u.country) = LOWER(:country)
-              AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """, countQuery = """
             SELECT COUNT(s) FROM UserCategoryStatistics s
             JOIN s.user u
             WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
               AND LOWER(u.country) = LOWER(:country)
-              AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<UserCategoryStatistics> findActiveByCategoryAndCountryPaged(
+            @Param("categoryId") UUID categoryId,
+            @Param("country") String country,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT s FROM UserCategoryStatistics s
+            JOIN FETCH s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+              AND LOWER(u.country) = LOWER(:country)
+              AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            """, countQuery = """
+            SELECT COUNT(s) FROM UserCategoryStatistics s
+            JOIN s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+              AND LOWER(u.country) = LOWER(:country)
+              AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            """)
+    Page<UserCategoryStatistics> findActiveByCategoryAndCountryPagedWithSearch(
             @Param("categoryId") UUID categoryId,
             @Param("country") String country,
             @Param("search") String search,

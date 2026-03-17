@@ -52,8 +52,10 @@ public class MapService {
     private final StaffUserRepository staffUserRepository;
 
     public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
-        Page<Map> maps = mapRepository.findByDifficultyFilters(categoryId, status, searchParam, pageable);
+        boolean hasSearch = search != null && !search.isBlank();
+        Page<Map> maps = hasSearch
+                ? mapRepository.findByDifficultyFiltersWithSearch(categoryId, status, search.trim(), pageable)
+                : mapRepository.findByDifficultyFilters(categoryId, status, pageable);
         if (maps.isEmpty())
             return maps.map(m -> toMapResponse(m, List.of()));
 
@@ -81,8 +83,7 @@ public class MapService {
             "complexity", "c.complexity",
             "songName", "d.map.songName",
             "songAuthor", "d.map.songAuthor",
-            "mapAuthor", "d.map.mapAuthor"
-    );
+            "mapAuthor", "d.map.mapAuthor");
 
     private Pageable resolveDifficultySort(Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
@@ -102,9 +103,13 @@ public class MapService {
 
     public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, MapDifficultyStatus status,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Pageable pageable) {
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
-        Page<MapDifficulty> difficulties = mapDifficultyRepository.findWithComplexityFilters(
-                categoryId, status, complexityMin, complexityMax, searchParam, resolveDifficultySort(pageable));
+        boolean hasSearch = search != null && !search.isBlank();
+        Pageable effective = resolveDifficultySort(pageable);
+        Page<MapDifficulty> difficulties = hasSearch
+                ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
+                        categoryId, status, complexityMin, complexityMax, search.trim(), effective)
+                : mapDifficultyRepository.findWithComplexityFilters(
+                        categoryId, status, complexityMin, complexityMax, effective);
 
         if (difficulties.isEmpty())
             return difficulties.map(d -> toDifficultyResponse(d, null, null, null));

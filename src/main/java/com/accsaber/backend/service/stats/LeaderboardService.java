@@ -27,18 +27,23 @@ public class LeaderboardService {
 
     public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, Pageable pageable) {
         verifyCategory(categoryId);
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "ranking"));
-        return statisticsRepository.findActiveByCategoryPaged(categoryId, searchParam, effective)
-                .map(this::toResponse);
+        Page<UserCategoryStatistics> page = hasSearch
+                ? statisticsRepository.findActiveByCategoryPagedWithSearch(categoryId, search.trim(), effective)
+                : statisticsRepository.findActiveByCategoryPaged(categoryId, effective);
+        return page.map(this::toResponse);
     }
 
     public Page<LeaderboardResponse> getByCountry(UUID categoryId, String country, String search, Pageable pageable) {
         verifyCategory(categoryId);
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "countryRanking"));
-        return statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, searchParam, effective)
-                .map(this::toResponse);
+        Page<UserCategoryStatistics> page = hasSearch
+                ? statisticsRepository.findActiveByCategoryAndCountryPagedWithSearch(
+                        categoryId, country, search.trim(), effective)
+                : statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, effective);
+        return page.map(this::toResponse);
     }
 
     private LeaderboardResponse toResponse(UserCategoryStatistics stats) {

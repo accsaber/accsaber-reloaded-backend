@@ -50,21 +50,35 @@ public class BatchService {
 
     public Page<BatchResponse> findAll(String search, Pageable pageable) {
         Pageable effective = resolveBatchSort(pageable);
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = search != null && !search.isBlank();
         boolean needsCountSort = hasDifficultyCountSort(pageable);
-        Page<Batch> batches = needsCountSort
-                ? batchRepository.findAllWithDifficultyCount(searchParam, effective)
-                : batchRepository.findAllWithSearch(searchParam, effective);
+        Page<Batch> batches;
+        if (needsCountSort && hasSearch) {
+            batches = batchRepository.findAllWithDifficultyCountAndSearch(search.trim(), effective);
+        } else if (needsCountSort) {
+            batches = batchRepository.findAllWithDifficultyCount(effective);
+        } else if (hasSearch) {
+            batches = batchRepository.findAllWithSearch(search.trim(), effective);
+        } else {
+            batches = batchRepository.findAll(effective);
+        }
         return batches.map(b -> toResponse(b, loadDifficulties(b.getId())));
     }
 
     public Page<BatchResponse> findByStatus(BatchStatus status, String search, Pageable pageable) {
         Pageable effective = resolveBatchSort(pageable);
-        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        boolean hasSearch = search != null && !search.isBlank();
         boolean needsCountSort = hasDifficultyCountSort(pageable);
-        Page<Batch> batches = needsCountSort
-                ? batchRepository.findByStatusWithDifficultyCount(status, searchParam, effective)
-                : batchRepository.findByStatusWithSearch(status, searchParam, effective);
+        Page<Batch> batches;
+        if (needsCountSort && hasSearch) {
+            batches = batchRepository.findByStatusWithDifficultyCountAndSearch(status, search.trim(), effective);
+        } else if (needsCountSort) {
+            batches = batchRepository.findByStatusWithDifficultyCount(status, effective);
+        } else if (hasSearch) {
+            batches = batchRepository.findByStatusWithSearch(status, search.trim(), effective);
+        } else {
+            batches = batchRepository.findByStatus(status, effective);
+        }
         return batches.map(b -> toResponse(b, loadDifficulties(b.getId())));
     }
 

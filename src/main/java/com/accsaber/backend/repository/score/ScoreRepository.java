@@ -60,16 +60,59 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         SELECT s FROM Score s
                         JOIN FETCH s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
-                        AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+                        """, countQuery = """
+                        SELECT COUNT(s) FROM Score s
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        """)
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUser(
+                        @Param("mapDifficultyId") UUID mapDifficultyId, Pageable pageable);
+
+        @Query(value = """
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.country = :country
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
-                        AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+                        AND u.country = :country
                         """)
-        Page<Score> findByMapDifficultyIdAndActiveTrueWithUser(
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("country") String country,
+                        Pageable pageable);
+
+        @Query(value = """
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """, countQuery = """
+                        SELECT COUNT(s) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """)
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndSearch(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("search") String search,
+                        Pageable pageable);
+
+        @Query(value = """
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.country = :country
+                        AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """, countQuery = """
+                        SELECT COUNT(s) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.country = :country
+                        AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """)
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCountryAndSearch(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("country") String country,
                         @Param("search") String search,

@@ -106,7 +106,7 @@ class BatchServiceTest {
                 void returnsPagedBatches() {
                         Batch batch = buildBatch(BatchStatus.DRAFT);
                         Page<Batch> page = new PageImpl<>(List.of(batch));
-                        when(batchRepository.findAllWithSearch(null, PageRequest.of(0, 20))).thenReturn(page);
+                        when(batchRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
                         when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
                                         .thenReturn(List.of());
 
