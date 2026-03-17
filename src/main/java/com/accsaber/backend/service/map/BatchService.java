@@ -197,9 +197,14 @@ public class BatchService {
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, BigDecimal complexity,
             MapDifficultyStatisticsResponse stats) {
+        com.accsaber.backend.model.entity.map.Map map = d.getMap();
         return MapDifficultyResponse.builder()
                 .id(d.getId())
-                .mapId(d.getMap().getId())
+                .mapId(map.getId())
+                .songName(map.getSongName())
+                .songAuthor(map.getSongAuthor())
+                .mapAuthor(map.getMapAuthor())
+                .coverUrl(map.getCoverUrl())
                 .categoryId(d.getCategory().getId())
                 .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
                 .difficulty(d.getDifficulty())

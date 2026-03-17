@@ -24,6 +24,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
+import com.accsaber.backend.model.dto.response.score.ScoreLeaderboardResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -393,6 +394,19 @@ public class ScoreService {
                                                 loadModifierIds(s.getId())));
         }
 
+        public Page<ScoreLeaderboardResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, Pageable pageable) {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(mapDifficultyId)
+                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
+                if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
+                        throw new ValidationException("Map difficulty has no valid max score configured");
+                }
+                Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "score"));
+                return scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(mapDifficultyId, effective)
+                                .map(s -> toLeaderboardResponse(s,
+                                                computeAccuracy(s.getScore(), difficulty.getMaxScore()),
+                                                loadModifierIds(s.getId())));
+        }
+
         public List<ScoreResponse> findHistoric(Long userId, UUID mapDifficultyId, int amount, String unit) {
                 Instant since = ZonedDateTime.now(ZoneOffset.UTC).minus(amount, parseUnit(unit)).toInstant();
                 List<Score> scores = scoreRepository.findHistoricDownsampled(userId, mapDifficultyId, since);
@@ -543,6 +557,40 @@ public class ScoreService {
                 return ScoreResponse.builder()
                                 .id(s.getId())
                                 .userId(String.valueOf(s.getUser().getId()))
+                                .mapDifficultyId(s.getMapDifficulty().getId())
+                                .score(s.getScore())
+                                .scoreNoMods(s.getScoreNoMods())
+                                .accuracy(accuracy)
+                                .rank(s.getRank())
+                                .rankWhenSet(s.getRankWhenSet())
+                                .ap(s.getAp())
+                                .weightedAp(s.getWeightedAp())
+                                .blScoreId(s.getBlScoreId())
+                                .maxCombo(s.getMaxCombo())
+                                .badCuts(s.getBadCuts())
+                                .misses(s.getMisses())
+                                .wallHits(s.getWallHits())
+                                .bombHits(s.getBombHits())
+                                .pauses(s.getPauses())
+                                .streak115(s.getStreak115())
+                                .playCount(s.getPlayCount())
+                                .hmd(s.getHmd())
+                                .timeSet(s.getTimeSet())
+                                .reweightDerivative(s.isReweightDerivative())
+                                .xpGained(s.getXpGained())
+                                .modifierIds(modifierIds)
+                                .createdAt(s.getCreatedAt())
+                                .build();
+        }
+
+        private ScoreLeaderboardResponse toLeaderboardResponse(Score s, BigDecimal accuracy, List<UUID> modifierIds) {
+                User user = s.getUser();
+                return ScoreLeaderboardResponse.builder()
+                                .id(s.getId())
+                                .userId(String.valueOf(user.getId()))
+                                .userName(user.getName())
+                                .avatarUrl(user.getAvatarUrl())
+                                .country(user.getCountry())
                                 .mapDifficultyId(s.getMapDifficulty().getId())
                                 .score(s.getScore())
                                 .scoreNoMods(s.getScoreNoMods())

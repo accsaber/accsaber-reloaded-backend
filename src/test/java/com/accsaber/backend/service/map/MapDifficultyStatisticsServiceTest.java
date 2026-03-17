@@ -26,12 +26,16 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatistics;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyStatisticsRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
 
 @ExtendWith(MockitoExtension.class)
 class MapDifficultyStatisticsServiceTest {
 
         @Mock
         private MapDifficultyStatisticsRepository statisticsRepository;
+
+        @Mock
+        private ScoreRepository scoreRepository;
 
         @InjectMocks
         private MapDifficultyStatisticsService statisticsService;

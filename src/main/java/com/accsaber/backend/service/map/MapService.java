@@ -73,6 +73,23 @@ public class MapService {
         });
     }
 
+    public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, MapDifficultyStatus status,
+            BigDecimal complexityMin, BigDecimal complexityMax, Pageable pageable) {
+        Page<MapDifficulty> difficulties = mapDifficultyRepository.findWithComplexityFilters(
+                categoryId, status, complexityMin, complexityMax, pageable);
+
+        if (difficulties.isEmpty())
+            return difficulties.map(d -> toDifficultyResponse(d, null, null, null));
+
+        List<UUID> ids = difficulties.getContent().stream().map(MapDifficulty::getId).toList();
+        java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
+        java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
+        java.util.Map<UUID, String> staffUsernames = loadStaffUsernames(difficulties.getContent());
+
+        return difficulties.map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
+                staffUsernames.get(d.getLastUpdatedBy())));
+    }
+
     public MapResponse findById(UUID mapId) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId)
                 .orElseThrow(() -> new ResourceNotFoundException("Map", mapId));
@@ -319,9 +336,14 @@ public class MapService {
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, BigDecimal complexity,
             MapDifficultyStatisticsResponse stats, String lastUpdatedByUsername) {
+        Map map = d.getMap();
         return MapDifficultyResponse.builder()
                 .id(d.getId())
-                .mapId(d.getMap().getId())
+                .mapId(map.getId())
+                .songName(map.getSongName())
+                .songAuthor(map.getSongAuthor())
+                .mapAuthor(map.getMapAuthor())
+                .coverUrl(map.getCoverUrl())
                 .categoryId(d.getCategory().getId())
                 .difficulty(d.getDifficulty())
                 .characteristic(d.getCharacteristic())

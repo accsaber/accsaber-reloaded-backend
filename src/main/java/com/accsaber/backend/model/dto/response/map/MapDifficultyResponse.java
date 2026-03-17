@@ -17,6 +17,10 @@ public class MapDifficultyResponse {
 
     UUID id;
     UUID mapId;
+    String songName;
+    String songAuthor;
+    String mapAuthor;
+    String coverUrl;
     UUID categoryId;
     UUID previousVersionId;
     Difficulty difficulty;
