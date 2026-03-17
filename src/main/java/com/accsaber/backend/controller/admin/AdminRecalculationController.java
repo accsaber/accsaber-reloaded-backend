@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 import com.accsaber.backend.service.score.XPReweightService;
-import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,47 +27,43 @@ public class AdminRecalculationController {
 
     private final ScoreRecalculationService scoreRecalculationService;
     private final StatisticsService statisticsService;
-    private final RankingService rankingService;
     private final XPReweightService xpReweightService;
 
-    @Operation(summary = "Recalculate all scores in a category")
-    @PostMapping("/leaderboard/{categoryId}")
-    public ResponseEntity<Void> recalculateLeaderboard(@PathVariable UUID categoryId) {
-        rankingService.updateRankings(categoryId);
-        return ResponseEntity.accepted().build();
-    }
-
-    @Operation(summary = "Recalculate scores for a difficulty")
-    @PostMapping("/difficulty/{difficultyId}")
+    @Operation(summary = "Recalculate raw AP for a single difficulty",
+            description = "Versioned recalc: creates new score versions, reassigns ranks, updates stats.")
+    @PostMapping("/ap/difficulty/{difficultyId}")
     public ResponseEntity<Void> recalculateDifficulty(@PathVariable UUID difficultyId) {
-        scoreRecalculationService.recalculateScoresAsync(difficultyId);
+        scoreRecalculationService.recalculateDifficultyAsync(difficultyId);
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Recalculate a player's statistics")
-    @PostMapping("/player/{steamId}")
-    public ResponseEntity<Void> recalculatePlayer(@PathVariable Long steamId,
-            @RequestParam UUID categoryId) {
-        statisticsService.recalculate(steamId, categoryId);
+    @Operation(summary = "Recalculate raw AP for all scores",
+            description = "In-place AP recalc across all ranked difficulties. Reassigns ranks and updates stats per category.")
+    @PostMapping("/ap/raw")
+    public ResponseEntity<Void> recalculateAllRawAp() {
+        scoreRecalculationService.recalculateAllRawApAsync();
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Recalculate all scores in a category after AP curve change")
-    @PostMapping("/category/{categoryId}/ap-curve")
-    public ResponseEntity<Void> recalculateCategoryApCurve(@PathVariable UUID categoryId) {
-        scoreRecalculationService.recalculateAllScoresForCategoryAsync(categoryId);
+    @Operation(summary = "Recalculate weighted AP for all users",
+            description = "Recalculates weighted AP per category for every user, then updates all rankings.")
+    @PostMapping("/ap/weighted")
+    public ResponseEntity<Void> recalculateAllWeightedAp() {
+        scoreRecalculationService.recalculateAllWeightedApAsync();
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Recalculate weighted AP for all users after weight curve change")
-    @PostMapping("/weight-curve/{curveId}")
-    public ResponseEntity<Void> recalculateWeightCurve(@PathVariable UUID curveId) {
-        scoreRecalculationService.recalculateWeightCurveAsync(curveId);
+    @Operation(summary = "Recalculate all AP (raw + weighted)",
+            description = "Runs raw AP recalc then weighted AP recalc sequentially.")
+    @PostMapping("/ap/all")
+    public ResponseEntity<Void> recalculateAllAp() {
+        scoreRecalculationService.recalculateAllApAsync();
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Reweight XP for all scores")
-    @PostMapping("/xp-reweight")
+@Operation(summary = "Reweight XP for all scores",
+            description = "Recalculates per-score XP based on the current XP curve. Does not update user totals.")
+    @PostMapping("/xp/scores")
     public ResponseEntity<Void> reweightAllXp() {
         xpReweightService.reweightAllScores();
         return ResponseEntity.accepted().build();
@@ -76,17 +71,17 @@ public class AdminRecalculationController {
 
     @Operation(summary = "Recalculate total XP for all users",
             description = "Recomputes totalXp from score XP + milestone XP + set bonus XP. Does not recalculate per-score XP.")
-    @PostMapping("/total-xp")
+    @PostMapping("/xp/sum")
     public ResponseEntity<Void> recalculateTotalXp() {
         xpReweightService.recalculateTotalXpForAllUsers();
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Recalculate weighted AP for all scores in all categories",
-            description = "Recalculates weighted AP per category for every user, then updates all rankings. Runs async.")
-    @PostMapping("/weighted-ap")
-    public ResponseEntity<Void> recalculateAllWeightedAp() {
-        scoreRecalculationService.recalculateAllWeightedApAsync();
+@Operation(summary = "Recalculate a player's statistics for a category")
+    @PostMapping("/stats/player/{steamId}")
+    public ResponseEntity<Void> recalculatePlayer(@PathVariable Long steamId,
+            @RequestParam UUID categoryId) {
+        statisticsService.recalculate(steamId, categoryId);
         return ResponseEntity.accepted().build();
     }
 }

@@ -1,6 +1,8 @@
 package com.accsaber.backend.service.score;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -13,8 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.dto.APResult;
+import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
@@ -26,7 +30,6 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.infra.MetricsService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
@@ -51,138 +54,136 @@ public class ScoreRecalculationService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyComplexityService mapComplexityService;
     private final APCalculationService apCalculationService;
-    private final XPCalculationService xpCalculationService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository userCategoryStatisticsRepository;
     private final ScoreRankingService scoreRankingService;
-    private final MetricsService metricsService;
 
     @Autowired
     @Qualifier("backfillExecutor")
     private Executor backfillExecutor;
 
-    @Async("taskExecutor")
-    public void recalculateScoresAsync(UUID mapDifficultyId) {
+@Async("taskExecutor")
+    public void recalculateDifficultyAsync(UUID mapDifficultyId) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(mapDifficultyId)
                 .orElse(null);
         if (difficulty == null) {
             log.warn("Cannot recalculate: difficulty {} not found or inactive", mapDifficultyId);
             return;
         }
-        batchRecalculateScoresForDifficulty(difficulty, true);
+
+        Set<Long> affected = recalculateScoreApsParallel(difficulty);
+
+        if (affected.isEmpty()) {
+            log.info("No AP changes for difficulty {}", difficulty.getId());
+            return;
+        }
+
+        UUID categoryId = difficulty.getCategory().getId();
+        scoreRankingService.reassignRanks(difficulty.getId());
+        batchRecalculateStats(affected, categoryId);
+        mapDifficultyStatisticsService.recalculate(difficulty, null);
+        rankingService.updateRankings(categoryId);
+        if (difficulty.getCategory().isCountForOverall()) {
+            overallStatisticsService.updateOverallRankings();
+        }
+        log.info("Recalculation complete for difficulty {} ({} users affected)", difficulty.getId(), affected.size());
     }
 
-    @Async("taskExecutor")
-    public void recalculateAllScoresForCategoryAsync(UUID categoryId) {
-        metricsService.getApRecalculationTimer().record(() -> doRecalculateAllScoresForCategory(categoryId));
+@Async("taskExecutor")
+    public void recalculateAllRawApAsync() {
+        doRecalculateAllRawAp();
     }
 
-    private void doRecalculateAllScoresForCategory(UUID categoryId) {
+    private void doRecalculateAllRawAp() {
+        log.info("Starting raw AP recalculation for all ranked difficulties");
         apCalculationService.evictAllCurveCaches();
 
         List<MapDifficulty> difficulties = mapDifficultyRepository
-                .findByCategoryIdAndStatusAndActiveTrueWithCategory(categoryId, MapDifficultyStatus.RANKED);
+                .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
 
         if (difficulties.isEmpty()) {
-            log.info("No ranked difficulties found for category {}", categoryId);
+            log.info("No ranked difficulties found");
             return;
         }
 
-        Set<Long> allAffectedUsers = ConcurrentHashMap.newKeySet();
+        ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
 
-        for (MapDifficulty difficulty : difficulties) {
-            Set<Long> affected = recalculateScoreAps(difficulty);
-            allAffectedUsers.addAll(affected);
-            scoreRankingService.reassignRanks(difficulty.getId());
-            mapDifficultyStatisticsService.recalculate(difficulty, null);
-        }
-
-        if (allAffectedUsers.isEmpty()) {
-            log.info("No AP changes for category {}", categoryId);
-            return;
-        }
-
-        batchRecalculateStats(allAffectedUsers, categoryId);
-        rankingService.updateRankings(categoryId);
-        if (difficulties.get(0).getCategory().isCountForOverall()) {
-            overallStatisticsService.updateOverallRankings();
-        }
-        log.info("Category {} AP recalculation complete: {} users affected", categoryId, allAffectedUsers.size());
-    }
-
-    @Async("taskExecutor")
-    public void recalculateAllXpAsync() {
-        xpCalculationService.evictXpCurveCache();
-
-        List<MapDifficulty> allRanked = mapDifficultyRepository
-                .findByStatusAndActiveTrue(MapDifficultyStatus.RANKED);
-
-        for (MapDifficulty difficulty : allRanked) {
-            BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
-            if (complexity == null) {
-                log.warn("No active complexity for difficulty {} - skipping XP recalc", difficulty.getId());
-                continue;
-            }
-
-            List<Score> scores = scoreRepository.findByMapDifficulty_IdAndActiveTrue(difficulty.getId());
-
-            List<CompletableFuture<Void>> futures = scores.stream()
-                    .map(score -> CompletableFuture.runAsync(() -> {
-                        try {
-                            scoreService.recalculateScoreXpForBatch(score.getId(), difficulty, complexity);
-                        } catch (Exception e) {
-                            log.error("XP recalc failed for score {}: {}", score.getId(), e.getMessage());
+        List<CompletableFuture<Void>> futures = difficulties.stream()
+                .map(difficulty -> CompletableFuture.runAsync(() -> {
+                    try {
+                        Set<Long> affected = recalculateRawApForDifficulty(difficulty);
+                        if (!affected.isEmpty()) {
+                            affectedByCategory.computeIfAbsent(
+                                    difficulty.getCategory().getId(), k -> ConcurrentHashMap.newKeySet()
+                            ).addAll(affected);
+                            scoreRankingService.reassignRanks(difficulty.getId());
+                            mapDifficultyStatisticsService.recalculate(difficulty, null);
                         }
-                    }, backfillExecutor))
-                    .toList();
-
-            futures.forEach(CompletableFuture::join);
-        }
-        log.info("XP recalculation complete for all ranked difficulties");
-    }
-
-    @Async("taskExecutor")
-    public void recalculateWeightCurveAsync(UUID curveId) {
-        apCalculationService.evictCurveCache(curveId);
-
-        List<Category> categories = categoryRepository.findByWeightCurve_IdAndActiveTrue(curveId);
-        if (categories.isEmpty()) {
-            log.info("No active categories use weight curve {}", curveId);
-            return;
-        }
-
-        for (Category category : categories) {
-            UUID categoryId = category.getId();
-            List<UserCategoryStatistics> stats = userCategoryStatisticsRepository
-                    .findActiveByCategoryOrderByApDesc(categoryId);
-            Set<Long> userIds = ConcurrentHashMap.newKeySet();
-            stats.forEach(s -> userIds.add(s.getUser().getId()));
-
-            if (userIds.isEmpty()) {
-                log.info("No users with stats in category {}", categoryId);
-                continue;
-            }
-
-            batchRecalculateStats(userIds, categoryId);
-            rankingService.updateRankings(categoryId);
-            if (category.isCountForOverall()) {
-                overallStatisticsService.updateOverallRankings();
-            }
-            log.info("Weight curve recalculation complete for category {} ({} users)", categoryId, userIds.size());
-        }
-    }
-
-    @Async("taskExecutor")
-    public void recalculateAllWeightedApAsync() {
-        log.info("Starting weighted AP recalculation for all categories");
-        List<Category> categories = categoryRepository.findByActiveTrue().stream()
-                .filter(c -> !"overall".equals(c.getCode()))
+                    } catch (Exception e) {
+                        log.error("Raw AP recalc failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
+                    }
+                }, backfillExecutor))
                 .toList();
 
-        for (Category category : categories) {
-            UUID categoryId = category.getId();
+        futures.forEach(CompletableFuture::join);
+
+        for (var entry : affectedByCategory.entrySet()) {
+            batchRecalculateStats(entry.getValue(), entry.getKey());
+            rankingService.updateRankings(entry.getKey());
+        }
+        overallStatisticsService.updateOverallRankings();
+
+        int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
+        log.info("Raw AP recalculation complete for {} difficulties, {} users affected",
+                difficulties.size(), totalUsers);
+    }
+
+    @Transactional
+    public Set<Long> recalculateRawApForDifficulty(MapDifficulty difficulty) {
+        List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithCategory(difficulty.getId());
+        if (scores.isEmpty()) return Set.of();
+
+        if (difficulty.getMaxScore() == null || difficulty.getMaxScore() == 0) return Set.of();
+
+        BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
+        if (complexity == null) {
+            log.warn("No active complexity for difficulty {} - skipping", difficulty.getId());
+            return Set.of();
+        }
+
+        Curve scoreCurve = difficulty.getCategory().getScoreCurve();
+        int maxScore = difficulty.getMaxScore();
+        Set<Long> affectedUsers = new HashSet<>();
+
+        for (Score score : scores) {
+            BigDecimal accuracy = BigDecimal.valueOf(score.getScore())
+                    .divide(BigDecimal.valueOf(maxScore), 10, RoundingMode.HALF_UP);
+            APResult apResult = apCalculationService.calculateRawAP(accuracy, complexity, scoreCurve);
+            if (apResult.rawAP().compareTo(score.getAp()) != 0) {
+                score.setAp(apResult.rawAP());
+                affectedUsers.add(score.getUser().getId());
+            }
+        }
+
+        scoreRepository.saveAll(scores);
+        return affectedUsers;
+    }
+
+@Async("taskExecutor")
+    public void recalculateAllWeightedApAsync() {
+        doRecalculateAllWeightedAp();
+    }
+
+    private void doRecalculateAllWeightedAp() {
+        log.info("Starting weighted AP recalculation for all categories");
+        List<UUID> categoryIds = categoryRepository.findByActiveTrue().stream()
+                .filter(c -> !"overall".equals(c.getCode()))
+                .map(c -> c.getId())
+                .toList();
+
+        for (UUID categoryId : categoryIds) {
             List<UserCategoryStatistics> stats = userCategoryStatisticsRepository
                     .findActiveByCategoryOrderByApDesc(categoryId);
             Set<Long> userIds = ConcurrentHashMap.newKeySet();
@@ -201,36 +202,22 @@ public class ScoreRecalculationService {
         log.info("Weighted AP recalculation complete for all categories");
     }
 
-    private void batchRecalculateScoresForDifficulty(MapDifficulty difficulty, boolean triggerMapStats) {
-        Set<Long> affected = recalculateScoreAps(difficulty);
-
-        if (affected.isEmpty()) {
-            log.info("No AP changes for difficulty {}", difficulty.getId());
-            return;
-        }
-
-        UUID categoryId = difficulty.getCategory().getId();
-        scoreRankingService.reassignRanks(difficulty.getId());
-        batchRecalculateStats(affected, categoryId);
-
-        if (triggerMapStats) {
-            mapDifficultyStatisticsService.recalculate(difficulty, null);
-        }
-        rankingService.updateRankings(categoryId);
-        if (difficulty.getCategory().isCountForOverall()) {
-            overallStatisticsService.updateOverallRankings();
-        }
-        log.info("Recalculation complete for difficulty {} ({} users affected)", difficulty.getId(), affected.size());
+@Async("taskExecutor")
+    public void recalculateAllApAsync() {
+        log.info("Starting full AP recalculation (raw + weighted)");
+        doRecalculateAllRawAp();
+        doRecalculateAllWeightedAp();
+        log.info("Full AP recalculation complete");
     }
 
-    private Set<Long> recalculateScoreAps(MapDifficulty difficulty) {
+    private Set<Long> recalculateScoreApsParallel(MapDifficulty difficulty) {
         BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
         if (complexity == null) {
             log.warn("No active complexity for difficulty {} - skipping", difficulty.getId());
             return ConcurrentHashMap.newKeySet();
         }
 
-        List<Score> scores = scoreRepository.findByMapDifficulty_IdAndActiveTrue(difficulty.getId());
+        List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCategory(difficulty.getId());
         Set<Long> affected = ConcurrentHashMap.newKeySet();
 
         List<CompletableFuture<Void>> futures = scores.stream()
