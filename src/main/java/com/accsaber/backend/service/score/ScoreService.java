@@ -25,6 +25,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
 import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -421,6 +422,60 @@ public class ScoreService {
                 return scores.map(s -> toResponse(s,
                                 computeAccuracy(s.getScore(), difficulty.getMaxScore()),
                                 loadModifierIds(s.getId())));
+        }
+
+        public ScoresAroundResponse findScoresAround(UUID mapDifficultyId, Long userId, int above, int below) {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(mapDifficultyId)
+                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
+                Score playerScore = scoreRepository
+                                .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, mapDifficultyId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Score for user", userId));
+
+                int rank = playerScore.getRank();
+                int total = above + below + 1;
+                int offset = Math.max(0, rank - above - 1);
+                int fetchSize = offset + total;
+
+                List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
+                                mapDifficultyId, PageRequest.of(0, fetchSize, Sort.by(Sort.Direction.DESC, "score")))
+                                .getContent();
+
+                if (offset > 0 && scores.size() > offset) {
+                        scores = scores.subList(offset, Math.min(scores.size(), offset + total));
+                } else if (offset == 0) {
+                        scores = scores.subList(0, Math.min(scores.size(), total));
+                }
+
+                int playerIndex = -1;
+                for (int i = 0; i < scores.size(); i++) {
+                        if (scores.get(i).getUser().getId().equals(userId)) {
+                                playerIndex = i;
+                                break;
+                        }
+                }
+
+                if (playerIndex == -1) {
+                        throw new ResourceNotFoundException("Score for user", userId);
+                }
+
+                Integer maxScore = difficulty.getMaxScore();
+                List<ScoreResponse> aboveScores = scores.subList(0, playerIndex).stream()
+                                .map(s -> toResponse(s, computeAccuracy(s.getScore(), maxScore),
+                                                loadModifierIds(s.getId())))
+                                .toList();
+                ScoreResponse player = toResponse(scores.get(playerIndex),
+                                computeAccuracy(scores.get(playerIndex).getScore(), maxScore),
+                                loadModifierIds(scores.get(playerIndex).getId()));
+                List<ScoreResponse> belowScores = scores.subList(playerIndex + 1, scores.size()).stream()
+                                .map(s -> toResponse(s, computeAccuracy(s.getScore(), maxScore),
+                                                loadModifierIds(s.getId())))
+                                .toList();
+
+                return ScoresAroundResponse.builder()
+                                .scoresAbove(aboveScores)
+                                .playerScore(player)
+                                .scoresBelow(belowScores)
+                                .build();
         }
 
         public List<ScoreResponse> findHistoric(Long userId, UUID mapDifficultyId, int amount, String unit) {

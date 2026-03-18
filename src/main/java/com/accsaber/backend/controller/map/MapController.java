@@ -20,6 +20,7 @@ import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
@@ -84,7 +85,7 @@ public class MapController {
     }
 
     @Operation(summary = "Difficulty scores by leaderboard ID", description = "Paginated scores for a difficulty looked up by BeatLeader or ScoreSaber leaderboard ID (provide exactly one)")
-    @GetMapping("/difficulties/{leaderboardId}/scores")
+    @GetMapping("/difficulties/leaderboard/{leaderboardId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyScoresByLeaderboardId(
             @PathVariable String leaderboardId,
             @RequestParam(required = false) String country,
@@ -102,6 +103,18 @@ public class MapController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, pageable));
+    }
+
+    @Operation(summary = "Scores around a player", description = "Returns scores above and below a player on a difficulty leaderboard. "
+            + "Looked up by BeatLeader or ScoreSaber leaderboard ID. If fewer scores exist above/below, the remainder shifts to the other side.")
+    @GetMapping("/difficulties/leaderboard/{leaderboardId}/scores-around/{userId}")
+    public ResponseEntity<ScoresAroundResponse> getScoresAround(
+            @PathVariable String leaderboardId,
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "4") int above,
+            @RequestParam(defaultValue = "5") int below) {
+        UUID difficultyId = mapService.findDifficultyIdByLeaderboardId(leaderboardId);
+        return ResponseEntity.ok(scoreService.findScoresAround(difficultyId, userId, above, below));
     }
 
     @Operation(summary = "Current statistics for a difficulty", description = "Returns the active aggregate statistics (maxAp, minAp, averageAp, totalScores) for a difficulty")
