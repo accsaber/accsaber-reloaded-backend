@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.staff.CreateStaffUserRequest;
+import com.accsaber.backend.model.dto.request.staff.LinkUserRequest;
 import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffProfileRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffRoleRequest;
@@ -71,6 +72,14 @@ public class StaffUserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStaffStatusRequest request) {
         return ResponseEntity.ok(staffUserService.updateStatus(id, request.getStatus()));
+    }
+
+    @Operation(summary = "Link a player account to a staff user")
+    @PatchMapping("/{id}/link-user")
+    public ResponseEntity<StaffUserResponse> linkUser(
+            @PathVariable UUID id,
+            @Valid @RequestBody LinkUserRequest request) {
+        return ResponseEntity.ok(staffUserService.linkUser(id, request.getUserId()));
     }
 
     @Operation(summary = "Deactivate a staff user")

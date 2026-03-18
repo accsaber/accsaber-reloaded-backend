@@ -140,6 +140,16 @@ public class StaffUserService {
     }
 
     @Transactional
+    public StaffUserResponse linkUser(UUID staffId, Long userId) {
+        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + staffId));
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        staffUser.setUser(user);
+        return toResponse(staffUserRepository.save(staffUser));
+    }
+
+    @Transactional
     public StaffUserResponse updateStatus(UUID id, StaffUserStatus status) {
         StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
