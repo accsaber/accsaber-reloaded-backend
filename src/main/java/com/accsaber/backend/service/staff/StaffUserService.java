@@ -46,8 +46,9 @@ public class StaffUserService {
             throw new ValidationException("At least one of username or email is required");
         }
         if (request.getUsername() != null
-                && staffUserRepository.findByUsernameAndActiveTrue(request.getUsername()).isPresent()) {
-            throw new ConflictException("Username already taken: " + request.getUsername());
+                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
+                        request.getUsername(), StaffRole.RANKING).isPresent()) {
+            throw new ConflictException("Username already taken for this role: " + request.getUsername());
         }
         if (request.getEmail() != null
                 && staffUserRepository.findByEmailAndActiveTrue(request.getEmail()).isPresent()) {
@@ -102,8 +103,9 @@ public class StaffUserService {
             throw new ValidationException("At least one of username or email is required");
         }
         if (request.getUsername() != null
-                && staffUserRepository.findByUsernameAndActiveTrue(request.getUsername()).isPresent()) {
-            throw new ConflictException("Username already taken: " + request.getUsername());
+                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
+                        request.getUsername(), request.getRole()).isPresent()) {
+            throw new ConflictException("Username already taken for this role: " + request.getUsername());
         }
         if (request.getEmail() != null
                 && staffUserRepository.findByEmailAndActiveTrue(request.getEmail()).isPresent()) {
@@ -139,8 +141,9 @@ public class StaffUserService {
 
         if (request.getUsername() != null
                 && !request.getUsername().equals(staffUser.getUsername())
-                && staffUserRepository.findByUsernameAndActiveTrue(request.getUsername()).isPresent()) {
-            throw new ConflictException("Username already taken: " + request.getUsername());
+                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
+                        request.getUsername(), staffUser.getRole()).isPresent()) {
+            throw new ConflictException("Username already taken for this role: " + request.getUsername());
         }
         if (request.getEmail() != null
                 && !request.getEmail().equals(staffUser.getEmail())

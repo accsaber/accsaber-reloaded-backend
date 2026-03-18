@@ -60,7 +60,8 @@ class StaffUserServiceTest {
 
         StaffUser saved = buildStaffUser(StaffRole.RANKING);
 
-        when(staffUserRepository.findByUsernameAndActiveTrue("newstaff")).thenReturn(Optional.empty());
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("newstaff", StaffRole.RANKING))
+                .thenReturn(Optional.empty());
         when(passwordEncoder.encode("password123")).thenReturn("hashed-password");
         when(staffUserRepository.save(any())).thenReturn(saved);
 
@@ -78,7 +79,7 @@ class StaffUserServiceTest {
         request.setPassword("password");
         request.setRole(StaffRole.RANKING);
 
-        when(staffUserRepository.findByUsernameAndActiveTrue("existing"))
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("existing", StaffRole.RANKING))
                 .thenReturn(Optional.of(buildStaffUser(StaffRole.RANKING)));
 
         assertThatThrownBy(() -> staffUserService.create(request))
@@ -185,7 +186,8 @@ class StaffUserServiceTest {
         request.setUsername("newranker");
         request.setPassword("password123");
 
-        when(staffUserRepository.findByUsernameAndActiveTrue("newranker")).thenReturn(Optional.empty());
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("newranker", StaffRole.RANKING))
+                .thenReturn(Optional.empty());
         when(passwordEncoder.encode("password123")).thenReturn("hashed-password");
         when(staffUserRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -236,7 +238,7 @@ class StaffUserServiceTest {
         request.setUsername("existing");
         request.setPassword("password123");
 
-        when(staffUserRepository.findByUsernameAndActiveTrue("existing"))
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("existing", StaffRole.RANKING))
                 .thenReturn(Optional.of(buildStaffUser(StaffRole.RANKING)));
 
         assertThatThrownBy(() -> staffUserService.requestAccess(request))

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.staff.LoginRequest;
 import com.accsaber.backend.model.dto.request.staff.RefreshTokenRequest;
 import com.accsaber.backend.model.dto.response.staff.AuthResponse;
@@ -37,13 +38,37 @@ public class StaffAuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         boolean isEmail = request.getIdentifier().contains("@");
-        StaffUser staffUser = (isEmail
-                ? staffUserRepository.findByEmailAndActiveTrue(request.getIdentifier())
-                : staffUserRepository.findByUsernameAndActiveTrue(request.getIdentifier()))
-                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+        StaffUser staffUser;
 
-        if (!passwordEncoder.matches(request.getPassword(), staffUser.getPassword())) {
-            throw new UnauthorizedException("Invalid credentials");
+        if (isEmail) {
+            staffUser = staffUserRepository.findByEmailAndActiveTrue(request.getIdentifier())
+                    .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+            if (!passwordEncoder.matches(request.getPassword(), staffUser.getPassword())) {
+                throw new UnauthorizedException("Invalid credentials");
+            }
+        } else if (request.getRole() != null) {
+            staffUser = staffUserRepository.findByUsernameAndRoleAndActiveTrue(
+                    request.getIdentifier(), request.getRole())
+                    .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+            if (!passwordEncoder.matches(request.getPassword(), staffUser.getPassword())) {
+                throw new UnauthorizedException("Invalid credentials");
+            }
+        } else {
+            var matches = staffUserRepository.findByUsernameAndActiveTrue(request.getIdentifier());
+            if (matches.isEmpty()) {
+                throw new UnauthorizedException("Invalid credentials");
+            }
+            var passwordMatches = matches.stream()
+                    .filter(s -> passwordEncoder.matches(request.getPassword(), s.getPassword()))
+                    .toList();
+            if (passwordMatches.isEmpty()) {
+                throw new UnauthorizedException("Invalid credentials");
+            }
+            if (passwordMatches.size() > 1) {
+                throw new ValidationException(
+                        "Multiple accounts matched. Please specify a role.");
+            }
+            staffUser = passwordMatches.getFirst();
         }
 
         validateStatus(staffUser);

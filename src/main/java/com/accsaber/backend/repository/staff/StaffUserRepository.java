@@ -8,12 +8,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 
 public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
 
-    Optional<StaffUser> findByUsernameAndActiveTrue(String username);
+    List<StaffUser> findByUsernameAndActiveTrue(String username);
+
+    Optional<StaffUser> findByUsernameAndRoleAndActiveTrue(String username, StaffRole role);
 
     Optional<StaffUser> findByEmailAndActiveTrue(String email);
 
