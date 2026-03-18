@@ -15,6 +15,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.staff.CreateStaffUserRequest;
 import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffProfileRequest;
+import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffOAuthLinkResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
 import com.accsaber.backend.model.entity.staff.StaffOAuthLink;
@@ -37,6 +38,17 @@ public class StaffUserService {
     private final StaffOAuthLinkRepository staffOAuthLinkRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+
+    public Page<PublicStaffUserResponse> getAllPublic(Pageable pageable) {
+        return staffUserRepository.findAllByActiveTrue(pageable)
+                .map(this::toPublicResponse);
+    }
+
+    public PublicStaffUserResponse getByIdPublic(UUID id) {
+        return staffUserRepository.findByIdAndActiveTrue(id)
+                .map(this::toPublicResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+    }
 
     public Page<StaffUserResponse> getAll(Pageable pageable) {
         return staffUserRepository.findAllByActiveTrue(pageable)
@@ -184,6 +196,16 @@ public class StaffUserService {
         return staffOAuthLinkRepository.findByStaffUserId(staffId).stream()
                 .map(this::toOAuthLinkResponse)
                 .toList();
+    }
+
+    private PublicStaffUserResponse toPublicResponse(StaffUser staffUser) {
+        return PublicStaffUserResponse.builder()
+                .id(staffUser.getId())
+                .username(staffUser.getUsername())
+                .role(staffUser.getRole())
+                .userId(staffUser.getUser() != null ? String.valueOf(staffUser.getUser().getId()) : null)
+                .avatarUrl(staffUser.getUser() != null ? staffUser.getUser().getAvatarUrl() : null)
+                .build();
     }
 
     private StaffUserResponse toResponse(StaffUser staffUser) {

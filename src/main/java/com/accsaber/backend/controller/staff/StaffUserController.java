@@ -5,6 +5,7 @@ import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffProfileRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffRoleRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffStatusRequest;
+import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffOAuthLinkResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
 import com.accsaber.backend.security.StaffUserDetails;
@@ -52,17 +53,19 @@ public class StaffUserController {
                 userDetails.getStaffUser().getId(), request));
     }
 
-    @Operation(summary = "List all active staff users")
+    @Operation(summary = "List all active staff users (public)")
     @GetMapping
-    public ResponseEntity<Page<StaffUserResponse>> listStaffUsers(
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<Page<PublicStaffUserResponse>> listStaffUsers(
             @PageableDefault(size = 20, sort = "username") Pageable pageable) {
-        return ResponseEntity.ok(staffUserService.getAll(pageable));
+        return ResponseEntity.ok(staffUserService.getAllPublic(pageable));
     }
 
-    @Operation(summary = "Get staff user by ID")
+    @Operation(summary = "Get staff user by ID (public)")
     @GetMapping("/{id}")
-    public ResponseEntity<StaffUserResponse> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(staffUserService.getById(id));
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<PublicStaffUserResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(staffUserService.getByIdPublic(id));
     }
 
     @Operation(summary = "Create a staff user")
