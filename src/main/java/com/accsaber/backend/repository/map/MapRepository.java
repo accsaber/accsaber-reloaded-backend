@@ -19,15 +19,17 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
         Optional<Map> findBySongHashAndActiveTrue(String songHash);
 
         @Query(value = """
-                        SELECT DISTINCT m FROM Map m
-                        JOIN m.difficulties d
-                        WHERE m.active = true AND d.active = true
-                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        SELECT m FROM Map m
+                        WHERE m.active = true
+                        AND m.id IN (
+                                SELECT DISTINCT d.map.id FROM MapDifficulty d
+                                WHERE d.active = true
+                                AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                                AND (:status IS NULL OR d.status = :status)
+                        )
                         """, countQuery = """
-                        SELECT COUNT(DISTINCT m) FROM Map m
-                        JOIN m.difficulties d
-                        WHERE m.active = true AND d.active = true
+                        SELECT COUNT(DISTINCT d.map.id) FROM MapDifficulty d
+                        WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:status IS NULL OR d.status = :status)
                         """)
@@ -37,16 +39,20 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         Pageable pageable);
 
         @Query(value = """
-                        SELECT DISTINCT m FROM Map m
-                        JOIN m.difficulties d
-                        WHERE m.active = true AND d.active = true
-                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        SELECT m FROM Map m
+                        WHERE m.active = true
                         AND LOWER(m.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+                        AND m.id IN (
+                                SELECT DISTINCT d.map.id FROM MapDifficulty d
+                                WHERE d.active = true
+                                AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                                AND (:status IS NULL OR d.status = :status)
+                        )
                         """, countQuery = """
-                        SELECT COUNT(DISTINCT m) FROM Map m
-                        JOIN m.difficulties d
-                        WHERE m.active = true AND d.active = true
+                        SELECT COUNT(DISTINCT d.map.id) FROM MapDifficulty d
+                        JOIN d.map m
+                        WHERE d.active = true
+                        AND m.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:status IS NULL OR d.status = :status)
                         AND LOWER(m.songName) LIKE LOWER(CONCAT('%', :search, '%'))
