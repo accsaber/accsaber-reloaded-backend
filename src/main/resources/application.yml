@@ -95,7 +95,7 @@ accsaber:
   backfill:
     on-startup: true
     startup-mode: gap-fill  # full | gap-fill
-    gap-fill-days: 5
+    gap-fill-days: 2
     gap-fill-page-delay-ms: 125
   rate-limit:
     capacity: 400
