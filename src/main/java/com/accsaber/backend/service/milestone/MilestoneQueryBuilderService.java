@@ -25,6 +25,7 @@ import com.accsaber.backend.model.dto.response.milestone.MilestoneSchemaResponse
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
+import com.accsaber.backend.model.entity.score.Score;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -513,6 +514,73 @@ public class MilestoneQueryBuilderService {
         if (result instanceof Number n)
             return BigDecimal.valueOf(n.doubleValue());
         return new BigDecimal(result.toString());
+    }
+
+    public Score findQualifyingScore(MilestoneQuerySpec spec, Long userId, UUID categoryId,
+            BigDecimal targetValue, String comparison) {
+        if (!"scores".equals(spec.from()))
+            return null;
+
+        TableConfig table = TABLE_CONFIG.get(spec.from());
+        Map<String, ColumnDef> columns = COLUMN_ALLOWLIST.get(spec.from());
+        String fn = spec.select().function().toUpperCase();
+        ColumnDef selectCol = columns.get(spec.select().column());
+
+        List<String> conditions = new ArrayList<>();
+        conditions.add(table.userIdPath() + " = :userId");
+        if (categoryId != null && table.categoryIdPath() != null) {
+            conditions.add(table.categoryIdPath() + " = :categoryId");
+        }
+        if (table.rankedStatusPath() != null) {
+            conditions.add(table.rankedStatusPath() + " = :rankedStatus");
+        }
+
+        AtomicInteger paramCounter = new AtomicInteger(0);
+        List<Object[]> extraParams = new ArrayList<>();
+        List<FilterSpec> filters = spec.filters() != null ? spec.filters() : List.of();
+        for (FilterSpec filter : filters) {
+            ColumnDef colDef = columns.get(filter.column());
+            if (filter.subquery() != null) {
+                String subJpql = buildSubqueryJpql(filter.subquery(), extraParams, paramCounter, 1);
+                conditions.add(colDef.jpqlExpr() + " " + filter.operator() + " (" + subJpql + ")");
+            } else {
+                String paramName = "p" + paramCounter.getAndIncrement();
+                conditions.add(colDef.jpqlExpr() + " " + filter.operator() + " :" + paramName);
+                extraParams.add(new Object[] { paramName, coerce(filter.value(), colDef) });
+            }
+        }
+
+        boolean isMaxMin = "MAX".equals(fn) || "MIN".equals(fn);
+        String orderDir;
+        if (isMaxMin) {
+            String op = "LTE".equals(comparison) ? " <= " : " >= ";
+            String paramName = "target" + paramCounter.getAndIncrement();
+            conditions.add(selectCol.jpqlExpr() + op + ":" + paramName);
+            extraParams.add(new Object[] { paramName, targetValue });
+            orderDir = "ASC";
+        } else {
+            orderDir = "DESC";
+        }
+
+        String jpql = "SELECT s FROM Score s WHERE " + String.join(" AND ", conditions)
+                + " ORDER BY s.timeSet " + orderDir;
+
+        Query query = entityManager.createQuery(jpql, Score.class);
+        query.setParameter("userId", userId);
+        if (categoryId != null && table.categoryIdPath() != null) {
+            query.setParameter("categoryId", categoryId);
+        }
+        if (table.rankedStatusPath() != null) {
+            query.setParameter("rankedStatus", MapDifficultyStatus.RANKED);
+        }
+        for (Object[] binding : extraParams) {
+            query.setParameter((String) binding[0], binding[1]);
+        }
+        query.setMaxResults(1);
+
+        @SuppressWarnings("unchecked")
+        List<Score> results = query.getResultList();
+        return results.isEmpty() ? null : results.get(0);
     }
 
     private record BatchKey(String fromTable, UUID categoryId, String filterSignature) {

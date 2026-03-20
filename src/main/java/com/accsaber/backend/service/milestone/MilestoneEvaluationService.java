@@ -72,7 +72,7 @@ public class MilestoneEvaluationService {
 
             if (isCompleted(milestone, currentValue) && !link.isCompleted()) {
                 link.setCompleted(true);
-                link.setCompletedAt(Instant.now());
+                link.setCompletedAt(newScore.getTimeSet() != null ? newScore.getTimeSet() : Instant.now());
                 link.setAchievedWithScore(newScore);
                 newlyCompleted.add(milestone);
             }
@@ -100,7 +100,15 @@ public class MilestoneEvaluationService {
         boolean newlyCompleted = isCompleted(milestone, currentValue);
         if (newlyCompleted) {
             link.setCompleted(true);
-            link.setCompletedAt(Instant.now());
+            Score qualifying = queryBuilderService.findQualifyingScore(
+                    milestone.getQuerySpec(), userId, categoryId,
+                    milestone.getTargetValue(), milestone.getComparison());
+            if (qualifying != null) {
+                link.setAchievedWithScore(qualifying);
+                link.setCompletedAt(qualifying.getTimeSet() != null ? qualifying.getTimeSet() : Instant.now());
+            } else {
+                link.setCompletedAt(Instant.now());
+            }
         }
 
         userMilestoneLinkRepository.save(link);
@@ -136,7 +144,17 @@ public class MilestoneEvaluationService {
 
             if (isCompleted(milestone, currentValue) && !link.isCompleted()) {
                 link.setCompleted(true);
-                link.setCompletedAt(Instant.now());
+                UUID catId = milestone.getCategory() != null ? milestone.getCategory().getId() : null;
+                Score qualifying = queryBuilderService.findQualifyingScore(
+                        milestone.getQuerySpec(), userId, catId,
+                        milestone.getTargetValue(), milestone.getComparison());
+                if (qualifying != null) {
+                    link.setAchievedWithScore(qualifying);
+                    link.setCompletedAt(
+                            qualifying.getTimeSet() != null ? qualifying.getTimeSet() : Instant.now());
+                } else {
+                    link.setCompletedAt(Instant.now());
+                }
                 newlyCompleted.add(milestone);
             }
 
