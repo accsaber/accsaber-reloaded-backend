@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.milestone;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,6 +59,15 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         AND uml.milestone.milestoneSet.id = :setId
                         """)
         long countCompletedByUserAndSet(@Param("userId") Long userId, @Param("setId") UUID setId);
+
+        @Query(value = """
+                        SELECT COALESCE(SUM(m.xp), 0)
+                        FROM user_milestone_links uml
+                        JOIN milestones m ON uml.milestone_id = m.id
+                        WHERE uml.user_id = :userId AND uml.completed = true
+                        AND uml.created_at >= NOW() - INTERVAL '24 hours'
+                        """, nativeQuery = true)
+        BigDecimal sumMilestoneXpGainedLast24h(@Param("userId") Long userId);
 
         @Query("""
                         SELECT COALESCE(SUM(uml.milestone.xp), 0) FROM UserMilestoneLink uml

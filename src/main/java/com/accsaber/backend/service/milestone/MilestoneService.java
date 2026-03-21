@@ -294,6 +294,21 @@ public class MilestoneService {
     }
 
     @Transactional
+    public MilestoneResponse updateMilestone(UUID id, com.accsaber.backend.model.dto.request.milestone.UpdateMilestoneRequest request) {
+        Milestone milestone = milestoneRepository.findByIdAndActiveTrue(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", id));
+        if (request.getTitle() != null) {
+            milestone.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            milestone.setDescription(request.getDescription());
+        }
+        Milestone saved = milestoneRepository.save(milestone);
+        MilestoneCompletionStats stats = completionStatsRepository.findByMilestoneId(id).orElse(null);
+        return toResponse(saved, stats);
+    }
+
+    @Transactional
     public void deactivateMilestone(UUID id) {
         Milestone milestone = milestoneRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", id));

@@ -25,6 +25,7 @@ import com.accsaber.backend.model.dto.request.milestone.AddMapDifficultyLinksReq
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
+import com.accsaber.backend.model.dto.request.milestone.UpdateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.UpdatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSchemaResponse;
@@ -113,8 +114,15 @@ public class AdminMilestoneController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Update milestone name/description")
+    @PutMapping("/{id}")
+    public ResponseEntity<MilestoneResponse> updateMilestone(@PathVariable UUID id,
+            @Valid @RequestBody UpdateMilestoneRequest request) {
+        return ResponseEntity.ok(milestoneService.updateMilestone(id, request));
+    }
+
     @Operation(summary = "Deactivate a milestone")
-    @PatchMapping("/{id}")
+    @PatchMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateMilestone(@PathVariable UUID id) {
         milestoneService.deactivateMilestone(id);
         return ResponseEntity.noContent().build();

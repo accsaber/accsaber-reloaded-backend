@@ -24,6 +24,8 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
+import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -46,6 +48,8 @@ public class StatisticsService {
     private final UserRepository userRepository;
     private final APCalculationService apCalculationService;
     private final OverallStatisticsService overallStatisticsService;
+    private final UserMilestoneLinkRepository userMilestoneLinkRepository;
+    private final UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
 
     private DuplicateUserService duplicateUserService;
 
@@ -158,10 +162,15 @@ public class StatisticsService {
         UserCategoryStatistics base = baseOpt.get();
         UserCategoryStatistics latest = latestOpt.get();
 
+        BigDecimal milestoneXp = userMilestoneLinkRepository.sumMilestoneXpGainedLast24h(resolved);
+        BigDecimal setBonusXp = userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(resolved);
+        BigDecimal milestoneXpDiff = milestoneXp.add(setBonusXp);
+
         return Optional.of(StatsDiffResponse.builder()
                 .categoryId(latest.getCategory().getId())
                 .apDiff(latest.getAp().subtract(base.getAp()))
                 .scoreXpDiff(latest.getScoreXp().subtract(base.getScoreXp()))
+                .milestoneXpDiff(milestoneXpDiff)
                 .averageAccDiff(diffNullable(latest.getAverageAcc(), base.getAverageAcc()))
                 .averageApDiff(diffNullable(latest.getAverageAp(), base.getAverageAp()))
                 .rankingDiff(diffNullableInt(latest.getRanking(), base.getRanking()))
