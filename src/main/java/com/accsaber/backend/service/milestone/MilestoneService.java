@@ -153,6 +153,11 @@ public class MilestoneService {
                 .toList();
     }
 
+    public Page<MilestoneSetResponse> findAllSetsAdmin(Pageable pageable) {
+        return milestoneSetRepository.findAll(pageable)
+                .map(s -> toSetResponse(s, null));
+    }
+
     public Page<MilestoneSetResponse> findAllSets(Long userId, Pageable pageable) {
         Page<MilestoneSet> sets = milestoneSetRepository.findByActiveTrueWithActiveMilestones(pageable);
 
@@ -294,7 +299,8 @@ public class MilestoneService {
     }
 
     @Transactional
-    public MilestoneResponse updateMilestone(UUID id, com.accsaber.backend.model.dto.request.milestone.UpdateMilestoneRequest request) {
+    public MilestoneResponse updateMilestone(UUID id,
+            com.accsaber.backend.model.dto.request.milestone.UpdateMilestoneRequest request) {
         Milestone milestone = milestoneRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", id));
         if (request.getTitle() != null) {

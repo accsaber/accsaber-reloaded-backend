@@ -67,6 +67,13 @@ public class AdminMilestoneController {
         return ResponseEntity.ok(milestoneService.findAllByStatus(setId, categoryId, type, status, pageable));
     }
 
+    @Operation(summary = "List all milestone sets (active and inactive)")
+    @GetMapping("/sets")
+    public ResponseEntity<Page<MilestoneSetResponse>> listAllSets(
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        return ResponseEntity.ok(milestoneService.findAllSetsAdmin(pageable));
+    }
+
     @Operation(summary = "Create a milestone set")
     @PostMapping("/sets")
     public ResponseEntity<MilestoneSetResponse> createSet(@Valid @RequestBody CreateMilestoneSetRequest request) {

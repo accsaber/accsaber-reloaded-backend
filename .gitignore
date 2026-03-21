@@ -115,3 +115,5 @@ desktop.ini
 #Only ignoring markdown files that aren't the README for now. A bunch of ideas on these
 *.md*
 !README.md
+#General I Set
+general_i_milestones.sql
