@@ -24,6 +24,7 @@ public class MilestoneResponse {
     private MilestoneQuerySpec querySpec;
     private BigDecimal targetValue;
     private String comparison;
+    private boolean blExclusive;
     private String status;
     private BigDecimal completionPercentage;
     private Long completions;

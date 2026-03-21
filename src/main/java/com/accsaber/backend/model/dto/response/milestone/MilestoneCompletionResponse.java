@@ -22,6 +22,7 @@ public class MilestoneCompletionResponse {
     private BigDecimal xp;
     private BigDecimal targetValue;
     private String comparison;
+    private boolean blExclusive;
     private UUID setId;
     private UUID categoryId;
     private Long completions;

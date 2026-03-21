@@ -244,6 +244,7 @@ public class MilestoneService {
                 .querySpec(request.getQuerySpec())
                 .targetValue(request.getTargetValue())
                 .comparison(request.getComparison() != null ? request.getComparison() : "GTE")
+                .blExclusive(request.isBlExclusive())
                 .build();
         Milestone saved = milestoneRepository.save(milestone);
 
@@ -417,6 +418,7 @@ public class MilestoneService {
                 .querySpec(m.getQuerySpec())
                 .targetValue(m.getTargetValue())
                 .comparison(m.getComparison())
+                .blExclusive(m.isBlExclusive())
                 .status(m.getStatus().name())
                 .completionPercentage(stats != null ? stats.getCompletionPercentage() : BigDecimal.ZERO)
                 .completions(stats != null ? stats.getCompletions() : 0L)
@@ -436,6 +438,7 @@ public class MilestoneService {
                 .xp(m.getXp())
                 .targetValue(m.getTargetValue())
                 .comparison(m.getComparison())
+                .blExclusive(m.isBlExclusive())
                 .setId(m.getMilestoneSet().getId())
                 .categoryId(m.getCategory() != null ? m.getCategory().getId() : null)
                 .completions(stats != null ? stats.getCompletions() : 0L)

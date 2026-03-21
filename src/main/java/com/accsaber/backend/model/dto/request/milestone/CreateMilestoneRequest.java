@@ -44,5 +44,7 @@ public class CreateMilestoneRequest {
     @NotNull
     private String comparison = "GTE";
 
+    private boolean blExclusive = false;
+
     private List<UUID> mapDifficultyIds;
 }
