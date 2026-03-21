@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
+import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.entity.milestone.LevelThreshold;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.milestone.MilestoneService;
@@ -61,6 +62,12 @@ public class MilestoneController {
     @GetMapping("/milestones/sets/{setId}/milestones")
     public ResponseEntity<List<MilestoneResponse>> getMilestonesBySet(@PathVariable UUID setId) {
         return ResponseEntity.ok(milestoneService.findBySet(setId));
+    }
+
+    @Operation(summary = "Get prerequisite links for a set")
+    @GetMapping("/milestones/sets/{setId}/prerequisites")
+    public ResponseEntity<List<PrerequisiteLinkResponse>> getPrerequisiteLinksBySet(@PathVariable UUID setId) {
+        return ResponseEntity.ok(milestoneService.findPrerequisiteLinksBySet(setId));
     }
 
     @Operation(summary = "Get completion stats for all active milestones")

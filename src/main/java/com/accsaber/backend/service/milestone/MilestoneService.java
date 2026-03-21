@@ -18,8 +18,11 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
+import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
+import com.accsaber.backend.model.dto.request.milestone.UpdatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
+import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
 import com.accsaber.backend.model.entity.Category;
@@ -27,6 +30,7 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMilestoneLink;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.MilestoneCompletionStats;
+import com.accsaber.backend.model.entity.milestone.MilestonePrerequisiteLink;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.milestone.MilestoneStatus;
 import com.accsaber.backend.model.entity.milestone.UserMilestoneLink;
@@ -36,6 +40,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyMilestoneLinkRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.milestone.MilestoneCompletionStatsRepository;
+import com.accsaber.backend.repository.milestone.MilestonePrerequisiteLinkRepository;
 import com.accsaber.backend.repository.milestone.MilestoneRepository;
 import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
@@ -57,6 +62,7 @@ public class MilestoneService {
     private final UserRepository userRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyMilestoneLinkRepository mapDifficultyMilestoneLinkRepository;
+    private final MilestonePrerequisiteLinkRepository prerequisiteLinkRepository;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final MilestoneQueryBuilderService queryBuilderService;
     private final DuplicateUserService duplicateUserService;
@@ -318,6 +324,66 @@ public class MilestoneService {
         milestoneRepository.findByIdAndActiveTrue(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", milestoneId));
         mapDifficultyMilestoneLinkRepository.deleteByMilestone_IdAndMapDifficulty_IdIn(milestoneId, mapDifficultyIds);
+    }
+
+    @Transactional
+    public PrerequisiteLinkResponse createPrerequisiteLink(CreatePrerequisiteLinkRequest request) {
+        Milestone milestone = milestoneRepository.findByIdAndActiveTrue(request.getMilestoneId())
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", request.getMilestoneId()));
+        Milestone prerequisite = milestoneRepository.findByIdAndActiveTrue(request.getPrerequisiteMilestoneId())
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", request.getPrerequisiteMilestoneId()));
+        if (prerequisiteLinkRepository.existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(
+                milestone.getId(), prerequisite.getId())) {
+            throw new ConflictException("Prerequisite link already exists");
+        }
+        MilestonePrerequisiteLink link = MilestonePrerequisiteLink.builder()
+                .milestone(milestone)
+                .prerequisiteMilestone(prerequisite)
+                .blocker(request.isBlocker())
+                .build();
+        return toPrerequisiteLinkResponse(prerequisiteLinkRepository.save(link));
+    }
+
+    @Transactional
+    public PrerequisiteLinkResponse updatePrerequisiteLink(UUID linkId, UpdatePrerequisiteLinkRequest request) {
+        MilestonePrerequisiteLink link = prerequisiteLinkRepository.findById(linkId)
+                .filter(MilestonePrerequisiteLink::isActive)
+                .orElseThrow(() -> new ResourceNotFoundException("PrerequisiteLink", linkId));
+        link.setBlocker(request.getBlocker());
+        return toPrerequisiteLinkResponse(prerequisiteLinkRepository.save(link));
+    }
+
+    @Transactional
+    public void deactivatePrerequisiteLink(UUID linkId) {
+        MilestonePrerequisiteLink link = prerequisiteLinkRepository.findById(linkId)
+                .orElseThrow(() -> new ResourceNotFoundException("PrerequisiteLink", linkId));
+        link.setActive(false);
+        prerequisiteLinkRepository.save(link);
+    }
+
+    public List<PrerequisiteLinkResponse> findPrerequisitesByMilestone(UUID milestoneId) {
+        return prerequisiteLinkRepository.findByMilestone_IdAndActiveTrue(milestoneId).stream()
+                .map(this::toPrerequisiteLinkResponse)
+                .toList();
+    }
+
+    public List<PrerequisiteLinkResponse> findPrerequisiteLinksBySet(UUID setId) {
+        return prerequisiteLinkRepository.findBySetIdWithPrerequisites(setId).stream()
+                .map(this::toPrerequisiteLinkResponse)
+                .toList();
+    }
+
+    private PrerequisiteLinkResponse toPrerequisiteLinkResponse(MilestonePrerequisiteLink link) {
+        Milestone prereq = link.getPrerequisiteMilestone();
+        return PrerequisiteLinkResponse.builder()
+                .id(link.getId())
+                .milestoneId(link.getMilestone().getId())
+                .prerequisiteMilestoneId(prereq.getId())
+                .prerequisiteTitle(prereq.getTitle())
+                .prerequisiteTier(prereq.getTier().name())
+                .blocker(link.isBlocker())
+                .createdAt(link.getCreatedAt())
+                .build();
     }
 
     private void createMapDifficultyLinks(Milestone milestone, List<UUID> mapDifficultyIds) {

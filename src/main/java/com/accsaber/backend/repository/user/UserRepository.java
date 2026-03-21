@@ -29,7 +29,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Transactional
     @Query(value = """
             UPDATE users u SET total_xp =
-                COALESCE(sx.score_xp, 0) + COALESCE(mx.milestone_xp, 0) + COALESCE(bx.bonus_xp, 0),
+                COALESCE(sx.score_xp, 0)
+                + COALESCE(mx.milestone_xp, 0)
+                + COALESCE(bx.bonus_xp, 0)
+                + COALESCE(cx.campaign_map_xp, 0)
+                + COALESCE(cmx.campaign_milestone_xp, 0),
             updated_at = NOW()
             FROM (
                 SELECT user_id, SUM(xp_gained) AS score_xp FROM scores GROUP BY user_id
@@ -45,7 +49,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 FROM user_milestone_set_bonuses umsb JOIN milestone_sets ms ON umsb.milestone_set_id = ms.id
                 GROUP BY umsb.user_id
             ) bx ON bx.user_id = COALESCE(sx.user_id, mx.user_id)
-            WHERE u.id = COALESCE(sx.user_id, mx.user_id, bx.user_id) AND u.active = true
+            FULL OUTER JOIN (
+                SELECT ucs.user_id, SUM(cm.xp) AS campaign_map_xp
+                FROM user_campaign_scores ucs
+                JOIN campaign_maps cm ON ucs.campaign_map_id = cm.id
+                JOIN campaigns c ON ucs.campaign_id = c.id
+                WHERE ucs.active = true AND c.verified = true AND cm.active = true
+                GROUP BY ucs.user_id
+            ) cx ON cx.user_id = COALESCE(sx.user_id, mx.user_id, bx.user_id)
+            FULL OUTER JOIN (
+                SELECT ucs.user_id, SUM(cmil.xp) AS campaign_milestone_xp
+                FROM user_campaign_scores ucs
+                JOIN campaign_maps cm ON ucs.campaign_map_id = cm.id
+                JOIN campaign_milestones cmil ON cm.milestone_for_id = cmil.id
+                JOIN campaigns c ON ucs.campaign_id = c.id
+                WHERE ucs.active = true AND c.verified = true AND cm.active = true AND cmil.active = true
+                GROUP BY ucs.user_id
+            ) cmx ON cmx.user_id = COALESCE(sx.user_id, mx.user_id, bx.user_id, cx.user_id)
+            WHERE u.id = COALESCE(sx.user_id, mx.user_id, bx.user_id, cx.user_id, cmx.user_id)
+            AND u.active = true
             """, nativeQuery = true)
     void recalculateTotalXpForAllActiveUsers();
 }

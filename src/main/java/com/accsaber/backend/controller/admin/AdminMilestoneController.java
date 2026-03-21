@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,9 +24,12 @@ import com.accsaber.backend.model.dto.request.milestone.ActivateMilestonesReques
 import com.accsaber.backend.model.dto.request.milestone.AddMapDifficultyLinksRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
+import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
+import com.accsaber.backend.model.dto.request.milestone.UpdatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSchemaResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
+import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.entity.milestone.MilestoneStatus;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService;
 import com.accsaber.backend.service.milestone.MilestoneService;
@@ -128,5 +132,34 @@ public class AdminMilestoneController {
     public ResponseEntity<Void> backfillMilestone(@PathVariable UUID id) {
         milestoneService.backfillMilestone(id);
         return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Create a prerequisite link between milestones")
+    @PostMapping("/prerequisites")
+    public ResponseEntity<PrerequisiteLinkResponse> createPrerequisiteLink(
+            @Valid @RequestBody CreatePrerequisiteLinkRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(milestoneService.createPrerequisiteLink(request));
+    }
+
+    @Operation(summary = "Update a prerequisite link")
+    @PutMapping("/prerequisites/{linkId}")
+    public ResponseEntity<PrerequisiteLinkResponse> updatePrerequisiteLink(
+            @PathVariable UUID linkId,
+            @Valid @RequestBody UpdatePrerequisiteLinkRequest request) {
+        return ResponseEntity.ok(milestoneService.updatePrerequisiteLink(linkId, request));
+    }
+
+    @Operation(summary = "Deactivate a prerequisite link")
+    @DeleteMapping("/prerequisites/{linkId}")
+    public ResponseEntity<Void> deactivatePrerequisiteLink(@PathVariable UUID linkId) {
+        milestoneService.deactivatePrerequisiteLink(linkId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Get prerequisite links for a milestone")
+    @GetMapping("/{id}/prerequisites")
+    public ResponseEntity<List<PrerequisiteLinkResponse>> getPrerequisites(@PathVariable UUID id) {
+        return ResponseEntity.ok(milestoneService.findPrerequisitesByMilestone(id));
     }
 }

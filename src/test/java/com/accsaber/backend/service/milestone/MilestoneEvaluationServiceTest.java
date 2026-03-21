@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -376,6 +377,34 @@ class MilestoneEvaluationServiceTest {
                                         USER_ID, scoreCategory.getId(), scoreMapDifficulty.getId());
                         verify(milestoneRepository, never()).findActiveUncompletedForUser(any());
                 }
+
+                @Test
+                void completedAt_usesScoreTimeSet() {
+                        Milestone milestone = buildMilestone(BigDecimal.valueOf(100), "GTE");
+                        Instant scoreTime = Instant.parse("2025-06-15T12:00:00Z");
+                        Score newScore = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .mapDifficulty(scoreMapDifficulty)
+                                        .timeSet(scoreTime)
+                                        .build();
+                        User user = User.builder().id(USER_ID).build();
+
+                        mockScopedQuery(List.of(milestone));
+                        mockBatchEval(List.of(milestone), BigDecimal.valueOf(200));
+                        mockNoExistingLinks();
+                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
+                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
+                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
+                                        milestoneSet.getId())).thenReturn(false);
+                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
+                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
+                                        .thenReturn(0L);
+
+                        service.evaluateAfterScore(USER_ID, newScore);
+
+                        List<UserMilestoneLink> saved = captureSavedLinks();
+                        assertThat(saved.get(0).getCompletedAt()).isEqualTo(scoreTime);
+                }
         }
 
         @Nested
@@ -561,6 +590,73 @@ class MilestoneEvaluationServiceTest {
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
                         assertThat(user.getTotalXp()).isEqualByComparingTo(BigDecimal.valueOf(300));
+                }
+
+                @Test
+                void backfill_usesQualifyingScoreTimeSet() {
+                        Milestone milestone = buildMilestone(BigDecimal.valueOf(100), "GTE");
+                        Instant scoreTime = Instant.parse("2025-03-10T08:30:00Z");
+                        Score qualifying = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .mapDifficulty(scoreMapDifficulty)
+                                        .timeSet(scoreTime)
+                                        .build();
+                        User user = User.builder().id(USER_ID).totalXp(BigDecimal.ZERO).build();
+
+                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
+                                        .thenReturn(BigDecimal.valueOf(200));
+                        when(queryBuilderService.findQualifyingScore(querySpec, USER_ID, null,
+                                        BigDecimal.valueOf(100), "GTE")).thenReturn(qualifying);
+                        when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
+                        when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
+                                        milestoneSet.getId())).thenReturn(false);
+                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
+                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
+                                        .thenReturn(0L);
+                        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+                        service.evaluateSingleMilestoneForUser(USER_ID, milestone);
+
+                        var captor = org.mockito.ArgumentCaptor.forClass(UserMilestoneLink.class);
+                        verify(userMilestoneLinkRepository).save(captor.capture());
+                        assertThat(captor.getValue().getCompletedAt()).isEqualTo(scoreTime);
+                        assertThat(captor.getValue().getAchievedWithScore()).isEqualTo(qualifying);
+                }
+
+                @Test
+                void backfill_noQualifyingScore_fallsBackToNow() {
+                        MilestoneQuerySpec statsSpec = new MilestoneQuerySpec(
+                                        new MilestoneQuerySpec.SelectSpec("MIN", "ranking"),
+                                        "user_category_statistics", List.of());
+                        Milestone milestone = buildMilestone(BigDecimal.valueOf(10), "LTE");
+                        milestone.setQuerySpec(statsSpec);
+                        User user = User.builder().id(USER_ID).totalXp(BigDecimal.ZERO).build();
+
+                        when(queryBuilderService.evaluate(statsSpec, USER_ID, null))
+                                        .thenReturn(BigDecimal.ONE);
+                        when(queryBuilderService.findQualifyingScore(statsSpec, USER_ID, null,
+                                        BigDecimal.valueOf(10), "LTE")).thenReturn(null);
+                        when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
+                        when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
+                                        milestoneSet.getId())).thenReturn(false);
+                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
+                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
+                                        .thenReturn(0L);
+                        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+                        Instant before = Instant.now();
+                        service.evaluateSingleMilestoneForUser(USER_ID, milestone);
+
+                        var captor = org.mockito.ArgumentCaptor.forClass(UserMilestoneLink.class);
+                        verify(userMilestoneLinkRepository).save(captor.capture());
+                        assertThat(captor.getValue().getCompletedAt()).isAfterOrEqualTo(before);
+                        assertThat(captor.getValue().getAchievedWithScore()).isNull();
                 }
         }
 
