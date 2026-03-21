@@ -551,19 +551,15 @@ public class MilestoneQueryBuilderService {
         }
 
         boolean isMaxMin = "MAX".equals(fn) || "MIN".equals(fn);
-        String orderDir;
         if (isMaxMin) {
             String op = "LTE".equals(comparison) ? " <= " : " >= ";
             String paramName = "target" + paramCounter.getAndIncrement();
             conditions.add(selectCol.jpqlExpr() + op + ":" + paramName);
             extraParams.add(new Object[] { paramName, targetValue });
-            orderDir = "ASC";
-        } else {
-            orderDir = "DESC";
         }
 
         String jpql = "SELECT s FROM Score s WHERE " + String.join(" AND ", conditions)
-                + " ORDER BY s.timeSet " + orderDir;
+                + " ORDER BY s.timeSet ASC";
 
         Query query = entityManager.createQuery(jpql, Score.class);
         query.setParameter("userId", userId);
