@@ -147,24 +147,29 @@ public class StatisticsService {
 
     public Optional<StatsDiffResponse> computeStatsDiff(Long userId, String categoryCode) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+
+        BigDecimal milestoneXp = userMilestoneLinkRepository.sumMilestoneXpGainedLast24h(resolved);
+        BigDecimal setBonusXp = userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(resolved);
+        BigDecimal milestoneXpDiff = milestoneXp.add(setBonusXp);
+
         Optional<UserCategoryStatistics> baseOpt = statisticsRepository
                 .findLatestBeforeLastDay(resolved, categoryCode);
-        if (baseOpt.isEmpty()) {
-            return Optional.empty();
-        }
-
         Optional<UserCategoryStatistics> latestOpt = statisticsRepository
                 .findMostRecent(resolved, categoryCode);
-        if (latestOpt.isEmpty()) {
+
+        if (baseOpt.isEmpty() || latestOpt.isEmpty()) {
+            if (milestoneXpDiff.compareTo(BigDecimal.ZERO) > 0) {
+                return Optional.of(StatsDiffResponse.builder()
+                        .milestoneXpDiff(milestoneXpDiff)
+                        .from(Instant.now().minus(1, java.time.temporal.ChronoUnit.DAYS))
+                        .to(Instant.now())
+                        .build());
+            }
             return Optional.empty();
         }
 
         UserCategoryStatistics base = baseOpt.get();
         UserCategoryStatistics latest = latestOpt.get();
-
-        BigDecimal milestoneXp = userMilestoneLinkRepository.sumMilestoneXpGainedLast24h(resolved);
-        BigDecimal setBonusXp = userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(resolved);
-        BigDecimal milestoneXpDiff = milestoneXp.add(setBonusXp);
 
         return Optional.of(StatsDiffResponse.builder()
                 .categoryId(latest.getCategory().getId())
