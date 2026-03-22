@@ -697,6 +697,12 @@ public class ScoreService {
                                 .timeSet(s.getTimeSet())
                                 .reweightDerivative(s.isReweightDerivative())
                                 .xpGained(s.getXpGained())
+                                .baseXp(BigDecimal.valueOf(xpCalculationService.getBaseXpPerScore()))
+                                .bonusXp(s.getXpGained() != null
+                                        ? s.getXpGained()
+                                                .subtract(BigDecimal.valueOf(xpCalculationService.getBaseXpPerScore()))
+                                                .max(BigDecimal.ZERO)
+                                        : BigDecimal.ZERO)
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();

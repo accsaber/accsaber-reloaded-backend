@@ -47,6 +47,8 @@ public class ScoreResponse {
     private Instant timeSet;
     private boolean reweightDerivative;
     private BigDecimal xpGained;
+    private BigDecimal baseXp;
+    private BigDecimal bonusXp;
     private List<UUID> modifierIds;
     private Instant createdAt;
 }
