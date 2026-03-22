@@ -33,7 +33,7 @@ public class PlaylistController {
                 String syncUrl = ServletUriComponentsBuilder.fromCurrentRequest().toUriString();
                 Map<String, Object> playlist = playlistService.generatePlaylist(category, syncUrl);
 
-                String filename = "accsaber-reloaded-" + category.replace("_", "-") + ".json";
+                String filename = "accsaber-reloaded-" + category.replace("_", "-") + ".bplist";
 
                 return ResponseEntity.ok()
                                 .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
