@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
+import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
@@ -56,6 +57,14 @@ public class MilestoneController {
     @GetMapping("/milestones/{id}")
     public ResponseEntity<MilestoneResponse> getMilestone(@PathVariable UUID id) {
         return ResponseEntity.ok(milestoneService.findById(id));
+    }
+
+    @Operation(summary = "List users who have completed a milestone")
+    @GetMapping("/milestones/{id}/holders")
+    public ResponseEntity<Page<MilestoneHolderResponse>> getMilestoneHolders(
+            @PathVariable UUID id,
+            @PageableDefault(size = 20, sort = "completedAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(milestoneService.findMilestoneHolders(id, pageable));
     }
 
     @Operation(summary = "List all milestones in a set")

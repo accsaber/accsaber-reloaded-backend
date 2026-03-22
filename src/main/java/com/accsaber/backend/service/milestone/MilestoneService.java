@@ -22,6 +22,7 @@ import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetReques
 import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.request.milestone.UpdatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
+import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
@@ -238,6 +239,22 @@ public class MilestoneService {
                     .categoryId(m.getCategory() != null ? m.getCategory().getId() : null)
                     .build();
         });
+    }
+
+    public Page<MilestoneHolderResponse> findMilestoneHolders(UUID milestoneId, Pageable pageable) {
+        milestoneRepository.findByIdAndActiveTrueAndStatusActive(milestoneId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", milestoneId));
+        return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable)
+                .map(link -> {
+                    var user = link.getUser();
+                    return MilestoneHolderResponse.builder()
+                            .userId(user.getId())
+                            .name(user.getName())
+                            .avatarUrl(user.getAvatarUrl())
+                            .country(user.getCountry())
+                            .completedAt(link.getCompletedAt())
+                            .build();
+                });
     }
 
     @Transactional
