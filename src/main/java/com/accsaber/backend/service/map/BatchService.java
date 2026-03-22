@@ -32,6 +32,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 
@@ -50,6 +51,7 @@ public class BatchService {
     private final ScoreImportService scoreImportService;
     private final ScoreRecalculationService scoreRecalculationService;
     private final MapService mapService;
+    private final PlaylistService playlistService;
 
     public Page<BatchResponse> findAll(String search, Pageable pageable) {
         Pageable effective = resolveBatchSort(pageable);
@@ -166,6 +168,8 @@ public class BatchService {
 
         scoreImportService.backfillDifficultiesSequentiallyAsync(
                 difficulties.stream().map(MapDifficulty::getId).toList());
+
+        playlistService.evictAllPlaylists();
 
         return toResponse(batch, enrich(difficulties));
     }

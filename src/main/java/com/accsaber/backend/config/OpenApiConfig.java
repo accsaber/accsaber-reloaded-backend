@@ -51,6 +51,8 @@ public class OpenApiConfig {
                                                                 .description("Milestone sets, individual milestones/achievements, and level thresholds"),
                                                 new Tag().name("Campaigns")
                                                                 .description("Campaign progressions with curated map sequences and XP rewards"),
+                                                new Tag().name("Playlists")
+                                                                .description("Downloadable Beat Saber playlist files for each ranked category, with syncURL for auto-updates"),
                                                 new Tag().name("Curves")
                                                                 .description("Scoring curves - point-lookup and formula curves used for AP and weight calculations"),
                                                 new Tag().name("Discord Links")

@@ -14,6 +14,7 @@ import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +24,7 @@ public class UnrankService {
 
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapService mapService;
+    private final PlaylistService playlistService;
 
     @Transactional
     public MapDifficultyResponse unrank(UUID mapDifficultyId, String reason, UUID staffId) {
@@ -36,7 +38,9 @@ public class UnrankService {
         UpdateMapStatusRequest req = new UpdateMapStatusRequest();
         req.setStatus(MapDifficultyStatus.QUEUE);
         req.setReason(reason);
-        return mapService.updateStatus(mapDifficultyId, req, staffId);
+        MapDifficultyResponse response = mapService.updateStatus(mapDifficultyId, req, staffId);
+        playlistService.evictAllPlaylists();
+        return response;
     }
 
     @Transactional

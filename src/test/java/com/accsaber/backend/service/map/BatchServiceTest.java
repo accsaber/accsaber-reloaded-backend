@@ -40,6 +40,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 
@@ -69,6 +70,9 @@ class BatchServiceTest {
 
         @Mock
         private MapService mapService;
+
+        @Mock
+        private PlaylistService playlistService;
 
         @InjectMocks
         private BatchService batchService;

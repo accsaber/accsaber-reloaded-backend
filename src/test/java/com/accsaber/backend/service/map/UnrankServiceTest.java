@@ -23,6 +23,7 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 
 @ExtendWith(MockitoExtension.class)
 class UnrankServiceTest {
@@ -32,6 +33,9 @@ class UnrankServiceTest {
 
     @Mock
     private MapService mapService;
+
+    @Mock
+    private PlaylistService playlistService;
 
     @InjectMocks
     private UnrankService unrankService;
