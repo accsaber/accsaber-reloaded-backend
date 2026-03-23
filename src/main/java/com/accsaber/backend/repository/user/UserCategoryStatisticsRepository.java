@@ -81,7 +81,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         @Query("""
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         ORDER BY s.ap DESC
                         """)
         List<UserCategoryStatistics> findActiveByCategoryOrderByApDesc(@Param("categoryId") UUID categoryId);
@@ -89,11 +89,11 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         @Query(value = """
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryPaged(
                         @Param("categoryId") UUID categoryId,
@@ -102,12 +102,12 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         @Query(value = """
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryPagedWithSearch(
@@ -118,13 +118,13 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         @Query(value = """
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.country) = LOWER(:country)
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
-                          AND LOWER(u.country) = LOWER(:country)
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
+                            AND LOWER(u.country) = LOWER(:country)
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryAndCountryPaged(
                         @Param("categoryId") UUID categoryId,
@@ -134,13 +134,13 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         @Query(value = """
                         SELECT s FROM UserCategoryStatistics s
                         JOIN FETCH s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.country) = LOWER(:country)
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
-                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true
+                        WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.country) = LOWER(:country)
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         """)
@@ -166,7 +166,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                             FROM user_category_statistics ucs
                             JOIN users u ON ucs.user_id = u.id
                             LEFT JOIN scores sp ON sp.id = ucs.top_play_id
-                            WHERE ucs.category_id = :categoryId AND ucs.active = true AND u.active = true
+                            WHERE ucs.category_id = :categoryId AND ucs.active = true AND u.active = true AND u.banned = false
                         )
                         UPDATE user_category_statistics ucs
                         SET ranking = r.new_rank, updated_at = NOW()
@@ -186,7 +186,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                             FROM user_category_statistics ucs
                             JOIN users u ON ucs.user_id = u.id
                             LEFT JOIN scores sp ON sp.id = ucs.top_play_id
-                            WHERE ucs.category_id = :categoryId AND ucs.active = true AND u.active = true AND u.country IS NOT NULL
+                            WHERE ucs.category_id = :categoryId AND ucs.active = true AND u.active = true AND u.banned = false AND u.country IS NOT NULL
                         )
                         UPDATE user_category_statistics ucs
                         SET country_ranking = r.new_country_rank, updated_at = NOW()

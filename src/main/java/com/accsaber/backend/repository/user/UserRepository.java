@@ -24,14 +24,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("""
             SELECT u FROM User u
-            WHERE u.active = true AND u.totalXp > 0
+            WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboard(Pageable pageable);
 
     @Query("""
             SELECT u FROM User u
-            WHERE u.active = true AND u.totalXp > 0
+            WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
             ORDER BY u.totalXp DESC
             """)
@@ -39,7 +39,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("""
             SELECT u FROM User u
-            WHERE u.active = true AND u.totalXp > 0
+            WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.country) = LOWER(:country)
             ORDER BY u.totalXp DESC
             """)
@@ -47,7 +47,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("""
             SELECT u FROM User u
-            WHERE u.active = true AND u.totalXp > 0
+            WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.country) = LOWER(:country)
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
             ORDER BY u.totalXp DESC
@@ -112,7 +112,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WITH ranked AS (
                 SELECT id, ROW_NUMBER() OVER (ORDER BY total_xp DESC) AS new_rank
                 FROM users
-                WHERE active = true AND total_xp > 0
+                WHERE active = true AND banned = false AND total_xp > 0
             )
             UPDATE users u
             SET xp_ranking = r.new_rank, updated_at = NOW()
@@ -129,7 +129,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     PARTITION BY country ORDER BY total_xp DESC
                 ) AS new_country_rank
                 FROM users
-                WHERE active = true AND total_xp > 0 AND country IS NOT NULL
+                WHERE active = true AND banned = false AND total_xp > 0 AND country IS NOT NULL
             )
             UPDATE users u
             SET xp_country_ranking = r.new_country_rank, updated_at = NOW()

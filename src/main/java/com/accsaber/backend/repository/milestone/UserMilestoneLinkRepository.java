@@ -85,7 +85,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         JOIN uml.user u
                         WHERE uml.milestone.id = :milestoneId
                         AND uml.completed = true
-                        AND u.active = true
+                        AND u.active = true AND u.banned = false
                         ORDER BY uml.completedAt DESC
                         """,
                         countQuery = """
@@ -93,7 +93,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         JOIN uml.user u
                         WHERE uml.milestone.id = :milestoneId
                         AND uml.completed = true
-                        AND u.active = true
+                        AND u.active = true AND u.banned = false
                         """)
         Page<UserMilestoneLink> findCompletedUsersByMilestoneId(
                         @Param("milestoneId") UUID milestoneId,

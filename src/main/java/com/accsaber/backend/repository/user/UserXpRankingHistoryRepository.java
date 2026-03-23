@@ -24,7 +24,7 @@ public interface UserXpRankingHistoryRepository extends JpaRepository<UserXpRank
                                 ORDER BY h.recorded_at DESC
                                 LIMIT 1
                         ) prev ON true
-                        WHERE u.active = true AND u.xp_ranking IS NOT NULL
+                        WHERE u.active = true AND u.banned = false AND u.xp_ranking IS NOT NULL
                         AND (prev.xp_ranking IS NULL
                                 OR prev.xp_ranking IS DISTINCT FROM u.xp_ranking
                                 OR prev.xp_country_ranking IS DISTINCT FROM u.xp_country_ranking)

@@ -3,7 +3,9 @@ package com.accsaber.backend.service.player;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,11 +14,17 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
+import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.stats.OverallStatisticsService;
+import com.accsaber.backend.service.stats.RankingService;
+import com.accsaber.backend.service.stats.StatisticsService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -24,7 +32,11 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserNameHistoryRepository userNameHistoryRepository;
+    private final UserCategoryStatisticsRepository statisticsRepository;
     private final DuplicateUserService duplicateUserService;
+    private final StatisticsService statisticsService;
+    private final RankingService rankingService;
+    private final OverallStatisticsService overallStatisticsService;
 
     public UserResponse findByUserId(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
@@ -76,6 +88,52 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    @Transactional
+    public void setBanned(Long userId, boolean banned) {
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        user.setBanned(banned);
+        userRepository.save(user);
+
+        if (!banned) {
+            recalculateAfterUnban(userId);
+        } else {
+            recalculateRankingsForUser(userId);
+        }
+    }
+
+    @Async("rankingExecutor")
+    public void recalculateAfterUnban(Long userId) {
+        log.info("Recalculating stats and rankings after unbanning user {}", userId);
+        List<UUID> categoryIds = statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
+                .map(s -> s.getCategory().getId())
+                .toList();
+
+        for (UUID categoryId : categoryIds) {
+            statisticsService.recalculate(userId, categoryId, false, false);
+            rankingService.updateRankings(categoryId);
+        }
+        overallStatisticsService.updateOverallRankings();
+        userRepository.assignXpRankings();
+        userRepository.assignXpCountryRankings();
+        log.info("Recalculation complete after unbanning user {}", userId);
+    }
+
+    private void recalculateRankingsForUser(Long userId) {
+        log.info("Recalculating rankings after banning user {}", userId);
+        List<UUID> categoryIds = statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
+                .map(s -> s.getCategory().getId())
+                .toList();
+
+        for (UUID categoryId : categoryIds) {
+            rankingService.updateRankings(categoryId);
+        }
+        overallStatisticsService.updateOverallRankings();
+        userRepository.assignXpRankings();
+        userRepository.assignXpCountryRankings();
+        log.info("Ranking recalculation complete after banning user {}", userId);
+    }
+
     public List<UserNameHistory> getNameHistory(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         return userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(resolved);
@@ -89,6 +147,7 @@ public class UserService {
                 .country(user.getCountry())
                 .xpRanking(user.getXpRanking())
                 .xpCountryRanking(user.getXpCountryRanking())
+                .banned(user.isBanned())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

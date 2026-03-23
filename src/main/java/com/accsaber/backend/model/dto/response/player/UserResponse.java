@@ -24,6 +24,7 @@ public class UserResponse {
     BigDecimal totalMilestoneSetBonusXp;
     Integer xpRanking;
     Integer xpCountryRanking;
+    boolean banned;
     Instant createdAt;
 
     @With
