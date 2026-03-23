@@ -79,17 +79,6 @@ public class AdminRecalculationController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Correct inflated modifier scores",
-            description = "Two-pass DB-only correction using scoreNoMods as source of truth. "
-                    + "Pass 1: recomputes score = scoreNoMods * combined modifier multiplier for all scores with modifier links. "
-                    + "Pass 2: sets score = scoreNoMods for inflated scores (score > scoreNoMods) without modifier links. "
-                    + "Recalculates AP, reassigns ranks, and updates stats for all affected scores.")
-    @PostMapping("/scores/correct-modifiers")
-    public ResponseEntity<Void> correctModifierScores() {
-        scoreCorrectionService.correctModifierScoresAsync();
-        return ResponseEntity.accepted().build();
-    }
-
     @Operation(summary = "Recalculate a player's statistics for a category")
     @PostMapping("/stats/player/{userId}")
     public ResponseEntity<Void> recalculatePlayer(@PathVariable Long userId,

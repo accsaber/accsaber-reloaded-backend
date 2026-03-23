@@ -127,22 +127,6 @@ public class BeatLeaderClient {
         }
     }
 
-    public Optional<BeatLeaderScoreResponse> getScore(Long scoreId) {
-        try {
-            return Optional.ofNullable(webClient.get()
-                    .uri("/score/{id}", scoreId)
-                    .retrieve()
-                    .bodyToMono(BeatLeaderScoreResponse.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout()));
-        } catch (WebClientResponseException.NotFound e) {
-            return Optional.empty();
-        } catch (Exception e) {
-            log.error("Failed to fetch BeatLeader score {}: {}", scoreId, e.getMessage());
-            return Optional.empty();
-        }
-    }
-
     private Retry retrySpec() {
         return Retry.backoff(properties.getBeatleader().getMaxRetries(), Duration.ofSeconds(1))
                 .maxBackoff(Duration.ofSeconds(10))
