@@ -23,7 +23,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         JOIN FETCH d.map m
                         WHERE d.category.id = :categoryId AND d.status = :status AND d.active = true
-                        ORDER BY m.songName ASC
+                        ORDER BY d.rankedAt DESC
                         """)
         List<MapDifficulty> findByCategoryIdAndStatusWithMap(
                         @Param("categoryId") UUID categoryId,
@@ -117,7 +117,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         JOIN FETCH d.map m
                         WHERE d.category.countForOverall = true AND d.status = :status AND d.active = true
-                        ORDER BY m.songName ASC
+                        ORDER BY d.rankedAt DESC
                         """)
         List<MapDifficulty> findByCountForOverallAndStatusWithMap(
                         @Param("status") MapDifficultyStatus status);
