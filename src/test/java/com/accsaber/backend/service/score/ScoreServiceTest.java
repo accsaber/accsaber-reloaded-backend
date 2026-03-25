@@ -3,6 +3,7 @@ package com.accsaber.backend.service.score;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -232,7 +233,7 @@ class ScoreServiceTest {
                         verify(scoreRepository).saveAndFlush(existing);
                         verify(statisticsService).recalculate(activeUser.getId(),
                                         rankedDifficulty.getCategory().getId());
-                        verify(rankingService).updateRankingsAsync(rankedDifficulty.getCategory().getId());
+                        verify(rankingService).updateRankingsAsync(eq(rankedDifficulty.getCategory().getId()), any(Runnable.class));
                 }
 
                 @Test

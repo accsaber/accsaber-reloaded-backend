@@ -19,6 +19,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -72,6 +73,7 @@ public class ScoreService {
         private final ScoreRankingService scoreRankingService;
         private final DuplicateUserService duplicateUserService;
         private final ApplicationEventPublisher eventPublisher;
+        private final TransactionTemplate transactionTemplate;
 
         @Transactional
         public ScoreResponse submit(SubmitScoreRequest request) {
@@ -106,7 +108,7 @@ public class ScoreService {
                         history.setXpGained(xpGained);
                         scoreRepository.saveAndFlush(history);
                         saveModifierLinks(history, modifiers);
-                        updateUserXp(user, xpGained);
+                        updateUserXp(user.getId(), xpGained);
 
                         ScoreResponse worseResponse = toResponse(history,
                                         computeAccuracy(history.getScore(), difficulty.getMaxScore()),
@@ -136,14 +138,24 @@ public class ScoreService {
                 Score saved = scoreRepository.saveAndFlush(newScore);
                 saveModifierLinks(saved, modifiers);
 
-                updateUserXp(user, xpGained);
+                updateUserXp(user.getId(), xpGained);
 
                 statisticsService.recalculate(user.getId(), difficulty.getCategory().getId());
-                rankingService.updateRankingsAsync(difficulty.getCategory().getId());
                 mapDifficultyStatisticsService.recalculate(difficulty, user.getId());
 
-                var evaluation = milestoneEvaluationService.evaluateAfterScore(user.getId(), saved);
-                awardMilestoneXp(user, evaluation);
+                final Long userId = user.getId();
+                final UUID scoreId = saved.getId();
+                rankingService.updateRankingsAsync(difficulty.getCategory().getId(), () -> {
+                        transactionTemplate.executeWithoutResult(status -> {
+                                Score freshScore = scoreRepository.findById(scoreId).orElse(null);
+                                if (freshScore == null) return;
+                                var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, freshScore);
+                                if (!evaluation.completedMilestones().isEmpty()
+                                                || !evaluation.completedSets().isEmpty()) {
+                                        awardMilestoneXp(userId, evaluation);
+                                }
+                        });
+                });
 
                 ScoreResponse response = toResponse(saved, accuracy, loadModifierIds(saved.getId()));
                 eventPublisher.publishEvent(new ScoreSubmittedEvent(response));
@@ -190,7 +202,7 @@ public class ScoreService {
                         history.setXpGained(xpGained);
                         scoreRepository.saveAndFlush(history);
                         saveModifierLinks(history, modifiers);
-                        updateUserXp(user, xpGained);
+                        updateUserXp(user.getId(), xpGained);
                         return;
                 }
 
@@ -209,7 +221,7 @@ public class ScoreService {
                 Score saved = scoreRepository.saveAndFlush(newScore);
                 saveModifierLinks(saved, modifiers);
 
-                updateUserXp(user, xpGained);
+                updateUserXp(user.getId(), xpGained);
         }
 
         record RecalcResult(Long userId, UUID categoryId, UUID difficultyId) {
@@ -513,11 +525,11 @@ public class ScoreService {
                 };
         }
 
-        private void updateUserXp(User user, BigDecimal xpGained) {
-                userRepository.addXp(user.getId(), xpGained);
+        private void updateUserXp(Long userId, BigDecimal xpGained) {
+                userRepository.addXp(userId, xpGained);
         }
 
-        private void awardMilestoneXp(User user, MilestoneEvaluationService.EvaluationResult evaluation) {
+        private void awardMilestoneXp(Long userId, MilestoneEvaluationService.EvaluationResult evaluation) {
                 if (evaluation.completedMilestones().isEmpty() && evaluation.completedSets().isEmpty())
                         return;
 
@@ -532,7 +544,7 @@ public class ScoreService {
 
                 BigDecimal total = milestoneXp.add(setXp);
                 if (total.compareTo(BigDecimal.ZERO) > 0) {
-                        updateUserXp(user, total);
+                        updateUserXp(userId, total);
                 }
         }
 

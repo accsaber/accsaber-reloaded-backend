@@ -40,4 +40,12 @@ public class RankingService {
     public void updateRankingsAsync(UUID categoryId) {
         updateRankings(categoryId);
     }
+
+    @Async("rankingExecutor")
+    public void updateRankingsAsync(UUID categoryId, Runnable postRankingCallback) {
+        updateRankings(categoryId);
+        if (postRankingCallback != null) {
+            postRankingCallback.run();
+        }
+    }
 }
