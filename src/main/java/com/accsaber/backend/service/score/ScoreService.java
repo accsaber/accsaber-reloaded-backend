@@ -134,6 +134,7 @@ public class ScoreService {
 
                 Score newScore = buildScore(request, user, difficulty, modifiedScore, rawAp, supersedes);
                 newScore.setRank(newRank);
+                newScore.setRankWhenSet(newRank);
                 newScore.setXpGained(xpGained);
                 Score saved = scoreRepository.saveAndFlush(newScore);
                 saveModifierLinks(saved, modifiers);
