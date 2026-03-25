@@ -143,14 +143,15 @@ public class MapService {
     }
 
     public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, MapDifficultyStatus status,
-            BigDecimal complexityMin, BigDecimal complexityMax, String search, Pageable pageable) {
+            BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId,
+            Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = resolveDifficultySort(pageable);
         Page<MapDifficulty> difficulties = hasSearch
                 ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
-                        categoryId, status, complexityMin, complexityMax, search.trim(), effective)
+                        categoryId, status, complexityMin, complexityMax, excludeUserId, search.trim(), effective)
                 : mapDifficultyRepository.findWithComplexityFilters(
-                        categoryId, status, complexityMin, complexityMax, effective);
+                        categoryId, status, complexityMin, complexityMax, excludeUserId, effective);
 
         if (difficulties.isEmpty())
             return difficulties.map(d -> toDifficultyResponse(d, null, null, null));

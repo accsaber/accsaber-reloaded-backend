@@ -131,6 +131,9 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         AND (:status IS NULL OR d.status = :status)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
+                        AND (:excludeUserId IS NULL OR NOT EXISTS (
+                                SELECT 1 FROM Score s
+                                WHERE s.mapDifficulty = d AND s.user.id = :excludeUserId AND s.active = true))
                         """, countQuery = """
                         SELECT COUNT(d) FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
@@ -140,12 +143,16 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         AND (:status IS NULL OR d.status = :status)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
+                        AND (:excludeUserId IS NULL OR NOT EXISTS (
+                                SELECT 1 FROM Score s
+                                WHERE s.mapDifficulty = d AND s.user.id = :excludeUserId AND s.active = true))
                         """)
         Page<MapDifficulty> findWithComplexityFilters(
                         @Param("categoryId") UUID categoryId,
                         @Param("status") MapDifficultyStatus status,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,
+                        @Param("excludeUserId") Long excludeUserId,
                         Pageable pageable);
 
         @Query(value = """
@@ -157,6 +164,9 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         AND (:status IS NULL OR d.status = :status)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
+                        AND (:excludeUserId IS NULL OR NOT EXISTS (
+                                SELECT 1 FROM Score s
+                                WHERE s.mapDifficulty = d AND s.user.id = :excludeUserId AND s.active = true))
                         AND LOWER(d.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
                         """, countQuery = """
                         SELECT COUNT(d) FROM MapDifficulty d
@@ -167,6 +177,9 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         AND (:status IS NULL OR d.status = :status)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
+                        AND (:excludeUserId IS NULL OR NOT EXISTS (
+                                SELECT 1 FROM Score s
+                                WHERE s.mapDifficulty = d AND s.user.id = :excludeUserId AND s.active = true))
                         AND LOWER(d.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
                         """)
         Page<MapDifficulty> findWithComplexityFiltersWithSearch(
@@ -174,6 +187,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("status") MapDifficultyStatus status,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,
+                        @Param("excludeUserId") Long excludeUserId,
                         @Param("search") String search,
                         Pageable pageable);
 }

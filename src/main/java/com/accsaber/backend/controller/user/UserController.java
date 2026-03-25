@@ -1,5 +1,6 @@
 package com.accsaber.backend.controller.user;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,8 +24,11 @@ import com.accsaber.backend.model.dto.response.player.StatsDiffResponse;
 import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
+import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 import com.accsaber.backend.service.player.UserService;
@@ -44,6 +48,7 @@ public class UserController {
     private final UserService userService;
     private final ScoreService scoreService;
     private final StatisticsService statisticsService;
+    private final MapService mapService;
     private final MilestoneService milestoneService;
     private final LevelService levelService;
     private final CampaignService campaignService;
@@ -145,6 +150,20 @@ public class UserController {
     public ResponseEntity<LevelResponse> getUserLevel(@PathVariable Long userId) {
         var totalXp = userService.getTotalXp(userId);
         return ResponseEntity.ok(levelService.calculateLevel(totalXp));
+    }
+
+    @Operation(summary = "Get unplayed maps for a user", description = "Paginated list of ranked difficulties the user has no active score on, with the same filters as the maps/difficulties endpoint")
+    @GetMapping("/{userId}/missing-maps")
+    public ResponseEntity<Page<MapDifficultyResponse>> getMissingMaps(
+            @PathVariable Long userId,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) MapDifficultyStatus status,
+            @RequestParam(required = false) BigDecimal complexityMin,
+            @RequestParam(required = false) BigDecimal complexityMax,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search,
+                userId, pageable));
     }
 
     @Operation(summary = "Get user progress in a campaign")

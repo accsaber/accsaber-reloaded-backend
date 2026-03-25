@@ -61,7 +61,8 @@ public class MapController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity
-                .ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search, pageable));
+                .ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search, null,
+                        pageable));
     }
 
     @Operation(summary = "Get map by ID", description = "Returns a map with all its active difficulties, current complexities, and statistics")
