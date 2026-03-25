@@ -455,6 +455,10 @@ public class ScoreImportService {
                     .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
             if (existingScore.isPresent()
                     && Objects.equals(existingScore.get().getScoreNoMods(), blScore.getBaseScore())) {
+                if (existingScore.get().getBlScoreId() != null) {
+                    return null;
+                }
+                enrichWithBeatLeaderData(existingScore.get(), blScore);
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
@@ -471,6 +475,24 @@ public class ScoreImportService {
                     blScore.getId(), difficulty.getId(), e.getMessage());
             return null;
         }
+    }
+
+    private void enrichWithBeatLeaderData(Score score, BeatLeaderScoreResponse blScore) {
+        score.setBlScoreId(blScore.getId());
+        score.setWallHits(blScore.getWallsHit());
+        score.setBombHits(blScore.getBombCuts());
+        score.setPauses(blScore.getPauses());
+        score.setStreak115(blScore.getMaxStreak());
+        score.setPlayCount(blScore.getPlayCount() != null && blScore.getPlayCount() > 0
+                ? blScore.getPlayCount() : null);
+        if (score.getHmd() == null && blScore.getHmd() != null) {
+            score.setHmd(com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd()));
+        }
+        if (score.getTimeSet() == null && blScore.getTimepost() != null && blScore.getTimepost() > 0) {
+            score.setTimeSet(Instant.ofEpochSecond(blScore.getTimepost()));
+        }
+        scoreRepository.save(score);
+        log.debug("Enriched SS score {} with BL data (blScoreId={})", score.getId(), blScore.getId());
     }
 
     private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
