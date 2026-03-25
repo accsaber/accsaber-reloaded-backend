@@ -45,15 +45,8 @@ public class BeatLeaderWebSocketListener extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        log.info("BL WebSocket raw message received ({} chars): {}",
-                message != null ? message.length() : 0,
-                message != null && message.length() > 500 ? message.substring(0, 500) + "..." : message);
         try {
             BeatLeaderScoreResponse score = objectMapper.readValue(message, BeatLeaderScoreResponse.class);
-            log.info("BL WebSocket parsed: leaderboardId={}, playerId={}, baseScore={}",
-                    score.getLeaderboardId(),
-                    score.getPlayer() != null ? score.getPlayer().getId() : "null",
-                    score.getBaseScore());
             scoreIngestionService.handleBeatLeaderScore(score);
         } catch (Exception e) {
             log.error("Error processing BL WebSocket message: {}", e.getMessage());
