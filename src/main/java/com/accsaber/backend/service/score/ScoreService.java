@@ -7,9 +7,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -509,10 +511,22 @@ public class ScoreService {
                 Instant since = ZonedDateTime.now(ZoneOffset.UTC).minus(amount, parseUnit(unit)).toInstant();
                 List<Score> scores = scoreRepository.findHistoricDownsampled(resolvedUserId, mapDifficultyId, since);
 
+                Map<UUID, BigDecimal> bucketXpByScoreId = scoreRepository
+                                .findBucketXpSums(resolvedUserId, mapDifficultyId, since).stream()
+                                .collect(Collectors.toMap(
+                                                row -> (UUID) row[0],
+                                                row -> (BigDecimal) row[1]));
+
                 return scores.stream()
-                                .map(s -> toResponse(s,
-                                                computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
-                                                loadModifierIds(s.getId())))
+                                .map(s -> {
+                                        BigDecimal xpOverride = bucketXpByScoreId.get(s.getId());
+                                        if (xpOverride != null) {
+                                                s.setXpGained(xpOverride);
+                                        }
+                                        return toResponse(s,
+                                                        computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
+                                                        loadModifierIds(s.getId()));
+                                })
                                 .toList();
         }
 

@@ -335,6 +335,40 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         @Query(value = "UPDATE user_milestone_links SET achieved_with_score_id = NULL WHERE achieved_with_score_id IN (:scoreIds)", nativeQuery = true)
         void nullifyMilestoneScoreReferences(@Param("scoreIds") List<UUID> scoreIds);
 
+        @Query(value = """
+                        SELECT picked_id, bucket_xp FROM (
+                                SELECT
+                                        FIRST_VALUE(id) OVER (
+                                                PARTITION BY date_trunc(
+                                                        CASE WHEN CAST(:since AS timestamptz) < NOW() - INTERVAL '65 days'
+                                                        THEN 'week' ELSE 'day' END,
+                                                        created_at
+                                                ) ORDER BY created_at DESC
+                                        ) AS picked_id,
+                                        SUM(xp_gained) OVER (
+                                                PARTITION BY date_trunc(
+                                                        CASE WHEN CAST(:since AS timestamptz) < NOW() - INTERVAL '65 days'
+                                                        THEN 'week' ELSE 'day' END,
+                                                        created_at
+                                                )
+                                        ) AS bucket_xp,
+                                        ROW_NUMBER() OVER (
+                                                PARTITION BY date_trunc(
+                                                        CASE WHEN CAST(:since AS timestamptz) < NOW() - INTERVAL '65 days'
+                                                        THEN 'week' ELSE 'day' END,
+                                                        created_at
+                                                ) ORDER BY created_at DESC
+                                        ) AS rn
+                                FROM scores
+                                WHERE user_id = :userId AND map_difficulty_id = :difficultyId
+                                AND created_at > CAST(:since AS timestamptz)
+                                AND created_at <= NOW() - INTERVAL '24 hours'
+                        ) sub WHERE sub.rn = 1
+                        """, nativeQuery = true)
+        List<Object[]> findBucketXpSums(@Param("userId") Long userId,
+                        @Param("difficultyId") UUID difficultyId,
+                        @Param("since") Instant since);
+
         @Modifying
         @Query(value = "DELETE FROM merge_score_actions WHERE score_id IN (:scoreIds)", nativeQuery = true)
         void deleteMergeScoreActions(@Param("scoreIds") List<UUID> scoreIds);
