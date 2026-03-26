@@ -120,8 +120,9 @@ public class ScoreService {
                 Score supersedes = existing.orElse(null);
                 int newRank;
                 if (supersedes != null) {
+                        BigDecimal oldAccuracy = computeAccuracy(supersedes.getScore(), difficulty.getMaxScore());
                         xpGained = xpCalculationService.calculateXpForImprovement(
-                                        accuracy, complexity, supersedes.getXpGained());
+                                        accuracy, oldAccuracy, complexity);
                         int oldRank = supersedes.getRank();
                         supersedes.setActive(false);
                         supersedes.setSupersedesReason("Score improved");
@@ -209,8 +210,9 @@ public class ScoreService {
 
                 Score supersedes = existing.orElse(null);
                 if (supersedes != null) {
+                        BigDecimal oldAccuracy = computeAccuracy(supersedes.getScore(), difficulty.getMaxScore());
                         xpGained = xpCalculationService.calculateXpForImprovement(
-                                        accuracy, complexity, supersedes.getXpGained());
+                                        accuracy, oldAccuracy, complexity);
                         supersedes.setActive(false);
                         scoreRepository.saveAndFlush(supersedes);
                 } else {
@@ -273,8 +275,7 @@ public class ScoreService {
                 score.setActive(false);
                 scoreRepository.saveAndFlush(score);
 
-                BigDecimal xpGained = xpCalculationService.calculateXpForImprovement(
-                                accuracy, complexity, score.getXpGained());
+                BigDecimal xpGained = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
 
                 Score recalculated = Score.builder()
                                 .user(score.getUser())

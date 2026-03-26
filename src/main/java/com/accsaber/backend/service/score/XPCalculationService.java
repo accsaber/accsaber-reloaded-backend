@@ -43,11 +43,11 @@ public class XPCalculationService {
                 .setScale(XP_SCALE, RoundingMode.HALF_UP);
     }
 
-    public BigDecimal calculateXpForImprovement(BigDecimal accuracy, BigDecimal complexity,
-            BigDecimal existingXpGained) {
-        BigDecimal curveBonus = computeCurveBonus(accuracy, complexity);
-        BigDecimal oldCurveBonus = existingXpGained != null
-                ? existingXpGained.subtract(BigDecimal.valueOf(baseXpPerScore)).max(BigDecimal.ZERO)
+    public BigDecimal calculateXpForImprovement(BigDecimal newAccuracy, BigDecimal oldAccuracy,
+            BigDecimal complexity) {
+        BigDecimal curveBonus = computeCurveBonus(newAccuracy, complexity);
+        BigDecimal oldCurveBonus = oldAccuracy != null
+                ? computeCurveBonus(oldAccuracy, complexity)
                 : BigDecimal.ZERO;
         BigDecimal curveDelta = curveBonus.subtract(oldCurveBonus).max(BigDecimal.ZERO);
         BigDecimal boostedDelta = curveDelta.multiply(BigDecimal.valueOf(improvementMultiplier));

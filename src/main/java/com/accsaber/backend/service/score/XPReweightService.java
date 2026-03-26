@@ -92,19 +92,19 @@ public class XPReweightService {
 
         int updated = 0;
         for (List<Score> userScores : scoresByUser.values()) {
-            BigDecimal currentBestXp = null;
+            BigDecimal currentBestAccuracy = null;
             for (Score score : userScores) {
                 BigDecimal accuracy = BigDecimal.valueOf(score.getScore())
                         .divide(BigDecimal.valueOf(maxScore), 10, RoundingMode.HALF_UP);
                 BigDecimal newXp;
-                if (currentBestXp == null) {
+                if (currentBestAccuracy == null) {
                     newXp = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
-                    currentBestXp = newXp;
+                    currentBestAccuracy = accuracy;
                 } else if ("Worse score".equals(score.getSupersedesReason())) {
                     newXp = xpCalculationService.calculateXpForWorseScore();
                 } else {
-                    newXp = xpCalculationService.calculateXpForImprovement(accuracy, complexity, currentBestXp);
-                    currentBestXp = newXp;
+                    newXp = xpCalculationService.calculateXpForImprovement(accuracy, currentBestAccuracy, complexity);
+                    currentBestAccuracy = accuracy;
                 }
                 BigDecimal oldXp = score.getXpGained();
                 if (oldXp == null || oldXp.compareTo(newXp) != 0) {

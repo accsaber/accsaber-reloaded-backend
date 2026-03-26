@@ -80,7 +80,6 @@ class XPCalculationServiceTest {
 
             BigDecimal result = service.calculateXpForNewMap(BigDecimal.ONE, COMPLEXITY_10);
 
-            // 25 + 1.0 * 1000 * (10/10) = 1025
             assertThat(result).isEqualByComparingTo(BigDecimal.valueOf(1025));
         }
 
@@ -92,7 +91,6 @@ class XPCalculationServiceTest {
 
             BigDecimal result = service.calculateXpForNewMap(new BigDecimal("0.95"), COMPLEXITY_12);
 
-            // 25 + 0.18 * 1000 * (12/10) = 25 + 216 = 241
             assertThat(result.doubleValue()).isCloseTo(241.0, within(1.0));
         }
 
@@ -104,7 +102,6 @@ class XPCalculationServiceTest {
 
             BigDecimal result = service.calculateXpForNewMap(new BigDecimal("0.97"), COMPLEXITY_10);
 
-            // 25 + 0.36 * 1000 * 1.0 = 25 + 360 = 385
             assertThat(result.doubleValue()).isCloseTo(385.0, within(1.0));
         }
     }
@@ -114,23 +111,15 @@ class XPCalculationServiceTest {
 
         @Test
         void improvement_getsBaseXpPlusBoostedDelta() {
-            // Old score earned: 25 (base) + 180 (curve bonus) = 205
-            // New accuracy 0.99 → normalizedXP = 0.78 → bonus = 780
-            // delta = 780 - 180 = 600 → boosted = 600 * 1.5 = 900
-            // total = 25 + 900 = 925
             when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
             when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.99")))
                     .thenReturn(new BigDecimal("0.78"));
+            when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.95")))
+                    .thenReturn(new BigDecimal("0.18"));
 
-            BigDecimal oldXpGained = BigDecimal.valueOf(205); // base=25, curveBonus=180
             BigDecimal result = service.calculateXpForImprovement(
-                    new BigDecimal("0.99"), COMPLEXITY_10, oldXpGained);
+                    new BigDecimal("0.99"), new BigDecimal("0.95"), COMPLEXITY_10);
 
-            // newCurveBonus = 0.78 * 1000 * 1.0 = 780
-            // oldCurveBonus = 205 - 25 = 180
-            // delta = 780 - 180 = 600
-            // boostedDelta = 600 * 1.5 = 900
-            // total = 25 + 900 = 925
             assertThat(result.doubleValue()).isCloseTo(925.0, within(1.0));
         }
 
@@ -139,27 +128,50 @@ class XPCalculationServiceTest {
             when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
             when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.90")))
                     .thenReturn(new BigDecimal("0.01"));
+            when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.95")))
+                    .thenReturn(new BigDecimal("0.18"));
 
-            BigDecimal oldXpGained = BigDecimal.valueOf(60);
             BigDecimal result = service.calculateXpForImprovement(
-                    new BigDecimal("0.90"), COMPLEXITY_10, oldXpGained);
+                    new BigDecimal("0.90"), new BigDecimal("0.95"), COMPLEXITY_10);
 
             assertThat(result).isEqualByComparingTo(BigDecimal.valueOf(25));
         }
 
         @Test
-        void improvement_withNullExistingXp_treatsOldCurveBonusAsZero() {
+        void improvement_withNullOldAccuracy_treatsOldCurveBonusAsZero() {
             when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
             when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.95")))
                     .thenReturn(new BigDecimal("0.18"));
 
             BigDecimal result = service.calculateXpForImprovement(
-                    new BigDecimal("0.95"), COMPLEXITY_10, null);
+                    new BigDecimal("0.95"), null, COMPLEXITY_10);
 
-            // curveBonus = 0.18 * 1000 * 1.0 = 180
-            // delta = 180 - 0 = 180, boosted = 180 * 1.5 = 270
-            // total = 25 + 270 = 295
             assertThat(result.doubleValue()).isCloseTo(295.0, within(1.0));
+        }
+
+        @Test
+        void chainedImprovements_xpDoesNotInflate() {
+            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
+            when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.95")))
+                    .thenReturn(new BigDecimal("0.18"));
+            when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.96")))
+                    .thenReturn(new BigDecimal("0.25"));
+            when(apCalculationService.interpolate(xpCurve, new BigDecimal("0.97")))
+                    .thenReturn(new BigDecimal("0.36"));
+
+            BigDecimal xp1 = service.calculateXpForNewMap(new BigDecimal("0.95"), COMPLEXITY_10);
+            assertThat(xp1.doubleValue()).isCloseTo(205.0, within(1.0));
+
+            BigDecimal xp2 = service.calculateXpForImprovement(
+                    new BigDecimal("0.96"), new BigDecimal("0.95"), COMPLEXITY_10);
+            assertThat(xp2.doubleValue()).isCloseTo(130.0, within(1.0));
+
+            BigDecimal xp3 = service.calculateXpForImprovement(
+                    new BigDecimal("0.97"), new BigDecimal("0.96"), COMPLEXITY_10);
+            assertThat(xp3.doubleValue()).isCloseTo(190.0, within(1.0));
+
+            BigDecimal xpNewMapAt97 = service.calculateXpForNewMap(new BigDecimal("0.97"), COMPLEXITY_10);
+            assertThat(xp3).isLessThan(xpNewMapAt97);
         }
     }
 
