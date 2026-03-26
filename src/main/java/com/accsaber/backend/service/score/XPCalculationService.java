@@ -19,8 +19,7 @@ public class XPCalculationService {
     private static final UUID XP_CURVE_ID = UUID.fromString("acc00000-0000-0000-0000-000000000003");
     private static final int XP_SCALE = 6;
     private static final BigDecimal REFERENCE_COMPLEXITY = BigDecimal.valueOf(10);
-    private static final BigDecimal MIN_COMPLEXITY = BigDecimal.valueOf(3);
-    private static final java.math.MathContext MC = java.math.MathContext.DECIMAL64;
+    private static final BigDecimal MIN_COMPLEXITY = new BigDecimal("4.5");
 
     private final APCalculationService apCalculationService;
     private final CurveRepository curveRepository;
@@ -28,7 +27,7 @@ public class XPCalculationService {
     @Value("${accsaber.xp.base-xp-per-score:25}")
     private int baseXpPerScore;
 
-    @Value("${accsaber.xp.max-bonus-xp-per-score:1000}")
+    @Value("${accsaber.xp.max-bonus-xp-per-score:900}")
     private int maxBonusXpPerScore;
 
     @Value("${accsaber.xp.improvement-multiplier:1.5}")
@@ -73,9 +72,9 @@ public class XPCalculationService {
         }
         BigDecimal normalizedXP = apCalculationService.interpolate(curve, accuracy);
         BigDecimal clampedComplexity = complexity.max(MIN_COMPLEXITY);
-        BigDecimal complexityMultiplier = clampedComplexity.divide(REFERENCE_COMPLEXITY, MC);
+        double complexityMultiplier = Math.cbrt(clampedComplexity.doubleValue() / REFERENCE_COMPLEXITY.doubleValue());
         return normalizedXP.multiply(BigDecimal.valueOf(maxBonusXpPerScore))
-                .multiply(complexityMultiplier)
+                .multiply(BigDecimal.valueOf(complexityMultiplier))
                 .setScale(XP_SCALE, RoundingMode.HALF_UP);
     }
 

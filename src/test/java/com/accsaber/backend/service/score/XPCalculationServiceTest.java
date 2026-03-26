@@ -91,7 +91,8 @@ class XPCalculationServiceTest {
 
             BigDecimal result = service.calculateXpForNewMap(new BigDecimal("0.95"), COMPLEXITY_12);
 
-            assertThat(result.doubleValue()).isCloseTo(241.0, within(1.0));
+            // 25 + 0.18 * 1000 * cbrt(12/10) = 25 + 191.3 = 216.3
+            assertThat(result.doubleValue()).isCloseTo(216.3, within(1.0));
         }
 
         @Test
@@ -252,8 +253,8 @@ class XPCalculationServiceTest {
 
             BigDecimal bonus = service.computeCurveBonus(new BigDecimal("0.95"), new BigDecimal("0.2"));
 
-            // Clamped to 3: 0.5 * 1000 * (3/10) = 150
-            assertThat(bonus.doubleValue()).isCloseTo(150.0, within(0.001));
+            // Clamped to 4.5: 0.5 * 1000 * cbrt(4.5/10) = 0.5 * 1000 * 0.7663 = 383.2
+            assertThat(bonus.doubleValue()).isCloseTo(383.2, within(1.0));
         }
 
         @Test
@@ -264,8 +265,8 @@ class XPCalculationServiceTest {
 
             BigDecimal bonus = service.computeCurveBonus(new BigDecimal("0.95"), COMPLEXITY_12);
 
-            // 0.5 * 1000 * (12/10) = 600
-            assertThat(bonus.doubleValue()).isCloseTo(600.0, within(0.001));
+            // 0.5 * 1000 * cbrt(12/10) = 0.5 * 1000 * 1.0627 = 531.3
+            assertThat(bonus.doubleValue()).isCloseTo(531.3, within(1.0));
         }
     }
 

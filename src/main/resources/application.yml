@@ -90,7 +90,7 @@ accsaber:
     ws-max-reconnect-interval-ms: 60000
   xp:
     base-xp-per-score: 25
-    max-bonus-xp-per-score: 1000
+    max-bonus-xp-per-score: 900
     improvement-multiplier: 1.5
   backfill:
     on-startup: true
