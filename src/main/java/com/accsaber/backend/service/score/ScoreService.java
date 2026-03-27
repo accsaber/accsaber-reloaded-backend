@@ -127,7 +127,8 @@ public class ScoreService {
                         supersedes.setActive(false);
                         supersedes.setSupersedesReason("Score improved");
                         scoreRepository.saveAndFlush(supersedes);
-                        newRank = scoreRankingService.rankImprovedScore(difficulty.getId(), oldRank, rawAp, request.getTimeSet());
+                        newRank = scoreRankingService.rankImprovedScore(difficulty.getId(), oldRank, rawAp,
+                                        request.getTimeSet());
                 } else {
                         xpGained = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
                         newRank = scoreRankingService.rankNewScore(difficulty.getId(), rawAp, request.getTimeSet());
@@ -150,7 +151,8 @@ public class ScoreService {
                 rankingService.updateRankingsAsync(difficulty.getCategory().getId(), () -> {
                         transactionTemplate.executeWithoutResult(status -> {
                                 Score freshScore = scoreRepository.findById(scoreId).orElse(null);
-                                if (freshScore == null) return;
+                                if (freshScore == null)
+                                        return;
                                 var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, freshScore);
                                 if (!evaluation.completedMilestones().isEmpty()
                                                 || !evaluation.completedSets().isEmpty()) {
@@ -522,12 +524,12 @@ public class ScoreService {
                                                 s.setXpGained(xpOverride);
                                         }
                                         return toResponse(s,
-                                                        computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
+                                                        computeAccuracy(s.getScore(),
+                                                                        s.getMapDifficulty().getMaxScore()),
                                                         loadModifierIds(s.getId()));
                                 })
                                 .toList();
         }
-
 
         private void updateUserXp(Long userId, BigDecimal xpGained) {
                 userRepository.addXp(userId, xpGained);
@@ -654,24 +656,27 @@ public class ScoreService {
         private static final String ACCURACY_SORT_EXPRESSION = "CAST(s.score AS double) / s.mapDifficulty.maxScore";
 
         private Pageable resolveSort(Pageable pageable, Sort defaultSort) {
+                Sort resolved;
                 if (!pageable.getSort().isSorted()) {
-                        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
-                }
-
-                Sort resolved = Sort.unsorted();
-                for (Sort.Order order : pageable.getSort()) {
-                        if ("accuracy".equalsIgnoreCase(order.getProperty())) {
-                                resolved = resolved
-                                                .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                                                "(CASE WHEN (" + ACCURACY_SORT_EXPRESSION
-                                                                                + ") IS NULL THEN 1 ELSE 0 END)"))
-                                                .and(JpaSort.unsafe(order.getDirection(), ACCURACY_SORT_EXPRESSION));
-                        } else {
-                                resolved = resolved.and(Sort.by(
-                                                new Sort.Order(order.getDirection(), order.getProperty(),
-                                                                Sort.NullHandling.NULLS_LAST)));
+                        resolved = defaultSort;
+                } else {
+                        resolved = Sort.unsorted();
+                        for (Sort.Order order : pageable.getSort()) {
+                                if ("accuracy".equalsIgnoreCase(order.getProperty())) {
+                                        resolved = resolved
+                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
+                                                                        "(CASE WHEN (" + ACCURACY_SORT_EXPRESSION
+                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
+                                                        .and(JpaSort.unsafe(order.getDirection(),
+                                                                        ACCURACY_SORT_EXPRESSION));
+                                } else {
+                                        resolved = resolved.and(Sort.by(
+                                                        new Sort.Order(order.getDirection(), order.getProperty(),
+                                                                        Sort.NullHandling.NULLS_LAST)));
+                                }
                         }
                 }
+                resolved = resolved.and(Sort.by(Sort.Direction.ASC, "rank"));
                 return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
         }
 
@@ -721,10 +726,11 @@ public class ScoreService {
                                 .xpGained(s.getXpGained())
                                 .baseXp(BigDecimal.valueOf(xpCalculationService.getBaseXpPerScore()))
                                 .bonusXp(s.getXpGained() != null
-                                        ? s.getXpGained()
-                                                .subtract(BigDecimal.valueOf(xpCalculationService.getBaseXpPerScore()))
-                                                .max(BigDecimal.ZERO)
-                                        : BigDecimal.ZERO)
+                                                ? s.getXpGained()
+                                                                .subtract(BigDecimal.valueOf(xpCalculationService
+                                                                                .getBaseXpPerScore()))
+                                                                .max(BigDecimal.ZERO)
+                                                : BigDecimal.ZERO)
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();
