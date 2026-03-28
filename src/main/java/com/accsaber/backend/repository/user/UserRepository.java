@@ -25,35 +25,42 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("""
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
+            AND (:includeInactive = true OR u.ssInactive = false)
             ORDER BY u.totalXp DESC
             """)
-    Page<User> findXpLeaderboard(Pageable pageable);
+    Page<User> findXpLeaderboard(@Param("includeInactive") boolean includeInactive, Pageable pageable);
 
     @Query("""
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            AND (:includeInactive = true OR u.ssInactive = false)
             ORDER BY u.totalXp DESC
             """)
-    Page<User> findXpLeaderboardWithSearch(@Param("search") String search, Pageable pageable);
+    Page<User> findXpLeaderboardWithSearch(@Param("search") String search,
+            @Param("includeInactive") boolean includeInactive, Pageable pageable);
 
     @Query("""
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.country) = LOWER(:country)
+            AND (:includeInactive = true OR u.ssInactive = false)
             ORDER BY u.totalXp DESC
             """)
-    Page<User> findXpLeaderboardByCountry(@Param("country") String country, Pageable pageable);
+    Page<User> findXpLeaderboardByCountry(@Param("country") String country,
+            @Param("includeInactive") boolean includeInactive, Pageable pageable);
 
     @Query("""
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.country) = LOWER(:country)
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            AND (:includeInactive = true OR u.ssInactive = false)
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboardByCountryWithSearch(@Param("country") String country,
-            @Param("search") String search, Pageable pageable);
+            @Param("search") String search, @Param("includeInactive") boolean includeInactive,
+            Pageable pageable);
 
     @Modifying
     @Transactional

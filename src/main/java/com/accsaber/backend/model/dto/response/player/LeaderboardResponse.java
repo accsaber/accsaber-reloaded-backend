@@ -25,5 +25,6 @@ public class LeaderboardResponse {
     private BigDecimal averageAp;
     private Integer rankedPlays;
     private UUID topPlayId;
+    private boolean ssInactive;
     private Integer rankingLastWeek;
 }

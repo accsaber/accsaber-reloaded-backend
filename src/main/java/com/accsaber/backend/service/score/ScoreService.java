@@ -574,6 +574,10 @@ public class ScoreService {
                 if (user.isBanned()) {
                         throw new ValidationException("Banned users cannot submit scores");
                 }
+                if (user.isSsInactive()) {
+                        user.setSsInactive(false);
+                        userRepository.save(user);
+                }
                 return user;
         }
 

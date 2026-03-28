@@ -150,7 +150,7 @@ class PlayerImportServiceTest {
 
             playerImportService.refreshPlayerProfile(STEAM_ID);
 
-            verify(userService).updateProfile(STEAM_ID, "UpdatedName", "https://ss.com/new.png", "CA");
+            verify(userService).updateProfile(STEAM_ID, "UpdatedName", "https://ss.com/new.png", "CA", false);
         }
 
         @Test
@@ -160,7 +160,7 @@ class PlayerImportServiceTest {
 
             playerImportService.refreshPlayerProfile(STEAM_ID);
 
-            verify(userService, never()).updateProfile(anyLong(), anyString(), anyString(), anyString());
+            verify(userService, never()).updateProfile(anyLong(), anyString(), anyString(), anyString(), any());
         }
     }
 }

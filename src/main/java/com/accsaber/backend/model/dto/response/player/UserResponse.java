@@ -27,6 +27,7 @@ public class UserResponse {
     int level;
     String levelTitle;
     boolean banned;
+    boolean ssInactive;
     Instant createdAt;
 
     @With

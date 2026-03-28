@@ -97,11 +97,11 @@ class LeaderboardServiceTest {
 
                         when(categoryRepository.findByIdAndActiveTrue(category.getId()))
                                         .thenReturn(Optional.of(category));
-                        when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), any()))
+                        when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), eq(true), any()))
                                         .thenReturn(page);
 
                         Page<LeaderboardResponse> result = leaderboardService.getGlobal(category.getId(), null,
-                                        pageable);
+                                        true, pageable);
 
                         assertThat(result.getTotalElements()).isEqualTo(3);
                         assertThat(result.getContent()).hasSize(2);
@@ -113,7 +113,8 @@ class LeaderboardServiceTest {
                         UUID unknownId = UUID.randomUUID();
                         when(categoryRepository.findByIdAndActiveTrue(unknownId)).thenReturn(Optional.empty());
 
-                        assertThatThrownBy(() -> leaderboardService.getGlobal(unknownId, null, PageRequest.of(0, 20)))
+                        assertThatThrownBy(
+                                        () -> leaderboardService.getGlobal(unknownId, null, true, PageRequest.of(0, 20)))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
@@ -131,11 +132,11 @@ class LeaderboardServiceTest {
                         when(categoryRepository.findByIdAndActiveTrue(category.getId()))
                                         .thenReturn(Optional.of(category));
                         when(statisticsRepository.findActiveByCategoryAndCountryPaged(
-                                        eq(category.getId()), eq("US"), any()))
+                                        eq(category.getId()), eq("US"), eq(true), any()))
                                         .thenReturn(page);
 
                         Page<LeaderboardResponse> result = leaderboardService.getByCountry(
-                                        category.getId(), "US", null, pageable);
+                                        category.getId(), "US", null, true, pageable);
 
                         assertThat(result.getTotalElements()).isEqualTo(2);
                         assertThat(result.getContent()).allMatch(r -> "US".equals(r.getCountry()));
@@ -147,7 +148,7 @@ class LeaderboardServiceTest {
                         when(categoryRepository.findByIdAndActiveTrue(unknownId)).thenReturn(Optional.empty());
 
                         assertThatThrownBy(
-                                        () -> leaderboardService.getByCountry(unknownId, "US", null,
+                                        () -> leaderboardService.getByCountry(unknownId, "US", null, true,
                                                         PageRequest.of(0, 20)))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }

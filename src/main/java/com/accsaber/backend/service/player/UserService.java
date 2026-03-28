@@ -74,7 +74,7 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(Long userId, String name, String avatarUrl, String country) {
+    public User updateProfile(Long userId, String name, String avatarUrl, String country, Boolean ssInactive) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         if (name != null && !name.equals(user.getName())) {
@@ -88,6 +88,8 @@ public class UserService {
             user.setAvatarUrl(avatarUrl);
         if (country != null)
             user.setCountry(country);
+        if (ssInactive != null)
+            user.setSsInactive(ssInactive);
         return userRepository.save(user);
     }
 
@@ -173,6 +175,7 @@ public class UserService {
                 .level(levelResponse.getLevel())
                 .levelTitle(levelResponse.getTitle())
                 .banned(user.isBanned())
+                .ssInactive(user.isSsInactive())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

@@ -148,7 +148,7 @@ class UserServiceTest {
             when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.of(user));
             when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            User result = userService.updateProfile(STEAM_ID, "New", null, "CA");
+            User result = userService.updateProfile(STEAM_ID, "New", null, "CA", null);
 
             assertThat(result.getName()).isEqualTo("New");
             assertThat(result.getAvatarUrl()).isEqualTo("old.png");
@@ -162,7 +162,7 @@ class UserServiceTest {
             when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.of(user));
             when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            userService.updateProfile(STEAM_ID, "NewName", null, null);
+            userService.updateProfile(STEAM_ID, "NewName", null, null, null);
 
             ArgumentCaptor<UserNameHistory> captor = ArgumentCaptor.forClass(UserNameHistory.class);
             verify(userNameHistoryRepository).save(captor.capture());
@@ -178,7 +178,7 @@ class UserServiceTest {
             when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.of(user));
             when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            userService.updateProfile(STEAM_ID, "SameName", null, null);
+            userService.updateProfile(STEAM_ID, "SameName", null, null, null);
 
             verify(userNameHistoryRepository, never()).save(any());
         }
@@ -190,7 +190,7 @@ class UserServiceTest {
             when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.of(user));
             when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            userService.updateProfile(STEAM_ID, null, "new-avatar.png", null);
+            userService.updateProfile(STEAM_ID, null, "new-avatar.png", null, null);
 
             verify(userNameHistoryRepository, never()).save(any());
             assertThat(user.getName()).isEqualTo("CurrentName");
@@ -200,7 +200,7 @@ class UserServiceTest {
         void throwsNotFound_whenUserDoesNotExist() {
             when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> userService.updateProfile(STEAM_ID, "Name", null, null))
+            assertThatThrownBy(() -> userService.updateProfile(STEAM_ID, "Name", null, null, null))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
     }

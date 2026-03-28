@@ -12,4 +12,5 @@ public class ScoreSaberPlayerResponse {
     private String name;
     private String profilePicture;
     private String country;
+    private boolean inactive;
 }

@@ -37,41 +37,47 @@ public class LeaderboardService {
     private final UserXpRankingHistoryRepository xpRankingHistoryRepository;
     private final LevelService levelService;
 
-    @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
-    public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, Pageable pageable) {
+    @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
+    public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, boolean includeInactive,
+            Pageable pageable) {
         verifyCategory(categoryId);
         boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "ranking"));
         Page<UserCategoryStatistics> page = hasSearch
-                ? statisticsRepository.findActiveByCategoryPagedWithSearch(categoryId, search.trim(), effective)
-                : statisticsRepository.findActiveByCategoryPaged(categoryId, effective);
+                ? statisticsRepository.findActiveByCategoryPagedWithSearch(categoryId, search.trim(),
+                        includeInactive, effective)
+                : statisticsRepository.findActiveByCategoryPaged(categoryId, includeInactive, effective);
         return enrichWithLastWeekRanking(page, categoryId);
     }
 
-    @Cacheable(value = "leaderboards", key = "'country:' + #categoryId + ':' + #country + ':' + #search + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
-    public Page<LeaderboardResponse> getByCountry(UUID categoryId, String country, String search, Pageable pageable) {
+    @Cacheable(value = "leaderboards", key = "'country:' + #categoryId + ':' + #country + ':' + #search + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
+    public Page<LeaderboardResponse> getByCountry(UUID categoryId, String country, String search,
+            boolean includeInactive, Pageable pageable) {
         verifyCategory(categoryId);
         boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "countryRanking"));
         Page<UserCategoryStatistics> page = hasSearch
                 ? statisticsRepository.findActiveByCategoryAndCountryPagedWithSearch(
-                        categoryId, country, search.trim(), effective)
-                : statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, effective);
+                        categoryId, country, search.trim(), includeInactive, effective)
+                : statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, includeInactive,
+                        effective);
         return enrichWithLastWeekRanking(page, categoryId);
     }
 
-    public Page<XpLeaderboardResponse> getXpLeaderboard(String country, String search, Pageable pageable) {
+    public Page<XpLeaderboardResponse> getXpLeaderboard(String country, String search, boolean includeInactive,
+            Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         boolean hasCountry = country != null && !country.isBlank();
         Page<User> page;
         if (hasCountry && hasSearch) {
-            page = userRepository.findXpLeaderboardByCountryWithSearch(country, search.trim(), pageable);
+            page = userRepository.findXpLeaderboardByCountryWithSearch(country, search.trim(), includeInactive,
+                    pageable);
         } else if (hasCountry) {
-            page = userRepository.findXpLeaderboardByCountry(country, pageable);
+            page = userRepository.findXpLeaderboardByCountry(country, includeInactive, pageable);
         } else if (hasSearch) {
-            page = userRepository.findXpLeaderboardWithSearch(search.trim(), pageable);
+            page = userRepository.findXpLeaderboardWithSearch(search.trim(), includeInactive, pageable);
         } else {
-            page = userRepository.findXpLeaderboard(pageable);
+            page = userRepository.findXpLeaderboard(includeInactive, pageable);
         }
         return enrichXpWithLastWeekRanking(page);
     }
@@ -114,6 +120,7 @@ public class LeaderboardService {
                 .userName(user.getName())
                 .country(user.getCountry())
                 .avatarUrl(user.getAvatarUrl())
+                .ssInactive(user.isSsInactive())
                 .totalXp(user.getTotalXp())
                 .level(levelService.calculateLevel(user.getTotalXp()).getLevel())
                 .rankingLastWeek(rankingLastWeek)
@@ -128,6 +135,7 @@ public class LeaderboardService {
                 .userName(stats.getUser().getName())
                 .country(stats.getUser().getCountry())
                 .avatarUrl(stats.getUser().getAvatarUrl())
+                .ssInactive(stats.getUser().isSsInactive())
                 .ap(stats.getAp())
                 .averageAcc(stats.getAverageAcc())
                 .averageAp(stats.getAverageAp())
