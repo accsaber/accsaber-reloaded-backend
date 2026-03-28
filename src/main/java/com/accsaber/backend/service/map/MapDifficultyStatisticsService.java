@@ -70,7 +70,7 @@ public class MapDifficultyStatisticsService {
 
     @Transactional
     public void recalculate(MapDifficulty mapDifficulty, Long authorId) {
-        List<Score> scores = scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficulty.getId());
+        List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueExcludingBanned(mapDifficulty.getId());
         if (scores.isEmpty())
             return;
 

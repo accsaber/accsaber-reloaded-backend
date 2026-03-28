@@ -15,12 +15,17 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
+import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.service.score.ScoreRankingService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -42,6 +47,9 @@ public class UserService {
     private final RankingService rankingService;
     private final LevelService levelService;
     private final OverallStatisticsService overallStatisticsService;
+    private final ScoreRepository scoreRepository;
+    private final ScoreRankingService scoreRankingService;
+    private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
 
     @Autowired
     @Lazy
@@ -122,6 +130,10 @@ public class UserService {
     public void setBanned(Long userId, boolean banned) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (user.isBanned() == banned) {
+            log.info("User {} is already {}, skipping", userId, banned ? "banned" : "unbanned");
+            return;
+        }
         user.setBanned(banned);
         userRepository.save(user);
 
@@ -133,8 +145,21 @@ public class UserService {
     }
 
     @Async("rankingExecutor")
+    @Transactional
     public void recalculateAfterUnban(Long userId) {
         log.info("Recalculating stats and rankings after unbanning user {}", userId);
+
+        List<Score> scores = scoreRepository.findByUser_IdAndActiveTrue(userId);
+        for (Score score : scores) {
+            int rank = scoreRankingService.rankNewScore(
+                    score.getMapDifficulty().getId(), score.getAp(), score.getTimeSet());
+            score.setRank(rank);
+            scoreRepository.save(score);
+        }
+        log.info("Re-inserted score ranks for {} difficulties after unbanning user {}", scores.size(), userId);
+
+        recalculateMapStatsForScores(scores, userId);
+
         List<UUID> categoryIds = statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
                 .map(s -> s.getCategory().getId())
                 .toList();
@@ -150,8 +175,18 @@ public class UserService {
     }
 
     @Async("rankingExecutor")
+    @Transactional
     public void recalculateRankingsForUser(Long userId) {
         log.info("Recalculating rankings after banning user {}", userId);
+
+        List<Score> scores = scoreRepository.findByUser_IdAndActiveTrue(userId);
+        for (Score score : scores) {
+            scoreRepository.shiftScoreRanksUp(score.getMapDifficulty().getId(), score.getRank());
+        }
+        log.info("Shifted score ranks for {} difficulties after banning user {}", scores.size(), userId);
+
+        recalculateMapStatsForScores(scores, userId);
+
         List<UUID> categoryIds = statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
                 .map(s -> s.getCategory().getId())
                 .toList();
@@ -163,6 +198,17 @@ public class UserService {
         userRepository.assignXpRankings();
         userRepository.assignXpCountryRankings();
         log.info("Ranking recalculation complete after banning user {}", userId);
+    }
+
+    private void recalculateMapStatsForScores(List<Score> scores, Long authorId) {
+        List<MapDifficulty> difficulties = scores.stream()
+                .map(Score::getMapDifficulty)
+                .distinct()
+                .toList();
+        for (MapDifficulty difficulty : difficulties) {
+            mapDifficultyStatisticsService.recalculate(difficulty, authorId);
+        }
+        log.info("Recalculated map stats for {} difficulties", difficulties.size());
     }
 
     public List<UserNameHistory> getNameHistory(Long userId) {

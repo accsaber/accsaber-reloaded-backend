@@ -29,6 +29,15 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.active = true AND u.banned = false
+                        """)
+        List<Score> findByMapDifficultyIdAndActiveTrueExcludingBanned(
+                        @Param("mapDifficultyId") UUID mapDifficultyId);
+
+        @Query("""
+                        SELECT s FROM Score s
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.category c
                         LEFT JOIN FETCH c.scoreCurve
