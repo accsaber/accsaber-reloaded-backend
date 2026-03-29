@@ -29,35 +29,38 @@ public class LeaderboardController {
 
     private final LeaderboardService leaderboardService;
 
-    @Operation(summary = "Global leaderboard", description = "Paginated global rankings for a category, sorted by ranking ascending. Optionally filter by player name search. Set inactiveUsers=false to hide ScoreSaber-inactive players")
+    @Operation(summary = "Global leaderboard", description = "Paginated global rankings for a category, sorted by ranking ascending. Optionally filter by player name search, HMD, or inactive status.")
     @GetMapping("/{categoryId}")
     public ResponseEntity<Page<LeaderboardResponse>> getGlobal(
             @PathVariable UUID categoryId,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String hmd,
             @RequestParam(defaultValue = "true") boolean inactiveUsers,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(leaderboardService.getGlobal(categoryId, search, inactiveUsers, pageable));
+        return ResponseEntity.ok(leaderboardService.getGlobal(categoryId, search, hmd, inactiveUsers, pageable));
     }
 
-    @Operation(summary = "Country leaderboard", description = "Paginated rankings filtered by country for a category, sorted by AP descending. Optionally filter by player name search. Set inactiveUsers=false to hide ScoreSaber-inactive players")
+    @Operation(summary = "Country leaderboard", description = "Paginated rankings filtered by country for a category, sorted by AP descending. Optionally filter by player name search, HMD, or inactive status.")
     @GetMapping("/{categoryId}/country/{country}")
     public ResponseEntity<Page<LeaderboardResponse>> getByCountry(
             @PathVariable UUID categoryId,
             @PathVariable String country,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String hmd,
             @RequestParam(defaultValue = "true") boolean inactiveUsers,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
         return ResponseEntity.ok(
-                leaderboardService.getByCountry(categoryId, country, search, inactiveUsers, pageable));
+                leaderboardService.getByCountry(categoryId, country, search, hmd, inactiveUsers, pageable));
     }
 
-    @Operation(summary = "XP leaderboard", description = "Paginated XP rankings, sorted by total XP descending. Optional country and name search filters. Set inactiveUsers=false to hide ScoreSaber-inactive players")
+    @Operation(summary = "XP leaderboard", description = "Paginated XP rankings, sorted by total XP descending. Optional country, name search, HMD, and inactive status filters.")
     @GetMapping("/xp")
     public ResponseEntity<Page<XpLeaderboardResponse>> getXpLeaderboard(
             @RequestParam(required = false) String country,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String hmd,
             @RequestParam(defaultValue = "true") boolean inactiveUsers,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(leaderboardService.getXpLeaderboard(country, search, inactiveUsers, pageable));
+        return ResponseEntity.ok(leaderboardService.getXpLeaderboard(country, search, hmd, inactiveUsers, pageable));
     }
 }

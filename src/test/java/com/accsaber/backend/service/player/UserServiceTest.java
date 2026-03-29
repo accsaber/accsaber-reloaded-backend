@@ -24,6 +24,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -38,6 +39,9 @@ class UserServiceTest {
 
     @Mock
     private UserNameHistoryRepository userNameHistoryRepository;
+
+    @Mock
+    private ScoreRepository scoreRepository;
 
     @Mock
     private DuplicateUserService duplicateUserService;

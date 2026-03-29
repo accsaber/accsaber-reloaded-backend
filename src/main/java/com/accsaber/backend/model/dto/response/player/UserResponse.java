@@ -28,6 +28,8 @@ public class UserResponse {
     String levelTitle;
     boolean banned;
     boolean playerInactive;
+    String hmd;
+    Instant lastActiveTime;
     Instant createdAt;
 
     @With

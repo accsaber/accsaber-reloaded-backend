@@ -29,6 +29,7 @@ import com.accsaber.backend.service.score.ScoreRankingService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
+import com.accsaber.backend.util.HmdMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -218,6 +219,7 @@ public class UserService {
 
     private UserResponse toResponse(User user) {
         LevelResponse levelResponse = levelService.calculateLevel(user.getTotalXp());
+        Optional<Score> latestScore = scoreRepository.findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(user.getId());
         return UserResponse.builder()
                 .id(String.valueOf(user.getId()))
                 .name(user.getName())
@@ -229,6 +231,8 @@ public class UserService {
                 .levelTitle(levelResponse.getTitle())
                 .banned(user.isBanned())
                 .playerInactive(user.isPlayerInactive())
+                .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))
+                .lastActiveTime(latestScore.map(Score::getTimeSet).orElse(null))
                 .createdAt(user.getCreatedAt())
                 .build();
     }
