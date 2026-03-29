@@ -18,6 +18,8 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
 
         Optional<Map> findBySongHashAndActiveTrue(String songHash);
 
+        Optional<Map> findByBeatsaverCodeAndActiveTrue(String beatsaverCode);
+
         @Query(value = """
                         SELECT m FROM Map m
                         WHERE m.active = true

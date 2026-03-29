@@ -128,7 +128,8 @@ public class MapService {
                                 "(CASE WHEN " + mapped + " IS NULL THEN 1 ELSE 0 END)"))
                         .and(JpaSort.unsafe(order.getDirection(),
                                 isTextSortField(order.getProperty())
-                                        ? "LOWER(" + mapped + ")" : mapped));
+                                        ? "LOWER(" + mapped + ")"
+                                        : mapped));
             } else {
                 resolved = resolved.and(Sort.by(
                         new Sort.Order(order.getDirection(), order.getProperty(),
@@ -182,6 +183,18 @@ public class MapService {
     public MapResponse findBySongHash(String songHash, Difficulty difficulty) {
         Map map = mapRepository.findBySongHashAndActiveTrue(songHash.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("Map", songHash));
+        List<MapDifficulty> difficulties = mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId());
+        if (difficulty != null) {
+            difficulties = difficulties.stream()
+                    .filter(d -> d.getDifficulty() == difficulty)
+                    .toList();
+        }
+        return toMapResponse(map, enrichDifficulties(difficulties));
+    }
+
+    public MapResponse findByBeatsaverCode(String beatsaverCode, Difficulty difficulty) {
+        Map map = mapRepository.findByBeatsaverCodeAndActiveTrue(beatsaverCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Map", beatsaverCode));
         List<MapDifficulty> difficulties = mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId());
         if (difficulty != null) {
             difficulties = difficulties.stream()
