@@ -22,7 +22,13 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
 
     @Query(value = """
             SELECT * FROM (
-                SELECT ucs.* FROM user_category_statistics ucs
+                SELECT ucs.id, ucs.user_id, ucs.category_id,
+                    ucs.ranking, ucs.country_ranking,
+                    ucs.ap, ucs.average_acc, ucs.average_ap, ucs.score_xp,
+                    ucs.ranked_plays, ucs.top_play_id, ucs.supersedes_id,
+                    ucs.supersedes_reason, ucs.supersedes_author, ucs.active,
+                    ucs.created_at, ucs.updated_at
+                FROM user_category_statistics ucs
                 JOIN categories c ON ucs.category_id = c.id
                 WHERE ucs.user_id = :userId AND c.code = :categoryCode
                 AND ucs.created_at > GREATEST(CAST(:since AS timestamptz), NOW() - INTERVAL '24 hours')
