@@ -41,7 +41,7 @@ public class MapController {
     private final ScoreService scoreService;
     private final MapDifficultyStatisticsService statisticsService;
 
-    @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category, status, and/or song name search")
+    @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category, status, and/or search (matches song name, song author, or mapper)")
     @GetMapping
     public ResponseEntity<Page<MapResponse>> listMaps(
             @RequestParam(required = false) UUID categoryId,
@@ -51,7 +51,7 @@ public class MapController {
         return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
     }
 
-    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category, status, complexity range, and/or song name search")
+    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category, status, complexity range, and/or search (matches song name, song author, or mapper)")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<MapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) UUID categoryId,
