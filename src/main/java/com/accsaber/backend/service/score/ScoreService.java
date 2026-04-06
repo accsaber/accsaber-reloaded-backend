@@ -182,7 +182,7 @@ public class ScoreService {
         }
 
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
-                User user = loadActiveUser(request.getUserId());
+                User user = loadUserForBackfill(request.getUserId());
 
                 Optional<Score> existing = scoreRepository
                                 .findByUser_IdAndMapDifficulty_IdAndActiveTrue(user.getId(), difficulty.getId());
@@ -569,14 +569,19 @@ public class ScoreService {
         }
 
         private User loadActiveUser(Long userId) {
+                User user = loadUserForBackfill(userId);
+                if (user.isPlayerInactive()) {
+                        user.setPlayerInactive(false);
+                        userRepository.save(user);
+                }
+                return user;
+        }
+
+        private User loadUserForBackfill(Long userId) {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
                 if (user.isBanned()) {
                         throw new ValidationException("Banned users cannot submit scores");
-                }
-                if (user.isPlayerInactive()) {
-                        user.setPlayerInactive(false);
-                        userRepository.save(user);
                 }
                 return user;
         }
