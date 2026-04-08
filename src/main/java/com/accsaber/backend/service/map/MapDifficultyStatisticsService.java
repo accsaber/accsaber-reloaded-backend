@@ -69,7 +69,8 @@ public class MapDifficultyStatisticsService {
         List<MapDifficultyStatistics> stats = statisticsRepository
                 .findHistoricDownsampled(mapDifficultyId, since);
         List<Score> topOnesInWindow = scoreRepository.findTopOneHistory(mapDifficultyId, since);
-        Optional<Score> seedTopOne = scoreRepository.findLatestTopOneBefore(mapDifficultyId, since);
+        List<Score> seedTopOne = scoreRepository.findLatestTopOneBefore(
+                mapDifficultyId, since, org.springframework.data.domain.PageRequest.of(0, 1));
 
         List<MapDifficultyStatisticsResponse> result = new ArrayList<>(
                 stats.size() + topOnesInWindow.size() + 1);
@@ -77,7 +78,9 @@ public class MapDifficultyStatisticsService {
         for (MapDifficultyStatistics s : stats) {
             result.add(toResponse(s, null));
         }
-        seedTopOne.ifPresent(s -> result.add(topScoreOnlyEntry(s, since)));
+        if (!seedTopOne.isEmpty()) {
+            result.add(topScoreOnlyEntry(seedTopOne.get(0), since));
+        }
         for (Score s : topOnesInWindow) {
             result.add(topScoreOnlyEntry(s, s.getCreatedAt()));
         }

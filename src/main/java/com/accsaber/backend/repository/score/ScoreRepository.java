@@ -332,11 +332,11 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND s.createdAt < :before
                         AND u.active = true AND u.banned = false
                         ORDER BY s.createdAt DESC
-                        LIMIT 1
                         """)
-        Optional<Score> findLatestTopOneBefore(
+        List<Score> findLatestTopOneBefore(
                         @Param("difficultyId") UUID difficultyId,
-                        @Param("before") Instant before);
+                        @Param("before") Instant before,
+                        org.springframework.data.domain.Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
