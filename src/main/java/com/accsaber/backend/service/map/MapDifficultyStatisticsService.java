@@ -68,9 +68,29 @@ public class MapDifficultyStatisticsService {
 
         List<MapDifficultyStatistics> stats = statisticsRepository
                 .findHistoricDownsampled(mapDifficultyId, since);
-        List<Score> topOnes = scoreRepository.findTopOneHistory(mapDifficultyId, since);
+        List<Score> topOnesInWindow = scoreRepository.findTopOneHistory(mapDifficultyId, since);
+        Optional<Score> seedTopOne = scoreRepository.findLatestTopOneBefore(mapDifficultyId, since);
 
-        return mergeStatsWithTopScores(stats, topOnes);
+        List<MapDifficultyStatisticsResponse> result = new ArrayList<>(
+                stats.size() + topOnesInWindow.size() + 1);
+
+        for (MapDifficultyStatistics s : stats) {
+            result.add(toResponse(s, null));
+        }
+        seedTopOne.ifPresent(s -> result.add(topScoreOnlyEntry(s, since)));
+        for (Score s : topOnesInWindow) {
+            result.add(topScoreOnlyEntry(s, s.getCreatedAt()));
+        }
+
+        result.sort(Comparator.comparing(MapDifficultyStatisticsResponse::getCreatedAt));
+        return result;
+    }
+
+    private MapDifficultyStatisticsResponse topScoreOnlyEntry(Score score, Instant createdAt) {
+        return MapDifficultyStatisticsResponse.builder()
+                .topScore(toTopScoreSnapshot(score))
+                .createdAt(createdAt)
+                .build();
     }
 
     @Transactional
@@ -111,24 +131,6 @@ public class MapDifficultyStatisticsService {
                 .active(true)
                 .build();
         statisticsRepository.saveAndFlush(newVersion);
-    }
-
-    private List<MapDifficultyStatisticsResponse> mergeStatsWithTopScores(
-            List<MapDifficultyStatistics> stats, List<Score> topOnes) {
-        List<MapDifficultyStatisticsResponse> result = new ArrayList<>();
-        int topIdx = 0;
-        TopScoreSnapshot currentTop = null;
-
-        for (MapDifficultyStatistics s : stats) {
-            while (topIdx < topOnes.size()
-                    && !topOnes.get(topIdx).getCreatedAt().isAfter(s.getCreatedAt())) {
-                currentTop = toTopScoreSnapshot(topOnes.get(topIdx));
-                topIdx++;
-            }
-            result.add(toResponse(s, currentTop));
-        }
-
-        return result;
     }
 
     private TopScoreSnapshot toTopScoreSnapshot(Score s) {

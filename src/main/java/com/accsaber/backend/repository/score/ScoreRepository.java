@@ -328,6 +328,20 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         SELECT s FROM Score s
                         JOIN FETCH s.user u
                         WHERE s.mapDifficulty.id = :difficultyId
+                        AND s.rankWhenSet = 1
+                        AND s.createdAt < :before
+                        AND u.active = true AND u.banned = false
+                        ORDER BY s.createdAt DESC
+                        LIMIT 1
+                        """)
+        Optional<Score> findLatestTopOneBefore(
+                        @Param("difficultyId") UUID difficultyId,
+                        @Param("before") Instant before);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :difficultyId
                         AND s.rank = 1
                         AND s.active = true
                         AND u.active = true AND u.banned = false
