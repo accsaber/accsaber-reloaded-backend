@@ -316,27 +316,10 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         JOIN FETCH s.user u
                         WHERE s.mapDifficulty.id = :difficultyId
                         AND s.rankWhenSet = 1
-                        AND s.createdAt >= :since
                         AND u.active = true AND u.banned = false
                         ORDER BY s.createdAt ASC
                         """)
-        List<Score> findTopOneHistory(
-                        @Param("difficultyId") UUID difficultyId,
-                        @Param("since") Instant since);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :difficultyId
-                        AND s.rankWhenSet = 1
-                        AND s.createdAt < :before
-                        AND u.active = true AND u.banned = false
-                        ORDER BY s.createdAt DESC
-                        """)
-        List<Score> findLatestTopOneBefore(
-                        @Param("difficultyId") UUID difficultyId,
-                        @Param("before") Instant before,
-                        org.springframework.data.domain.Pageable pageable);
+        List<Score> findAllTopOnes(@Param("difficultyId") UUID difficultyId);
 
         @Query("""
                         SELECT s FROM Score s
