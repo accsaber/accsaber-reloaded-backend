@@ -106,7 +106,7 @@ public class ScoreImportService {
                 "Backfill import done for difficulty {}: {} BL scores, {} SS scores. Running batch recalc for {} affected users...",
                 difficulty.getId(), blImported, ssImported, affectedUserIds.size());
 
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds);
+        batchRecalculateAfterBackfill(difficulty, affectedUserIds, true);
     }
 
     @Async("taskExecutor")
@@ -200,7 +200,7 @@ public class ScoreImportService {
             affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
         }
 
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds);
+        batchRecalculateAfterBackfill(difficulty, affectedUserIds, false);
     }
 
     private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
@@ -283,7 +283,8 @@ public class ScoreImportService {
         }
     }
 
-    private void batchRecalculateAfterBackfill(MapDifficulty difficulty, Set<Long> affectedUserIds) {
+    private void batchRecalculateAfterBackfill(MapDifficulty difficulty, Set<Long> affectedUserIds,
+            boolean syncRankWhenSet) {
         if (affectedUserIds.isEmpty()) {
             log.info("No new scores imported for difficulty {} - skipping batch recalc", difficulty.getId());
             return;
@@ -308,7 +309,11 @@ public class ScoreImportService {
 
         futures.forEach(CompletableFuture::join);
 
-        scoreRankingService.reassignRanksForBackfill(difficulty.getId());
+        if (syncRankWhenSet) {
+            scoreRankingService.reassignRanksForBackfill(difficulty.getId());
+        } else {
+            scoreRankingService.reassignRanks(difficulty.getId());
+        }
         mapDifficultyStatisticsService.recalculate(difficulty, null);
         rankingService.updateRankings(categoryId);
         if (difficulty.getCategory().isCountForOverall()) {
