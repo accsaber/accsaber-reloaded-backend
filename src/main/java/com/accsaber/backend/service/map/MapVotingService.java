@@ -26,12 +26,17 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MapVotingService {
+
+    private static final Logger log = LoggerFactory.getLogger(MapVotingService.class);
 
     private final StaffMapVoteRepository voteRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
@@ -124,6 +129,15 @@ public class MapVotingService {
         }
 
         StaffMapVote saved = voteRepository.save(staffVote);
+
+        if (type == MapVoteAction.RANK) {
+            if (difficulty.getStatus() == MapDifficultyStatus.QUEUE) {
+                tryAutoQualify(difficulty);
+            } else if (difficulty.getStatus() == MapDifficultyStatus.QUALIFIED) {
+                tryAutoDequalify(difficulty);
+            }
+        }
+
         StaffInfo info = staffUserRepository.findAllByIdWithUser(List.of(staffId)).stream()
                 .findFirst()
                 .map(s -> new StaffInfo(s.getUsername(),
@@ -157,6 +171,44 @@ public class MapVotingService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return sum.divide(BigDecimal.valueOf(reweightVotes.size()), 6, RoundingMode.HALF_UP);
+    }
+
+    private void tryAutoQualify(MapDifficulty difficulty) {
+        UUID diffId = difficulty.getId();
+        if (!isThresholdMet(diffId, MapVoteAction.RANK, rankThreshold)) {
+            return;
+        }
+        if (!isCriteriaPassed(diffId)) {
+            return;
+        }
+        difficulty.setStatus(MapDifficultyStatus.QUALIFIED);
+        mapDifficultyRepository.save(difficulty);
+        log.info("Auto-qualified difficulty {}", diffId);
+    }
+
+    private void tryAutoDequalify(MapDifficulty difficulty) {
+        UUID diffId = difficulty.getId();
+        if (isThresholdMet(diffId, MapVoteAction.RANK, rankThreshold) && isCriteriaPassed(diffId)) {
+            return;
+        }
+        difficulty.setStatus(MapDifficultyStatus.QUEUE);
+        mapDifficultyRepository.save(difficulty);
+        log.info("Auto-dequalified difficulty {}", diffId);
+    }
+
+    private boolean isCriteriaPassed(UUID mapDifficultyId) {
+        List<StaffMapVote> votes = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
+        VoteType headOverride = votes.stream()
+                .filter(StaffMapVote::isCriteriaVoteOverride)
+                .map(StaffMapVote::getCriteriaVote)
+                .findFirst()
+                .orElse(null);
+        if (headOverride != null) {
+            return headOverride == VoteType.UPVOTE;
+        }
+        long up = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.UPVOTE).count();
+        long down = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.DOWNVOTE).count();
+        return up - down > 0;
     }
 
     private boolean isThresholdMet(UUID mapDifficultyId, MapVoteAction type, int threshold) {
