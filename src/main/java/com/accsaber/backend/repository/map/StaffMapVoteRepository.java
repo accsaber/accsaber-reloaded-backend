@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,7 +21,8 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
         Optional<StaffMapVote> findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(UUID mapDifficultyId, UUID staffId,
                         MapVoteAction type);
 
-        List<StaffMapVote> findByMapDifficultyIdAndActiveTrue(UUID mapDifficultyId);
+        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map WHERE v.mapDifficulty.id = :mapDifficultyId AND v.active = true")
+        List<StaffMapVote> findByMapDifficultyIdAndActiveTrue(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         long countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(UUID mapDifficultyId, MapVoteAction type, VoteType vote);
 
@@ -36,4 +39,7 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
         @Query("SELECT v.mapDifficulty.id, v.criteriaVote FROM StaffMapVote v " +
                         "WHERE v.mapDifficulty.id IN :ids AND v.criteriaVoteOverride = true AND v.active = true")
         List<Object[]> findHeadCriteriaVotesByDifficultyIds(@Param("ids") List<UUID> ids);
+
+        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map WHERE v.active = true")
+        Page<StaffMapVote> findAllActiveWithMap(Pageable pageable);
 }

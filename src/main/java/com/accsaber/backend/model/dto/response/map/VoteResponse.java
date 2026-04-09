@@ -16,6 +16,10 @@ public class VoteResponse {
 
     UUID id;
     UUID mapDifficultyId;
+    String songName;
+    String songAuthor;
+    String mapAuthor;
+    String coverUrl;
     UUID staffId;
     String staffUsername;
     String staffAvatarUrl;

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +80,21 @@ public class MapVotingService {
                 .criteriaDownvotes(criteriaDownvotes)
                 .headCriteriaVote(headCriteriaVote)
                 .build();
+    }
+
+    public Page<VoteResponse> getActivityFeed(Pageable pageable) {
+        Page<StaffMapVote> votes = voteRepository.findAllActiveWithMap(pageable);
+        List<UUID> staffIds = votes.getContent().stream()
+                .map(StaffMapVote::getStaffId)
+                .distinct()
+                .toList();
+        java.util.Map<UUID, StaffInfo> staffInfo = staffIds.isEmpty()
+                ? java.util.Map.of()
+                : staffUserRepository.findAllByIdWithUser(staffIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(StaffUser::getId,
+                                s -> new StaffInfo(s.getUsername(),
+                                        s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
+        return votes.map(v -> toResponse(v, staffInfo.get(v.getStaffId())));
     }
 
     @Transactional
@@ -206,9 +223,14 @@ public class MapVotingService {
     }
 
     private VoteResponse toResponse(StaffMapVote v, StaffInfo info) {
+        var map = v.getMapDifficulty().getMap();
         return VoteResponse.builder()
                 .id(v.getId())
                 .mapDifficultyId(v.getMapDifficulty().getId())
+                .songName(map.getSongName())
+                .songAuthor(map.getSongAuthor())
+                .mapAuthor(map.getMapAuthor())
+                .coverUrl(map.getCoverUrl())
                 .staffId(v.getStaffId())
                 .staffUsername(info != null ? info.username() : null)
                 .staffAvatarUrl(info != null ? info.avatarUrl() : null)

@@ -3,6 +3,10 @@ package com.accsaber.backend.controller.ranking;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,6 +39,14 @@ public class RankingMapVoteController {
 
     private final MapVotingService mapVotingService;
     private final MapService mapService;
+
+    @Operation(summary = "Vote activity feed", description = "Paginated list of all active votes sorted by most recently updated")
+    @GetMapping("/votes/activity")
+    @PreAuthorize("hasRole('RANKING')")
+    public ResponseEntity<Page<VoteResponse>> getActivityFeed(
+            @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(mapVotingService.getActivityFeed(pageable));
+    }
 
     @Operation(summary = "List votes on a map difficulty", description = "Returns all active votes plus informational threshold flags for reweight and unrank")
     @GetMapping("/{difficultyId}/votes")

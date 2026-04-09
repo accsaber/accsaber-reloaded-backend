@@ -227,6 +227,12 @@ class MapVotingServiceTest {
         private MapDifficulty buildDifficulty(MapDifficultyStatus status) {
                 return MapDifficulty.builder()
                                 .id(UUID.randomUUID())
+                                .map(com.accsaber.backend.model.entity.map.Map.builder()
+                                                .id(UUID.randomUUID())
+                                                .songName("Test Song")
+                                                .songAuthor("Test Author")
+                                                .mapAuthor("Test Mapper")
+                                                .build())
                                 .difficulty(Difficulty.EXPERT_PLUS)
                                 .characteristic("Standard")
                                 .status(status)
