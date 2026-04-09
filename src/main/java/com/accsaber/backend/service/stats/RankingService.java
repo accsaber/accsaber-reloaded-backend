@@ -2,25 +2,45 @@ package com.accsaber.backend.service.stats;
 
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class RankingService {
 
     private final UserCategoryStatisticsRepository statisticsRepository;
     private final TransactionTemplate transactionTemplate;
+    private final Executor rankingExecutor;
 
     private final ConcurrentHashMap<UUID, ReentrantLock> categoryLocks = new ConcurrentHashMap<>();
+
+    private static final int IDLE = 0;
+    private static final int RUNNING = 1;
+    private static final int DIRTY = 2;
+
+    private final ConcurrentHashMap<UUID, AtomicInteger> categoryState = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ConcurrentLinkedQueue<Runnable>> pendingCallbacks = new ConcurrentHashMap<>();
+
+    public RankingService(
+            UserCategoryStatisticsRepository statisticsRepository,
+            TransactionTemplate transactionTemplate,
+            @Qualifier("rankingExecutor") Executor rankingExecutor) {
+        this.statisticsRepository = statisticsRepository;
+        this.transactionTemplate = transactionTemplate;
+        this.rankingExecutor = rankingExecutor;
+    }
 
     @CacheEvict(value = "leaderboards", allEntries = true)
     public void updateRankings(UUID categoryId) {
@@ -36,16 +56,49 @@ public class RankingService {
         }
     }
 
-    @Async("rankingExecutor")
     public void updateRankingsAsync(UUID categoryId) {
-        updateRankings(categoryId);
+        updateRankingsAsync(categoryId, null);
     }
 
-    @Async("rankingExecutor")
     public void updateRankingsAsync(UUID categoryId, Runnable postRankingCallback) {
-        updateRankings(categoryId);
         if (postRankingCallback != null) {
-            postRankingCallback.run();
+            pendingCallbacks.computeIfAbsent(categoryId, k -> new ConcurrentLinkedQueue<>())
+                    .add(postRankingCallback);
+        }
+
+        AtomicInteger state = categoryState.computeIfAbsent(categoryId, k -> new AtomicInteger(IDLE));
+
+        if (state.compareAndSet(IDLE, RUNNING)) {
+            rankingExecutor.execute(() -> processCoalesced(categoryId, state));
+        } else {
+            state.set(DIRTY);
+        }
+    }
+
+    private void processCoalesced(UUID categoryId, AtomicInteger state) {
+        try {
+            do {
+                state.set(RUNNING);
+                updateRankings(categoryId);
+                drainCallbacks(categoryId);
+            } while (!state.compareAndSet(RUNNING, IDLE));
+        } catch (Exception e) {
+            state.set(IDLE);
+            log.error("Error during ranking update for category {}: {}", categoryId, e.getMessage());
+        }
+    }
+
+    private void drainCallbacks(UUID categoryId) {
+        ConcurrentLinkedQueue<Runnable> callbacks = pendingCallbacks.get(categoryId);
+        if (callbacks == null)
+            return;
+        Runnable cb;
+        while ((cb = callbacks.poll()) != null) {
+            try {
+                cb.run();
+            } catch (Exception e) {
+                log.error("Error in post-ranking callback for category {}: {}", categoryId, e.getMessage());
+            }
         }
     }
 }

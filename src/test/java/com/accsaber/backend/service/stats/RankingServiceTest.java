@@ -5,6 +5,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,8 @@ class RankingServiceTest {
         @Mock
         private TransactionTemplate transactionTemplate;
 
+        private final Executor directExecutor = Runnable::run;
+
         private RankingService rankingService;
 
         @BeforeEach
@@ -37,7 +40,7 @@ class RankingServiceTest {
                         action.accept(null);
                         return null;
                 }).when(transactionTemplate).executeWithoutResult(any());
-                rankingService = new RankingService(statisticsRepository, transactionTemplate);
+                rankingService = new RankingService(statisticsRepository, transactionTemplate, directExecutor);
         }
 
         @Nested
