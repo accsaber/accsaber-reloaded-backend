@@ -35,11 +35,13 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
+import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 
@@ -59,7 +61,17 @@ public class MapService {
     private final MapDifficultyComplexityService complexityService;
     private final MapDifficultyStatisticsService statisticsService;
     private final StaffUserRepository staffUserRepository;
+    private final StaffMapVoteRepository voteRepository;
     private final ScoreIngestionService scoreIngestionService;
+
+    record StaffInfo(String username, String avatarUrl) {
+    }
+
+    record VoteSummary(int rankUpvotes, int rankDownvotes, int criteriaUpvotes, int criteriaDownvotes,
+            VoteType headCriteriaVote) {
+    }
+
+    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null);
 
     public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
@@ -122,25 +134,35 @@ public class MapService {
         return "songName".equals(property) || "songAuthor".equals(property) || "mapAuthor".equals(property);
     }
 
+    private static final String RANK_RATING_SUBQUERY =
+            "((SELECT COUNT(v) FROM StaffMapVote v WHERE v.mapDifficulty = d"
+                    + " AND v.type = 'rank' AND v.vote = 'upvote' AND v.active = true)"
+                    + " - (SELECT COUNT(v2) FROM StaffMapVote v2 WHERE v2.mapDifficulty = d"
+                    + " AND v2.type = 'rank' AND v2.vote = 'downvote' AND v2.active = true))";
+
     private Pageable resolveDifficultySort(Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
             return pageable;
         }
         Sort resolved = Sort.unsorted();
         for (Sort.Order order : pageable.getSort()) {
-            String mapped = JPQL_SORT_MAPPING.get(order.getProperty());
-            if (mapped != null) {
-                resolved = resolved
-                        .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                "(CASE WHEN " + mapped + " IS NULL THEN 1 ELSE 0 END)"))
-                        .and(JpaSort.unsafe(order.getDirection(),
-                                isTextSortField(order.getProperty())
-                                        ? "LOWER(" + mapped + ")"
-                                        : mapped));
+            if ("rating".equals(order.getProperty())) {
+                resolved = resolved.and(JpaSort.unsafe(order.getDirection(), RANK_RATING_SUBQUERY));
             } else {
-                resolved = resolved.and(Sort.by(
-                        new Sort.Order(order.getDirection(), order.getProperty(),
-                                Sort.NullHandling.NULLS_LAST)));
+                String mapped = JPQL_SORT_MAPPING.get(order.getProperty());
+                if (mapped != null) {
+                    resolved = resolved
+                            .and(JpaSort.unsafe(Sort.Direction.ASC,
+                                    "(CASE WHEN " + mapped + " IS NULL THEN 1 ELSE 0 END)"))
+                            .and(JpaSort.unsafe(order.getDirection(),
+                                    isTextSortField(order.getProperty())
+                                            ? "LOWER(" + mapped + ")"
+                                            : mapped));
+                } else {
+                    resolved = resolved.and(Sort.by(
+                            new Sort.Order(order.getDirection(), order.getProperty(),
+                                    Sort.NullHandling.NULLS_LAST)));
+                }
             }
         }
         boolean hasId = pageable.getSort().stream().anyMatch(o -> "id".equals(o.getProperty()));
@@ -167,10 +189,12 @@ public class MapService {
         List<UUID> ids = difficulties.getContent().stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, String> staffUsernames = loadStaffUsernames(difficulties.getContent());
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
+        java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
 
         return difficulties.map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
-                staffUsernames.get(d.getLastUpdatedBy())));
+                staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY)));
     }
 
     public MapResponse findById(UUID mapId) {
@@ -230,13 +254,13 @@ public class MapService {
         if (deactivated.isEmpty())
             return List.of();
 
-        java.util.Map<UUID, String> staffUsernames = loadStaffUsernames(deactivated);
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(deactivated);
         List<UUID> ids = deactivated.stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
 
         return deactivated.stream()
                 .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), null,
-                        staffUsernames.get(d.getLastUpdatedBy())))
+                        staffInfo.get(d.getLastUpdatedBy())))
                 .toList();
     }
 
@@ -314,6 +338,7 @@ public class MapService {
                 .status(status)
                 .rankedAt(rankedAt)
                 .batch(batch)
+                .createdBy(staffId)
                 .active(true)
                 .build());
 
@@ -347,8 +372,8 @@ public class MapService {
 
         BigDecimal complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        String staffUsername = resolveStaffUsername(staffId);
-        return toDifficultyResponse(difficulty, complexity, stats, staffUsername);
+        StaffInfo info = resolveStaffInfo(staffId);
+        return toDifficultyResponse(difficulty, complexity, stats, info);
     }
 
     @Transactional
@@ -369,8 +394,8 @@ public class MapService {
         BigDecimal complexity = complexityService.setComplexity(
                 difficulty, request.getComplexity(), request.getReason(), staffUserId);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        String staffUsername = resolveStaffUsername(staffId);
-        return toDifficultyResponse(difficulty, complexity, stats, staffUsername);
+        StaffInfo info = resolveStaffInfo(staffId);
+        return toDifficultyResponse(difficulty, complexity, stats, info);
     }
 
     @Transactional
@@ -387,8 +412,8 @@ public class MapService {
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
         BigDecimal complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        String staffUsername = resolveStaffUsername(difficulty.getLastUpdatedBy());
-        return toDifficultyResponse(difficulty, complexity, stats, staffUsername);
+        StaffInfo info = resolveStaffInfo(difficulty.getLastUpdatedBy());
+        return toDifficultyResponse(difficulty, complexity, stats, info);
     }
 
     private void checkLeaderboardIdConflict(String blId, String ssId) {
@@ -434,31 +459,77 @@ public class MapService {
         List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, String> staffUsernames = loadStaffUsernames(difficulties);
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
+        java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
 
         return difficulties.stream()
                 .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
-                        staffUsernames.get(d.getLastUpdatedBy())))
+                        staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY)))
                 .toList();
     }
 
-    private java.util.Map<UUID, String> loadStaffUsernames(List<MapDifficulty> difficulties) {
+    private java.util.Map<UUID, StaffInfo> loadStaffInfo(List<MapDifficulty> difficulties) {
         List<UUID> staffIds = difficulties.stream()
-                .map(MapDifficulty::getLastUpdatedBy)
+                .flatMap(d -> java.util.stream.Stream.of(d.getLastUpdatedBy(), d.getCreatedBy()))
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
         if (staffIds.isEmpty())
             return new java.util.HashMap<>();
 
-        return staffUserRepository.findAllById(staffIds).stream()
-                .collect(Collectors.toMap(StaffUser::getId, StaffUser::getUsername));
+        return staffUserRepository.findAllByIdWithUser(staffIds).stream()
+                .collect(Collectors.toMap(StaffUser::getId,
+                        s -> new StaffInfo(s.getUsername(),
+                                s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
     }
 
-    private String resolveStaffUsername(UUID staffId) {
+    private java.util.Map<UUID, VoteSummary> loadVoteSummaries(List<UUID> difficultyIds) {
+        if (difficultyIds.isEmpty())
+            return java.util.Map.of();
+
+        java.util.Map<UUID, int[]> rankCounts = new java.util.HashMap<>();
+        for (Object[] row : voteRepository.countRankVotesByDifficultyIds(difficultyIds)) {
+            UUID diffId = (UUID) row[0];
+            VoteType voteType = (VoteType) row[1];
+            int count = ((Long) row[2]).intValue();
+            int[] pair = rankCounts.computeIfAbsent(diffId, k -> new int[] { 0, 0 });
+            if (voteType == VoteType.UPVOTE) pair[0] = count;
+            else if (voteType == VoteType.DOWNVOTE) pair[1] = count;
+        }
+
+        java.util.Map<UUID, int[]> critCounts = new java.util.HashMap<>();
+        for (Object[] row : voteRepository.countCriteriaVotesByDifficultyIds(difficultyIds)) {
+            UUID diffId = (UUID) row[0];
+            VoteType voteType = (VoteType) row[1];
+            int count = ((Long) row[2]).intValue();
+            int[] pair = critCounts.computeIfAbsent(diffId, k -> new int[] { 0, 0 });
+            if (voteType == VoteType.UPVOTE) pair[0] = count;
+            else if (voteType == VoteType.DOWNVOTE) pair[1] = count;
+        }
+
+        java.util.Map<UUID, VoteType> headVotes = new java.util.HashMap<>();
+        for (Object[] row : voteRepository.findHeadCriteriaVotesByDifficultyIds(difficultyIds)) {
+            headVotes.put((UUID) row[0], (VoteType) row[1]);
+        }
+
+        java.util.Map<UUID, VoteSummary> result = new java.util.HashMap<>();
+        for (UUID id : difficultyIds) {
+            int[] rank = rankCounts.getOrDefault(id, new int[] { 0, 0 });
+            int[] crit = critCounts.getOrDefault(id, new int[] { 0, 0 });
+            result.put(id, new VoteSummary(rank[0], rank[1], crit[0], crit[1], headVotes.get(id)));
+        }
+        return result;
+    }
+
+    private StaffInfo resolveStaffInfo(UUID staffId) {
         if (staffId == null)
             return null;
-        return staffUserRepository.findById(staffId).map(StaffUser::getUsername).orElse(null);
+        return staffUserRepository.findAllByIdWithUser(List.of(staffId)).stream()
+                .findFirst()
+                .map(s -> new StaffInfo(s.getUsername(),
+                        s.getUser() != null ? s.getUser().getAvatarUrl() : null))
+                .orElse(null);
     }
 
     private MapResponse toMapResponse(Map map, List<MapDifficultyResponse> difficulties) {
@@ -477,7 +548,8 @@ public class MapService {
     }
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, BigDecimal complexity,
-            MapDifficultyStatisticsResponse stats, String lastUpdatedByUsername) {
+            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
+            StaffInfo createdByInfo, VoteSummary votes) {
         Map map = d.getMap();
         return MapDifficultyResponse.builder()
                 .id(d.getId())
@@ -499,9 +571,23 @@ public class MapService {
                 .complexity(complexity)
                 .rankedAt(d.getRankedAt())
                 .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
+                .createdAt(d.getCreatedAt())
+                .createdBy(d.getCreatedBy())
+                .createdByUsername(createdByInfo != null ? createdByInfo.username() : null)
+                .createdByAvatarUrl(createdByInfo != null ? createdByInfo.avatarUrl() : null)
                 .lastUpdatedBy(d.getLastUpdatedBy())
-                .lastUpdatedByUsername(lastUpdatedByUsername)
+                .lastUpdatedByUsername(lastUpdatedByInfo != null ? lastUpdatedByInfo.username() : null)
+                .rankUpvotes(votes.rankUpvotes())
+                .rankDownvotes(votes.rankDownvotes())
+                .criteriaUpvotes(votes.criteriaUpvotes())
+                .criteriaDownvotes(votes.criteriaDownvotes())
+                .headCriteriaVote(votes.headCriteriaVote())
                 .statistics(stats)
                 .build();
+    }
+
+    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, BigDecimal complexity,
+            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo) {
+        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY);
     }
 }

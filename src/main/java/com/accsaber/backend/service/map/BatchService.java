@@ -303,6 +303,8 @@ public class BatchService {
                 .maxScore(d.getMaxScore())
                 .complexity(complexity)
                 .rankedAt(d.getRankedAt())
+                .createdAt(d.getCreatedAt())
+                .createdBy(d.getCreatedBy())
                 .statistics(stats)
                 .build();
     }

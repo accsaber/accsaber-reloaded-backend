@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.CriteriaStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.VoteType;
 
 import lombok.Builder;
 import lombok.Value;
@@ -34,7 +35,16 @@ public class MapDifficultyResponse {
     Integer maxScore;
     BigDecimal complexity;
     Instant rankedAt;
+    Instant createdAt;
+    UUID createdBy;
+    String createdByUsername;
+    String createdByAvatarUrl;
     UUID lastUpdatedBy;
     String lastUpdatedByUsername;
+    int rankUpvotes;
+    int rankDownvotes;
+    int criteriaUpvotes;
+    int criteriaDownvotes;
+    VoteType headCriteriaVote;
     MapDifficultyStatisticsResponse statistics;
 }

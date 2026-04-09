@@ -30,8 +30,11 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.StaffMapVote;
 import com.accsaber.backend.model.entity.map.VoteType;
+import com.accsaber.backend.model.entity.staff.StaffRole;
+import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
+import com.accsaber.backend.repository.staff.StaffUserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class MapVotingServiceTest {
@@ -42,11 +45,15 @@ class MapVotingServiceTest {
         @Mock
         private MapDifficultyRepository mapDifficultyRepository;
 
+        @Mock
+        private StaffUserRepository staffUserRepository;
+
         @InjectMocks
         private MapVotingService votingService;
 
         @BeforeEach
         void setUp() {
+                ReflectionTestUtils.setField(votingService, "rankThreshold", 3);
                 ReflectionTestUtils.setField(votingService, "reweightThreshold", 3);
                 ReflectionTestUtils.setField(votingService, "unrankThreshold", 3);
         }
@@ -60,7 +67,7 @@ class MapVotingServiceTest {
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diffId)).thenReturn(Optional.empty());
 
                         assertThatThrownBy(() -> votingService.castVote(diffId, UUID.randomUUID(),
-                                        VoteType.UPVOTE, MapVoteAction.RANK, null, null))
+                                        VoteType.UPVOTE, MapVoteAction.RANK, null, null, null, null, StaffRole.RANKING))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
 
@@ -71,7 +78,7 @@ class MapVotingServiceTest {
                                         .thenReturn(Optional.of(ranked));
 
                         assertThatThrownBy(() -> votingService.castVote(ranked.getId(), UUID.randomUUID(),
-                                        VoteType.UPVOTE, MapVoteAction.RANK, null, null))
+                                        VoteType.UPVOTE, MapVoteAction.RANK, null, null, null, null, StaffRole.RANKING))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -82,7 +89,8 @@ class MapVotingServiceTest {
                                         .thenReturn(Optional.of(queue));
 
                         assertThatThrownBy(() -> votingService.castVote(queue.getId(), UUID.randomUUID(),
-                                        VoteType.UPVOTE, MapVoteAction.REWEIGHT, BigDecimal.valueOf(7.5), null))
+                                        VoteType.UPVOTE, MapVoteAction.REWEIGHT, BigDecimal.valueOf(7.5), null, null,
+                                        null, StaffRole.RANKING))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -93,7 +101,8 @@ class MapVotingServiceTest {
                                         .thenReturn(Optional.of(ranked));
 
                         assertThatThrownBy(() -> votingService.castVote(ranked.getId(), UUID.randomUUID(),
-                                        VoteType.UPVOTE, MapVoteAction.REWEIGHT, null, null))
+                                        VoteType.UPVOTE, MapVoteAction.REWEIGHT, null, null, null, null,
+                                        StaffRole.RANKING))
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("suggestedComplexity");
                 }
@@ -104,7 +113,8 @@ class MapVotingServiceTest {
                         UUID staffId = UUID.randomUUID();
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
                                         .thenReturn(Optional.of(diff));
-                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndActiveTrue(diff.getId(), staffId))
+                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(
+                                        diff.getId(), staffId, MapVoteAction.RANK))
                                         .thenReturn(Optional.empty());
                         when(voteRepository.save(any())).thenAnswer(inv -> {
                                 StaffMapVote v = inv.getArgument(0);
@@ -117,9 +127,13 @@ class MapVotingServiceTest {
                                                 .reason(v.getReason())
                                                 .build();
                         });
+                        when(staffUserRepository.findAllByIdWithUser(List.of(staffId)))
+                                        .thenReturn(List.of(
+                                                        StaffUser.builder().id(staffId).username("tester").build()));
 
                         VoteResponse response = votingService.castVote(diff.getId(), staffId,
-                                        VoteType.UPVOTE, MapVoteAction.RANK, null, "Looks good");
+                                        VoteType.UPVOTE, MapVoteAction.RANK, null, "Looks good", null, null,
+                                        StaffRole.RANKING);
 
                         assertThat(response.getVote()).isEqualTo(VoteType.UPVOTE);
                         assertThat(response.getType()).isEqualTo(MapVoteAction.RANK);
@@ -135,12 +149,16 @@ class MapVotingServiceTest {
                                         "First");
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
                                         .thenReturn(Optional.of(diff));
-                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndActiveTrue(diff.getId(), staffId))
+                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(
+                                        diff.getId(), staffId, MapVoteAction.RANK))
                                         .thenReturn(Optional.of(existing));
                         when(voteRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+                        when(staffUserRepository.findAllByIdWithUser(List.of(staffId)))
+                                        .thenReturn(List.of(
+                                                        StaffUser.builder().id(staffId).username("tester").build()));
 
                         votingService.castVote(diff.getId(), staffId, VoteType.DOWNVOTE, MapVoteAction.RANK, null,
-                                        "Changed");
+                                        "Changed", null, null, StaffRole.RANKING);
 
                         assertThat(existing.getVote()).isEqualTo(VoteType.DOWNVOTE);
                         assertThat(existing.getReason()).isEqualTo("Changed");
@@ -155,6 +173,10 @@ class MapVotingServiceTest {
                         UUID diffId = UUID.randomUUID();
                         when(voteRepository.findByMapDifficultyIdAndActiveTrue(diffId)).thenReturn(List.of());
                         when(voteRepository.countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(
+                                        diffId, MapVoteAction.RANK, VoteType.UPVOTE)).thenReturn(0L);
+                        when(voteRepository.countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(
+                                        diffId, MapVoteAction.RANK, VoteType.DOWNVOTE)).thenReturn(0L);
+                        when(voteRepository.countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(
                                         diffId, MapVoteAction.REWEIGHT, VoteType.UPVOTE)).thenReturn(3L);
                         when(voteRepository.countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(
                                         diffId, MapVoteAction.REWEIGHT, VoteType.DOWNVOTE)).thenReturn(0L);
@@ -165,6 +187,7 @@ class MapVotingServiceTest {
 
                         VoteListResponse result = votingService.getVotes(diffId);
 
+                        assertThat(result.isRankReady()).isFalse();
                         assertThat(result.isReweightReady()).isTrue();
                         assertThat(result.isUnrankReady()).isFalse();
                 }

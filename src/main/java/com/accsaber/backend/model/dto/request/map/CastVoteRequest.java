@@ -19,5 +19,9 @@ public class CastVoteRequest {
 
     private BigDecimal suggestedComplexity;
 
+    private VoteType criteriaVote;
+
+    private Boolean criteriaVoteOverride;
+
     private String reason;
 }

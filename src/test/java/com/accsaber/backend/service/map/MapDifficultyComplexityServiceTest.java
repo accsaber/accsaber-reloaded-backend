@@ -145,7 +145,7 @@ class MapDifficultyComplexityServiceTest {
 
         @Test
         void updatingComplexity_deactivatesExistingRecord() {
-            MapDifficulty diff = buildDifficulty(UUID.randomUUID());
+            MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.RANKED);
             MapDifficultyComplexity existing = buildComplexity(diff, new BigDecimal("5.0"), true);
             when(complexityRepository.findActiveForUpdate(diff.getId()))
                     .thenReturn(Optional.of(existing));
@@ -159,7 +159,7 @@ class MapDifficultyComplexityServiceTest {
 
         @Test
         void newVersion_linksToOldViaSupersedes_andCarriesAuditFields() {
-            MapDifficulty diff = buildDifficulty(UUID.randomUUID());
+            MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.RANKED);
             MapDifficultyComplexity existing = buildComplexity(diff, new BigDecimal("5.0"), true);
             when(complexityRepository.findActiveForUpdate(diff.getId()))
                     .thenReturn(Optional.of(existing));
@@ -180,11 +180,15 @@ class MapDifficultyComplexityServiceTest {
     }
 
     private MapDifficulty buildDifficulty(UUID id) {
+        return buildDifficulty(id, MapDifficultyStatus.QUEUE);
+    }
+
+    private MapDifficulty buildDifficulty(UUID id, MapDifficultyStatus status) {
         return MapDifficulty.builder()
                 .id(id)
                 .difficulty(Difficulty.EXPERT_PLUS)
                 .characteristic("Standard")
-                .status(MapDifficultyStatus.QUEUE)
+                .status(status)
                 .active(true)
                 .build();
     }

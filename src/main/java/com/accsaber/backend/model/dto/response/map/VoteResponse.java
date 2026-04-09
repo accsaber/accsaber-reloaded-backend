@@ -17,6 +17,8 @@ public class VoteResponse {
     UUID id;
     UUID mapDifficultyId;
     UUID staffId;
+    String staffUsername;
+    String staffAvatarUrl;
     VoteType vote;
     MapVoteAction type;
     BigDecimal suggestedComplexity;
@@ -24,5 +26,6 @@ public class VoteResponse {
     boolean criteriaVoteOverride;
     String reason;
     boolean active;
+    Instant createdAt;
     Instant updatedAt;
 }

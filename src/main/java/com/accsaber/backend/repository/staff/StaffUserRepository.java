@@ -7,12 +7,17 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 
 public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
+
+    @Query("SELECT s FROM StaffUser s LEFT JOIN FETCH s.user WHERE s.id IN :ids")
+    List<StaffUser> findAllByIdWithUser(@Param("ids") List<UUID> ids);
 
     List<StaffUser> findByUsernameAndActiveTrue(String username);
 

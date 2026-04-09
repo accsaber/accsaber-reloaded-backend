@@ -74,6 +74,9 @@ public class MapDifficulty {
     @Column(name = "ranked_at")
     private Instant rankedAt;
 
+    @Column(name = "created_by")
+    private UUID createdBy;
+
     @Column(name = "last_updated_by")
     private UUID lastUpdatedBy;
 

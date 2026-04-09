@@ -56,7 +56,10 @@ public class RankingMapVoteController {
                 request.getVote(),
                 request.getType(),
                 request.getSuggestedComplexity(),
-                request.getReason()));
+                request.getReason(),
+                request.getCriteriaVote(),
+                request.getCriteriaVoteOverride(),
+                userDetails.getStaffUser().getRole()));
     }
 
     @Operation(summary = "Deactivate a vote", description = "Soft-deletes an active vote (ranking_head/admin only)")

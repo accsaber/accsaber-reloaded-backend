@@ -49,6 +49,14 @@ public class MapDifficultyComplexityService {
                 .findActiveForUpdate(mapDifficulty.getId())
                 .orElse(null);
 
+        boolean isQueue = mapDifficulty.getStatus() == com.accsaber.backend.model.entity.map.MapDifficultyStatus.QUEUE;
+
+        if (isQueue && current != null) {
+            current.setComplexity(complexity);
+            complexityRepository.saveAndFlush(current);
+            return complexity;
+        }
+
         if (current != null) {
             current.setActive(false);
             complexityRepository.saveAndFlush(current);
