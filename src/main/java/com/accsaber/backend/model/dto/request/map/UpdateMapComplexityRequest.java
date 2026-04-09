@@ -13,6 +13,5 @@ public class UpdateMapComplexityRequest {
     @Positive
     private BigDecimal complexity;
 
-    @NotNull
     private String reason;
 }
