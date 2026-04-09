@@ -23,6 +23,7 @@ public class MapDifficultyResponse {
     String songAuthor;
     String mapAuthor;
     String coverUrl;
+    String beatsaverCode;
     UUID categoryId;
     UUID previousVersionId;
     Difficulty difficulty;

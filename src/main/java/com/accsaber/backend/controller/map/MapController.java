@@ -72,6 +72,12 @@ public class MapController {
         return ResponseEntity.ok(mapService.findAllRankedDifficulties());
     }
 
+    @Operation(summary = "Get difficulty by ID", description = "Returns a single map difficulty with full metadata, complexity, and statistics")
+    @GetMapping("/difficulties/{difficultyId}")
+    public ResponseEntity<MapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
+        return ResponseEntity.ok(mapService.getDifficultyResponse(difficultyId));
+    }
+
     @Operation(summary = "Get map by ID", description = "Returns a map with all its active difficulties, current complexities, and statistics")
     @GetMapping("/{mapId}")
     public ResponseEntity<MapResponse> getMap(@PathVariable UUID mapId) {

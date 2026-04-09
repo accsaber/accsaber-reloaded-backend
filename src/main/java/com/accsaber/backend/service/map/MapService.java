@@ -559,6 +559,7 @@ public class MapService {
                 .songAuthor(map.getSongAuthor())
                 .mapAuthor(map.getMapAuthor())
                 .coverUrl(map.getCoverUrl())
+                .beatsaverCode(map.getBeatsaverCode())
                 .categoryId(d.getCategory().getId())
                 .difficulty(d.getDifficulty())
                 .characteristic(d.getCharacteristic())
