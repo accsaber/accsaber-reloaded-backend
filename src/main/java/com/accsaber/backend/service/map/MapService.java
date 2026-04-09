@@ -7,6 +7,10 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +28,7 @@ import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
+import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -44,6 +49,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MapService {
+
+    private static final Logger log = LoggerFactory.getLogger(MapService.class);
 
     private final MapRepository mapRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
@@ -231,6 +238,22 @@ public class MapService {
                 .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), null,
                         staffUsernames.get(d.getLastUpdatedBy())))
                 .toList();
+    }
+
+    @Cacheable(value = "rankedDifficulties")
+    public List<RankedDifficultyResponse> findAllRankedDifficulties() {
+        return mapDifficultyRepository.findAllRankedWithComplexity().stream()
+                .map(row -> RankedDifficultyResponse.builder()
+                        .songHash((String) row[0])
+                        .difficulty((Difficulty) row[1])
+                        .complexity((BigDecimal) row[2])
+                        .build())
+                .toList();
+    }
+
+    @CacheEvict(value = "rankedDifficulties", allEntries = true)
+    public void evictRankedDifficultiesCache() {
+        log.info("Evicted ranked difficulties cache");
     }
 
     @Transactional

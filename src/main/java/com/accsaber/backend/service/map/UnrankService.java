@@ -40,6 +40,7 @@ public class UnrankService {
         req.setReason(reason);
         MapDifficultyResponse response = mapService.updateStatus(mapDifficultyId, req, staffId);
         playlistService.evictAllPlaylists();
+        mapService.evictRankedDifficultiesCache();
         return response;
     }
 

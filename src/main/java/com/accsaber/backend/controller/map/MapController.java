@@ -19,6 +19,7 @@ import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
+import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -63,6 +64,12 @@ public class MapController {
         return ResponseEntity
                 .ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search, null,
                         pageable));
+    }
+
+    @Operation(summary = "All ranked difficulties", description = "Returns a flat list of all ranked difficulties with song hash, difficulty level, and current complexity. Cached until ranked difficulties change.")
+    @GetMapping("/difficulties/all")
+    public ResponseEntity<List<RankedDifficultyResponse>> getAllRankedDifficulties() {
+        return ResponseEntity.ok(mapService.findAllRankedDifficulties());
     }
 
     @Operation(summary = "Get map by ID", description = "Returns a map with all its active difficulties, current complexities, and statistics")

@@ -122,6 +122,16 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
         List<MapDifficulty> findByCountForOverallAndStatusWithMap(
                         @Param("status") MapDifficultyStatus status);
 
+        @Query("""
+                        SELECT d.map.songHash, d.difficulty, c.complexity
+                        FROM MapDifficulty d
+                        LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
+                        WHERE d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
+                        AND d.active = true
+                        ORDER BY d.map.songHash, d.difficulty
+                        """)
+        List<Object[]> findAllRankedWithComplexity();
+
         @Query(value = """
                         SELECT d FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true

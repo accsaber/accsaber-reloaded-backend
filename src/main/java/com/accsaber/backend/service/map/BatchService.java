@@ -173,6 +173,7 @@ public class BatchService {
                 difficulties.stream().map(MapDifficulty::getId).toList());
 
         playlistService.evictAllPlaylists();
+        mapService.evictRankedDifficultiesCache();
 
         return toResponse(batch, enrich(difficulties));
     }
@@ -214,6 +215,7 @@ public class BatchService {
                 .filter(d -> requestedIds.contains(d.getId()))
                 .toList();
         scoreRecalculationService.recalculateBatchAsync(affectedDifficulties);
+        mapService.evictRankedDifficultiesCache();
 
         return enrich(affectedDifficulties);
     }

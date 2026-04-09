@@ -41,6 +41,7 @@ public class ReweightService {
         mapService.updateComplexity(mapDifficultyId, req, staffUserId, staffId);
 
         scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId);
+        mapService.evictRankedDifficultiesCache();
 
         return mapService.getDifficultyResponse(mapDifficultyId);
     }
