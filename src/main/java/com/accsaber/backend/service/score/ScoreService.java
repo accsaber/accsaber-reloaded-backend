@@ -742,6 +742,7 @@ public class ScoreService {
                                                                                 .getBaseXpPerScore()))
                                                                 .max(BigDecimal.ZERO)
                                                 : BigDecimal.ZERO)
+                                .active(s.isActive())
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();

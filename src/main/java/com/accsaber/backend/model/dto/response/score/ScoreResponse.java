@@ -49,6 +49,7 @@ public class ScoreResponse {
     private BigDecimal xpGained;
     private BigDecimal baseXp;
     private BigDecimal bonusXp;
+    private boolean active;
     private List<UUID> modifierIds;
     private Instant createdAt;
 }
