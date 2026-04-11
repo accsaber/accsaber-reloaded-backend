@@ -17,14 +17,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
+import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
 import com.accsaber.backend.model.dto.response.player.NameHistoryResponse;
+import com.accsaber.backend.model.dto.response.player.RankingHistoryResponse;
 import com.accsaber.backend.model.dto.response.player.StatsDiffResponse;
 import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
-import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.campaign.CampaignService;
@@ -97,6 +98,17 @@ public class UserController {
             @RequestParam(defaultValue = "7") int amount,
             @RequestParam(defaultValue = "d") String unit) {
         return ResponseEntity.ok(statisticsService.findHistoric(userId, category, amount, unit));
+    }
+
+    @Operation(summary = "Get user ranking history", description = "Returns daily ranking snapshots for a player in a category over a time range, sorted by time ascending. "
+            + "Units: h (hours), d (days), w (weeks), mo (months)")
+    @GetMapping("/{userId}/ranking-history")
+    public ResponseEntity<List<RankingHistoryResponse>> getUserRankingHistory(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "overall") String category,
+            @RequestParam(defaultValue = "7") int amount,
+            @RequestParam(defaultValue = "d") String unit) {
+        return ResponseEntity.ok(statisticsService.findRankingHistory(userId, category, amount, unit));
     }
 
     @Operation(summary = "Get user stats diff", description = "Returns the difference between the most recent statistics and the last statistics before 24h ago. "

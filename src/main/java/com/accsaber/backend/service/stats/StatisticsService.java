@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.dto.response.player.RankingHistoryResponse;
 import com.accsaber.backend.model.dto.response.player.StatsDiffResponse;
 import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
@@ -25,6 +26,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -43,6 +45,7 @@ public class StatisticsService {
 
     private final ScoreRepository scoreRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
+    private final UserCategoryRankingHistoryRepository rankingHistoryRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final APCalculationService apCalculationService;
@@ -155,6 +158,17 @@ public class StatisticsService {
                 .findHistoricDownsampled(resolved, categoryCode, since)
                 .stream()
                 .map(StatisticsService::toResponse)
+                .toList();
+    }
+
+    public List<RankingHistoryResponse> findRankingHistory(Long userId, String categoryCode, int amount,
+            String unit) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        Instant since = TimeRangeUtil.computeSince(amount, unit);
+        return rankingHistoryRepository
+                .findByUserAndCategoryCodeSince(resolved, categoryCode, since)
+                .stream()
+                .map(h -> new RankingHistoryResponse(h.getRanking(), h.getCountryRanking(), h.getRecordedAt()))
                 .toList();
     }
 

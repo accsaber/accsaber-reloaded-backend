@@ -4,6 +4,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserXpRankingHistoryRepository;
 
@@ -17,6 +18,7 @@ public class XpRankingScheduler {
 
     private final UserRepository userRepository;
     private final UserXpRankingHistoryRepository xpRankingHistoryRepository;
+    private final UserCategoryRankingHistoryRepository categoryRankingHistoryRepository;
 
     @Scheduled(fixedRate = 300_000)
     public void refreshXpRankings() {
@@ -37,6 +39,17 @@ public class XpRankingScheduler {
             xpRankingHistoryRepository.snapshotChangedRankings();
         } catch (Exception e) {
             log.error("Failed to snapshot XP rankings: {}", e.getMessage(), e);
+        }
+    }
+
+    @Scheduled(cron = "0 5 0 * * *")
+    @Transactional
+    public void snapshotCategoryRankings() {
+        log.debug("Snapshotting category rankings");
+        try {
+            categoryRankingHistoryRepository.snapshotChangedRankings();
+        } catch (Exception e) {
+            log.error("Failed to snapshot category rankings: {}", e.getMessage(), e);
         }
     }
 }
