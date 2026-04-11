@@ -27,6 +27,7 @@ import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
 import com.accsaber.backend.model.entity.Modifier;
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
@@ -388,6 +389,18 @@ public class ScoreService {
                 userRepository.addXp(score.getUser().getId(), newXpGained.subtract(oldXpGained));
 
                 return score.getUser().getId();
+        }
+
+        public ScoreResponse findActiveByUserAndSongHash(Long userId, String songHash, Difficulty difficulty,
+                        String characteristic) {
+                Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+                Score score = scoreRepository
+                                .findActiveByUserAndSongHashAndDifficultyAndCharacteristic(
+                                                resolvedUserId, songHash, difficulty, characteristic)
+                                .orElseThrow(() -> new ResourceNotFoundException("Score",
+                                                resolvedUserId + "/" + songHash + "/" + difficulty + "/"
+                                                                + characteristic));
+                return mapToResponse(score);
         }
 
         public Page<ScoreResponse> findByUser(Long userId, UUID categoryId, String search, Pageable pageable) {

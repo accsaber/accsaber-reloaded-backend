@@ -27,6 +27,7 @@ import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.campaign.CampaignService;
 import com.accsaber.backend.service.map.MapService;
@@ -130,6 +131,17 @@ public class UserController {
             @RequestParam(defaultValue = "7") int amount,
             @RequestParam(defaultValue = "d") String unit) {
         return ResponseEntity.ok(scoreService.findHistoric(userId, mapDifficultyId, amount, unit));
+    }
+
+    @Operation(summary = "Get user score by song hash", description = "Returns a player's active score on a specific map difficulty, looked up by song hash, difficulty (EASY, NORMAL, HARD, EXPERT, EXPERT_PLUS) and characteristic (defaults to Standard)")
+    @GetMapping("/{userId}/scores/by-hash/{songHash}")
+    public ResponseEntity<ScoreResponse> getUserScoreBySongHash(
+            @PathVariable Long userId,
+            @PathVariable String songHash,
+            @RequestParam Difficulty difficulty,
+            @RequestParam(defaultValue = "Standard") String characteristic) {
+        return ResponseEntity
+                .ok(scoreService.findActiveByUserAndSongHash(userId, songHash, difficulty, characteristic));
     }
 
     @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category and/or song name")

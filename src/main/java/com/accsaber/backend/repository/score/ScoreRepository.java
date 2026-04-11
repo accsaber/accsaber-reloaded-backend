@@ -12,11 +12,30 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.score.Score;
 
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         Optional<Score> findByUser_IdAndMapDifficulty_IdAndActiveTrue(Long userId, UUID mapDifficultyId);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user
+                        JOIN FETCH s.mapDifficulty d
+                        JOIN FETCH d.map m
+                        JOIN FETCH d.category
+                        WHERE s.user.id = :userId AND s.active = true
+                        AND m.songHash = :songHash
+                        AND d.difficulty = :difficulty
+                        AND d.characteristic = :characteristic
+                        AND d.active = true
+                        """)
+        Optional<Score> findActiveByUserAndSongHashAndDifficultyAndCharacteristic(
+                        @Param("userId") Long userId,
+                        @Param("songHash") String songHash,
+                        @Param("difficulty") Difficulty difficulty,
+                        @Param("characteristic") String characteristic);
 
         List<Score> findByUser_IdAndMapDifficulty_IdInAndActiveTrue(Long userId, List<UUID> mapDifficultyIds);
 
