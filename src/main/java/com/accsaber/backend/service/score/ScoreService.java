@@ -4,11 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -524,25 +522,13 @@ public class ScoreService {
         public List<ScoreResponse> findHistoric(Long userId, UUID mapDifficultyId, int amount, String unit) {
                 Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
                 Instant since = TimeRangeUtil.computeSince(amount, unit);
-                List<Score> scores = scoreRepository.findHistoricDownsampled(resolvedUserId, mapDifficultyId, since);
-
-                Map<UUID, BigDecimal> bucketXpByScoreId = scoreRepository
-                                .findBucketXpSums(resolvedUserId, mapDifficultyId, since).stream()
-                                .collect(Collectors.toMap(
-                                                row -> (UUID) row[0],
-                                                row -> (BigDecimal) row[1]));
+                List<Score> scores = scoreRepository.findHistoric(resolvedUserId, mapDifficultyId, since);
 
                 return scores.stream()
-                                .map(s -> {
-                                        BigDecimal xpOverride = bucketXpByScoreId.get(s.getId());
-                                        if (xpOverride != null) {
-                                                s.setXpGained(xpOverride);
-                                        }
-                                        return toResponse(s,
-                                                        computeAccuracy(s.getScore(),
-                                                                        s.getMapDifficulty().getMaxScore()),
-                                                        loadModifierIds(s.getId()));
-                                })
+                                .map(s -> toResponse(s,
+                                                computeAccuracy(s.getScore(),
+                                                                s.getMapDifficulty().getMaxScore()),
+                                                loadModifierIds(s.getId())))
                                 .toList();
         }
 

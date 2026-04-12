@@ -363,7 +363,7 @@ class ScoreServiceTest {
                                         .createdAt(Instant.now())
                                         .build();
 
-                        when(scoreRepository.findHistoricDownsampled(
+                        when(scoreRepository.findHistoric(
                                         org.mockito.ArgumentMatchers.eq(activeUser.getId()),
                                         org.mockito.ArgumentMatchers.eq(rankedDifficulty.getId()),
                                         any(Instant.class)))
