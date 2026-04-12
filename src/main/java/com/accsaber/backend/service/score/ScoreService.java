@@ -722,6 +722,7 @@ public class ScoreService {
                                 .country(user.getCountry())
                                 .mapDifficultyId(diff.getId())
                                 .mapId(map.getId())
+                                .songHash(map.getSongHash())
                                 .songName(map.getSongName())
                                 .songAuthor(map.getSongAuthor())
                                 .mapAuthor(map.getMapAuthor())

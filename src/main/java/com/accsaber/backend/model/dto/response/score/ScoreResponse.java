@@ -21,6 +21,7 @@ public class ScoreResponse {
     private String country;
     private UUID mapDifficultyId;
     private UUID mapId;
+    private String songHash;
     private String songName;
     private String songAuthor;
     private String mapAuthor;
