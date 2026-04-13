@@ -166,6 +166,8 @@ public class MilestoneService {
                     Comparator.nullsLast(Comparator.reverseOrder()));
             case "completedAt" -> Comparator.comparing(MilestoneCompletionResponse::getUserCompletedAt,
                     Comparator.nullsLast(Comparator.reverseOrder()));
+            case "progress" -> Comparator.comparing(MilestoneCompletionResponse::getUserNormalizedProgress,
+                    Comparator.nullsLast(Comparator.reverseOrder()));
             default -> Comparator.comparing((MilestoneCompletionResponse r) -> r.getTier(),
                     Comparator.comparingInt(t -> tierOrder(t)))
                     .thenComparing(MilestoneCompletionResponse::getCompletionPercentage,
