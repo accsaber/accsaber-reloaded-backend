@@ -19,6 +19,7 @@ public class UserMilestoneProgressResponse {
     private BigDecimal xp;
     private BigDecimal targetValue;
     private BigDecimal progress;
+    private BigDecimal normalizedProgress;
     private boolean completed;
     private Instant completedAt;
     private BigDecimal completionPercentage;

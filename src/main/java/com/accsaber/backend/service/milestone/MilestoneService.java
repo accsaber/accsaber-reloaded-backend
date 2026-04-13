@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.milestone;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -134,6 +135,7 @@ public class MilestoneService {
                     .xp(m.getXp())
                     .targetValue(m.getTargetValue())
                     .progress(link.getProgress())
+                    .normalizedProgress(normalizeProgress(link.getProgress(), m.getTargetValue(), m.getComparison()))
                     .completed(true)
                     .completedAt(link.getCompletedAt())
                     .completionPercentage(stats != null ? stats.getCompletionPercentage() : BigDecimal.ZERO)
@@ -234,6 +236,7 @@ public class MilestoneService {
             UserMilestoneLink link = linkMap.get(m.getId());
             MilestoneCompletionStats stats = statsMap.get(m.getId());
 
+            BigDecimal rawProgress = link != null ? link.getProgress() : null;
             return UserMilestoneProgressResponse.builder()
                     .milestoneId(m.getId())
                     .title(m.getTitle())
@@ -242,7 +245,8 @@ public class MilestoneService {
                     .tier(m.getTier().name())
                     .xp(m.getXp())
                     .targetValue(m.getTargetValue())
-                    .progress(link != null ? link.getProgress() : null)
+                    .progress(rawProgress)
+                    .normalizedProgress(normalizeProgress(rawProgress, m.getTargetValue(), m.getComparison()))
                     .completed(link != null && link.isCompleted())
                     .completedAt(link != null ? link.getCompletedAt() : null)
                     .completionPercentage(stats != null ? stats.getCompletionPercentage() : BigDecimal.ZERO)
@@ -654,6 +658,22 @@ public class MilestoneService {
         }
     }
 
+    private BigDecimal normalizeProgress(BigDecimal progress, BigDecimal targetValue, String comparison) {
+        if (progress == null || targetValue == null) {
+            return null;
+        }
+        if ("LTE".equals(comparison)) {
+            if (progress.compareTo(BigDecimal.ZERO) <= 0) {
+                return null;
+            }
+            return targetValue.divide(progress, 6, RoundingMode.HALF_UP).min(BigDecimal.ONE);
+        }
+        if (targetValue.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ONE;
+        }
+        return progress.divide(targetValue, 6, RoundingMode.HALF_UP).min(BigDecimal.ONE);
+    }
+
     private MilestoneResponse toResponse(Milestone m, MilestoneCompletionStats stats) {
         return MilestoneResponse.builder()
                 .id(m.getId())
@@ -696,6 +716,7 @@ public class MilestoneService {
 
         if (userLink != null) {
             builder.userProgress(userLink.getProgress())
+                    .userNormalizedProgress(normalizeProgress(userLink.getProgress(), m.getTargetValue(), m.getComparison()))
                     .userCompleted(userLink.isCompleted())
                     .userCompletedAt(userLink.getCompletedAt());
             Score score = userLink.getAchievedWithScore();
