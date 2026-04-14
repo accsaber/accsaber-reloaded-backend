@@ -102,7 +102,7 @@ class XPReweightServiceTest {
                                         .user(user).active(false).build();
                         Score improvement = Score.builder()
                                         .id(UUID.randomUUID()).score(950000).mapDifficulty(diff)
-                                        .user(user).active(true).build();
+                                        .user(user).active(true).supersedesReason("Score improved").build();
 
                         when(scoreRepository.findAllByDifficultyOrderedByUserAndTime(diffId))
                                         .thenReturn(List.of(first, improvement));
@@ -148,6 +148,36 @@ class XPReweightServiceTest {
 
                         assertThat(first.getXpGained()).isEqualByComparingTo(new BigDecimal("50.000000"));
                         assertThat(worse.getXpGained()).isEqualByComparingTo(new BigDecimal("25.000000"));
+                }
+
+                @Test
+                void complexityReweightGetsWorseXp() {
+                        UUID diffId = UUID.randomUUID();
+                        Curve scoreCurve = Curve.builder().id(UUID.randomUUID()).build();
+                        Category category = Category.builder().id(UUID.randomUUID()).scoreCurve(scoreCurve).build();
+                        MapDifficulty diff = MapDifficulty.builder()
+                                        .id(diffId).category(category).maxScore(1000000).build();
+
+                        Score first = Score.builder()
+                                        .id(UUID.randomUUID()).score(950000).mapDifficulty(diff)
+                                        .user(user).active(false).build();
+                        Score reweighted = Score.builder()
+                                        .id(UUID.randomUUID()).score(950000).mapDifficulty(diff)
+                                        .user(user).active(true).supersedesReason("Complexity reweight").build();
+
+                        when(scoreRepository.findAllByDifficultyOrderedByUserAndTime(diffId))
+                                        .thenReturn(List.of(first, reweighted));
+                        when(mapComplexityService.findActiveComplexity(diffId))
+                                        .thenReturn(Optional.of(new BigDecimal("8.0")));
+                        when(xpCalculationService.calculateXpForNewMap(any(), any()))
+                                        .thenReturn(new BigDecimal("50.000000"));
+                        when(xpCalculationService.calculateXpForWorseScore())
+                                        .thenReturn(new BigDecimal("25.000000"));
+
+                        service.reweightScoresForDifficulty(diffId);
+
+                        assertThat(first.getXpGained()).isEqualByComparingTo(new BigDecimal("50.000000"));
+                        assertThat(reweighted.getXpGained()).isEqualByComparingTo(new BigDecimal("25.000000"));
                 }
 
                 @Test

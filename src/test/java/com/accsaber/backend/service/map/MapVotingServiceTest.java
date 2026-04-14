@@ -113,8 +113,8 @@ class MapVotingServiceTest {
                         UUID staffId = UUID.randomUUID();
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
                                         .thenReturn(Optional.of(diff));
-                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(
-                                        diff.getId(), staffId, MapVoteAction.RANK))
+                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndActiveTrue(
+                                        diff.getId(), staffId))
                                         .thenReturn(Optional.empty());
                         when(voteRepository.save(any())).thenAnswer(inv -> {
                                 StaffMapVote v = inv.getArgument(0);
@@ -149,8 +149,8 @@ class MapVotingServiceTest {
                                         "First");
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
                                         .thenReturn(Optional.of(diff));
-                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(
-                                        diff.getId(), staffId, MapVoteAction.RANK))
+                        when(voteRepository.findByMapDifficultyIdAndStaffIdAndActiveTrue(
+                                        diff.getId(), staffId))
                                         .thenReturn(Optional.of(existing));
                         when(voteRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
                         when(staffUserRepository.findAllByIdWithUser(List.of(staffId)))
