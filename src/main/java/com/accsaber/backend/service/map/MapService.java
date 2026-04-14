@@ -36,6 +36,7 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.CategoryRepository;
@@ -69,10 +70,11 @@ public class MapService {
     }
 
     record VoteSummary(int rankUpvotes, int rankDownvotes, int criteriaUpvotes, int criteriaDownvotes,
-            VoteType headCriteriaVote) {
+            VoteType headCriteriaVote, int reweightUpvotes, int reweightDownvotes,
+            int unrankUpvotes, int unrankDownvotes) {
     }
 
-    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null);
+    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null, 0, 0, 0, 0);
 
     public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
@@ -135,11 +137,10 @@ public class MapService {
         return "songName".equals(property) || "songAuthor".equals(property) || "mapAuthor".equals(property);
     }
 
-    private static final String RANK_RATING_SUBQUERY =
-            "((SELECT COUNT(v) FROM StaffMapVote v WHERE v.mapDifficulty = d"
-                    + " AND v.type = 'rank' AND v.vote = 'upvote' AND v.active = true)"
-                    + " - (SELECT COUNT(v2) FROM StaffMapVote v2 WHERE v2.mapDifficulty = d"
-                    + " AND v2.type = 'rank' AND v2.vote = 'downvote' AND v2.active = true))";
+    private static final String RANK_RATING_SUBQUERY = "((SELECT COUNT(v) FROM StaffMapVote v WHERE v.mapDifficulty = d"
+            + " AND v.type = 'rank' AND v.vote = 'upvote' AND v.active = true)"
+            + " - (SELECT COUNT(v2) FROM StaffMapVote v2 WHERE v2.mapDifficulty = d"
+            + " AND v2.type = 'rank' AND v2.vote = 'downvote' AND v2.active = true))";
 
     private Pageable resolveDifficultySort(Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
@@ -499,8 +500,10 @@ public class MapService {
             VoteType voteType = (VoteType) row[1];
             int count = ((Long) row[2]).intValue();
             int[] pair = rankCounts.computeIfAbsent(diffId, k -> new int[] { 0, 0 });
-            if (voteType == VoteType.UPVOTE) pair[0] = count;
-            else if (voteType == VoteType.DOWNVOTE) pair[1] = count;
+            if (voteType == VoteType.UPVOTE)
+                pair[0] = count;
+            else if (voteType == VoteType.DOWNVOTE)
+                pair[1] = count;
         }
 
         java.util.Map<UUID, int[]> critCounts = new java.util.HashMap<>();
@@ -509,8 +512,10 @@ public class MapService {
             VoteType voteType = (VoteType) row[1];
             int count = ((Long) row[2]).intValue();
             int[] pair = critCounts.computeIfAbsent(diffId, k -> new int[] { 0, 0 });
-            if (voteType == VoteType.UPVOTE) pair[0] = count;
-            else if (voteType == VoteType.DOWNVOTE) pair[1] = count;
+            if (voteType == VoteType.UPVOTE)
+                pair[0] = count;
+            else if (voteType == VoteType.DOWNVOTE)
+                pair[1] = count;
         }
 
         java.util.Map<UUID, VoteType> headVotes = new java.util.HashMap<>();
@@ -518,11 +523,29 @@ public class MapService {
             headVotes.put((UUID) row[0], (VoteType) row[1]);
         }
 
+        java.util.Map<UUID, int[]> reweightCounts = new java.util.HashMap<>();
+        java.util.Map<UUID, int[]> unrankCounts = new java.util.HashMap<>();
+        for (Object[] row : voteRepository.countReweightAndUnrankVotesByDifficultyIds(difficultyIds)) {
+            UUID diffId = (UUID) row[0];
+            MapVoteAction type = (MapVoteAction) row[1];
+            VoteType voteType = (VoteType) row[2];
+            int count = ((Long) row[3]).intValue();
+            java.util.Map<UUID, int[]> target = type == MapVoteAction.REWEIGHT ? reweightCounts : unrankCounts;
+            int[] pair = target.computeIfAbsent(diffId, k -> new int[] { 0, 0 });
+            if (voteType == VoteType.UPVOTE)
+                pair[0] = count;
+            else if (voteType == VoteType.DOWNVOTE)
+                pair[1] = count;
+        }
+
         java.util.Map<UUID, VoteSummary> result = new java.util.HashMap<>();
         for (UUID id : difficultyIds) {
             int[] rank = rankCounts.getOrDefault(id, new int[] { 0, 0 });
             int[] crit = critCounts.getOrDefault(id, new int[] { 0, 0 });
-            result.put(id, new VoteSummary(rank[0], rank[1], crit[0], crit[1], headVotes.get(id)));
+            int[] reweight = reweightCounts.getOrDefault(id, new int[] { 0, 0 });
+            int[] unrank = unrankCounts.getOrDefault(id, new int[] { 0, 0 });
+            result.put(id, new VoteSummary(rank[0], rank[1], crit[0], crit[1], headVotes.get(id),
+                    reweight[0], reweight[1], unrank[0], unrank[1]));
         }
         return result;
     }
@@ -583,11 +606,15 @@ public class MapService {
                 .createdByAvatarUrl(createdByInfo != null ? createdByInfo.avatarUrl() : null)
                 .lastUpdatedBy(d.getLastUpdatedBy())
                 .lastUpdatedByUsername(lastUpdatedByInfo != null ? lastUpdatedByInfo.username() : null)
-                .rankUpvotes(votes.rankUpvotes())
-                .rankDownvotes(votes.rankDownvotes())
-                .criteriaUpvotes(votes.criteriaUpvotes())
-                .criteriaDownvotes(votes.criteriaDownvotes())
-                .headCriteriaVote(votes.headCriteriaVote())
+                .rankUpvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.rankUpvotes() : 0)
+                .rankDownvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.rankDownvotes() : 0)
+                .criteriaUpvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.criteriaUpvotes() : 0)
+                .criteriaDownvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.criteriaDownvotes() : 0)
+                .headCriteriaVote(d.getStatus() != MapDifficultyStatus.RANKED ? votes.headCriteriaVote() : null)
+                .reweightUpvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.reweightUpvotes() : 0)
+                .reweightDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.reweightDownvotes() : 0)
+                .unrankUpvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankUpvotes() : 0)
+                .unrankDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankDownvotes() : 0)
                 .statistics(stats)
                 .build();
     }

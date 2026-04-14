@@ -47,5 +47,9 @@ public class MapDifficultyResponse {
     int criteriaUpvotes;
     int criteriaDownvotes;
     VoteType headCriteriaVote;
+    int reweightUpvotes;
+    int reweightDownvotes;
+    int unrankUpvotes;
+    int unrankDownvotes;
     MapDifficultyStatisticsResponse statistics;
 }

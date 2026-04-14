@@ -31,6 +31,11 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
                         "GROUP BY v.mapDifficulty.id, v.vote")
         List<Object[]> countRankVotesByDifficultyIds(@Param("ids") List<UUID> ids);
 
+        @Query("SELECT v.mapDifficulty.id, v.type, v.vote, COUNT(v) FROM StaffMapVote v " +
+                        "WHERE v.mapDifficulty.id IN :ids AND v.type IN ('reweight', 'unrank') AND v.active = true " +
+                        "GROUP BY v.mapDifficulty.id, v.type, v.vote")
+        List<Object[]> countReweightAndUnrankVotesByDifficultyIds(@Param("ids") List<UUID> ids);
+
         @Query("SELECT v.mapDifficulty.id, v.criteriaVote, COUNT(v) FROM StaffMapVote v " +
                         "WHERE v.mapDifficulty.id IN :ids AND v.criteriaVote IS NOT NULL AND v.active = true " +
                         "GROUP BY v.mapDifficulty.id, v.criteriaVote")
