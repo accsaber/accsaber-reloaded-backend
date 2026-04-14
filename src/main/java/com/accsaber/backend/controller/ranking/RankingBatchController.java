@@ -27,6 +27,7 @@ import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.map.BatchService;
+import com.accsaber.backend.service.map.ReweightService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 public class RankingBatchController {
 
     private final BatchService batchService;
+    private final ReweightService reweightService;
 
     @Operation(summary = "List batches", description = "Lists batches with optional status filter and search")
     @GetMapping
@@ -109,5 +111,12 @@ public class RankingBatchController {
             @AuthenticationPrincipal StaffUserDetails userDetails) {
         return ResponseEntity.ok(batchService.reweightBatch(id, request.getItems(),
                 userDetails.getLinkedUserId(), userDetails.getStaffUser().getId()));
+    }
+
+    @Operation(summary = "Recalculate a batch", description = "Recalculates all scores in a released batch based on current active complexities. Skips difficulties where AP values are unchanged.")
+    @PostMapping("/{id}/recalculate")
+    public ResponseEntity<Void> recalculateBatch(@PathVariable UUID id) {
+        reweightService.recalculateBatch(id);
+        return ResponseEntity.accepted().build();
     }
 }

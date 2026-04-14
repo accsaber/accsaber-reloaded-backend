@@ -82,7 +82,8 @@ public class RankingMapDifficultyController {
                         @Valid @RequestBody ApproveReweightRequest request,
                         @AuthenticationPrincipal StaffUserDetails userDetails) {
                 return ResponseEntity.ok(reweightService.reweight(difficultyId, request.getComplexity(),
-                                request.getReason(), userDetails.getLinkedUserId(), userDetails.getStaffUser().getId()));
+                                request.getReason(), userDetails.getLinkedUserId(),
+                                userDetails.getStaffUser().getId()));
         }
 
         @Operation(summary = "Approve and apply an unrank", description = "Moves a RANKED difficulty back to QUEUE status")
@@ -104,6 +105,14 @@ public class RankingMapDifficultyController {
                         @AuthenticationPrincipal StaffUserDetails userDetails) {
                 return ResponseEntity.ok(unrankService.unrankBatch(request.getItems(),
                                 userDetails.getStaffUser().getId()));
+        }
+
+        @Operation(summary = "Recalculate scores for a difficulty", description = "Recalculates all scores based on the current active complexity. Skips if AP values are unchanged.")
+        @PostMapping("/{difficultyId}/recalculate")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<Void> recalculate(@PathVariable UUID difficultyId) {
+                reweightService.recalculateDifficulty(difficultyId);
+                return ResponseEntity.accepted().build();
         }
 
         @Operation(summary = "Criteria checker webhook", description = "External service endpoint to update criteria pass/fail status on a difficulty")
