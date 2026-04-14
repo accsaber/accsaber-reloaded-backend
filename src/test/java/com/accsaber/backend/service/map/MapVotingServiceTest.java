@@ -185,7 +185,7 @@ class MapVotingServiceTest {
                         when(voteRepository.countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(
                                         diffId, MapVoteAction.UNRANK, VoteType.DOWNVOTE)).thenReturn(0L);
 
-                        VoteListResponse result = votingService.getVotes(diffId);
+                        VoteListResponse result = votingService.getVotes(diffId, MapVoteAction.RANK);
 
                         assertThat(result.isRankReady()).isFalse();
                         assertThat(result.isReweightReady()).isTrue();
