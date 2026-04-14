@@ -54,11 +54,12 @@ public class MapVotingService {
     private record StaffInfo(String username, String avatarUrl) {
     }
 
-    public VoteListResponse getVotes(UUID mapDifficultyId) {
+    public VoteListResponse getVotes(UUID mapDifficultyId, MapVoteAction type) {
         List<StaffMapVote> voteEntities = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(voteEntities);
 
         List<VoteResponse> votes = voteEntities.stream()
+                .filter(v -> v.getType() == type)
                 .map(v -> toResponse(v, staffInfo.get(v.getStaffId())))
                 .toList();
 
@@ -117,8 +118,8 @@ public class MapVotingService {
         }
 
         StaffMapVote staffVote = voteRepository
-                .findByMapDifficultyIdAndStaffIdAndTypeAndActiveTrue(mapDifficultyId, staffId, type)
-                .map(existing -> updateVote(existing, vote, suggestedComplexity, reason))
+                .findByMapDifficultyIdAndStaffIdAndActiveTrue(mapDifficultyId, staffId)
+                .map(existing -> updateVote(existing, vote, type, suggestedComplexity, reason))
                 .orElseGet(() -> buildVote(difficulty, staffId, vote, type, suggestedComplexity, reason));
 
         if (criteriaVote != null) {
@@ -240,9 +241,10 @@ public class MapVotingService {
         }
     }
 
-    private StaffMapVote updateVote(StaffMapVote existing, VoteType vote,
+    private StaffMapVote updateVote(StaffMapVote existing, VoteType vote, MapVoteAction type,
             BigDecimal suggestedComplexity, String reason) {
         existing.setVote(vote);
+        existing.setType(type);
         existing.setSuggestedComplexity(suggestedComplexity);
         existing.setReason(reason);
         return existing;
