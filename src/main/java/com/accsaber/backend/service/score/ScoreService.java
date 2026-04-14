@@ -275,10 +275,10 @@ public class ScoreService {
                 if (apResult.rawAP().compareTo(score.getAp()) == 0)
                         return null;
 
+                BigDecimal oldXp = score.getXpGained() != null ? score.getXpGained() : BigDecimal.ZERO;
                 score.setActive(false);
+                score.setXpGained(BigDecimal.ZERO);
                 scoreRepository.saveAndFlush(score);
-
-                BigDecimal xpGained = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
 
                 Score recalculated = Score.builder()
                                 .user(score.getUser())
@@ -301,7 +301,7 @@ public class ScoreService {
                                 .hmd(score.getHmd())
                                 .timeSet(score.getTimeSet())
                                 .reweightDerivative(true)
-                                .xpGained(xpGained)
+                                .xpGained(BigDecimal.ZERO)
                                 .supersedes(score)
                                 .supersedesReason("Complexity reweight")
                                 .active(true)
@@ -309,10 +309,8 @@ public class ScoreService {
 
                 scoreRepository.saveAndFlush(recalculated);
                 copyModifierLinks(score, recalculated);
-                BigDecimal oldXpGained = score.getXpGained() != null ? score.getXpGained() : BigDecimal.ZERO;
-                BigDecimal xpDelta = xpGained.subtract(oldXpGained);
-                if (xpDelta.compareTo(BigDecimal.ZERO) != 0) {
-                        userRepository.addXp(score.getUser().getId(), xpDelta);
+                if (oldXp.compareTo(BigDecimal.ZERO) > 0) {
+                        userRepository.addXp(score.getUser().getId(), oldXp.negate());
                 }
 
                 return new RecalcResult(score.getUser().getId(), difficulty.getCategory().getId(), difficulty.getId());

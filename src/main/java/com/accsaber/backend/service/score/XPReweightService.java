@@ -100,11 +100,11 @@ public class XPReweightService {
                 if (currentBestAccuracy == null) {
                     newXp = xpCalculationService.calculateXpForNewMap(accuracy, complexity);
                     currentBestAccuracy = accuracy;
-                } else if ("Worse score".equals(score.getSupersedesReason())) {
-                    newXp = xpCalculationService.calculateXpForWorseScore();
-                } else {
+                } else if ("Score improved".equals(score.getSupersedesReason())) {
                     newXp = xpCalculationService.calculateXpForImprovement(accuracy, currentBestAccuracy, complexity);
                     currentBestAccuracy = accuracy;
+                } else {
+                    newXp = xpCalculationService.calculateXpForWorseScore();
                 }
                 BigDecimal oldXp = score.getXpGained();
                 if (oldXp == null || oldXp.compareTo(newXp) != 0) {
