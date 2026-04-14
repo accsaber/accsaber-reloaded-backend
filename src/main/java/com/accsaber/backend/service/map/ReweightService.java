@@ -2,13 +2,16 @@ package com.accsaber.backend.service.map;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Batch;
@@ -84,5 +87,37 @@ public class ReweightService {
         scoreRecalculationService.recalculateBatchAsync(difficulties);
         mapService.evictRankedDifficultiesCache();
         log.info("Triggered batch recalculation for {} difficulties in batch {}", difficulties.size(), batchId);
+    }
+
+    @Transactional
+    public void bulkReweight(List<BulkReweightRequest.Item> items, String reason,
+            Long staffUserId, UUID staffId) {
+        Map<UUID, BigDecimal> complexityByDifficulty = items.stream()
+                .collect(Collectors.toMap(BulkReweightRequest.Item::getMapDifficultyId,
+                        BulkReweightRequest.Item::getComplexity));
+
+        List<MapDifficulty> difficulties = mapDifficultyRepository
+                .findAllById(complexityByDifficulty.keySet()).stream()
+                .filter(d -> d.isActive() && d.getStatus() == MapDifficultyStatus.RANKED)
+                .toList();
+
+        List<UUID> foundIds = difficulties.stream().map(MapDifficulty::getId).toList();
+        List<UUID> missing = complexityByDifficulty.keySet().stream()
+                .filter(id -> !foundIds.contains(id))
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new ValidationException("Difficulties not found or not RANKED: " + missing);
+        }
+
+        for (MapDifficulty difficulty : difficulties) {
+            UpdateMapComplexityRequest req = new UpdateMapComplexityRequest();
+            req.setComplexity(complexityByDifficulty.get(difficulty.getId()));
+            req.setReason(reason);
+            mapService.updateComplexity(difficulty.getId(), req, staffUserId, staffId);
+        }
+
+        scoreRecalculationService.recalculateBatchAsync(difficulties);
+        mapService.evictRankedDifficultiesCache();
+        log.info("Triggered bulk reweight for {} difficulties", difficulties.size());
     }
 }

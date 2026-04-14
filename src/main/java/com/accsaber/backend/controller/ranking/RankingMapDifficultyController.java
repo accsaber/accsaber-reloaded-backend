@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
+import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.CriteriaWebhookRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
@@ -105,6 +106,17 @@ public class RankingMapDifficultyController {
                         @AuthenticationPrincipal StaffUserDetails userDetails) {
                 return ResponseEntity.ok(unrankService.unrankBatch(request.getItems(),
                                 userDetails.getStaffUser().getId()));
+        }
+
+        @Operation(summary = "Bulk reweight", description = "Sets new complexities on multiple RANKED difficulties with a shared reason and recalculates all scores asynchronously")
+        @PostMapping("/bulk-reweight")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<Void> bulkReweight(
+                        @Valid @RequestBody BulkReweightRequest request,
+                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                reweightService.bulkReweight(request.getItems(), request.getReason(),
+                                userDetails.getLinkedUserId(), userDetails.getStaffUser().getId());
+                return ResponseEntity.accepted().build();
         }
 
         @Operation(summary = "Recalculate scores for a difficulty", description = "Recalculates all scores based on the current active complexity. Skips if AP values are unchanged.")
