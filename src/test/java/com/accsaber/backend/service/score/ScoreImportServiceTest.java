@@ -25,7 +25,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.ScoreSaberClient;
-import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
@@ -94,14 +93,12 @@ class ScoreImportServiceTest {
 
         @BeforeEach
         void setUp() {
-                PlatformProperties properties = new PlatformProperties();
-
                 scoreImportService = new ScoreImportService(
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,
                                 mapDifficultyRepository, mapComplexityService, scoreRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
                                 milestoneEvaluationService, mapDifficultyStatisticsService, scoreRankingService,
-                                duplicateUserService, properties);
+                                duplicateUserService);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",
                                 (java.util.concurrent.Executor) Runnable::run);

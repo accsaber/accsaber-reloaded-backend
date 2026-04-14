@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.ScoreSaberClient;
-import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
@@ -70,7 +69,6 @@ public class ScoreImportService {
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
-    private final PlatformProperties properties;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -391,9 +389,9 @@ public class ScoreImportService {
                 scores = beatLeaderClient.getLeaderboardScores(
                         difficulty.getBlLeaderboardId(), page, pageSize);
             } catch (Exception e) {
-                log.error("BL backfill failed on page {} for difficulty {} after retries: {}",
+                log.error("BL backfill failed on page {} for difficulty {}: {}",
                         page, difficulty.getId(), e.getMessage());
-                throw new RuntimeException("BL backfill aborted — refusing to skip page " + page, e);
+                throw new RuntimeException("BL backfill aborted on page " + page, e);
             }
 
             if (scores.isEmpty())
@@ -430,9 +428,9 @@ public class ScoreImportService {
                 scoresPage = scoreSaberClient.getLeaderboardScores(
                         difficulty.getSsLeaderboardId(), page);
             } catch (Exception e) {
-                log.error("SS backfill failed on page {} for difficulty {} after retries: {}",
+                log.error("SS backfill failed on page {} for difficulty {}: {}",
                         page, difficulty.getId(), e.getMessage());
-                throw new RuntimeException("SS backfill aborted — refusing to skip page " + page, e);
+                throw new RuntimeException("SS backfill aborted on page " + page, e);
             }
 
             if (scoresPage == null || scoresPage.getScores() == null || scoresPage.getScores().isEmpty())
