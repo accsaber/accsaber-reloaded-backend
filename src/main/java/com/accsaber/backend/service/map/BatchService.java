@@ -158,6 +158,14 @@ public class BatchService {
         Instant releasedAt = Instant.now();
 
         List<MapDifficulty> difficulties = mapDifficultyRepository.findByBatch_IdAndActiveTrue(batchId);
+        List<UUID> difficultyIds = difficulties.stream().map(MapDifficulty::getId).toList();
+        var complexities = complexityService.findActiveComplexitiesForDifficulties(difficultyIds);
+        List<UUID> missingComplexity = difficultyIds.stream()
+                .filter(id -> !complexities.containsKey(id))
+                .toList();
+        if (!missingComplexity.isEmpty()) {
+            throw new ValidationException("Cannot release batch: difficulties missing complexity: " + missingComplexity);
+        }
         difficulties.forEach(d -> {
             d.setStatus(MapDifficultyStatus.RANKED);
             d.setRankedAt(releasedAt);

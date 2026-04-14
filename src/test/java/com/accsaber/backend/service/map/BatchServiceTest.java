@@ -322,7 +322,9 @@ class BatchServiceTest {
                         when(mapDifficultyRepository.saveAll(any())).thenReturn(List.of(diff1, diff2));
                         when(batchRepository.save(any())).thenReturn(batch);
                         when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
+                                        .thenReturn(java.util.Map.of(
+                                                        diff1.getId(), java.math.BigDecimal.valueOf(8.0),
+                                                        diff2.getId(), java.math.BigDecimal.valueOf(9.0)));
                         when(statisticsService.findActiveForDifficulties(any()))
                                         .thenReturn(java.util.Map.of());
 
@@ -347,7 +349,9 @@ class BatchServiceTest {
                         when(mapDifficultyRepository.saveAll(any())).thenReturn(List.of(diff1, diff2));
                         when(batchRepository.save(any())).thenReturn(batch);
                         when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
+                                        .thenReturn(java.util.Map.of(
+                                                        diff1.getId(), java.math.BigDecimal.valueOf(8.0),
+                                                        diff2.getId(), java.math.BigDecimal.valueOf(9.0)));
                         when(statisticsService.findActiveForDifficulties(any()))
                                         .thenReturn(java.util.Map.of());
 

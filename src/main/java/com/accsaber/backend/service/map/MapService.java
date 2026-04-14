@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
@@ -360,6 +361,10 @@ public class MapService {
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
 
         MapDifficultyStatus oldStatus = difficulty.getStatus();
+        if (request.getStatus() == MapDifficultyStatus.RANKED
+                && complexityService.findActiveComplexity(difficultyId).isEmpty()) {
+            throw new ValidationException("Cannot rank a difficulty without an active complexity");
+        }
         difficulty.setStatus(request.getStatus());
         difficulty.setRankedAt(request.getStatus() == MapDifficultyStatus.RANKED ? Instant.now() : null);
         difficulty.setLastUpdatedBy(staffId);

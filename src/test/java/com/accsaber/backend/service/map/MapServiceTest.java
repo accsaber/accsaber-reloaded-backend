@@ -328,7 +328,8 @@ class MapServiceTest {
                         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
                                         .thenReturn(Optional.of(diff));
                         when(mapDifficultyRepository.save(any())).thenReturn(diff);
-                        when(complexityService.findActiveComplexity(diff.getId())).thenReturn(Optional.empty());
+                        when(complexityService.findActiveComplexity(diff.getId()))
+                                        .thenReturn(Optional.of(java.math.BigDecimal.valueOf(8.0)));
                         when(statisticsService.findActive(diff.getId())).thenReturn(Optional.empty());
 
                         UpdateMapStatusRequest request = new UpdateMapStatusRequest();
