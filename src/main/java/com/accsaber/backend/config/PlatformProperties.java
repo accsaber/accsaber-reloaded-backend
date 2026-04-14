@@ -14,7 +14,6 @@ public class PlatformProperties {
     private PlatformConfig beatsaver = new PlatformConfig();
     private int ssWaitForBlSeconds = 30;
     private int gapFillWindowSeconds = 60;
-    private int backfillPageDelay = 500;
 
     private int wsReconnectIntervalMs = 10000;
     private int wsMaxReconnectIntervalMs = 60000;

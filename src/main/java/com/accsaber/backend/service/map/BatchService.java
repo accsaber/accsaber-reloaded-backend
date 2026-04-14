@@ -177,7 +177,7 @@ public class BatchService {
         batch.setReleasedAt(releasedAt);
         batchRepository.save(batch);
 
-        scoreImportService.backfillDifficultiesSequentiallyAsync(
+        scoreImportService.backfillDifficultiesAsync(
                 difficulties.stream().map(MapDifficulty::getId).toList());
 
         playlistService.evictAllPlaylists();

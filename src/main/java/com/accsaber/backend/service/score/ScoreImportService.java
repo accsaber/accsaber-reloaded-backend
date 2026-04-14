@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -75,6 +76,8 @@ public class ScoreImportService {
     @Qualifier("backfillExecutor")
     private Executor backfillExecutor;
 
+    private static final int MAX_CONCURRENT_DIFFICULTIES = 3;
+
     @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
     private long gapFillPageDelayMs;
 
@@ -121,69 +124,104 @@ public class ScoreImportService {
     }
 
     @Async("taskExecutor")
-    public void backfillDifficultiesSequentiallyAsync(List<UUID> mapDifficultyIds) {
-        log.info("Starting sequential backfill for {} difficulties", mapDifficultyIds.size());
-        for (UUID id : mapDifficultyIds) {
+    public void backfillDifficultiesAsync(List<UUID> mapDifficultyIds) {
+        log.info("Starting parallel backfill for {} difficulties", mapDifficultyIds.size());
+        long start = System.currentTimeMillis();
+        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
+
+        List<Thread> threads = mapDifficultyIds.stream()
+                .map(id -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(id)
+                                .orElse(null);
+                        if (difficulty == null) {
+                            log.warn("Cannot backfill: difficulty {} not found or inactive", id);
+                            return;
+                        }
+                        backfillDifficulty(difficulty);
+                    } catch (Exception e) {
+                        log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        threads.forEach(t -> {
             try {
-                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(id)
-                        .orElse(null);
-                if (difficulty == null) {
-                    log.warn("Cannot backfill: difficulty {} not found or inactive", id);
-                    continue;
-                }
-                backfillDifficulty(difficulty);
-                Thread.sleep(properties.getBackfillPageDelay());
+                t.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Sequential backfill interrupted");
-                return;
-            } catch (Exception e) {
-                log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
             }
-        }
-        log.info("Sequential backfill complete for {} difficulties", mapDifficultyIds.size());
+        });
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("Parallel backfill complete for {} difficulties in {}s", mapDifficultyIds.size(), elapsed / 1000);
     }
 
     @Async("taskExecutor")
     public void backfillAllRankedDifficulties() {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
-        log.info("Starting backfill for {} ranked difficulties", ranked.size());
+        log.info("Starting parallel backfill for {} ranked difficulties", ranked.size());
+        long start = System.currentTimeMillis();
+        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
 
-        for (MapDifficulty difficulty : ranked) {
+        List<Thread> threads = ranked.stream()
+                .map(difficulty -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        backfillDifficulty(difficulty);
+                    } catch (Exception e) {
+                        log.error("Error backfilling difficulty {}: {}", difficulty.getId(), e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        threads.forEach(t -> {
             try {
-                backfillDifficulty(difficulty);
-                Thread.sleep(properties.getBackfillPageDelay());
+                t.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Backfill interrupted");
-                return;
-            } catch (Exception e) {
-                log.error("Error backfilling difficulty {}: {}", difficulty.getId(), e.getMessage());
             }
-        }
-        log.info("Backfill of all ranked difficulties complete");
+        });
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
     }
 
     @Async("taskExecutor")
     public void startupGapFillAllRankedDifficulties(Instant since) {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
-        log.info("Starting startup gap-fill for {} ranked difficulties since {}", ranked.size(), since);
+        log.info("Starting parallel gap-fill for {} ranked difficulties since {}", ranked.size(), since);
 
-        for (MapDifficulty difficulty : ranked) {
+        long start = System.currentTimeMillis();
+        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
+
+        List<Thread> threads = ranked.stream()
+                .map(difficulty -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        startupGapFillDifficulty(difficulty, since);
+                    } catch (Exception e) {
+                        log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        threads.forEach(t -> {
             try {
-                startupGapFillDifficulty(difficulty, since);
-                Thread.sleep(properties.getBackfillPageDelay());
+                t.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Startup gap-fill interrupted");
-                return;
-            } catch (Exception e) {
-                log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
             }
-        }
-        log.info("Startup gap-fill complete");
+        });
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("Parallel gap-fill complete for {} difficulties in {}s", ranked.size(), elapsed / 1000);
     }
 
     private void startupGapFillDifficulty(MapDifficulty difficulty, Instant since) {
@@ -348,8 +386,15 @@ public class ScoreImportService {
         int pageSize = 100;
 
         while (true) {
-            List<BeatLeaderScoreResponse> scores = beatLeaderClient.getLeaderboardScores(
-                    difficulty.getBlLeaderboardId(), page, pageSize);
+            List<BeatLeaderScoreResponse> scores;
+            try {
+                scores = beatLeaderClient.getLeaderboardScores(
+                        difficulty.getBlLeaderboardId(), page, pageSize);
+            } catch (Exception e) {
+                log.error("BL backfill failed on page {} for difficulty {} after retries: {}",
+                        page, difficulty.getId(), e.getMessage());
+                throw new RuntimeException("BL backfill aborted — refusing to skip page " + page, e);
+            }
 
             if (scores.isEmpty())
                 break;
@@ -367,49 +412,31 @@ public class ScoreImportService {
             if (scores.size() < pageSize)
                 break;
             page++;
-
-            try {
-                Thread.sleep(properties.getBackfillPageDelay());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
         }
         return affected;
     }
 
-    private static final int SS_BACKFILL_MAX_PAGE_RETRIES = 3;
+    private static final long SS_PAGE_DELAY_MS = 100;
 
     private Set<Long> backfillFromScoreSaber(MapDifficulty difficulty, BigDecimal complexity,
             Map<String, UUID> modifiers) {
         Set<Long> affected = new HashSet<>();
         int page = 1;
         int totalPages = Integer.MAX_VALUE;
-        int consecutiveFailures = 0;
 
         while (page <= totalPages) {
-            ScoreSaberScoresPage scoresPage = scoreSaberClient.getLeaderboardScores(
-                    difficulty.getSsLeaderboardId(), page);
-
-            if (scoresPage == null || scoresPage.getScores() == null) {
-                consecutiveFailures++;
-                if (consecutiveFailures >= SS_BACKFILL_MAX_PAGE_RETRIES) {
-                    log.warn("SS backfill for difficulty {} stopped at page {} after {} consecutive failures",
-                            difficulty.getId(), page, SS_BACKFILL_MAX_PAGE_RETRIES);
-                    break;
-                }
-                log.warn("SS backfill page {} failed for difficulty {}, retrying ({}/{})",
-                        page, difficulty.getId(), consecutiveFailures, SS_BACKFILL_MAX_PAGE_RETRIES);
-                try {
-                    Thread.sleep(properties.getBackfillPageDelay() * 2L);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                continue;
+            ScoreSaberScoresPage scoresPage;
+            try {
+                scoresPage = scoreSaberClient.getLeaderboardScores(
+                        difficulty.getSsLeaderboardId(), page);
+            } catch (Exception e) {
+                log.error("SS backfill failed on page {} for difficulty {} after retries: {}",
+                        page, difficulty.getId(), e.getMessage());
+                throw new RuntimeException("SS backfill aborted — refusing to skip page " + page, e);
             }
 
-            consecutiveFailures = 0;
+            if (scoresPage == null || scoresPage.getScores() == null || scoresPage.getScores().isEmpty())
+                break;
 
             if (totalPages == Integer.MAX_VALUE && scoresPage.getMetadata() != null
                     && scoresPage.getMetadata().getTotal() != null
@@ -418,9 +445,6 @@ public class ScoreImportService {
                 totalPages = (int) Math.ceil((double) scoresPage.getMetadata().getTotal()
                         / scoresPage.getMetadata().getItemsPerPage());
             }
-
-            if (scoresPage.getScores().isEmpty())
-                break;
 
             scoresPage.getScores().stream()
                     .map(ssScore -> CompletableFuture.supplyAsync(
@@ -435,7 +459,7 @@ public class ScoreImportService {
             page++;
 
             try {
-                Thread.sleep(properties.getBackfillPageDelay());
+                Thread.sleep(SS_PAGE_DELAY_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -489,7 +513,8 @@ public class ScoreImportService {
         score.setPauses(blScore.getPauses());
         score.setStreak115(blScore.getMaxStreak());
         score.setPlayCount(blScore.getPlayCount() != null && blScore.getPlayCount() > 0
-                ? blScore.getPlayCount() : null);
+                ? blScore.getPlayCount()
+                : null);
         if (score.getHmd() == null && blScore.getHmd() != null) {
             score.setHmd(com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd()));
         }

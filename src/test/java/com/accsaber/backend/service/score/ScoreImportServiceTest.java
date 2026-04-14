@@ -95,7 +95,6 @@ class ScoreImportServiceTest {
         @BeforeEach
         void setUp() {
                 PlatformProperties properties = new PlatformProperties();
-                properties.setBackfillPageDelay(0);
 
                 scoreImportService = new ScoreImportService(
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,

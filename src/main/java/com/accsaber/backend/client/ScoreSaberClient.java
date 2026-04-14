@@ -47,20 +47,15 @@ public class ScoreSaberClient {
     }
 
     public ScoreSaberScoresPage getLeaderboardScores(String leaderboardId, int page) {
-        try {
-            return webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/leaderboard/by-id/{id}/scores")
-                            .queryParam("page", page)
-                            .build(leaderboardId))
-                    .retrieve()
-                    .bodyToMono(ScoreSaberScoresPage.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout());
-        } catch (Exception e) {
-            log.error("Failed to fetch SS leaderboard scores for {}: {}", leaderboardId, e.getMessage());
-            return null;
-        }
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/leaderboard/by-id/{id}/scores")
+                        .queryParam("page", page)
+                        .build(leaderboardId))
+                .retrieve()
+                .bodyToMono(ScoreSaberScoresPage.class)
+                .retryWhen(rateLimitRetrySpec())
+                .block(timeout());
     }
 
     public Optional<ScoreSaberLeaderboardResponse> getLeaderboard(String leaderboardId) {
@@ -102,6 +97,21 @@ public class ScoreSaberClient {
                 .jitter(0.5)
                 .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound)
                         && !(throwable instanceof DecodingException));
+    }
+
+    private Retry rateLimitRetrySpec() {
+        return Retry.backoff(10, Duration.ofSeconds(3))
+                .maxBackoff(Duration.ofSeconds(60))
+                .jitter(0.3)
+                .filter(throwable -> {
+                    if (throwable instanceof WebClientResponseException.NotFound) return false;
+                    if (throwable instanceof DecodingException) return false;
+                    if (throwable instanceof WebClientResponseException wce && wce.getStatusCode().value() == 429) {
+                        log.warn("ScoreSaber 429 rate limited, backing off and retrying");
+                        return true;
+                    }
+                    return true;
+                });
     }
 
     private Duration timeout() {

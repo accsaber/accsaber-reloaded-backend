@@ -48,24 +48,19 @@ public class BeatLeaderClient {
     }
 
     public List<BeatLeaderScoreResponse> getLeaderboardScores(String leaderboardId, int page, int count) {
-        try {
-            BeatLeaderLeaderboardResponse response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/leaderboard/{id}")
-                            .queryParam("page", page)
-                            .queryParam("count", count)
-                            .build(leaderboardId))
-                    .retrieve()
-                    .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout());
-            return response != null && response.getScores() != null
-                    ? response.getScores()
-                    : List.of();
-        } catch (Exception e) {
-            log.error("Failed to fetch BL leaderboard scores for {}: {}", leaderboardId, e.getMessage());
-            return List.of();
-        }
+        BeatLeaderLeaderboardResponse response = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/leaderboard/{id}")
+                        .queryParam("page", page)
+                        .queryParam("count", count)
+                        .build(leaderboardId))
+                .retrieve()
+                .bodyToMono(BeatLeaderLeaderboardResponse.class)
+                .retryWhen(rateLimitRetrySpec())
+                .block(timeout());
+        return response != null && response.getScores() != null
+                ? response.getScores()
+                : List.of();
     }
 
     public Optional<BeatLeaderLeaderboardResponse> getLeaderboard(String leaderboardId) {
@@ -85,23 +80,18 @@ public class BeatLeaderClient {
     }
 
     public List<BeatLeaderScoreResponse> getLeaderboardScoresSortedByDate(String leaderboardId, int page, int count) {
-        try {
-            BeatLeaderLeaderboardResponse response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/leaderboard/{id}")
-                            .queryParam("page", page)
-                            .queryParam("count", count)
-                            .queryParam("sortBy", "date")
-                            .build(leaderboardId))
-                    .retrieve()
-                    .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout());
-            return response != null && response.getScores() != null ? response.getScores() : List.of();
-        } catch (Exception e) {
-            log.error("Failed to fetch BL leaderboard scores (by date) for {}: {}", leaderboardId, e.getMessage());
-            return List.of();
-        }
+        BeatLeaderLeaderboardResponse response = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/leaderboard/{id}")
+                        .queryParam("page", page)
+                        .queryParam("count", count)
+                        .queryParam("sortBy", "date")
+                        .build(leaderboardId))
+                .retrieve()
+                .bodyToMono(BeatLeaderLeaderboardResponse.class)
+                .retryWhen(rateLimitRetrySpec())
+                .block(timeout());
+        return response != null && response.getScores() != null ? response.getScores() : List.of();
     }
 
     public List<BeatLeaderScoreResponse> getRecentScores(String leaderboardId, long afterTimestamp) {
@@ -133,6 +123,21 @@ public class BeatLeaderClient {
                 .jitter(0.5)
                 .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound)
                         && !(throwable instanceof DecodingException));
+    }
+
+    private Retry rateLimitRetrySpec() {
+        return Retry.backoff(10, Duration.ofSeconds(2))
+                .maxBackoff(Duration.ofSeconds(60))
+                .jitter(0.3)
+                .filter(throwable -> {
+                    if (throwable instanceof WebClientResponseException.NotFound) return false;
+                    if (throwable instanceof DecodingException) return false;
+                    if (throwable instanceof WebClientResponseException wce && wce.getStatusCode().value() == 429) {
+                        log.warn("BeatLeader 429 rate limited, backing off and retrying");
+                        return true;
+                    }
+                    return true;
+                });
     }
 
     private Duration timeout() {
