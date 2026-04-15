@@ -66,7 +66,7 @@ public class MetricsService {
                                 .register(registry);
 
                 outboundAiComplexity = Counter.builder("accsaber.requests.outbound")
-                                .tag("target", "ai-complexity")
+                                .tag("target", "aicomplexity")
                                 .description("Outbound API calls to AI Complexity service")
                                 .register(registry);
 
