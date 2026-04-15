@@ -16,25 +16,6 @@ services:
     networks:
       - accsaber-network
 
-  ai-complexity:
-    image: ${AI_COMPLEXITY_IMAGE:-accsaber-ai-complexity:latest}
-    container_name: accsaber-ai-complexity
-    volumes:
-      - ai-complexity-maps:/home/maps
-      - ai-complexity-cache:/app/cache-and-stuff
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/ || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    networks:
-      - accsaber-network
-
   backend:
     build:
       context: .
@@ -47,7 +28,6 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
-      AI_COMPLEXITY_URL: http://ai-complexity:8000
       JAVA_OPTS: -Xms256m -Xmx768m
     depends_on:
       postgres:
@@ -100,8 +80,6 @@ services:
 
 volumes:
   postgres-data:
-  ai-complexity-maps:
-  ai-complexity-cache:
   prometheus-data:
   grafana-data:
 

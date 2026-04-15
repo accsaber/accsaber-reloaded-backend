@@ -1,10 +1,13 @@
 package com.accsaber.backend.client;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.codec.DecodingException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -117,6 +120,35 @@ public class BeatLeaderClient {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public Optional<BigDecimal> getAiAccuracy(String songHash, String characteristic, int difficulty) {
+        try {
+            String stageBaseUrl = properties.getBeatleaderStageBaseUrl();
+            Map<String, Object> response = webClient.get()
+                    .uri(stageBaseUrl + "/json/{hash}/{characteristic}/{diff}/full/time-scale/1",
+                            songHash, characteristic, difficulty)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
+                    })
+                    .retryWhen(retrySpec())
+                    .block(timeout());
+
+            if (response == null)
+                return Optional.empty();
+
+            Map<String, Object> notes = (Map<String, Object>) response.get("notes");
+            if (notes == null || notes.get("AIacc") == null)
+                return Optional.empty();
+
+            return Optional.of(new BigDecimal(notes.get("AIacc").toString()));
+        } catch (WebClientResponseException.NotFound e) {
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("Failed to fetch BL AI accuracy for hash={} diff={}: {}", songHash, difficulty, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private Retry retrySpec() {
         return Retry.backoff(properties.getBeatleader().getMaxRetries(), Duration.ofSeconds(1))
                 .maxBackoff(Duration.ofSeconds(10))
@@ -130,8 +162,10 @@ public class BeatLeaderClient {
                 .maxBackoff(Duration.ofSeconds(60))
                 .jitter(0.3)
                 .filter(throwable -> {
-                    if (throwable instanceof WebClientResponseException.NotFound) return false;
-                    if (throwable instanceof DecodingException) return false;
+                    if (throwable instanceof WebClientResponseException.NotFound)
+                        return false;
+                    if (throwable instanceof DecodingException)
+                        return false;
                     if (throwable instanceof WebClientResponseException wce && wce.getStatusCode().value() == 429) {
                         log.warn("BeatLeader 429 rate limited, backing off and retrying");
                         return true;

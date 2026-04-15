@@ -83,10 +83,6 @@ accsaber:
       base-url: https://api.beatsaver.com
       timeout-ms: 10000
       max-retries: 3
-    ai-complexity:
-      base-url: ${AI_COMPLEXITY_URL:http://localhost:8000}
-      timeout-ms: 120000
-      max-retries: 1
     ss-wait-for-bl-seconds: 30
     gap-fill-window-seconds: 60
     ws-reconnect-interval-ms: 10000
@@ -97,9 +93,15 @@ accsaber:
     improvement-multiplier: 1.5
   backfill:
     on-startup: true
-    startup-mode: gap-fill  # full | gap-fill
+    startup-mode: gap-fill # full | gap-fill
     gap-fill-days: 2
     gap-fill-page-delay-ms: 125
+  complexity-estimate:
+    ap-target: ${COMPLEXITY_AP_TARGET}
+    accuracy-shift: ${COMPLEXITY_ACCURACY_SHIFT}
+    transform-offset: ${COMPLEXITY_TRANSFORM_OFFSET}
+    transform-scale: ${COMPLEXITY_TRANSFORM_SCALE}
+    transform-base: ${COMPLEXITY_TRANSFORM_BASE}
   rate-limit:
     capacity: 400
     window-seconds: 60

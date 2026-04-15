@@ -39,11 +39,6 @@ public class WebClientConfig {
         return buildWebClient(properties.getBeatsaver(), metricsService.getOutboundBeatSaver());
     }
 
-    @Bean(name = "aiComplexityWebClient")
-    public WebClient aiComplexityWebClient() {
-        return buildWebClient(properties.getAiComplexity(), metricsService.getOutboundAiComplexity());
-    }
-
     private WebClient buildWebClient(PlatformProperties.PlatformConfig config, Counter outboundCounter) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getTimeoutMs())

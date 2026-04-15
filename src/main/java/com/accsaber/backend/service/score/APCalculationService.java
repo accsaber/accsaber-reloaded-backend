@@ -57,7 +57,7 @@ public class APCalculationService {
                 .setScale(AP_SCALE, RoundingMode.HALF_UP);
     }
 
-    BigDecimal interpolate(Curve curve, BigDecimal accuracy) {
+    public BigDecimal interpolate(Curve curve, BigDecimal accuracy) {
         if (curve.getType() != CurveType.POINT_LOOKUP) {
             throw new IllegalArgumentException(
                     "Cannot interpolate a FORMULA type curve; use calculateWeightedAP instead");

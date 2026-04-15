@@ -13,13 +13,14 @@ public class PlatformProperties {
     private PlatformConfig beatleader = new PlatformConfig();
     private PlatformConfig scoresaber = new PlatformConfig();
     private PlatformConfig beatsaver = new PlatformConfig();
-    private PlatformConfig aiComplexity = new PlatformConfig();
     private int ssWaitForBlSeconds = 30;
     private int gapFillWindowSeconds = 60;
 
     private int wsReconnectIntervalMs = 10000;
     private int wsMaxReconnectIntervalMs = 60000;
     private int ssStaleTimeoutMs = 120000;
+
+    private String beatleaderStageBaseUrl = "https://stage.api.beatleader.net";
 
     @Data
     public static class PlatformConfig {
