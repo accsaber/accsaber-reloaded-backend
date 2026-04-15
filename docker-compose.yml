@@ -39,7 +39,6 @@ services:
       AI_COMPLEXITY_URL: http://ai-complexity:8000
     depends_on:
       - postgres
-      - ai-complexity
     networks:
       - accsaber-network
 
