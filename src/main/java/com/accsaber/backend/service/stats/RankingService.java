@@ -10,6 +10,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
@@ -61,6 +63,19 @@ public class RankingService {
     }
 
     public void updateRankingsAsync(UUID categoryId, Runnable postRankingCallback) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispatchRankingUpdate(categoryId, postRankingCallback);
+                }
+            });
+        } else {
+            dispatchRankingUpdate(categoryId, postRankingCallback);
+        }
+    }
+
+    private void dispatchRankingUpdate(UUID categoryId, Runnable postRankingCallback) {
         if (postRankingCallback != null) {
             pendingCallbacks.computeIfAbsent(categoryId, k -> new ConcurrentLinkedQueue<>())
                     .add(postRankingCallback);
