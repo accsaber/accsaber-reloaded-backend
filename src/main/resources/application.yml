@@ -83,6 +83,10 @@ accsaber:
       base-url: https://api.beatsaver.com
       timeout-ms: 10000
       max-retries: 3
+    ai-complexity:
+      base-url: ${AI_COMPLEXITY_URL:http://localhost:8000}
+      timeout-ms: 120000
+      max-retries: 1
     ss-wait-for-bl-seconds: 30
     gap-fill-window-seconds: 60
     ws-reconnect-interval-ms: 10000

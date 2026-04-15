@@ -1,8 +1,7 @@
 package com.accsaber.backend.config;
 
-import io.micrometer.core.instrument.Counter;
-import io.netty.channel.ChannelOption;
-import lombok.RequiredArgsConstructor;
+import java.time.Duration;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -11,10 +10,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import com.accsaber.backend.service.infra.MetricsService;
 
-import reactor.netty.http.client.HttpClient;
+import io.micrometer.core.instrument.Counter;
+import io.netty.channel.ChannelOption;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.time.Duration;
+import reactor.netty.http.client.HttpClient;
 
 @Slf4j
 @Configuration
@@ -37,6 +37,11 @@ public class WebClientConfig {
     @Bean(name = "beatSaverWebClient")
     public WebClient beatSaverWebClient() {
         return buildWebClient(properties.getBeatsaver(), metricsService.getOutboundBeatSaver());
+    }
+
+    @Bean(name = "aiComplexityWebClient")
+    public WebClient aiComplexityWebClient() {
+        return buildWebClient(properties.getAiComplexity(), metricsService.getOutboundAiComplexity());
     }
 
     private WebClient buildWebClient(PlatformProperties.PlatformConfig config, Counter outboundCounter) {

@@ -21,6 +21,7 @@ public class MetricsService {
         private final Counter outboundBeatLeader;
         private final Counter outboundScoreSaber;
         private final Counter outboundBeatSaver;
+        private final Counter outboundAiComplexity;
         private final Counter outboundFailures;
         private final Counter asyncTaskFailures;
         private final Timer scoreProcessingTimer;
@@ -62,6 +63,11 @@ public class MetricsService {
                 outboundBeatSaver = Counter.builder("accsaber.requests.outbound")
                                 .tag("target", "beatsaver")
                                 .description("Outbound API calls to BeatSaver")
+                                .register(registry);
+
+                outboundAiComplexity = Counter.builder("accsaber.requests.outbound")
+                                .tag("target", "ai-complexity")
+                                .description("Outbound API calls to AI Complexity service")
                                 .register(registry);
 
                 outboundFailures = Counter.builder("accsaber.requests.outbound.failures")

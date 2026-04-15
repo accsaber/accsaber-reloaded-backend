@@ -1,10 +1,12 @@
 package com.accsaber.backend.service.map;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.client.AiComplexityClient;
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
 import com.accsaber.backend.exception.ValidationException;
@@ -25,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MapImportService {
 
+    private final AiComplexityClient aiComplexityClient;
     private final BeatLeaderClient beatLeaderClient;
     private final BeatSaverClient beatSaverClient;
     private final MapService mapService;
@@ -101,10 +104,23 @@ public class MapImportService {
                 ssId);
         MapDifficultyResponse response = mapService.importMapDifficulty(request, staffId, status);
 
-        if (importRequest.getComplexity() != null) {
+        BigDecimal complexity = importRequest.getComplexity();
+        if (complexity == null) {
+            complexity = aiComplexityClient.getComplexity(
+                    songHash, importRequest.getCharacteristic(),
+                    importRequest.getDifficulty().getNumericValue()).orElse(null);
+            if (complexity != null) {
+                log.info("AI complexity prediction for {} ({}): {}", songName, importRequest.getDifficulty(), complexity);
+            } else {
+                log.warn("AI complexity unavailable for {} ({})", songName, importRequest.getDifficulty());
+            }
+        }
+
+        if (complexity != null) {
             MapDifficulty entity = mapDifficultyRepository.findById(response.getId())
                     .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
-            complexityService.setComplexity(entity, importRequest.getComplexity(), "Initial import", null);
+            String reason = importRequest.getComplexity() != null ? "Initial import" : "AI complexity prediction";
+            complexityService.setComplexity(entity, complexity, reason, null);
         }
 
         return response;

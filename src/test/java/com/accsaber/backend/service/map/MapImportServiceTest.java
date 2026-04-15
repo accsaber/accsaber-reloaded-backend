@@ -20,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.client.AiComplexityClient;
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
 import com.accsaber.backend.exception.ValidationException;
@@ -36,6 +37,8 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 @ExtendWith(MockitoExtension.class)
 class MapImportServiceTest {
 
+        @Mock
+        private AiComplexityClient aiComplexityClient;
         @Mock
         private BeatLeaderClient beatLeaderClient;
         @Mock

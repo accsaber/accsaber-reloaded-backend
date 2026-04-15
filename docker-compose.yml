@@ -13,6 +13,15 @@ services:
     networks:
       - accsaber-network
 
+  ai-complexity:
+    image: ${AI_COMPLEXITY_IMAGE:-accsaber-ai-complexity:latest}
+    container_name: accsaber-ai-complexity
+    volumes:
+      - ai-complexity-maps:/home/maps
+      - ai-complexity-cache:/app/cache-and-stuff
+    networks:
+      - accsaber-network
+
   backend:
     build:
       context: .
@@ -27,8 +36,10 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       JWT_SECRET: ${JWT_SECRET}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
+      AI_COMPLEXITY_URL: http://ai-complexity:8000
     depends_on:
       - postgres
+      - ai-complexity
     networks:
       - accsaber-network
 
@@ -64,6 +75,8 @@ services:
 
 volumes:
   postgres-data:
+  ai-complexity-maps:
+  ai-complexity-cache:
   prometheus-data:
   grafana-data:
 

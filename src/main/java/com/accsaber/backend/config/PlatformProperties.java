@@ -1,8 +1,9 @@
 package com.accsaber.backend.config;
 
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+
+import lombok.Data;
 
 @Data
 @Configuration
@@ -12,6 +13,7 @@ public class PlatformProperties {
     private PlatformConfig beatleader = new PlatformConfig();
     private PlatformConfig scoresaber = new PlatformConfig();
     private PlatformConfig beatsaver = new PlatformConfig();
+    private PlatformConfig aiComplexity = new PlatformConfig();
     private int ssWaitForBlSeconds = 30;
     private int gapFillWindowSeconds = 60;
 
