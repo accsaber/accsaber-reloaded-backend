@@ -16,11 +16,10 @@ import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
-import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.service.score.APCalculationService;
 
@@ -37,8 +36,10 @@ public class MapImportService {
     private final MapService mapService;
     private final MapDifficultyComplexityService complexityService;
     private final MapDifficultyRepository mapDifficultyRepository;
-    private final CategoryRepository categoryRepository;
+    private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
+
+    private static final String COMPLEXITY_CURVE_NAME = "AI Complexity Curve";
 
     @Value("${accsaber.complexity-estimate.ap-target}")
     private double apTarget;
@@ -129,8 +130,7 @@ public class MapImportService {
         if (complexity == null) {
             complexity = estimateComplexityFromBeatLeader(
                     songHash, importRequest.getCharacteristic(),
-                    importRequest.getDifficulty().getNumericValue(),
-                    importRequest.getCategoryId());
+                    importRequest.getDifficulty().getNumericValue());
             if (complexity != null) {
                 log.info("AI complexity estimate for {} ({}): {}", songName, importRequest.getDifficulty(), complexity);
             } else {
@@ -148,34 +148,33 @@ public class MapImportService {
         return response;
     }
 
-    private BigDecimal estimateComplexityFromBeatLeader(String songHash, String characteristic,
-            int difficulty, UUID categoryId) {
+    private BigDecimal estimateComplexityFromBeatLeader(String songHash, String characteristic, int difficulty) {
         BigDecimal aiAcc = beatLeaderClient.getAiAccuracy(songHash, characteristic, difficulty).orElse(null);
         if (aiAcc == null)
             return null;
 
-        Category category = categoryRepository.findByIdAndActiveTrue(categoryId).orElse(null);
-        if (category == null || category.getScoreCurve() == null)
+        Curve complexityCurve = curveRepository.findByNameAndActiveTrue(COMPLEXITY_CURVE_NAME).orElse(null);
+        if (complexityCurve == null)
             return null;
 
-        Curve scoreCurve = category.getScoreCurve();
         BigDecimal shiftedAccuracy = aiAcc.add(BigDecimal.valueOf(accuracyShift));
-        BigDecimal rawMultiplier = apCalculationService.interpolate(scoreCurve, shiftedAccuracy);
+        BigDecimal rawMultiplier = apCalculationService.interpolate(complexityCurve, shiftedAccuracy);
 
         double transformedMultiplier = transformMultiplier(rawMultiplier.doubleValue(),
                 transformOffset, transformScale, transformBase);
         if (transformedMultiplier <= 0)
             return null;
 
-        double scale = scoreCurve.getScale().doubleValue();
-        double shift = scoreCurve.getShift().doubleValue();
+        double scale = complexityCurve.getScale().doubleValue();
+        double shift = complexityCurve.getShift().doubleValue();
         double complexity = apTarget / (transformedMultiplier * scale) + shift;
 
         return BigDecimal.valueOf(complexity).setScale(1, RoundingMode.HALF_UP);
     }
 
     private static double transformMultiplier(double mult, double offset, double scale, double base) {
-        if (mult == 0) return 0;
+        if (mult == 0)
+            return 0;
         return (mult - offset) / (1 - offset) * scale + base;
     }
 }

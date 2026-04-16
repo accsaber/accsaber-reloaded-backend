@@ -31,7 +31,7 @@ import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.service.score.APCalculationService;
 
@@ -49,7 +49,7 @@ class MapImportServiceTest {
         @Mock
         private MapDifficultyRepository mapDifficultyRepository;
         @Mock
-        private CategoryRepository categoryRepository;
+        private CurveRepository curveRepository;
         @Mock
         private APCalculationService apCalculationService;
 
