@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
-import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
 import com.accsaber.backend.model.dto.response.player.NameHistoryResponse;
@@ -178,7 +178,7 @@ public class UserController {
 
     @Operation(summary = "Get unplayed maps for a user", description = "Paginated list of ranked difficulties the user has no active score on, with the same filters as the maps/difficulties endpoint")
     @GetMapping("/{userId}/missing-maps")
-    public ResponseEntity<Page<MapDifficultyResponse>> getMissingMaps(
+    public ResponseEntity<Page<PublicMapDifficultyResponse>> getMissingMaps(
             @PathVariable Long userId,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
@@ -186,8 +186,8 @@ public class UserController {
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search,
-                userId, pageable));
+        return ResponseEntity.ok(mapService.findDifficultiesPublic(categoryId, status, complexityMin, complexityMax,
+                search, userId, pageable));
     }
 
     @Operation(summary = "Get user progress in a campaign")

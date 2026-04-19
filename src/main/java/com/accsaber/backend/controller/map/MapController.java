@@ -16,9 +16,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
-import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
-import com.accsaber.backend.model.dto.response.map.MapResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapResponse;
 import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
@@ -44,17 +44,17 @@ public class MapController {
 
     @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category, status, and/or search (matches song name, song author, or mapper)")
     @GetMapping
-    public ResponseEntity<Page<MapResponse>> listMaps(
+    public ResponseEntity<Page<PublicMapResponse>> listMaps(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "songName", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
+        return ResponseEntity.ok(mapService.findAllPublic(categoryId, status, search, pageable));
     }
 
     @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category, status, complexity range, and/or search (matches song name, song author, or mapper)")
     @GetMapping("/difficulties")
-    public ResponseEntity<Page<MapDifficultyResponse>> listDifficulties(
+    public ResponseEntity<Page<PublicMapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) BigDecimal complexityMin,
@@ -62,7 +62,7 @@ public class MapController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity
-                .ok(mapService.findDifficulties(categoryId, status, complexityMin, complexityMax, search, null,
+                .ok(mapService.findDifficultiesPublic(categoryId, status, complexityMin, complexityMax, search, null,
                         pageable));
     }
 
@@ -72,38 +72,38 @@ public class MapController {
         return ResponseEntity.ok(mapService.findAllRankedDifficulties());
     }
 
-    @Operation(summary = "Get difficulty by ID", description = "Returns a single map difficulty with full metadata, complexity, and statistics")
+    @Operation(summary = "Get difficulty by ID", description = "Returns a single map difficulty with public metadata; complexity is only included for RANKED difficulties, vote counts and criteria status only for non-RANKED")
     @GetMapping("/difficulties/{difficultyId}")
-    public ResponseEntity<MapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
-        return ResponseEntity.ok(mapService.getDifficultyResponse(difficultyId));
+    public ResponseEntity<PublicMapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
+        return ResponseEntity.ok(mapService.getDifficultyResponsePublic(difficultyId));
     }
 
-    @Operation(summary = "Get map by ID", description = "Returns a map with all its active difficulties, current complexities, and statistics")
+    @Operation(summary = "Get map by ID", description = "Returns a map with all its active difficulties")
     @GetMapping("/{mapId}")
-    public ResponseEntity<MapResponse> getMap(@PathVariable UUID mapId) {
-        return ResponseEntity.ok(mapService.findById(mapId));
+    public ResponseEntity<PublicMapResponse> getMap(@PathVariable UUID mapId) {
+        return ResponseEntity.ok(mapService.findByIdPublic(mapId));
     }
 
     @Operation(summary = "Get map by song hash", description = "Returns a map by its song hash with active difficulties, optionally filtered by difficulty level (EASY, NORMAL, HARD, EXPERT, EXPERT_PLUS)")
     @GetMapping("/hash/{songHash}")
-    public ResponseEntity<MapResponse> getMapBySongHash(
+    public ResponseEntity<PublicMapResponse> getMapBySongHash(
             @PathVariable String songHash,
             @RequestParam(required = false) Difficulty difficulty) {
-        return ResponseEntity.ok(mapService.findBySongHash(songHash, difficulty));
+        return ResponseEntity.ok(mapService.findBySongHashPublic(songHash, difficulty));
     }
 
     @Operation(summary = "Get map by BeatSaver code", description = "Returns a map by its BeatSaver code with active difficulties, optionally filtered by difficulty level (EASY, NORMAL, HARD, EXPERT, EXPERT_PLUS)")
     @GetMapping("/by-code/{beatsaverCode}")
-    public ResponseEntity<MapResponse> getMapByBeatsaverCode(
+    public ResponseEntity<PublicMapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,
             @RequestParam(required = false) Difficulty difficulty) {
-        return ResponseEntity.ok(mapService.findByBeatsaverCode(beatsaverCode, difficulty));
+        return ResponseEntity.ok(mapService.findByBeatsaverCodePublic(beatsaverCode, difficulty));
     }
 
     @Operation(summary = "List difficulties for a map")
     @GetMapping("/{mapId}/difficulties")
-    public ResponseEntity<List<MapDifficultyResponse>> listMapDifficulties(@PathVariable UUID mapId) {
-        return ResponseEntity.ok(mapService.findDifficultiesByMapId(mapId));
+    public ResponseEntity<List<PublicMapDifficultyResponse>> listMapDifficulties(@PathVariable UUID mapId) {
+        return ResponseEntity.ok(mapService.findDifficultiesByMapIdPublic(mapId));
     }
 
     @Operation(summary = "Difficulty scores by leaderboard ID", description = "Paginated scores for a difficulty looked up by BeatLeader or ScoreSaber leaderboard ID (provide exactly one)")

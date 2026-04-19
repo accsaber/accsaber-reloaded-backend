@@ -29,6 +29,8 @@ import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapResponse;
 import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
@@ -75,6 +77,39 @@ public class MapService {
     }
 
     private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null, 0, 0, 0, 0);
+
+    public Page<PublicMapResponse> findAllPublic(UUID categoryId, MapDifficultyStatus status, String search,
+            Pageable pageable) {
+        return findAll(categoryId, status, search, pageable).map(MapService::toPublicMapResponse);
+    }
+
+    public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId, MapDifficultyStatus status,
+            BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId, Pageable pageable) {
+        return findDifficulties(categoryId, status, complexityMin, complexityMax, search, excludeUserId, pageable)
+                .map(MapService::toPublicDifficultyResponse);
+    }
+
+    public PublicMapResponse findByIdPublic(UUID mapId) {
+        return toPublicMapResponse(findById(mapId));
+    }
+
+    public PublicMapResponse findBySongHashPublic(String songHash, Difficulty difficulty) {
+        return toPublicMapResponse(findBySongHash(songHash, difficulty));
+    }
+
+    public PublicMapResponse findByBeatsaverCodePublic(String beatsaverCode, Difficulty difficulty) {
+        return toPublicMapResponse(findByBeatsaverCode(beatsaverCode, difficulty));
+    }
+
+    public List<PublicMapDifficultyResponse> findDifficultiesByMapIdPublic(UUID mapId) {
+        return findDifficultiesByMapId(mapId).stream()
+                .map(MapService::toPublicDifficultyResponse)
+                .toList();
+    }
+
+    public PublicMapDifficultyResponse getDifficultyResponsePublic(UUID difficultyId) {
+        return toPublicDifficultyResponse(getDifficultyResponse(difficultyId));
+    }
 
     public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
@@ -622,5 +657,50 @@ public class MapService {
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, BigDecimal complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo) {
         return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY);
+    }
+
+    public static PublicMapResponse toPublicMapResponse(MapResponse map) {
+        return PublicMapResponse.builder()
+                .id(map.getId())
+                .songName(map.getSongName())
+                .songSubName(map.getSongSubName())
+                .songAuthor(map.getSongAuthor())
+                .songHash(map.getSongHash())
+                .mapAuthor(map.getMapAuthor())
+                .beatsaverCode(map.getBeatsaverCode())
+                .coverUrl(map.getCoverUrl())
+                .difficulties(map.getDifficulties().stream()
+                        .map(MapService::toPublicDifficultyResponse)
+                        .toList())
+                .createdAt(map.getCreatedAt())
+                .build();
+    }
+
+    public static PublicMapDifficultyResponse toPublicDifficultyResponse(MapDifficultyResponse d) {
+        boolean ranked = d.getStatus() == MapDifficultyStatus.RANKED;
+        return PublicMapDifficultyResponse.builder()
+                .id(d.getId())
+                .mapId(d.getMapId())
+                .songName(d.getSongName())
+                .songSubName(d.getSongSubName())
+                .songAuthor(d.getSongAuthor())
+                .mapAuthor(d.getMapAuthor())
+                .coverUrl(d.getCoverUrl())
+                .beatsaverCode(d.getBeatsaverCode())
+                .categoryId(d.getCategoryId())
+                .difficulty(d.getDifficulty())
+                .characteristic(d.getCharacteristic())
+                .status(d.getStatus())
+                .ssLeaderboardId(d.getSsLeaderboardId())
+                .blLeaderboardId(d.getBlLeaderboardId())
+                .maxScore(d.getMaxScore())
+                .rankedAt(d.getRankedAt())
+                .createdAt(d.getCreatedAt())
+                .complexity(ranked ? d.getComplexity() : null)
+                .rankUpvotes(ranked ? null : d.getRankUpvotes())
+                .rankDownvotes(ranked ? null : d.getRankDownvotes())
+                .criteriaStatus(ranked ? null : d.getCriteriaStatus())
+                .statistics(d.getStatistics())
+                .build();
     }
 }

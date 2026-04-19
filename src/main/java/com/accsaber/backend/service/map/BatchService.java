@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
+import com.accsaber.backend.model.dto.response.map.PublicBatchResponse;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -95,6 +96,33 @@ public class BatchService {
         return toResponse(batch, loadDifficulties(id));
     }
 
+    public Page<PublicBatchResponse> findAllPublic(String search, Pageable pageable) {
+        return findAll(search, pageable).map(BatchService::toPublicResponse);
+    }
+
+    public Page<PublicBatchResponse> findByStatusPublic(BatchStatus status, String search, Pageable pageable) {
+        return findByStatus(status, search, pageable).map(BatchService::toPublicResponse);
+    }
+
+    public PublicBatchResponse findByIdPublic(UUID id) {
+        return toPublicResponse(findById(id));
+    }
+
+    private static PublicBatchResponse toPublicResponse(BatchResponse batch) {
+        return PublicBatchResponse.builder()
+                .id(batch.getId())
+                .name(batch.getName())
+                .description(batch.getDescription())
+                .status(batch.getStatus())
+                .difficulties(batch.getDifficulties().stream()
+                        .map(MapService::toPublicDifficultyResponse)
+                        .toList())
+                .releasedAt(batch.getReleasedAt())
+                .createdAt(batch.getCreatedAt())
+                .updatedAt(batch.getUpdatedAt())
+                .build();
+    }
+
     @Transactional
     public BatchResponse create(CreateBatchRequest request, UUID createdById) {
         StaffUser createdBy = staffUserRepository.findById(createdById)
@@ -164,7 +192,8 @@ public class BatchService {
                 .filter(id -> !complexities.containsKey(id))
                 .toList();
         if (!missingComplexity.isEmpty()) {
-            throw new ValidationException("Cannot release batch: difficulties missing complexity: " + missingComplexity);
+            throw new ValidationException(
+                    "Cannot release batch: difficulties missing complexity: " + missingComplexity);
         }
         difficulties.forEach(d -> {
             d.setStatus(MapDifficultyStatus.RANKED);
