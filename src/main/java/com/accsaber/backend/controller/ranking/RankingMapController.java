@@ -45,6 +45,12 @@ public class RankingMapController {
         return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
     }
 
+    @Operation(summary = "List deactivated difficulties", description = "All map difficulties that have been removed from the ranking system (active=false), ordered by most recently updated")
+    @GetMapping("/difficulties/deactivated")
+    public ResponseEntity<List<MapDifficultyResponse>> listDeactivated() {
+        return ResponseEntity.ok(mapService.getDeactivated());
+    }
+
     @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and all vote breakdowns")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<MapDifficultyResponse>> listDifficulties(

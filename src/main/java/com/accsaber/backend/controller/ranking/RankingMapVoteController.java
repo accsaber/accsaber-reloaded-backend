@@ -1,6 +1,5 @@
 package com.accsaber.backend.controller.ranking;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -20,12 +19,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.map.CastVoteRequest;
-import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
 import com.accsaber.backend.model.dto.response.map.VoteResponse;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.security.StaffUserDetails;
-import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.MapVotingService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,7 +37,6 @@ import lombok.RequiredArgsConstructor;
 public class RankingMapVoteController {
 
     private final MapVotingService mapVotingService;
-    private final MapService mapService;
 
     @Operation(summary = "Vote activity feed", description = "Paginated list of all active votes sorted by most recently updated")
     @GetMapping("/votes/activity")
@@ -88,10 +84,4 @@ public class RankingMapVoteController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List deactivated map difficulties", description = "Returns all map difficulties that have been removed from the ranking system")
-    @GetMapping("/deactivated")
-    @PreAuthorize("hasRole('RANKING')")
-    public ResponseEntity<List<MapDifficultyResponse>> listDeactivated() {
-        return ResponseEntity.ok(mapService.getDeactivated());
-    }
 }
