@@ -10,17 +10,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
+import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.Curve;
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.service.score.APCalculationService;
 
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,7 @@ public class MapImportService {
     private final MapService mapService;
     private final MapDifficultyComplexityService complexityService;
     private final MapDifficultyRepository mapDifficultyRepository;
+    private final MapRepository mapRepository;
     private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
 
@@ -128,9 +133,8 @@ public class MapImportService {
 
         BigDecimal complexity = importRequest.getComplexity();
         if (complexity == null) {
-            complexity = estimateComplexityFromBeatLeader(
-                    songHash, importRequest.getCharacteristic(),
-                    importRequest.getDifficulty().getNumericValue());
+            complexity = estimateAiComplexity(songHash, importRequest.getDifficulty(),
+                    importRequest.getCharacteristic());
             if (complexity != null) {
                 log.info("AI complexity estimate for {} ({}): {}", songName, importRequest.getDifficulty(), complexity);
             } else {
@@ -148,8 +152,26 @@ public class MapImportService {
         return response;
     }
 
-    private BigDecimal estimateComplexityFromBeatLeader(String songHash, String characteristic, int difficulty) {
-        BigDecimal aiAcc = beatLeaderClient.getAiAccuracy(songHash, characteristic, difficulty).orElse(null);
+    public AiComplexityResponse estimateForRankedDifficulty(String songHash, Difficulty difficulty,
+            String characteristic) {
+        var map = mapRepository.findBySongHashAndActiveTrue(songHash.toLowerCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Map", songHash));
+        MapDifficulty entity = mapDifficultyRepository
+                .findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(map.getId(), difficulty, characteristic)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MapDifficulty", songHash + "/" + difficulty + "/" + characteristic));
+        if (entity.getStatus() != MapDifficultyStatus.RANKED) {
+            throw new ValidationException("AI complexity is only available for RANKED difficulties");
+        }
+        return AiComplexityResponse.builder()
+                .complexity(estimateAiComplexity(songHash, difficulty, characteristic))
+                .build();
+    }
+
+    public BigDecimal estimateAiComplexity(String songHash, Difficulty difficulty, String characteristic) {
+        BigDecimal aiAcc = beatLeaderClient
+                .getAiAccuracy(songHash, characteristic, difficulty.getNumericValue())
+                .orElse(null);
         if (aiAcc == null)
             return null;
 

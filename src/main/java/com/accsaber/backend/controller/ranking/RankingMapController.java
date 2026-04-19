@@ -16,10 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class RankingMapController {
 
     private final MapService mapService;
+    private final MapImportService mapImportService;
 
     @Operation(summary = "List maps (staff)", description = "Full map list including complexity, submitter, and vote breakdowns")
     @GetMapping
@@ -49,6 +52,15 @@ public class RankingMapController {
     @GetMapping("/difficulties/deactivated")
     public ResponseEntity<List<MapDifficultyResponse>> listDeactivated() {
         return ResponseEntity.ok(mapService.getDeactivated());
+    }
+
+    @Operation(summary = "Estimate AI complexity", description = "Returns the AI-suggested complexity for an active RANKED difficulty identified by songHash + difficulty + characteristic. Returns a null complexity if BeatLeader has no AI accuracy for this map.")
+    @GetMapping("/difficulties/ai-complexity")
+    public ResponseEntity<AiComplexityResponse> getAiComplexity(
+            @RequestParam String songHash,
+            @RequestParam Difficulty difficulty,
+            @RequestParam String characteristic) {
+        return ResponseEntity.ok(mapImportService.estimateForRankedDifficulty(songHash, difficulty, characteristic));
     }
 
     @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and all vote breakdowns")
