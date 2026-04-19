@@ -18,6 +18,7 @@ import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.CriteriaWebhookRequest;
+import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
@@ -51,6 +52,17 @@ public class RankingMapDifficultyController {
                         @Valid @RequestBody UpdateMapStatusRequest request,
                         @AuthenticationPrincipal StaffUserDetails userDetails) {
                 return ResponseEntity.ok(mapService.updateStatus(difficultyId, request,
+                                userDetails.getStaffUser().getId()));
+        }
+
+        @Operation(summary = "Change difficulty category", description = "Reassigns a QUEUE or QUALIFIED difficulty to a different category. Not allowed on RANKED difficulties.")
+        @PatchMapping("/{difficultyId}/category")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<MapDifficultyResponse> updateCategory(
+                        @PathVariable UUID difficultyId,
+                        @Valid @RequestBody UpdateMapCategoryRequest request,
+                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                return ResponseEntity.ok(mapService.updateCategory(difficultyId, request.getCategoryId(),
                                 userDetails.getStaffUser().getId()));
         }
 

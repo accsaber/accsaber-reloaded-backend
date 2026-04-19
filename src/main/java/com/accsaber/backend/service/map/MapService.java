@@ -440,6 +440,25 @@ public class MapService {
     }
 
     @Transactional
+    public MapDifficultyResponse updateCategory(UUID difficultyId, UUID categoryId, UUID staffId) {
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+        if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
+            throw new ValidationException("Cannot change category on a RANKED difficulty");
+        }
+        Category category = categoryRepository.findByIdAndActiveTrue(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+        difficulty.setCategory(category);
+        difficulty.setLastUpdatedBy(staffId);
+        mapDifficultyRepository.save(difficulty);
+
+        BigDecimal complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
+        MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
+        StaffInfo info = resolveStaffInfo(staffId);
+        return toDifficultyResponse(difficulty, complexity, stats, info);
+    }
+
+    @Transactional
     public void deactivate(UUID difficultyId, UUID staffId) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
