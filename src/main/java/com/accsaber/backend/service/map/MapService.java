@@ -47,6 +47,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 
 import lombok.RequiredArgsConstructor;
@@ -67,6 +68,7 @@ public class MapService {
     private final StaffUserRepository staffUserRepository;
     private final StaffMapVoteRepository voteRepository;
     private final ScoreIngestionService scoreIngestionService;
+    private final PlaylistService playlistService;
 
     record StaffInfo(String username, String avatarUrl) {
     }
@@ -381,6 +383,9 @@ public class MapService {
 
         if (status == MapDifficultyStatus.RANKED) {
             scoreIngestionService.refreshRankedLeaderboardIds();
+            playlistService.evictAllPlaylists();
+        } else {
+            playlistService.evictAllUnrankedPlaylists();
         }
 
         return toDifficultyResponse(difficulty, null, null, null);

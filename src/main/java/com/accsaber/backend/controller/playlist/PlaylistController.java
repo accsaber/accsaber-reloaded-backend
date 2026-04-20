@@ -44,6 +44,15 @@ public class PlaylistController {
                 return buildPlaylistResponse(category);
         }
 
+        @Operation(summary = "Download category unranked playlist", description = "Returns a Beat Saber playlist JSON file containing all queued and qualified maps for the specified category. "
+                        + "The syncURL field allows mod managers to auto-refresh the playlist. "
+                        + "This path-based variant is compatible with standalone Beat Saber.")
+        @GetMapping(value = "/unranked/{category}", produces = "application/json")
+        public ResponseEntity<Map<String, Object>> getUnrankedPlaylistByPath(
+                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc)") @PathVariable String category) {
+                return buildUnrankedPlaylistResponse(category);
+        }
+
         private ResponseEntity<Map<String, Object>> buildPlaylistResponse(String category) {
                 String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
                                 .path("/v1/playlists/{category}")
@@ -52,6 +61,20 @@ public class PlaylistController {
                 Map<String, Object> playlist = playlistService.generatePlaylist(category, syncUrl);
 
                 String filename = "accsaber-reloaded-" + category.replace("_", "-") + ".bplist";
+
+                return ResponseEntity.ok()
+                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                                .body(playlist);
+        }
+
+        private ResponseEntity<Map<String, Object>> buildUnrankedPlaylistResponse(String category) {
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path("/v1/playlists/unranked/{category}")
+                                .buildAndExpand(category)
+                                .toUriString();
+                Map<String, Object> playlist = playlistService.generateUnrankedPlaylist(category, syncUrl);
+
+                String filename = "accsaber-reloaded-unranked-" + category.replace("_", "-") + ".bplist";
 
                 return ResponseEntity.ok()
                                 .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")

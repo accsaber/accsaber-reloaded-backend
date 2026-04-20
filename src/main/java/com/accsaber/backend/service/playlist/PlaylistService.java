@@ -59,6 +59,31 @@ public class PlaylistService {
         return playlist;
     }
 
+    @Cacheable(value = "unrankedPlaylists", key = "#categoryCode")
+    public Map<String, Object> generateUnrankedPlaylist(String categoryCode, String syncUrl) {
+        Category category = categoryRepository.findByCodeAndActiveTrue(categoryCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
+
+        List<MapDifficultyStatus> statuses = List.of(MapDifficultyStatus.QUEUE, MapDifficultyStatus.QUALIFIED);
+        List<MapDifficulty> unrankedDifficulties;
+        if ("overall".equals(categoryCode)) {
+            unrankedDifficulties = mapDifficultyRepository
+                    .findByCountForOverallAndStatusInWithMap(statuses);
+        } else {
+            unrankedDifficulties = mapDifficultyRepository
+                    .findByCategoryIdAndStatusInWithMap(category.getId(), statuses);
+        }
+
+        Map<String, Object> playlist = new LinkedHashMap<>();
+        playlist.put("playlistTitle", "AccSaber " + category.getName() + " Unranked Maps");
+        playlist.put("playlistAuthor", "AccSaber Reloaded");
+        playlist.put("image", loadImageBase64(categoryCode));
+        playlist.put("syncURL", syncUrl);
+        playlist.put("songs", buildSongs(unrankedDifficulties));
+
+        return playlist;
+    }
+
     @CacheEvict(value = "playlists", allEntries = true)
     public void evictAllPlaylists() {
         log.info("Evicted all playlist caches");
@@ -67,6 +92,16 @@ public class PlaylistService {
     @CacheEvict(value = "playlists", key = "#categoryCode")
     public void evictPlaylist(String categoryCode) {
         log.info("Evicted playlist cache for category: {}", categoryCode);
+    }
+
+    @CacheEvict(value = "unrankedPlaylists", allEntries = true)
+    public void evictAllUnrankedPlaylists() {
+        log.info("Evicted all unranked playlist caches");
+    }
+
+    @CacheEvict(value = "unrankedPlaylists", key = "#categoryCode")
+    public void evictUnrankedPlaylist(String categoryCode) {
+        log.info("Evicted unranked playlist cache for category: {}", categoryCode);
     }
 
     private List<Map<String, Object>> buildSongs(List<MapDifficulty> difficulties) {

@@ -210,6 +210,7 @@ public class BatchService {
                 difficulties.stream().map(MapDifficulty::getId).toList());
 
         playlistService.evictAllPlaylists();
+        playlistService.evictAllUnrankedPlaylists();
         mapService.evictRankedDifficultiesCache();
 
         return toResponse(batch, enrich(difficulties));
