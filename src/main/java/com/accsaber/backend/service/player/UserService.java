@@ -229,6 +229,7 @@ public class UserService {
                 .xpCountryRanking(user.getXpCountryRanking())
                 .level(levelResponse.getLevel())
                 .levelTitle(levelResponse.getTitle())
+                .progressPercent(levelResponse.getProgressPercent())
                 .banned(user.isBanned())
                 .playerInactive(user.isPlayerInactive())
                 .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))

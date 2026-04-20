@@ -26,6 +26,7 @@ public class UserResponse {
     Integer xpCountryRanking;
     int level;
     String levelTitle;
+    BigDecimal progressPercent;
     boolean banned;
     boolean playerInactive;
     String hmd;
