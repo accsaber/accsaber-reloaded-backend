@@ -75,7 +75,7 @@ public class PlaylistService {
         }
 
         Map<String, Object> playlist = new LinkedHashMap<>();
-        playlist.put("playlistTitle", "AccSaber " + category.getName() + " Unranked Maps");
+        playlist.put("playlistTitle", "AccSaber " + category.getName() + " Queued Maps");
         playlist.put("playlistAuthor", "AccSaber Reloaded");
         playlist.put("image", loadImageBase64("unranked"));
         playlist.put("syncURL", syncUrl);
