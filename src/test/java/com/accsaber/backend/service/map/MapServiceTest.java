@@ -40,6 +40,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,6 +69,9 @@ class MapServiceTest {
 
         @Mock
         private ScoreIngestionService scoreIngestionService;
+
+        @Mock
+        private PlaylistService playlistService;
 
         @InjectMocks
         private MapService mapService;
