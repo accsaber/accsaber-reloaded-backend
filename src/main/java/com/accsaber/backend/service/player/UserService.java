@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
+import com.accsaber.backend.model.dto.response.player.UserLevelData;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
@@ -227,9 +228,13 @@ public class UserService {
                 .country(user.getCountry())
                 .xpRanking(user.getXpRanking())
                 .xpCountryRanking(user.getXpCountryRanking())
-                .level(levelResponse.getLevel())
-                .levelTitle(levelResponse.getTitle())
-                .progressPercent(levelResponse.getProgressPercent())
+                .levelData(UserLevelData.builder()
+                        .level(levelResponse.getLevel())
+                        .title(levelResponse.getTitle())
+                        .xpForCurrentLevel(levelResponse.getXpForCurrentLevel())
+                        .xpForNextLevel(levelResponse.getXpForNextLevel())
+                        .progressPercent(levelResponse.getProgressPercent())
+                        .build())
                 .banned(user.isBanned())
                 .playerInactive(user.isPlayerInactive())
                 .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))

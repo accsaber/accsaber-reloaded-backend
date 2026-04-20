@@ -24,9 +24,7 @@ public class UserResponse {
     BigDecimal totalMilestoneSetBonusXp;
     Integer xpRanking;
     Integer xpCountryRanking;
-    int level;
-    String levelTitle;
-    BigDecimal progressPercent;
+    UserLevelData levelData;
     boolean banned;
     boolean playerInactive;
     String hmd;
