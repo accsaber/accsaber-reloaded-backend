@@ -32,8 +32,20 @@ services:
       COMPLEXITY_TRANSFORM_OFFSET: ${COMPLEXITY_TRANSFORM_OFFSET}
       COMPLEXITY_TRANSFORM_SCALE: ${COMPLEXITY_TRANSFORM_SCALE}
       COMPLEXITY_TRANSFORM_BASE: ${COMPLEXITY_TRANSFORM_BASE}
+      CRITERIA_CHECKER_URL: http://criteria-checker:8000
     depends_on:
       - postgres
+      - criteria-checker
+    networks:
+      - accsaber-network
+
+  criteria-checker:
+    build:
+      context: ../../accsaber-criteria-script
+      dockerfile: Dockerfile
+    container_name: accsaber-criteria-checker
+    ports:
+      - "8001:8000"
     networks:
       - accsaber-network
 

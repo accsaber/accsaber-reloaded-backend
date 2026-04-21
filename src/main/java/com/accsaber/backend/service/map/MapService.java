@@ -653,6 +653,7 @@ public class MapService {
                 .active(d.isActive())
                 .status(d.getStatus())
                 .criteriaStatus(d.getCriteriaStatus())
+                .autoCriteriaStatus(d.getAutoCriteriaStatus())
                 .ssLeaderboardId(d.getSsLeaderboardId())
                 .blLeaderboardId(d.getBlLeaderboardId())
                 .maxScore(d.getMaxScore())

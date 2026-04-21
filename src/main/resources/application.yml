@@ -108,6 +108,9 @@ accsaber:
     trusted-ips: ${RATE_LIMIT_TRUSTED_IPS:}
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
+  criteria-checker:
+    base-url: ${CRITERIA_CHECKER_URL:http://criteria-checker:8000}
+    timeout-ms: 60000
 
 logging:
   level:

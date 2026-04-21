@@ -1,5 +1,6 @@
 package com.accsaber.backend.client;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -39,6 +40,23 @@ public class BeatSaverClient {
             return Optional.empty();
         } catch (Exception e) {
             log.error("Failed to fetch BeatSaver map by hash {}: {}", hash, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<byte[]> downloadMapZip(String hash) {
+        try {
+            URI uri = URI.create("https://cdn.beatsaver.com/" + hash.toLowerCase() + ".zip");
+            return Optional.ofNullable(webClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .retryWhen(retrySpec())
+                    .block(Duration.ofSeconds(30)));
+        } catch (WebClientResponseException.NotFound e) {
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("Failed to download BeatSaver zip for hash {}: {}", hash, e.getMessage());
             return Optional.empty();
         }
     }

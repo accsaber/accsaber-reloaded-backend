@@ -33,6 +33,7 @@ services:
       COMPLEXITY_TRANSFORM_OFFSET: ${COMPLEXITY_TRANSFORM_OFFSET}
       COMPLEXITY_TRANSFORM_SCALE: ${COMPLEXITY_TRANSFORM_SCALE}
       COMPLEXITY_TRANSFORM_BASE: ${COMPLEXITY_TRANSFORM_BASE}
+      CRITERIA_CHECKER_URL: http://criteria-checker:8000
       JAVA_OPTS: -Xms256m -Xmx768m
     depends_on:
       postgres:
@@ -43,6 +44,19 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    networks:
+      - accsaber-network
+
+  criteria-checker:
+    image: ghcr.io/tikugato/accsaber-criteria-script:latest
+    pull_policy: always
+    container_name: accsaber-criteria-checker
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://127.0.0.1:8000/health\", timeout=3).status==200 else 1)' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - accsaber-network
 

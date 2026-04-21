@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.accsaber.backend.model.entity.AutoCriteriaStatus;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.CriteriaStatus;
 
@@ -83,6 +84,10 @@ public class MapDifficulty {
     @Column(name = "criteria_status", nullable = false)
     @Builder.Default
     private CriteriaStatus criteriaStatus = CriteriaStatus.PENDING;
+
+    @Column(name = "auto_criteria_status", nullable = false)
+    @Builder.Default
+    private AutoCriteriaStatus autoCriteriaStatus = AutoCriteriaStatus.PENDING;
 
     @Column(nullable = false)
     @Builder.Default

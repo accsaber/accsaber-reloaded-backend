@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.accsaber.backend.service.infra.MetricsService;
@@ -21,7 +22,10 @@ import reactor.netty.http.client.HttpClient;
 @RequiredArgsConstructor
 public class WebClientConfig {
 
+    private static final int LARGE_BUFFER_BYTES = 25 * 1024 * 1024;
+
     private final PlatformProperties properties;
+    private final CriteriaCheckerProperties criteriaCheckerProperties;
     private final MetricsService metricsService;
 
     @Bean(name = "beatLeaderWebClient")
@@ -39,14 +43,37 @@ public class WebClientConfig {
         return buildWebClient(properties.getBeatsaver(), metricsService.getOutboundBeatSaver());
     }
 
+    @Bean(name = "criteriaCheckerWebClient")
+    public WebClient criteriaCheckerWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, criteriaCheckerProperties.getTimeoutMs())
+                .responseTimeout(Duration.ofMillis(criteriaCheckerProperties.getTimeoutMs()));
+
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
+                .build();
+
+        return WebClient.builder()
+                .baseUrl(criteriaCheckerProperties.getBaseUrl())
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .exchangeStrategies(strategies)
+                .filter(logRequest())
+                .build();
+    }
+
     private WebClient buildWebClient(PlatformProperties.PlatformConfig config, Counter outboundCounter) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getTimeoutMs())
                 .responseTimeout(Duration.ofMillis(config.getTimeoutMs()));
 
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
+                .build();
+
         return WebClient.builder()
                 .baseUrl(config.getBaseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .exchangeStrategies(strategies)
                 .filter(countOutbound(outboundCounter))
                 .filter(logRequest())
                 .build();

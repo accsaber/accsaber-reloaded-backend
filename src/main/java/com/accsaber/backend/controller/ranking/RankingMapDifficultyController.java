@@ -21,8 +21,10 @@ import com.accsaber.backend.model.dto.request.map.CriteriaWebhookRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
+import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.service.map.AutoCriteriaService;
 import com.accsaber.backend.service.map.CriteriaService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.ReweightService;
@@ -43,6 +45,7 @@ public class RankingMapDifficultyController {
         private final ReweightService reweightService;
         private final UnrankService unrankService;
         private final CriteriaService criteriaService;
+        private final AutoCriteriaService autoCriteriaService;
 
         @Operation(summary = "Update difficulty status", description = "Manually transition a map difficulty status (ranking_head/admin only)")
         @PatchMapping("/{difficultyId}/status")
@@ -145,5 +148,12 @@ public class RankingMapDifficultyController {
         public ResponseEntity<Void> updateCriteria(@Valid @RequestBody CriteriaWebhookRequest request) {
                 criteriaService.updateCriteriaStatus(request.getMapDifficultyId(), request.getStatus());
                 return ResponseEntity.noContent().build();
+        }
+
+        @Operation(summary = "Run auto criteria check", description = "Downloads the map from BeatSaver, runs the criteria checker sidecar, and persists the result. Returns pass/fail plus failure details, or UNAVAILABLE if the sidecar could not process the map.")
+        @PostMapping("/{difficultyId}/auto-criteria-check")
+        @PreAuthorize("hasRole('RANKING')")
+        public ResponseEntity<AutoCriteriaCheckResponse> runAutoCriteriaCheck(@PathVariable UUID difficultyId) {
+                return ResponseEntity.ok(autoCriteriaService.runCheck(difficultyId));
         }
 }

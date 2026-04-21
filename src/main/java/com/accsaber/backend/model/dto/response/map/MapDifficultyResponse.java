@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.entity.AutoCriteriaStatus;
 import com.accsaber.backend.model.entity.CriteriaStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -31,6 +32,7 @@ public class MapDifficultyResponse {
     boolean active;
     MapDifficultyStatus status;
     CriteriaStatus criteriaStatus;
+    AutoCriteriaStatus autoCriteriaStatus;
     String ssLeaderboardId;
     String blLeaderboardId;
     Integer maxScore;

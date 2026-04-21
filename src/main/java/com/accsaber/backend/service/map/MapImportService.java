@@ -43,6 +43,7 @@ public class MapImportService {
     private final MapRepository mapRepository;
     private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
+    private final AutoCriteriaService autoCriteriaService;
 
     private static final String COMPLEXITY_CURVE_NAME = "AI Complexity Curve";
 
@@ -147,6 +148,12 @@ public class MapImportService {
                     .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
             String reason = importRequest.getComplexity() != null ? "Initial import" : "AI complexity estimate";
             complexityService.setComplexity(entity, complexity, reason, null);
+        }
+
+        try {
+            autoCriteriaService.runCheckAsync(response.getId());
+        } catch (Exception e) {
+            log.warn("Failed to schedule auto criteria check for difficulty {}: {}", response.getId(), e.getMessage());
         }
 
         return response;
