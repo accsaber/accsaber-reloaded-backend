@@ -216,6 +216,8 @@ class MapVotingServiceTest {
                                         .build();
                         when(voteRepository.findById(vote.getId())).thenReturn(Optional.of(vote));
                         when(voteRepository.save(any())).thenReturn(vote);
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(difficulty.getId()))
+                                        .thenReturn(Optional.of(difficulty));
 
                         votingService.deactivateVote(difficulty.getId(), vote.getId());
 
