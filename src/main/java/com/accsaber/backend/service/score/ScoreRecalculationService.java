@@ -54,6 +54,7 @@ public class ScoreRecalculationService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyComplexityService mapComplexityService;
     private final APCalculationService apCalculationService;
+    private final XPReweightService xpReweightService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
@@ -88,6 +89,12 @@ public class ScoreRecalculationService {
         if (difficulty.getCategory().isCountForOverall()) {
             overallStatisticsService.updateOverallRankings();
         }
+        try {
+            xpReweightService.reweightScoresForDifficulty(difficulty.getId());
+        } catch (Exception e) {
+            log.error("XP reweight failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
+        }
+        userRepository.recalculateTotalXpForAllActiveUsers();
         log.info("Recalculation complete for difficulty {} ({} users affected)", difficulty.getId(), affected.size());
     }
 
@@ -108,6 +115,7 @@ public class ScoreRecalculationService {
                                     .addAll(affected);
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
+                            xpReweightService.reweightScoresForDifficulty(difficulty.getId());
                         }
                     } catch (Exception e) {
                         log.error("Batch recalc failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
@@ -121,8 +129,10 @@ public class ScoreRecalculationService {
             batchRecalculateStats(entry.getValue(), entry.getKey());
             rankingService.updateRankings(entry.getKey());
         }
-        if (affectedByCategory.values().stream().anyMatch(s -> !s.isEmpty())) {
+        boolean anyChanges = affectedByCategory.values().stream().anyMatch(s -> !s.isEmpty());
+        if (anyChanges) {
             overallStatisticsService.updateOverallRankings();
+            userRepository.recalculateTotalXpForAllActiveUsers();
         }
 
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
@@ -159,6 +169,7 @@ public class ScoreRecalculationService {
                                     .addAll(affected);
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
+                            xpReweightService.reweightScoresForDifficulty(difficulty.getId());
                         }
                     } catch (Exception e) {
                         log.error("Raw AP recalc failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
@@ -173,6 +184,8 @@ public class ScoreRecalculationService {
             rankingService.updateRankings(entry.getKey());
         }
         overallStatisticsService.updateOverallRankings();
+
+        userRepository.recalculateTotalXpForAllActiveUsers();
 
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Raw AP recalculation complete for {} difficulties, {} users affected",
