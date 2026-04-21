@@ -145,6 +145,39 @@ public class MilestoneService {
         }).toList();
     }
 
+    public List<UserMilestoneProgressResponse> findUncompletedByUser(Long userId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        List<Milestone> uncompleted = milestoneRepository.findActiveUncompletedForUser(resolved);
+        List<UUID> milestoneIds = uncompleted.stream().map(Milestone::getId).toList();
+        Map<UUID, UserMilestoneLink> linkMap = userMilestoneLinkRepository
+                .findByUser_IdAndMilestone_IdIn(resolved, milestoneIds).stream()
+                .collect(Collectors.toMap(l -> l.getMilestone().getId(), Function.identity()));
+        Map<UUID, MilestoneCompletionStats> statsMap = completionStatsRepository.findAll().stream()
+                .collect(Collectors.toMap(MilestoneCompletionStats::getMilestoneId, Function.identity()));
+
+        return uncompleted.stream().map(m -> {
+            UserMilestoneLink link = linkMap.get(m.getId());
+            MilestoneCompletionStats stats = statsMap.get(m.getId());
+            BigDecimal rawProgress = link != null ? link.getProgress() : null;
+            return UserMilestoneProgressResponse.builder()
+                    .milestoneId(m.getId())
+                    .title(m.getTitle())
+                    .description(m.getDescription())
+                    .type(m.getType())
+                    .tier(m.getTier().name())
+                    .xp(m.getXp())
+                    .targetValue(m.getTargetValue())
+                    .progress(rawProgress)
+                    .normalizedProgress(normalizeProgress(rawProgress, m.getTargetValue(), m.getComparison()))
+                    .completed(false)
+                    .completedAt(null)
+                    .completionPercentage(stats != null ? stats.getCompletionPercentage() : BigDecimal.ZERO)
+                    .setId(m.getMilestoneSet().getId())
+                    .categoryId(m.getCategory() != null ? m.getCategory().getId() : null)
+                    .build();
+        }).toList();
+    }
+
     public List<MilestoneCompletionResponse> findAllCompletionStats(Long userId, String sort) {
         List<Milestone> milestones = milestoneRepository.findByActiveTrueAndStatus(MilestoneStatus.ACTIVE);
         Map<UUID, MilestoneCompletionStats> statsMap = completionStatsRepository.findAll().stream()

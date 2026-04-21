@@ -169,6 +169,13 @@ public class UserController {
         return ResponseEntity.ok(milestoneService.findCompletedByUser(userId));
     }
 
+    @Operation(summary = "Get user uncompleted milestones")
+    @GetMapping("/{userId}/milestones/uncompleted")
+    public ResponseEntity<List<UserMilestoneProgressResponse>> getUserUncompletedMilestones(
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(milestoneService.findUncompletedByUser(userId));
+    }
+
     @Operation(summary = "Get user level and XP")
     @GetMapping("/{userId}/level")
     public ResponseEntity<LevelResponse> getUserLevel(@PathVariable Long userId) {
