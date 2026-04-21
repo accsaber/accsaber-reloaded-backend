@@ -17,7 +17,6 @@ import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
-import com.accsaber.backend.model.dto.request.map.CriteriaWebhookRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
@@ -25,7 +24,6 @@ import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.map.AutoCriteriaService;
-import com.accsaber.backend.service.map.CriteriaService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.ReweightService;
 import com.accsaber.backend.service.map.UnrankService;
@@ -44,7 +42,6 @@ public class RankingMapDifficultyController {
         private final MapService mapService;
         private final ReweightService reweightService;
         private final UnrankService unrankService;
-        private final CriteriaService criteriaService;
         private final AutoCriteriaService autoCriteriaService;
 
         @Operation(summary = "Update difficulty status", description = "Manually transition a map difficulty status (ranking_head/admin only)")
@@ -140,14 +137,6 @@ public class RankingMapDifficultyController {
         public ResponseEntity<Void> recalculate(@PathVariable UUID difficultyId) {
                 reweightService.recalculateDifficulty(difficultyId);
                 return ResponseEntity.accepted().build();
-        }
-
-        @Operation(summary = "Criteria checker webhook", description = "External service endpoint to update criteria pass/fail status on a difficulty")
-        @PostMapping("/criteria")
-        @PreAuthorize("hasRole('SERVICE')")
-        public ResponseEntity<Void> updateCriteria(@Valid @RequestBody CriteriaWebhookRequest request) {
-                criteriaService.updateCriteriaStatus(request.getMapDifficultyId(), request.getStatus());
-                return ResponseEntity.noContent().build();
         }
 
         @Operation(summary = "Run auto criteria check", description = "Downloads the map from BeatSaver, runs the criteria checker sidecar, and persists the result. Returns pass/fail plus failure details, or UNAVAILABLE if the sidecar could not process the map.")

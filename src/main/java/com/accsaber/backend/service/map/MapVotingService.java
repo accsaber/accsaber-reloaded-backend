@@ -18,6 +18,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
 import com.accsaber.backend.model.dto.response.map.VoteResponse;
 import com.accsaber.backend.model.entity.AutoCriteriaStatus;
+import com.accsaber.backend.model.entity.CriteriaStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
@@ -131,6 +132,8 @@ public class MapVotingService {
 
         StaffMapVote saved = voteRepository.save(staffVote);
 
+        recomputeCriteriaStatus(difficulty);
+
         if (type == MapVoteAction.RANK) {
             if (difficulty.getStatus() == MapDifficultyStatus.QUEUE) {
                 tryAutoQualify(difficulty);
@@ -156,6 +159,10 @@ public class MapVotingService {
         }
         vote.setActive(false);
         voteRepository.save(vote);
+
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+        recomputeCriteriaStatus(difficulty);
     }
 
     public BigDecimal aggregateSuggestedComplexity(UUID mapDifficultyId) {
@@ -195,6 +202,35 @@ public class MapVotingService {
         difficulty.setStatus(MapDifficultyStatus.QUEUE);
         mapDifficultyRepository.save(difficulty);
         log.info("Auto-dequalified difficulty {}", diffId);
+    }
+
+    private CriteriaStatus resolveCriteriaStatus(MapDifficulty difficulty) {
+        List<StaffMapVote> votes = voteRepository.findByMapDifficultyIdAndActiveTrue(difficulty.getId());
+        VoteType headOverride = votes.stream()
+                .filter(StaffMapVote::isCriteriaVoteOverride)
+                .map(StaffMapVote::getCriteriaVote)
+                .findFirst()
+                .orElse(null);
+        if (headOverride != null) {
+            return headOverride == VoteType.UPVOTE ? CriteriaStatus.PASSED : CriteriaStatus.FAILED;
+        }
+        long up = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.UPVOTE).count();
+        long down = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.DOWNVOTE).count();
+        if (up > down) {
+            return CriteriaStatus.PASSED;
+        }
+        if (down > up) {
+            return CriteriaStatus.FAILED;
+        }
+        return CriteriaStatus.PENDING;
+    }
+
+    private void recomputeCriteriaStatus(MapDifficulty difficulty) {
+        CriteriaStatus newStatus = resolveCriteriaStatus(difficulty);
+        if (difficulty.getCriteriaStatus() != newStatus) {
+            difficulty.setCriteriaStatus(newStatus);
+            mapDifficultyRepository.save(difficulty);
+        }
     }
 
     private boolean isCriteriaPassed(MapDifficulty difficulty) {
