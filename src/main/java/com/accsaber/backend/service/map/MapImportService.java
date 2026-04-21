@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
@@ -150,13 +152,30 @@ public class MapImportService {
             complexityService.setComplexity(entity, complexity, reason, null);
         }
 
-        try {
-            autoCriteriaService.runCheckAsync(response.getId());
-        } catch (Exception e) {
-            log.warn("Failed to schedule auto criteria check for difficulty {}: {}", response.getId(), e.getMessage());
-        }
+        scheduleAutoCriteriaCheck(response.getId());
 
         return response;
+    }
+
+    private void scheduleAutoCriteriaCheck(UUID difficultyId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        autoCriteriaService.runCheckAsync(difficultyId);
+                    } catch (Exception e) {
+                        log.warn("Failed to schedule auto criteria check for difficulty {}: {}", difficultyId, e.getMessage());
+                    }
+                }
+            });
+        } else {
+            try {
+                autoCriteriaService.runCheckAsync(difficultyId);
+            } catch (Exception e) {
+                log.warn("Failed to schedule auto criteria check for difficulty {}: {}", difficultyId, e.getMessage());
+            }
+        }
     }
 
     public AiComplexityResponse estimateForRankedDifficulty(String songHash, Difficulty difficulty,
