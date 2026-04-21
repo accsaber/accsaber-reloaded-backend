@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +17,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
 import com.accsaber.backend.model.dto.response.map.VoteResponse;
+import com.accsaber.backend.model.entity.AutoCriteriaStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
@@ -25,9 +28,6 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import lombok.RequiredArgsConstructor;
 
@@ -179,7 +179,7 @@ public class MapVotingService {
         if (!isThresholdMet(diffId, MapVoteAction.RANK, rankThreshold)) {
             return;
         }
-        if (!isCriteriaPassed(diffId)) {
+        if (!isCriteriaPassed(difficulty)) {
             return;
         }
         difficulty.setStatus(MapDifficultyStatus.QUALIFIED);
@@ -189,7 +189,7 @@ public class MapVotingService {
 
     private void tryAutoDequalify(MapDifficulty difficulty) {
         UUID diffId = difficulty.getId();
-        if (isThresholdMet(diffId, MapVoteAction.RANK, rankThreshold) && isCriteriaPassed(diffId)) {
+        if (isThresholdMet(diffId, MapVoteAction.RANK, rankThreshold) && isCriteriaPassed(difficulty)) {
             return;
         }
         difficulty.setStatus(MapDifficultyStatus.QUEUE);
@@ -197,8 +197,8 @@ public class MapVotingService {
         log.info("Auto-dequalified difficulty {}", diffId);
     }
 
-    private boolean isCriteriaPassed(UUID mapDifficultyId) {
-        List<StaffMapVote> votes = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
+    private boolean isCriteriaPassed(MapDifficulty difficulty) {
+        List<StaffMapVote> votes = voteRepository.findByMapDifficultyIdAndActiveTrue(difficulty.getId());
         VoteType headOverride = votes.stream()
                 .filter(StaffMapVote::isCriteriaVoteOverride)
                 .map(StaffMapVote::getCriteriaVote)
@@ -209,7 +209,11 @@ public class MapVotingService {
         }
         long up = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.UPVOTE).count();
         long down = votes.stream().filter(v -> v.getCriteriaVote() == VoteType.DOWNVOTE).count();
-        return up - down > 0;
+        if (up + down > 0) {
+            return up - down > 0;
+        }
+
+        return difficulty.getAutoCriteriaStatus() == AutoCriteriaStatus.PASSED;
     }
 
     private boolean isThresholdMet(UUID mapDifficultyId, MapVoteAction type, int threshold) {
