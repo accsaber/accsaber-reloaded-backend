@@ -102,6 +102,7 @@ src/main/resources/
 | `COMPLEXITY_TRANSFORM_OFFSET` | No  | Curve transform offset parameter           |
 | `COMPLEXITY_TRANSFORM_SCALE` | No   | Curve transform scale parameter            |
 | `COMPLEXITY_TRANSFORM_BASE` | No    | Curve transform base parameter             |
+| `CRITERIA_CHECKER_URL`    | No       | Override for the criteria checker sidecar URL |
 
 ### Important Note on AI Usage
 > *AccSaber Reloaded's infrastructure, flow and core features are human-made. Tedious tasks were automated with the help of AI (tests, DTOs, some methods). The codebase is manually reviewed and edited, and all creative input is human-generated. I firmly believe that human creativity and intuition are irreplaceable in software development.*

@@ -74,6 +74,8 @@ public class AutoCriteriaService {
         } catch (Exception e) {
             log.warn("Criteria checker call failed for difficulty {}: {}", mapDifficultyId, e.getMessage());
             return persistAndReturn(diff, AutoCriteriaStatus.UNAVAILABLE, List.of());
+        } finally {
+            zip = null;
         }
 
         if (result == null || result.getStatus() == null) {
