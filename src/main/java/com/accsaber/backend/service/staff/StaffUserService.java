@@ -1,6 +1,5 @@
 package com.accsaber.backend.service.staff;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,18 +12,14 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.staff.CreateStaffUserRequest;
-import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.StaffAccessRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffProfileRequest;
 import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
-import com.accsaber.backend.model.dto.response.staff.StaffOAuthLinkResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
-import com.accsaber.backend.model.entity.staff.StaffOAuthLink;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.staff.StaffOAuthLinkRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
@@ -36,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 public class StaffUserService {
 
     private final StaffUserRepository staffUserRepository;
-    private final StaffOAuthLinkRepository staffOAuthLinkRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -228,43 +222,6 @@ public class StaffUserService {
         staffUserRepository.save(staffUser);
     }
 
-    @Transactional
-    public StaffOAuthLinkResponse linkOAuth(UUID staffId, OAuthLinkRequest request, UUID linkedById) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(staffId)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + staffId));
-        StaffUser linkedBy = staffUserRepository.findByIdAndActiveTrue(linkedById)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + linkedById));
-
-        if (staffOAuthLinkRepository.findByProviderAndProviderUserId(
-                request.getProvider(), request.getProviderUserId()).isPresent()) {
-            throw new ConflictException("Provider account already linked");
-        }
-
-        StaffOAuthLink link = StaffOAuthLink.builder()
-                .staffUser(staffUser)
-                .provider(request.getProvider())
-                .providerUserId(request.getProviderUserId())
-                .providerUsername(request.getProviderUsername())
-                .providerAvatarUrl(request.getProviderAvatarUrl())
-                .linkedBy(linkedBy)
-                .build();
-
-        return toOAuthLinkResponse(staffOAuthLinkRepository.save(link));
-    }
-
-    @Transactional
-    public void unlinkOAuth(UUID linkId) {
-        StaffOAuthLink link = staffOAuthLinkRepository.findById(linkId)
-                .orElseThrow(() -> new ResourceNotFoundException("OAuth link not found: " + linkId));
-        staffOAuthLinkRepository.delete(link);
-    }
-
-    public List<StaffOAuthLinkResponse> getOAuthLinks(UUID staffId) {
-        return staffOAuthLinkRepository.findByStaffUserId(staffId).stream()
-                .map(this::toOAuthLinkResponse)
-                .toList();
-    }
-
     private PublicStaffUserResponse toPublicResponse(StaffUser staffUser) {
         return PublicStaffUserResponse.builder()
                 .id(staffUser.getId())
@@ -286,16 +243,6 @@ public class StaffUserService {
                 .userId(staffUser.getUser() != null ? String.valueOf(staffUser.getUser().getId()) : null)
                 .active(staffUser.isActive())
                 .createdAt(staffUser.getCreatedAt())
-                .build();
-    }
-
-    private StaffOAuthLinkResponse toOAuthLinkResponse(StaffOAuthLink link) {
-        return StaffOAuthLinkResponse.builder()
-                .id(link.getId())
-                .provider(link.getProvider())
-                .providerUsername(link.getProviderUsername())
-                .providerAvatarUrl(link.getProviderAvatarUrl())
-                .linkedAt(link.getLinkedAt())
                 .build();
     }
 }

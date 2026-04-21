@@ -8,9 +8,9 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.discord.LinkDiscordRequest;
 import com.accsaber.backend.model.dto.request.discord.UpdateDiscordLinkRequest;
 import com.accsaber.backend.model.dto.response.DiscordLinkResponse;
-import com.accsaber.backend.model.entity.user.DiscordUserLink;
+import com.accsaber.backend.model.entity.user.OauthConnection;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.user.DiscordUserLinkRepository;
+import com.accsaber.backend.repository.user.OauthConnectionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.util.ProfileUrlResolver;
@@ -23,92 +23,100 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class DiscordLinkService {
 
-    private final DiscordUserLinkRepository discordUserLinkRepository;
+    private static final String PROVIDER = "discord";
+
+    private final OauthConnectionRepository oauthConnectionRepository;
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
     private final ProfileUrlResolver profileUrlResolver;
 
     @Transactional
     public DiscordLinkResponse link(LinkDiscordRequest request) {
-        if (discordUserLinkRepository.existsById(request.getDiscordId())) {
+        if (oauthConnectionRepository
+                .existsByProviderAndProviderUserIdAndActiveTrue(PROVIDER, request.getDiscordId())) {
             throw new ConflictException("Discord account is already linked", request.getDiscordId());
         }
 
         String platformId = profileUrlResolver.resolve(request.getProfileUrl());
         Long userId = duplicateUserService.resolvePrimaryUserId(Long.parseLong(platformId));
 
-        if (discordUserLinkRepository.existsByUserId(userId)) {
+        if (oauthConnectionRepository.existsByUserIdAndProviderAndActiveTrue(userId, PROVIDER)) {
             throw new ConflictException("Player is already linked to a Discord account", userId);
         }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
-        DiscordUserLink link = DiscordUserLink.builder()
-                .discordId(request.getDiscordId())
+        OauthConnection connection = OauthConnection.builder()
                 .user(user)
+                .provider(PROVIDER)
+                .providerUserId(request.getDiscordId())
+                .active(true)
                 .build();
-        discordUserLinkRepository.save(link);
+        oauthConnectionRepository.save(connection);
 
         log.info("Linked Discord {} to user {}", request.getDiscordId(), userId);
 
-        return toResponse(link);
+        return toResponse(connection);
     }
 
     @Transactional(readOnly = true)
     public DiscordLinkResponse findByDiscordId(String discordId) {
-        DiscordUserLink link = discordUserLinkRepository.findById(discordId)
+        OauthConnection connection = oauthConnectionRepository
+                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
-        return toResponse(link);
+        return toResponse(connection);
     }
 
     @Transactional(readOnly = true)
     public DiscordLinkResponse findByUserId(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        DiscordUserLink link = discordUserLinkRepository.findByUserId(resolved)
+        OauthConnection connection = oauthConnectionRepository
+                .findByUserIdAndProviderAndActiveTrue(resolved, PROVIDER)
                 .orElseThrow(() -> new ResourceNotFoundException("Discord link for user", resolved));
-        return toResponse(link);
+        return toResponse(connection);
     }
 
     @Transactional
     public void unlink(String discordId) {
-        if (!discordUserLinkRepository.existsById(discordId)) {
-            throw new ResourceNotFoundException("Discord link", discordId);
-        }
-        discordUserLinkRepository.deleteById(discordId);
+        OauthConnection connection = oauthConnectionRepository
+                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
+        oauthConnectionRepository.delete(connection);
         log.info("Unlinked Discord {}", discordId);
     }
 
     @Transactional
     public DiscordLinkResponse update(String discordId, UpdateDiscordLinkRequest request) {
-        DiscordUserLink link = discordUserLinkRepository.findById(discordId)
+        OauthConnection connection = oauthConnectionRepository
+                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
 
         String platformId = profileUrlResolver.resolve(request.getProfileUrl());
         Long newUserId = duplicateUserService.resolvePrimaryUserId(Long.parseLong(platformId));
+        Long oldUserId = connection.getUser().getId();
 
-        if (!newUserId.equals(link.getUser().getId())
-                && discordUserLinkRepository.existsByUserId(newUserId)) {
+        if (!newUserId.equals(oldUserId)
+                && oauthConnectionRepository.existsByUserIdAndProviderAndActiveTrue(newUserId, PROVIDER)) {
             throw new ConflictException("Player is already linked to a Discord account", newUserId);
         }
 
         User newUser = userRepository.findById(newUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", newUserId));
-        Long oldUserId = link.getUser().getId();
-        link.setUser(newUser);
-        discordUserLinkRepository.save(link);
+        connection.setUser(newUser);
+        oauthConnectionRepository.save(connection);
 
         log.info("Updated Discord {} link from user {} to user {}", discordId, oldUserId, newUserId);
 
-        return toResponse(link);
+        return toResponse(connection);
     }
 
-    private DiscordLinkResponse toResponse(DiscordUserLink link) {
+    private DiscordLinkResponse toResponse(OauthConnection connection) {
         return DiscordLinkResponse.builder()
-                .discordId(link.getDiscordId())
-                .userId(String.valueOf(link.getUser().getId()))
-                .playerName(link.getUser().getName())
-                .createdAt(link.getCreatedAt())
+                .discordId(connection.getProviderUserId())
+                .userId(String.valueOf(connection.getUser().getId()))
+                .playerName(connection.getUser().getName())
+                .createdAt(connection.getLinkedAt())
                 .build();
     }
 }

@@ -1,7 +1,6 @@
 package com.accsaber.backend.controller.staff;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -22,11 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.model.dto.request.staff.CreateStaffUserRequest;
 import com.accsaber.backend.model.dto.request.staff.ForceChangePasswordRequest;
 import com.accsaber.backend.model.dto.request.staff.LinkUserRequest;
-import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffProfileRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffRoleRequest;
 import com.accsaber.backend.model.dto.request.staff.UpdateStaffStatusRequest;
-import com.accsaber.backend.model.dto.response.staff.StaffOAuthLinkResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 import com.accsaber.backend.security.StaffUserDetails;
@@ -111,28 +108,4 @@ public class StaffUserController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Link an OAuth provider to a staff user")
-    @PostMapping("/{id}/oauth")
-    public ResponseEntity<StaffOAuthLinkResponse> linkOAuth(
-            @PathVariable UUID id,
-            @Valid @RequestBody OAuthLinkRequest request,
-            @AuthenticationPrincipal StaffUserDetails userDetails) {
-        StaffOAuthLinkResponse response = staffUserService.linkOAuth(
-                id, request, userDetails.getStaffUser().getId());
-        return ResponseEntity.created(URI.create("/v1/staff/users/" + id + "/oauth/" + response.getId()))
-                .body(response);
-    }
-
-    @Operation(summary = "Unlink an OAuth provider from a staff user")
-    @DeleteMapping("/{id}/oauth/{linkId}")
-    public ResponseEntity<Void> unlinkOAuth(@PathVariable UUID id, @PathVariable UUID linkId) {
-        staffUserService.unlinkOAuth(linkId);
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "Get OAuth links for a staff user")
-    @GetMapping("/{id}/oauth")
-    public ResponseEntity<List<StaffOAuthLinkResponse>> getOAuthLinks(@PathVariable UUID id) {
-        return ResponseEntity.ok(staffUserService.getOAuthLinks(id));
-    }
 }

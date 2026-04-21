@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,15 +20,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.staff.CreateStaffUserRequest;
-import com.accsaber.backend.model.dto.request.staff.OAuthLinkRequest;
 import com.accsaber.backend.model.dto.request.staff.StaffAccessRequest;
-import com.accsaber.backend.model.dto.response.staff.StaffOAuthLinkResponse;
 import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
-import com.accsaber.backend.model.entity.staff.StaffOAuthLink;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
-import com.accsaber.backend.repository.staff.StaffOAuthLinkRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
@@ -38,9 +33,6 @@ class StaffUserServiceTest {
 
     @Mock
     private StaffUserRepository staffUserRepository;
-
-    @Mock
-    private StaffOAuthLinkRepository staffOAuthLinkRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -114,70 +106,6 @@ class StaffUserServiceTest {
         assertThat(staffUser.isActive()).isFalse();
         assertThat(staffUser.getRefreshToken()).isNull();
         assertThat(staffUser.getTokenExpiresAt()).isNull();
-    }
-
-    @Test
-    void linkOAuth_newProvider_savesLink() {
-        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
-        StaffUser linkedBy = buildStaffUser(StaffRole.ADMIN);
-        UUID staffId = staffUser.getId();
-        UUID linkedById = linkedBy.getId();
-
-        OAuthLinkRequest request = new OAuthLinkRequest();
-        request.setProvider("discord");
-        request.setProviderUserId("123456789");
-        request.setProviderUsername("TestUser#1234");
-
-        StaffOAuthLink savedLink = StaffOAuthLink.builder()
-                .id(UUID.randomUUID())
-                .staffUser(staffUser)
-                .provider("discord")
-                .providerUserId("123456789")
-                .providerUsername("TestUser#1234")
-                .linkedBy(linkedBy)
-                .linkedAt(Instant.now())
-                .build();
-
-        when(staffUserRepository.findByIdAndActiveTrue(staffId)).thenReturn(Optional.of(staffUser));
-        when(staffUserRepository.findByIdAndActiveTrue(linkedById)).thenReturn(Optional.of(linkedBy));
-        when(staffOAuthLinkRepository.findByProviderAndProviderUserId("discord", "123456789"))
-                .thenReturn(Optional.empty());
-        when(staffOAuthLinkRepository.save(any())).thenReturn(savedLink);
-
-        StaffOAuthLinkResponse response = staffUserService.linkOAuth(staffId, request, linkedById);
-
-        assertThat(response.getProvider()).isEqualTo("discord");
-        assertThat(response.getProviderUsername()).isEqualTo("TestUser#1234");
-    }
-
-    @Test
-    void linkOAuth_duplicateProvider_throwsConflict() {
-        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
-        StaffUser linkedBy = buildStaffUser(StaffRole.ADMIN);
-
-        OAuthLinkRequest request = new OAuthLinkRequest();
-        request.setProvider("discord");
-        request.setProviderUserId("123456789");
-
-        when(staffUserRepository.findByIdAndActiveTrue(staffUser.getId())).thenReturn(Optional.of(staffUser));
-        when(staffUserRepository.findByIdAndActiveTrue(linkedBy.getId())).thenReturn(Optional.of(linkedBy));
-        when(staffOAuthLinkRepository.findByProviderAndProviderUserId("discord", "123456789"))
-                .thenReturn(Optional.of(StaffOAuthLink.builder().build()));
-
-        assertThatThrownBy(() -> staffUserService.linkOAuth(staffUser.getId(), request, linkedBy.getId()))
-                .isInstanceOf(ConflictException.class);
-    }
-
-    @Test
-    void unlinkOAuth_existingLink_deletesLink() {
-        UUID linkId = UUID.randomUUID();
-        StaffOAuthLink link = StaffOAuthLink.builder().id(linkId).build();
-
-        when(staffOAuthLinkRepository.findById(linkId)).thenReturn(Optional.of(link));
-
-        staffUserService.unlinkOAuth(linkId);
-
-        verify(staffOAuthLinkRepository).delete(link);
     }
 
     @Test

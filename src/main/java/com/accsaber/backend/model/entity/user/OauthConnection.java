@@ -1,9 +1,12 @@
-package com.accsaber.backend.model.entity.staff;
+package com.accsaber.backend.model.entity.user;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,26 +24,26 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "staff_oauth_links")
+@Table(name = "oauth_connections")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StaffOAuthLink {
+public class OauthConnection {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "staff_user_id", nullable = false)
-    private StaffUser staffUser;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 32)
     private String provider;
 
-    @Column(name = "provider_user_id", nullable = false, length = 255)
+    @Column(name = "provider_user_id", nullable = false, length = 64)
     private String providerUserId;
 
     @Column(name = "provider_username", length = 255)
@@ -49,11 +52,19 @@ public class StaffOAuthLink {
     @Column(name = "provider_avatar_url")
     private String providerAvatarUrl;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "provider_metadata")
+    private String providerMetadata;
+
     @CreationTimestamp
     @Column(name = "linked_at", nullable = false, updatable = false)
     private Instant linkedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "linked_by_staff_id", nullable = false)
-    private StaffUser linkedBy;
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
 }
