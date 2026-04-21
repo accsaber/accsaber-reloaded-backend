@@ -725,6 +725,7 @@ public class MapService {
                 .rankUpvotes(ranked ? null : d.getRankUpvotes())
                 .rankDownvotes(ranked ? null : d.getRankDownvotes())
                 .criteriaStatus(ranked ? null : d.getCriteriaStatus())
+                .autoCriteriaStatus(ranked ? null : d.getAutoCriteriaStatus())
                 .statistics(d.getStatistics())
                 .build();
     }
