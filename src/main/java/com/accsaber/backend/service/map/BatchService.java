@@ -97,15 +97,16 @@ public class BatchService {
     }
 
     public Page<PublicBatchResponse> findAllPublic(String search, Pageable pageable) {
-        return findAll(search, pageable).map(BatchService::toPublicResponse);
-    }
-
-    public Page<PublicBatchResponse> findByStatusPublic(BatchStatus status, String search, Pageable pageable) {
-        return findByStatus(status, search, pageable).map(BatchService::toPublicResponse);
+        return findByStatus(BatchStatus.RELEASED, search, pageable).map(BatchService::toPublicResponse);
     }
 
     public PublicBatchResponse findByIdPublic(UUID id) {
-        return toPublicResponse(findById(id));
+        Batch batch = batchRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch", id));
+        if (batch.getStatus() != BatchStatus.RELEASED) {
+            throw new ResourceNotFoundException("Batch", id);
+        }
+        return toPublicResponse(toResponse(batch, loadDifficulties(id)));
     }
 
     private static PublicBatchResponse toPublicResponse(BatchResponse batch) {

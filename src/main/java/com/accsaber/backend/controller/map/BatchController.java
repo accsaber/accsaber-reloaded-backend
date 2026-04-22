@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.map.PublicBatchResponse;
-import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.service.map.BatchService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,19 +28,15 @@ public class BatchController {
 
     private final BatchService batchService;
 
-    @Operation(summary = "List batches", description = "Paginated batch list, optionally filtered by status and/or batch name search")
+    @Operation(summary = "List released batches", description = "Paginated list of RELEASED batches, optionally filtered by batch name search. Draft and release-ready batches are not exposed here.")
     @GetMapping
     public ResponseEntity<Page<PublicBatchResponse>> listBatches(
-            @RequestParam(required = false) BatchStatus status,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<PublicBatchResponse> result = status != null
-                ? batchService.findByStatusPublic(status, search, pageable)
-                : batchService.findAllPublic(search, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(batchService.findAllPublic(search, pageable));
     }
 
-    @Operation(summary = "Get batch by ID", description = "Returns a batch with all its assigned map difficulties")
+    @Operation(summary = "Get released batch by ID", description = "Returns a RELEASED batch with all its assigned map difficulties. 404 for draft/release-ready batches.")
     @GetMapping("/{id}")
     public ResponseEntity<PublicBatchResponse> getBatch(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.findByIdPublic(id));
