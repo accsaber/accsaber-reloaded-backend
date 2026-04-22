@@ -25,7 +25,9 @@ import com.accsaber.backend.model.dto.response.staff.StaffUserResponse;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.repository.user.OauthSessionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +38,9 @@ class StaffUserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private OauthSessionRepository oauthSessionRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -114,12 +119,15 @@ class StaffUserServiceTest {
         request.setUsername("newranker");
         request.setPassword("password123");
 
+        User user = User.builder().id(7L).name("Player").active(true).build();
+        when(staffUserRepository.existsByUserIdAndActiveTrue(7L)).thenReturn(false);
         when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("newranker", StaffRole.RANKING))
                 .thenReturn(Optional.empty());
+        when(userRepository.findByIdAndActiveTrue(7L)).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("password123")).thenReturn("hashed-password");
         when(staffUserRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        staffUserService.requestAccess(request);
+        staffUserService.requestAccess(request, 7L);
 
         ArgumentCaptor<StaffUser> captor = ArgumentCaptor.forClass(StaffUser.class);
         verify(staffUserRepository).save(captor.capture());
@@ -128,6 +136,7 @@ class StaffUserServiceTest {
         assertThat(saved.getRole()).isEqualTo(StaffRole.RANKING);
         assertThat(saved.getUsername()).isEqualTo("newranker");
         assertThat(saved.getPassword()).isEqualTo("hashed-password");
+        assertThat(saved.getUser()).isEqualTo(user);
     }
 
     @Test
@@ -136,11 +145,14 @@ class StaffUserServiceTest {
         request.setEmail("ranker@example.com");
         request.setPassword("password123");
 
+        User user = User.builder().id(7L).name("Player").active(true).build();
+        when(staffUserRepository.existsByUserIdAndActiveTrue(7L)).thenReturn(false);
         when(staffUserRepository.findByEmailAndActiveTrue("ranker@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByIdAndActiveTrue(7L)).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("password123")).thenReturn("hashed-password");
         when(staffUserRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        staffUserService.requestAccess(request);
+        staffUserService.requestAccess(request, 7L);
 
         ArgumentCaptor<StaffUser> captor = ArgumentCaptor.forClass(StaffUser.class);
         verify(staffUserRepository).save(captor.capture());
@@ -155,7 +167,7 @@ class StaffUserServiceTest {
         StaffAccessRequest request = new StaffAccessRequest();
         request.setPassword("password123");
 
-        assertThatThrownBy(() -> staffUserService.requestAccess(request))
+        assertThatThrownBy(() -> staffUserService.requestAccess(request, 7L))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("username or email");
     }
@@ -166,10 +178,11 @@ class StaffUserServiceTest {
         request.setUsername("existing");
         request.setPassword("password123");
 
+        when(staffUserRepository.existsByUserIdAndActiveTrue(7L)).thenReturn(false);
         when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("existing", StaffRole.RANKING))
                 .thenReturn(Optional.of(buildStaffUser(StaffRole.RANKING)));
 
-        assertThatThrownBy(() -> staffUserService.requestAccess(request))
+        assertThatThrownBy(() -> staffUserService.requestAccess(request, 7L))
                 .isInstanceOf(ConflictException.class);
     }
 
@@ -179,10 +192,23 @@ class StaffUserServiceTest {
         request.setEmail("taken@example.com");
         request.setPassword("password123");
 
+        when(staffUserRepository.existsByUserIdAndActiveTrue(7L)).thenReturn(false);
         when(staffUserRepository.findByEmailAndActiveTrue("taken@example.com"))
                 .thenReturn(Optional.of(buildStaffUser(StaffRole.RANKING)));
 
-        assertThatThrownBy(() -> staffUserService.requestAccess(request))
+        assertThatThrownBy(() -> staffUserService.requestAccess(request, 7L))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void requestAccess_existingStaffForUser_throwsConflict() {
+        StaffAccessRequest request = new StaffAccessRequest();
+        request.setUsername("newranker");
+        request.setPassword("password123");
+
+        when(staffUserRepository.existsByUserIdAndActiveTrue(7L)).thenReturn(true);
+
+        assertThatThrownBy(() -> staffUserService.requestAccess(request, 7L))
                 .isInstanceOf(ConflictException.class);
     }
 

@@ -5,13 +5,29 @@ CREATE TABLE oauth_connections (
     provider_user_id    VARCHAR(64)  NOT NULL,
     provider_username   VARCHAR(255),
     provider_avatar_url TEXT,
-    provider_metadata   JSONB,
     linked_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     active              BOOLEAN      NOT NULL DEFAULT TRUE,
 
     CONSTRAINT fk_oauth_connections_users FOREIGN KEY (user_id) REFERENCES users (id)
 );
+
+CREATE TABLE oauth_sessions (
+    id                        UUID        PRIMARY KEY DEFAULT uuidv7(),
+    user_id                   BIGINT      NOT NULL,
+    connection_id             UUID        NOT NULL,
+    refresh_token             TEXT        NOT NULL,
+    refresh_token_expires_at  TIMESTAMPTZ NOT NULL,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_oauth_sessions_users       FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_oauth_sessions_connection  FOREIGN KEY (connection_id) REFERENCES oauth_connections(id),
+    CONSTRAINT unique_oauth_sessions_refresh_token UNIQUE (refresh_token)
+);
+
+CREATE INDEX idx_oauth_sessions_user       ON oauth_sessions(user_id);
+CREATE INDEX idx_oauth_sessions_connection ON oauth_sessions(connection_id);
 
 CREATE UNIQUE INDEX unique_oauth_provider_identity
     ON oauth_connections (provider, provider_user_id)

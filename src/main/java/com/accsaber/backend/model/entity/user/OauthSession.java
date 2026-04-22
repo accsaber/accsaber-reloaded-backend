@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,13 +21,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "oauth_connections")
+@Table(name = "oauth_sessions")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OauthConnection {
+public class OauthSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -38,27 +37,20 @@ public class OauthConnection {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 32)
-    private String provider;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "connection_id", nullable = false)
+    private OauthConnection connection;
 
-    @Column(name = "provider_user_id", nullable = false, length = 64)
-    private String providerUserId;
+    @Column(name = "refresh_token", nullable = false, unique = true)
+    private String refreshToken;
 
-    @Column(name = "provider_username", length = 255)
-    private String providerUsername;
-
-    @Column(name = "provider_avatar_url")
-    private String providerAvatarUrl;
+    @Column(name = "refresh_token_expires_at", nullable = false)
+    private Instant refreshTokenExpiresAt;
 
     @CreationTimestamp
-    @Column(name = "linked_at", nullable = false, updatable = false)
-    private Instant linkedAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean active = true;
+    @Column(name = "last_used_at", nullable = false)
+    private Instant lastUsedAt;
 }

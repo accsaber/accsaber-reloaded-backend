@@ -27,6 +27,17 @@ POSTGRES_PASSWORD=your_password_here
 SPRING_PROFILES_ACTIVE=dev
 JWT_SECRET=your_jwt_secret_here
 SERVICE_API_KEY=your_api_key_here
+
+# OAuth (optional; required to enable Discord / BeatLeader / Steam login)
+DISCORD_OAUTH_CLIENT_ID=
+DISCORD_OAUTH_CLIENT_SECRET=
+DISCORD_OAUTH_REDIRECT_URI=http://localhost:8080/v1/auth/discord/callback
+BEATLEADER_OAUTH_CLIENT_ID=
+BEATLEADER_OAUTH_CLIENT_SECRET=
+BEATLEADER_OAUTH_REDIRECT_URI=http://localhost:8080/v1/auth/beatleader/callback
+STEAM_OPENID_REALM=http://localhost:8080
+STEAM_OPENID_RETURN_TO=http://localhost:8080/v1/auth/steam/callback
+OAUTH_ALLOWED_RETURN_ORIGINS=http://localhost:5173
 ```
 
 ```bash
@@ -103,6 +114,17 @@ src/main/resources/
 | `COMPLEXITY_TRANSFORM_SCALE` | No   | Curve transform scale parameter            |
 | `COMPLEXITY_TRANSFORM_BASE` | No    | Curve transform base parameter             |
 | `CRITERIA_CHECKER_URL`    | No       | Override for the criteria checker sidecar URL |
+| `DISCORD_OAUTH_CLIENT_ID` | OAuth    | Discord application client ID              |
+| `DISCORD_OAUTH_CLIENT_SECRET` | OAuth | Discord application client secret         |
+| `DISCORD_OAUTH_REDIRECT_URI` | OAuth | Backend callback URL for Discord (`{api}/v1/auth/discord/callback`) |
+| `BEATLEADER_OAUTH_CLIENT_ID` | OAuth | BeatLeader application client ID           |
+| `BEATLEADER_OAUTH_CLIENT_SECRET` | OAuth | BeatLeader application client secret   |
+| `BEATLEADER_OAUTH_REDIRECT_URI` | OAuth | Backend callback URL for BeatLeader (`{api}/v1/auth/beatleader/callback`) |
+| `STEAM_OPENID_REALM`      | OAuth    | Public backend origin used as the Steam OpenID realm |
+| `STEAM_OPENID_RETURN_TO`  | OAuth    | Backend callback URL for Steam (`{realm}/v1/auth/steam/callback`) |
+| `OAUTH_ALLOWED_RETURN_ORIGINS` | OAuth | Comma-separated frontend origins the OAuth flow may redirect back to |
+
+> **OAuth** vars are required to run the player/staff OAuth login flow. Leave blank to disable OAuth — username/password staff login still works.
 
 ### Important Note on AI Usage
 > *AccSaber Reloaded's infrastructure, flow and core features are human-made. Tedious tasks were automated with the help of AI (tests, DTOs, some methods). The codebase is manually reviewed and edited, and all creative input is human-generated. I firmly believe that human creativity and intuition are irreplaceable in software development.*

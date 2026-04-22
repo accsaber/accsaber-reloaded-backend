@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.staff;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +29,13 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
     Optional<StaffUser> findByRefreshToken(String refreshToken);
 
     Optional<StaffUser> findByIdAndActiveTrue(UUID id);
+
+    Optional<StaffUser> findByUserIdAndActiveTrue(Long userId);
+
+    List<StaffUser> findByUserIdAndRoleInAndStatusAndActiveTrue(
+            Long userId, Collection<StaffRole> roles, StaffUserStatus status);
+
+    boolean existsByUserIdAndActiveTrue(Long userId);
 
     List<StaffUser> findAllByActiveTrue();
 

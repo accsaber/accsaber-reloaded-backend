@@ -28,7 +28,7 @@ public class OpenApiConfig {
                                                                 REST API for the AccSaber Reloaded platform - an accuracy-based \
                                                                 leaderboard system for Beat Saber.
                                                                 """)
-                                                .version("ALPHA-2.1.0")
+                                                .version("ALPHA-4.4.0")
                                                 .contact(new Contact()
                                                                 .name("AccSaber Reloaded")
                                                                 .url(baseUrl)))

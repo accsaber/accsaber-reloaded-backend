@@ -66,6 +66,8 @@ accsaber:
     secret: ${JWT_SECRET}
     access-token-ttl: 86400
     refresh-token-ttl: 2592000
+    player-access-token-ttl: 604800
+    player-refresh-token-ttl: 2592000
   service:
     api-key: ${SERVICE_API_KEY}
   platforms:
@@ -111,6 +113,29 @@ accsaber:
   criteria-checker:
     base-url: ${CRITERIA_CHECKER_URL:http://criteria-checker:8000}
     timeout-ms: 60000
+  oauth:
+    state-ttl-seconds: 600
+    pending-link-ttl-seconds: 900
+    allowed-return-origins: ${OAUTH_ALLOWED_RETURN_ORIGINS:}
+    discord:
+      client-id: ${DISCORD_OAUTH_CLIENT_ID:}
+      client-secret: ${DISCORD_OAUTH_CLIENT_SECRET:}
+      authorize-url: https://discord.com/oauth2/authorize
+      token-url: https://discord.com/api/oauth2/token
+      user-info-url: https://discord.com/api/users/@me
+      redirect-uri: ${DISCORD_OAUTH_REDIRECT_URI:}
+      scope: identify
+    beatleader:
+      client-id: ${BEATLEADER_OAUTH_CLIENT_ID:}
+      client-secret: ${BEATLEADER_OAUTH_CLIENT_SECRET:}
+      authorize-url: https://api.beatleader.com/oauth2/authorize
+      token-url: https://api.beatleader.com/oauth2/token
+      user-info-url: https://api.beatleader.com/oauth2/identity
+      redirect-uri: ${BEATLEADER_OAUTH_REDIRECT_URI:}
+      scope: profile
+    steam:
+      realm: ${STEAM_OPENID_REALM:}
+      return-to: ${STEAM_OPENID_RETURN_TO:}
 
 logging:
   level:

@@ -21,6 +21,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.repository.user.OauthSessionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -32,12 +33,16 @@ public class StaffUserService {
 
     private final StaffUserRepository staffUserRepository;
     private final UserRepository userRepository;
+    private final OauthSessionRepository oauthSessionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public void requestAccess(StaffAccessRequest request) {
+    public void requestAccess(StaffAccessRequest request, Long userId) {
         if (request.getUsername() == null && request.getEmail() == null) {
             throw new ValidationException("At least one of username or email is required");
+        }
+        if (staffUserRepository.existsByUserIdAndActiveTrue(userId)) {
+            throw new ConflictException("This account already has staff access or a pending request");
         }
         if (request.getUsername() != null
                 && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
@@ -49,6 +54,9 @@ public class StaffUserService {
             throw new ConflictException("Email already in use: " + request.getEmail());
         }
 
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+
         StaffUser staffUser = StaffUser.builder()
                 .username(request.getUsername() != null ? request.getUsername()
                         : request.getEmail().split("@")[0])
@@ -56,6 +64,7 @@ public class StaffUserService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(StaffRole.RANKING)
                 .status(StaffUserStatus.REQUESTED)
+                .user(user)
                 .build();
 
         staffUserRepository.save(staffUser);
@@ -191,6 +200,7 @@ public class StaffUserService {
             staffUser.setRefreshToken(null);
             staffUser.setTokenExpiresAt(null);
         }
+        invalidateLinkedPlayerSessions(staffUser);
         return toResponse(staffUserRepository.save(staffUser));
     }
 
@@ -199,6 +209,7 @@ public class StaffUserService {
         StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
         staffUser.setRole(role);
+        invalidateLinkedPlayerSessions(staffUser);
         return toResponse(staffUserRepository.save(staffUser));
     }
 
@@ -219,7 +230,14 @@ public class StaffUserService {
         staffUser.setActive(false);
         staffUser.setRefreshToken(null);
         staffUser.setTokenExpiresAt(null);
+        invalidateLinkedPlayerSessions(staffUser);
         staffUserRepository.save(staffUser);
+    }
+
+    private void invalidateLinkedPlayerSessions(StaffUser staffUser) {
+        if (staffUser.getUser() != null) {
+            oauthSessionRepository.deleteByUserId(staffUser.getUser().getId());
+        }
     }
 
     private PublicStaffUserResponse toPublicResponse(StaffUser staffUser) {
