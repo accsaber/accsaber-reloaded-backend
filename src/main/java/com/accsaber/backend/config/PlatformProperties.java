@@ -14,7 +14,7 @@ public class PlatformProperties {
     private PlatformConfig scoresaber = new PlatformConfig();
     private PlatformConfig beatsaver = new PlatformConfig();
     private int ssWaitForBlSeconds = 30;
-    private int gapFillWindowSeconds = 60;
+    private int gapFillWindowSeconds = 300;
 
     private int wsReconnectIntervalMs = 10000;
     private int wsMaxReconnectIntervalMs = 60000;

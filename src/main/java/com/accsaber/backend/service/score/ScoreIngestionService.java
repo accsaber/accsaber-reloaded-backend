@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.config.PlatformProperties;
@@ -193,6 +194,7 @@ public class ScoreIngestionService {
         log.info("Refreshed ranked leaderboard IDs: {} BL, {} SS", rankedBlIds.size(), rankedSsIds.size());
     }
 
+    @Async("backfillExecutor")
     public void gapFill(String platform, Instant disconnectedAt) {
         Duration gap = Duration.between(disconnectedAt, Instant.now());
         if (gap.getSeconds() > properties.getGapFillWindowSeconds()) {
@@ -203,7 +205,9 @@ public class ScoreIngestionService {
 
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrue(MapDifficultyStatus.RANKED);
+        log.info("Starting {} gap fill across {} ranked difficulties", platform, ranked.size());
 
+        int throttleMs = "scoresaber".equals(platform) ? 160 : 0;
         for (MapDifficulty difficulty : ranked) {
             boolean relevant = "beatleader".equals(platform)
                     ? difficulty.getBlLeaderboardId() != null
@@ -214,7 +218,16 @@ public class ScoreIngestionService {
                 } catch (Exception e) {
                     log.error("Gap fill error for difficulty {}: {}", difficulty.getId(), e.getMessage());
                 }
+                if (throttleMs > 0) {
+                    try {
+                        Thread.sleep(throttleMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
         }
+        log.info("{} gap fill complete", platform);
     }
 }

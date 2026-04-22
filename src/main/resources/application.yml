@@ -86,7 +86,7 @@ accsaber:
       timeout-ms: 10000
       max-retries: 3
     ss-wait-for-bl-seconds: 30
-    gap-fill-window-seconds: 60
+    gap-fill-window-seconds: 300
     ws-reconnect-interval-ms: 10000
     ws-max-reconnect-interval-ms: 60000
   xp:

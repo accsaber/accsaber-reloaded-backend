@@ -83,7 +83,7 @@ public class ScoreSaberClient {
                             .build(leaderboardId))
                     .retrieve()
                     .bodyToMono(ScoreSaberScoresPage.class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(rateLimitRetrySpec())
                     .block(timeout());
         } catch (Exception e) {
             log.error("Failed to fetch SS recent scores for {}: {}", leaderboardId, e.getMessage());
