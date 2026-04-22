@@ -22,9 +22,15 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
 
     List<StaffUser> findByUsernameAndActiveTrue(String username);
 
+    List<StaffUser> findByUsernameIgnoreCaseAndActiveTrue(String username);
+
     Optional<StaffUser> findByUsernameAndRoleAndActiveTrue(String username, StaffRole role);
 
+    Optional<StaffUser> findByUsernameIgnoreCaseAndRoleAndActiveTrue(String username, StaffRole role);
+
     Optional<StaffUser> findByEmailAndActiveTrue(String email);
+
+    Optional<StaffUser> findByEmailIgnoreCaseAndActiveTrue(String email);
 
     Optional<StaffUser> findByRefreshToken(String refreshToken);
 

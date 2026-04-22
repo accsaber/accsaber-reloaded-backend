@@ -41,20 +41,20 @@ public class StaffAuthService {
         StaffUser staffUser;
 
         if (isEmail) {
-            staffUser = staffUserRepository.findByEmailAndActiveTrue(request.getIdentifier())
+            staffUser = staffUserRepository.findByEmailIgnoreCaseAndActiveTrue(request.getIdentifier())
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
             if (!passwordEncoder.matches(request.getPassword(), staffUser.getPassword())) {
                 throw new UnauthorizedException("Invalid credentials");
             }
         } else if (request.getRole() != null) {
-            staffUser = staffUserRepository.findByUsernameAndRoleAndActiveTrue(
+            staffUser = staffUserRepository.findByUsernameIgnoreCaseAndRoleAndActiveTrue(
                     request.getIdentifier(), request.getRole())
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
             if (!passwordEncoder.matches(request.getPassword(), staffUser.getPassword())) {
                 throw new UnauthorizedException("Invalid credentials");
             }
         } else {
-            var matches = staffUserRepository.findByUsernameAndActiveTrue(request.getIdentifier());
+            var matches = staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue(request.getIdentifier());
             if (matches.isEmpty()) {
                 throw new UnauthorizedException("Invalid credentials");
             }
