@@ -55,7 +55,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("admin");
                 request.setPassword("password");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("admin")).thenReturn(List.of(staffUser));
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
                 when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
                 when(jwtService.generateAccessToken(staffUser)).thenReturn("access-token");
                 when(jwtService.generateRefreshToken()).thenReturn("refresh-token");
@@ -74,7 +74,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("unknown");
                 request.setPassword("password");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("unknown")).thenReturn(List.of());
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("unknown")).thenReturn(List.of());
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
                                 .isInstanceOf(UnauthorizedException.class)
@@ -88,7 +88,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("admin");
                 request.setPassword("wrong");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("admin")).thenReturn(List.of(staffUser));
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
                 when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
@@ -101,7 +101,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("admin");
                 request.setPassword("password");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("admin")).thenReturn(List.of());
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of());
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
                                 .isInstanceOf(UnauthorizedException.class);
@@ -137,7 +137,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("admin");
                 request.setPassword("password");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("admin")).thenReturn(List.of(staffUser));
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
                 when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
@@ -153,7 +153,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("admin");
                 request.setPassword("password");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("admin")).thenReturn(List.of(staffUser));
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
                 when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
@@ -252,7 +252,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("shared");
                 request.setPassword("ranker-pass");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("shared"))
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("shared"))
                                 .thenReturn(List.of(adminUser, rankerUser));
                 when(passwordEncoder.matches("ranker-pass", "admin-hash")).thenReturn(false);
                 when(passwordEncoder.matches("ranker-pass", "ranker-hash")).thenReturn(true);
@@ -278,7 +278,7 @@ class StaffAuthServiceTest {
                 request.setIdentifier("shared");
                 request.setPassword("same-pass");
 
-                when(staffUserRepository.findByUsernameAndActiveTrue("shared"))
+                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("shared"))
                                 .thenReturn(List.of(adminUser, rankerUser));
                 when(passwordEncoder.matches("same-pass", "same-hash")).thenReturn(true);
 
@@ -301,7 +301,7 @@ class StaffAuthServiceTest {
                 request.setPassword("same-pass");
                 request.setRole(StaffRole.ADMIN);
 
-                when(staffUserRepository.findByUsernameAndRoleAndActiveTrue("shared", StaffRole.ADMIN))
+                when(staffUserRepository.findByUsernameIgnoreCaseAndRoleAndActiveTrue("shared", StaffRole.ADMIN))
                                 .thenReturn(Optional.of(adminUser));
                 when(passwordEncoder.matches("same-pass", "same-hash")).thenReturn(true);
                 when(jwtService.generateAccessToken(adminUser)).thenReturn("access-token");
