@@ -53,13 +53,19 @@ public class JwtService {
     }
 
     public String generatePlayerAccessToken(Long userId, UUID staffId, StaffRole staffRole) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId must not be null");
+        }
+        if ((staffId == null) != (staffRole == null)) {
+            throw new IllegalArgumentException("staffId and staffRole must both be provided or both be null");
+        }
         Instant now = Instant.now();
         var builder = Jwts.builder()
                 .subject(userId.toString())
                 .claim("typ", TYPE_PLAYER)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(playerAccessTokenTtl)));
-        if (staffId != null && staffRole != null) {
+        if (staffId != null) {
             builder.claim("staffId", staffId.toString());
             builder.claim("role", staffRole.name());
         }

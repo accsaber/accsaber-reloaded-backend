@@ -86,9 +86,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             jwtService.extractPlayerStaffRole(token)))
                     .orElse(null);
         }
-        return staffUserRepository.findByIdAndActiveTrue(jwtService.extractStaffId(token))
-                .map(StaffUserDetails::new)
-                .orElse(null);
+        if (JwtService.TYPE_STAFF.equals(type)) {
+            return staffUserRepository.findByIdAndActiveTrue(jwtService.extractStaffId(token))
+                    .map(StaffUserDetails::new)
+                    .orElse(null);
+        }
+        log.warn("Rejecting JWT with unknown token type: {}", type);
+        return null;
     }
 
     static class ServiceAuthentication extends AbstractAuthenticationToken {

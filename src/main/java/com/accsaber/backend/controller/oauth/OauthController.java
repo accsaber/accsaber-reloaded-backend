@@ -196,7 +196,7 @@ public class OauthController {
     private void validateReturnTo(String returnTo) {
         var allowed = oauthProperties.getAllowedReturnOrigins();
         if (allowed == null || allowed.isEmpty()) {
-            return;
+            throw new ValidationException("OAuth allowed-return-origins is not configured");
         }
         String inboundOrigin = originOf(parseUri(returnTo));
         if (inboundOrigin == null) {

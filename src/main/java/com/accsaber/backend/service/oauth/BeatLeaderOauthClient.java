@@ -1,8 +1,10 @@
 package com.accsaber.backend.service.oauth;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -14,24 +16,33 @@ import com.accsaber.backend.config.OauthProperties;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import io.netty.channel.ChannelOption;
 import lombok.Data;
+import reactor.netty.http.client.HttpClient;
 
 @Component
 public class BeatLeaderOauthClient {
+
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
 
     private final OauthProperties.ProviderConfig config;
     private final WebClient webClient;
 
     public BeatLeaderOauthClient(OauthProperties oauthProperties) {
         this.config = oauthProperties.getBeatleader();
-        this.webClient = WebClient.builder().build();
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+                .responseTimeout(HTTP_TIMEOUT);
+        this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
     }
 
     public String buildAuthorizeUrl(String state) {
         return config.getAuthorizeUrl()
                 + "?response_type=code"
                 + "&client_id=" + config.getClientId()
-                + "&scope=" + config.getScope()
+                + "&scope=" + UriUtils.encode(config.getScope(), StandardCharsets.UTF_8)
                 + "&redirect_uri=" + UriUtils.encode(config.getRedirectUri(), StandardCharsets.UTF_8)
                 + "&state=" + UriUtils.encode(state, StandardCharsets.UTF_8);
     }
@@ -43,6 +54,7 @@ public class BeatLeaderOauthClient {
                 .header("Authorization", "Bearer " + token.getAccessToken())
                 .retrieve()
                 .bodyToMono(BeatLeaderIdentity.class)
+                .timeout(HTTP_TIMEOUT)
                 .blockOptional()
                 .orElseThrow(() -> new UnauthorizedException("BeatLeader identity lookup failed"));
     }
@@ -61,6 +73,7 @@ public class BeatLeaderOauthClient {
                 .body(BodyInserters.fromFormData(form))
                 .retrieve()
                 .bodyToMono(OauthTokenResponse.class)
+                .timeout(HTTP_TIMEOUT)
                 .blockOptional()
                 .orElseThrow(() -> new UnauthorizedException("BeatLeader token exchange failed"));
     }

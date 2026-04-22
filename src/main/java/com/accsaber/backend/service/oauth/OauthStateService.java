@@ -63,7 +63,14 @@ public class OauthStateService {
         replayGuard.consume(jti, claims.getExpiration().toInstant());
 
         String linkUserIdStr = claims.get("linkUserId", String.class);
-        Long linkUserId = linkUserIdStr != null ? Long.parseLong(linkUserIdStr) : null;
+        Long linkUserId = null;
+        if (linkUserIdStr != null) {
+            try {
+                linkUserId = Long.parseLong(linkUserIdStr);
+            } catch (NumberFormatException e) {
+                throw new UnauthorizedException("Invalid OAuth state");
+            }
+        }
         return new StateClaims(
                 claims.getSubject(),
                 claims.get("returnTo", String.class),

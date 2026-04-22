@@ -30,8 +30,6 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
 
     Optional<StaffUser> findByIdAndActiveTrue(UUID id);
 
-    Optional<StaffUser> findByUserIdAndActiveTrue(Long userId);
-
     List<StaffUser> findByUserIdAndRoleInAndStatusAndActiveTrue(
             Long userId, Collection<StaffRole> roles, StaffUserStatus status);
 
