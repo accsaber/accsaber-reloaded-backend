@@ -8,7 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,7 +25,7 @@ import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.BatchStatus;
-import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.BatchService;
 import com.accsaber.backend.service.map.ReweightService;
 
@@ -68,8 +68,8 @@ public class RankingBatchController {
     @PostMapping
     public ResponseEntity<BatchResponse> createBatch(
             @Valid @RequestBody CreateBatchRequest request,
-            @AuthenticationPrincipal StaffUserDetails userDetails) {
-        BatchResponse response = batchService.create(request, userDetails.getStaffUser().getId());
+            Authentication authentication) {
+        BatchResponse response = batchService.create(request, StaffPrincipals.staffIdOf(authentication));
         return ResponseEntity.created(URI.create("/v1/batches/" + response.getId())).body(response);
     }
 
@@ -108,9 +108,10 @@ public class RankingBatchController {
     public ResponseEntity<List<MapDifficultyResponse>> reweightBatch(
             @PathVariable UUID id,
             @Valid @RequestBody BatchReweightRequest request,
-            @AuthenticationPrincipal StaffUserDetails userDetails) {
+            Authentication authentication) {
         return ResponseEntity.ok(batchService.reweightBatch(id, request.getItems(),
-                userDetails.getLinkedUserId(), userDetails.getStaffUser().getId()));
+                StaffPrincipals.linkedUserIdOf(authentication),
+                StaffPrincipals.staffIdOf(authentication)));
     }
 
     @Operation(summary = "Recalculate a batch", description = "Recalculates all scores in a released batch based on current active complexities. Skips difficulties where AP values are unchanged.")

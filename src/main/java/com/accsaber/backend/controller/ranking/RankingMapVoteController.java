@@ -8,7 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +22,7 @@ import com.accsaber.backend.model.dto.request.map.CastVoteRequest;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
 import com.accsaber.backend.model.dto.response.map.VoteResponse;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
-import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.MapVotingService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,17 +61,17 @@ public class RankingMapVoteController {
     public ResponseEntity<VoteResponse> castVote(
             @PathVariable UUID difficultyId,
             @Valid @RequestBody CastVoteRequest request,
-            @AuthenticationPrincipal StaffUserDetails userDetails) {
+            Authentication authentication) {
         return ResponseEntity.ok(mapVotingService.castVote(
                 difficultyId,
-                userDetails.getStaffUser().getId(),
+                StaffPrincipals.staffIdOf(authentication),
                 request.getVote(),
                 request.getType(),
                 request.getSuggestedComplexity(),
                 request.getReason(),
                 request.getCriteriaVote(),
                 request.getCriteriaVoteOverride(),
-                userDetails.getStaffUser().getRole()));
+                StaffPrincipals.roleOf(authentication)));
     }
 
     @Operation(summary = "Deactivate a vote", description = "Soft-deletes an active vote (ranking_head/admin only)")

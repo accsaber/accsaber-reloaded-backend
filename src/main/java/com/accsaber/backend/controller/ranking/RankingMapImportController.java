@@ -4,7 +4,7 @@ import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,7 +14,7 @@ import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
 
@@ -37,9 +37,9 @@ public class RankingMapImportController {
         @PostMapping("/import")
         public ResponseEntity<MapDifficultyResponse> importMapDifficulty(
                         @Valid @RequestBody ImportMapFromLeaderboardIdsRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 MapDifficultyResponse response = mapImportService.importByLeaderboardIds(
-                                request, userDetails.getStaffUser().getId(), MapDifficultyStatus.QUEUE);
+                                request, StaffPrincipals.staffIdOf(authentication), MapDifficultyStatus.QUEUE);
                 return ResponseEntity.created(URI.create("/v1/maps/difficulties/" + response.getId()))
                                 .body(response);
         }
@@ -48,9 +48,9 @@ public class RankingMapImportController {
         @PostMapping("/import/manual")
         public ResponseEntity<MapDifficultyResponse> importMapDifficultyManual(
                         @Valid @RequestBody CreateMapDifficultyRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 MapDifficultyResponse response = mapService.importMapDifficulty(request,
-                                userDetails.getStaffUser().getId());
+                                StaffPrincipals.staffIdOf(authentication));
                 return ResponseEntity.created(URI.create("/v1/maps/difficulties/" + response.getId()))
                                 .body(response);
         }

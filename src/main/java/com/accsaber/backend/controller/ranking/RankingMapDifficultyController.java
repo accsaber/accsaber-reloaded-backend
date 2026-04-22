@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,7 @@ import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
-import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.AutoCriteriaService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.ReweightService;
@@ -50,9 +50,9 @@ public class RankingMapDifficultyController {
         public ResponseEntity<MapDifficultyResponse> updateStatus(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody UpdateMapStatusRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(mapService.updateStatus(difficultyId, request,
-                                userDetails.getStaffUser().getId()));
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Change difficulty category", description = "Reassigns a QUEUE or QUALIFIED difficulty to a different category. Not allowed on RANKED difficulties.")
@@ -61,9 +61,9 @@ public class RankingMapDifficultyController {
         public ResponseEntity<MapDifficultyResponse> updateCategory(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody UpdateMapCategoryRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(mapService.updateCategory(difficultyId, request.getCategoryId(),
-                                userDetails.getStaffUser().getId()));
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Set difficulty complexity", description = "Versioned complexity update - deactivates current and inserts new version")
@@ -72,9 +72,10 @@ public class RankingMapDifficultyController {
         public ResponseEntity<MapDifficultyResponse> updateComplexity(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody UpdateMapComplexityRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(mapService.updateComplexity(difficultyId, request,
-                                userDetails.getLinkedUserId(), userDetails.getStaffUser().getId()));
+                                StaffPrincipals.linkedUserIdOf(authentication),
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Deactivate a map difficulty", description = "Soft-removes a map difficulty from the ranking system (ranking_head/admin only)")
@@ -82,8 +83,8 @@ public class RankingMapDifficultyController {
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> deactivate(
                         @PathVariable UUID difficultyId,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
-                mapService.deactivate(difficultyId, userDetails.getStaffUser().getId());
+                        Authentication authentication) {
+                mapService.deactivate(difficultyId, StaffPrincipals.staffIdOf(authentication));
                 return ResponseEntity.noContent().build();
         }
 
@@ -93,10 +94,11 @@ public class RankingMapDifficultyController {
         public ResponseEntity<MapDifficultyResponse> reweight(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody ApproveReweightRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(reweightService.reweight(difficultyId, request.getComplexity(),
-                                request.getReason(), userDetails.getLinkedUserId(),
-                                userDetails.getStaffUser().getId()));
+                                request.getReason(),
+                                StaffPrincipals.linkedUserIdOf(authentication),
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Approve and apply an unrank", description = "Moves a RANKED difficulty back to QUEUE status")
@@ -105,9 +107,9 @@ public class RankingMapDifficultyController {
         public ResponseEntity<MapDifficultyResponse> unrank(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody ApproveUnrankRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(unrankService.unrank(difficultyId, request.getReason(),
-                                userDetails.getStaffUser().getId()));
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Bulk unrank", description = "Move multiple RANKED difficulties back to QUEUE in one request")
@@ -115,9 +117,9 @@ public class RankingMapDifficultyController {
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<List<MapDifficultyResponse>> bulkUnrank(
                         @Valid @RequestBody BulkUnrankRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 return ResponseEntity.ok(unrankService.unrankBatch(request.getItems(),
-                                userDetails.getStaffUser().getId()));
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Bulk reweight", description = "Sets new complexities on multiple RANKED difficulties with a shared reason and recalculates all scores asynchronously")
@@ -125,9 +127,10 @@ public class RankingMapDifficultyController {
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> bulkReweight(
                         @Valid @RequestBody BulkReweightRequest request,
-                        @AuthenticationPrincipal StaffUserDetails userDetails) {
+                        Authentication authentication) {
                 reweightService.bulkReweight(request.getItems(), request.getReason(),
-                                userDetails.getLinkedUserId(), userDetails.getStaffUser().getId());
+                                StaffPrincipals.linkedUserIdOf(authentication),
+                                StaffPrincipals.staffIdOf(authentication));
                 return ResponseEntity.accepted().build();
         }
 
