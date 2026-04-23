@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.service.score.ScoreImportService;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
+@Order(1)
 @RequiredArgsConstructor
 public class StartupBackfillRunner implements ApplicationRunner {
 

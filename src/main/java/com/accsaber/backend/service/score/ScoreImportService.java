@@ -195,6 +195,8 @@ public class ScoreImportService {
         });
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
+        log.info("Running post-backfill rank repair");
+        scoreRankingService.reassignAllRanks();
     }
 
     public void backfillUser(Long userId) {
@@ -406,6 +408,8 @@ public class ScoreImportService {
         });
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel gap-fill complete for {} difficulties in {}s", ranked.size(), elapsed / 1000);
+        log.info("Running post-gap-fill rank repair");
+        scoreRankingService.reassignAllRanks();
     }
 
     private void startupGapFillDifficulty(MapDifficulty difficulty, Instant since) {
