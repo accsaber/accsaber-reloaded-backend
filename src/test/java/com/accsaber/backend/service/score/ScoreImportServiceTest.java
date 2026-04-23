@@ -2,6 +2,7 @@ package com.accsaber.backend.service.score;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -29,10 +30,12 @@ import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreRespons
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -71,6 +74,10 @@ class ScoreImportServiceTest {
         @Mock
         private ScoreRepository scoreRepository;
         @Mock
+        private com.accsaber.backend.repository.score.ScoreModifierLinkRepository scoreModifierLinkRepository;
+        @Mock
+        private com.accsaber.backend.repository.ModifierRepository modifierRepository;
+        @Mock
         private UserRepository userRepository;
         @Mock
         private StatisticsService statisticsService;
@@ -95,7 +102,8 @@ class ScoreImportServiceTest {
         void setUp() {
                 scoreImportService = new ScoreImportService(
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,
-                                mapDifficultyRepository, mapComplexityService, scoreRepository, userRepository,
+                                mapDifficultyRepository, mapComplexityService, scoreRepository,
+                                scoreModifierLinkRepository, modifierRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
                                 milestoneEvaluationService, mapDifficultyStatisticsService, scoreRankingService,
                                 duplicateUserService);
@@ -125,6 +133,180 @@ class ScoreImportServiceTest {
 
                 lenient().when(milestoneEvaluationService.evaluateAllForUser(anyLong()))
                                 .thenReturn(new MilestoneEvaluationService.EvaluationResult(List.of(), List.of()));
+        }
+
+        @Nested
+        class BackfillUser {
+
+                @BeforeEach
+                void userSetup() {
+                        lenient().when(userRepository.findByIdAndActiveTrue(STEAM_ID))
+                                        .thenReturn(Optional.of(User.builder().id(STEAM_ID).name("Player").build()));
+                        lenient().when(mapDifficultyRepository
+                                        .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED))
+                                        .thenReturn(List.of(difficulty));
+                }
+
+                @Test
+                void skipsWhenUserNotFound() {
+                        when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.empty());
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(beatLeaderClient, never()).getPlayerScoreOnLeaderboard(any(), any());
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                }
+
+                @Test
+                void skipsWhenBlReturnsNoScore() {
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.empty());
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                        verify(scoreRankingService, never()).reassignRanks(any());
+                }
+
+                @Test
+                void importsScoreWhenNoneExists() {
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(buildBlScore("")));
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(playerImportService.ensurePlayerExists(STEAM_ID))
+                                        .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreService, times(1)).submitForBackfill(any(), any(), any());
+                        verify(scoreRankingService, times(1)).reassignRanks(difficulty.getId());
+                        verify(statisticsService, times(1)).recalculate(STEAM_ID, categoryId, false);
+                        verify(rankingService, times(1)).updateRankings(categoryId);
+                }
+
+                @Test
+                void skipsWhenOurScoreIsHigher() {
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(buildBlScore("")));
+                        Score existing = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .scoreNoMods(950000)
+                                        .build();
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.of(existing));
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                        verify(scoreRankingService, never()).reassignRanks(any());
+                }
+
+                @Test
+                void importsWhenIncomingScoreIsHigher() {
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(buildBlScore("")));
+                        Score existing = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .scoreNoMods(800000)
+                                        .build();
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.of(existing));
+                        when(playerImportService.ensurePlayerExists(STEAM_ID))
+                                        .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreService, times(1)).submitForBackfill(any(), any(), any());
+                        verify(scoreRankingService, times(1)).reassignRanks(difficulty.getId());
+                }
+
+                @Test
+                void enrichesWhenScoresAreEqual_andNoBlData() {
+                        BeatLeaderScoreResponse bl = buildBlScore("");
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(bl));
+                        Score existing = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .scoreNoMods(bl.getBaseScore())
+                                        .build();
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.of(existing));
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreRepository, times(1)).save(existing);
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                }
+
+                @Test
+                void reconcilesMissingModifierLink_onEqualScoreAlreadyBlBacked() {
+                        UUID ifId = UUID.randomUUID();
+                        when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("IF", ifId));
+                        BeatLeaderScoreResponse bl = buildBlScore("IF");
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(bl));
+
+                        Score existing = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .scoreNoMods(bl.getBaseScore())
+                                        .blScoreId(999L)
+                                        .build();
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.of(existing));
+                        when(scoreModifierLinkRepository.findByScore_Id(existing.getId())).thenReturn(List.of());
+                        Modifier ifMod = Modifier.builder().id(ifId).code("IF").build();
+                        when(modifierRepository.findById(ifId)).thenReturn(Optional.of(ifMod));
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreModifierLinkRepository, times(1)).saveAll(anyIterable());
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                        verify(scoreRepository, never()).save(any(Score.class));
+                }
+
+                @Test
+                void doesNotAddModifierLink_whenAlreadyPresent() {
+                        UUID ifId = UUID.randomUUID();
+                        when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("IF", ifId));
+                        BeatLeaderScoreResponse bl = buildBlScore("IF");
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(bl));
+
+                        Score existing = Score.builder()
+                                        .id(UUID.randomUUID())
+                                        .scoreNoMods(bl.getBaseScore())
+                                        .blScoreId(999L)
+                                        .build();
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.of(existing));
+                        Modifier ifMod = Modifier.builder().id(ifId).code("IF").build();
+                        ScoreModifierLink link = ScoreModifierLink.builder()
+                                        .score(existing).modifier(ifMod).build();
+                        when(scoreModifierLinkRepository.findByScore_Id(existing.getId()))
+                                        .thenReturn(List.of(link));
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreModifierLinkRepository, never()).saveAll(anyIterable());
+                }
+
+                @Test
+                void skipsBannedModifier() {
+                        when(beatLeaderClient.getPlayerScoreOnLeaderboard(String.valueOf(STEAM_ID), "bl_123"))
+                                        .thenReturn(Optional.of(buildBlScore("NO")));
+
+                        scoreImportService.backfillUser(STEAM_ID);
+
+                        verify(scoreService, never()).submitForBackfill(any(), any(), any());
+                        verify(scoreRankingService, never()).reassignRanks(any());
+                }
         }
 
         @Nested

@@ -50,6 +50,23 @@ public class BeatLeaderClient {
         }
     }
 
+    public Optional<BeatLeaderScoreResponse> getPlayerScoreOnLeaderboard(String playerId, String leaderboardId) {
+        try {
+            return Optional.ofNullable(webClient.get()
+                    .uri("/score/{playerId}/{leaderboardId}", playerId, leaderboardId)
+                    .retrieve()
+                    .bodyToMono(BeatLeaderScoreResponse.class)
+                    .retryWhen(rateLimitRetrySpec())
+                    .block(timeout()));
+        } catch (WebClientResponseException.NotFound e) {
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("Failed to fetch BL player score for player={} leaderboard={}: {}",
+                    playerId, leaderboardId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     public List<BeatLeaderScoreResponse> getLeaderboardScores(String leaderboardId, int page, int count) {
         BeatLeaderLeaderboardResponse response = webClient.get()
                 .uri(uriBuilder -> uriBuilder

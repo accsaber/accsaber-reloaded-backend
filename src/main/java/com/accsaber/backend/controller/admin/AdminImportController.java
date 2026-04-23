@@ -1,11 +1,13 @@
 package com.accsaber.backend.controller.admin;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,6 +37,20 @@ public class AdminImportController {
     @PostMapping("/scores/backfill/{difficultyId}")
     public ResponseEntity<Void> backfillDifficulty(@PathVariable UUID difficultyId) {
         scoreImportService.backfillDifficultyAsync(difficultyId);
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Backfill a user across all ranked BL difficulties")
+    @PostMapping("/scores/backfill-user/{userId}")
+    public ResponseEntity<Void> backfillUser(@PathVariable Long userId) {
+        scoreImportService.backfillUserAsync(userId);
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Backfill multiple users across all ranked BL difficulties")
+    @PostMapping("/scores/backfill-users")
+    public ResponseEntity<Void> backfillUsers(@RequestBody List<Long> userIds) {
+        scoreImportService.backfillUsersAsync(userIds);
         return ResponseEntity.accepted().build();
     }
 

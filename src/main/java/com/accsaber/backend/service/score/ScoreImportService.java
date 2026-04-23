@@ -26,12 +26,16 @@ import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreRespons
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
+import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.score.ScoreModifierLink;
+import com.accsaber.backend.repository.ModifierRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.infra.ModifierCacheService;
@@ -60,6 +64,8 @@ public class ScoreImportService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyComplexityService mapComplexityService;
     private final ScoreRepository scoreRepository;
+    private final ScoreModifierLinkRepository scoreModifierLinkRepository;
+    private final ModifierRepository modifierRepository;
     private final UserRepository userRepository;
     private final ModifierCacheService modifierCacheService;
     private final StatisticsService statisticsService;
@@ -75,6 +81,8 @@ public class ScoreImportService {
     private Executor backfillExecutor;
 
     private static final int MAX_CONCURRENT_DIFFICULTIES = 3;
+    private static final int MAX_CONCURRENT_SCORE_FETCHES_PER_USER = 20;
+    private static final int MAX_CONCURRENT_USERS = 2;
 
     @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
     private long gapFillPageDelayMs;
@@ -187,6 +195,184 @@ public class ScoreImportService {
         });
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
+    }
+
+    public void backfillUser(Long userId) {
+        if (userRepository.findByIdAndActiveTrue(userId).isEmpty()) {
+            log.warn("Cannot backfill: user {} not found or inactive", userId);
+            return;
+        }
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+        List<MapDifficulty> ranked = mapDifficultyRepository
+                .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED).stream()
+                .filter(d -> d.getBlLeaderboardId() != null)
+                .toList();
+        if (ranked.isEmpty()) {
+            log.info("No ranked BL difficulties for user {} backfill", resolvedUserId);
+            return;
+        }
+
+        log.info("Starting user backfill for {} across {} ranked BL difficulties", resolvedUserId, ranked.size());
+        long start = System.currentTimeMillis();
+
+        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        Set<MapDifficulty> affectedDifficulties = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_SCORE_FETCHES_PER_USER);
+
+        List<Thread> threads = ranked.stream()
+                .map(difficulty -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        if (reconcileUserScoreForDifficulty(resolvedUserId, difficulty, modifiers)) {
+                            affectedDifficulties.add(difficulty);
+                        }
+                    } catch (Exception e) {
+                        log.error("User backfill failed for user {} difficulty {}: {}",
+                                resolvedUserId, difficulty.getId(), e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        threads.forEach(t -> {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        log.info("User backfill fetch done for {}: {} affected difficulties. Running recalc...",
+                resolvedUserId, affectedDifficulties.size());
+        batchRecalculateAfterUserBackfill(resolvedUserId, affectedDifficulties);
+
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("User backfill complete for {} in {}s", resolvedUserId, elapsed / 1000);
+    }
+
+    @Async("taskExecutor")
+    public void backfillUserAsync(Long userId) {
+        backfillUser(userId);
+    }
+
+    @Async("taskExecutor")
+    public void backfillUsersAsync(List<Long> userIds) {
+        log.info("Starting parallel user backfill for {} users", userIds.size());
+        long start = System.currentTimeMillis();
+        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_USERS);
+
+        List<Thread> threads = userIds.stream()
+                .map(userId -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        backfillUser(userId);
+                    } catch (Exception e) {
+                        log.error("Error backfilling user {}: {}", userId, e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+
+        threads.forEach(t -> {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("Parallel user backfill complete for {} users in {}s", userIds.size(), elapsed / 1000);
+    }
+
+    private boolean reconcileUserScoreForDifficulty(Long userId, MapDifficulty difficulty,
+            Map<String, UUID> modifiers) {
+        Optional<BeatLeaderScoreResponse> blOpt = beatLeaderClient.getPlayerScoreOnLeaderboard(
+                String.valueOf(userId), difficulty.getBlLeaderboardId());
+        if (blOpt.isEmpty())
+            return false;
+        BeatLeaderScoreResponse blScore = blOpt.get();
+        if (blScore.getBaseScore() == null)
+            return false;
+        if (PlatformScoreMapper.hasBannedModifier(blScore.getModifiers()))
+            return false;
+
+        Optional<Score> existing = scoreRepository
+                .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
+        if (existing.isPresent() && existing.get().getScoreNoMods() > blScore.getBaseScore()) {
+            return false;
+        }
+
+        BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
+        if (complexity == null) {
+            log.warn("No active complexity for difficulty {} - skipping user backfill entry", difficulty.getId());
+            return false;
+        }
+
+        if (blScore.getPlayer() == null || blScore.getPlayer().getId() == null) {
+            blScore.setPlayer(stubPlayer(userId));
+        }
+
+        Long affected = importBeatLeaderScore(blScore, difficulty, complexity, modifiers, true);
+        return affected != null;
+    }
+
+    private static BeatLeaderScoreResponse.Player stubPlayer(Long userId) {
+        BeatLeaderScoreResponse.Player p = new BeatLeaderScoreResponse.Player();
+        p.setId(String.valueOf(userId));
+        return p;
+    }
+
+    private void batchRecalculateAfterUserBackfill(Long userId, Set<MapDifficulty> affectedDifficulties) {
+        if (affectedDifficulties.isEmpty()) {
+            log.info("No new/changed scores for user {} - skipping user backfill recalc", userId);
+            return;
+        }
+
+        Set<UUID> affectedCategoryIds = affectedDifficulties.stream()
+                .map(d -> d.getCategory().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        boolean touchesOverall = affectedDifficulties.stream()
+                .anyMatch(d -> d.getCategory().isCountForOverall());
+
+        for (MapDifficulty difficulty : affectedDifficulties) {
+            try {
+                scoreRankingService.reassignRanks(difficulty.getId());
+                mapDifficultyStatisticsService.recalculate(difficulty, null);
+            } catch (Exception e) {
+                log.error("Difficulty recalc failed for difficulty {} during user {} backfill: {}",
+                        difficulty.getId(), userId, e.getMessage());
+            }
+        }
+
+        for (UUID categoryId : affectedCategoryIds) {
+            try {
+                statisticsService.recalculate(userId, categoryId, false);
+                rankingService.updateRankings(categoryId);
+            } catch (Exception e) {
+                log.error("Category recalc failed for category {} during user {} backfill: {}",
+                        categoryId, userId, e.getMessage());
+            }
+        }
+
+        if (touchesOverall) {
+            try {
+                overallStatisticsService.updateOverallRankings();
+            } catch (Exception e) {
+                log.error("Overall ranking recalc failed during user {} backfill: {}", userId, e.getMessage());
+            }
+        }
+
+        try {
+            var evaluation = milestoneEvaluationService.evaluateAllForUser(userId);
+            awardMilestoneXp(userId, evaluation);
+        } catch (Exception e) {
+            log.error("Milestone evaluation failed during user {} backfill: {}", userId, e.getMessage());
+        }
+
+        log.info("User backfill recalc complete for user {} ({} difficulties, {} categories)",
+                userId, affectedDifficulties.size(), affectedCategoryIds.size());
     }
 
     @Async("taskExecutor")
@@ -483,6 +669,7 @@ public class ScoreImportService {
             if (existingScore.isPresent()
                     && Objects.equals(existingScore.get().getScoreNoMods(), blScore.getBaseScore())) {
                 if (existingScore.get().getBlScoreId() != null) {
+                    reconcileModifierLinks(existingScore.get(), blScore.getModifiers());
                     return null;
                 }
                 enrichWithBeatLeaderData(existingScore.get(), blScore);
@@ -513,6 +700,15 @@ public class ScoreImportService {
         score.setPlayCount(blScore.getPlayCount() != null && blScore.getPlayCount() > 0
                 ? blScore.getPlayCount()
                 : null);
+        if (score.getMaxCombo() == null && blScore.getMaxCombo() != null && blScore.getMaxCombo() > 0) {
+            score.setMaxCombo(blScore.getMaxCombo());
+        }
+        if (score.getBadCuts() == null && blScore.getBadCuts() != null) {
+            score.setBadCuts(blScore.getBadCuts());
+        }
+        if (score.getMisses() == null && blScore.getMissedNotes() != null) {
+            score.setMisses(blScore.getMissedNotes());
+        }
         if (score.getHmd() == null && blScore.getHmd() != null) {
             score.setHmd(com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd()));
         }
@@ -520,7 +716,34 @@ public class ScoreImportService {
             score.setTimeSet(Instant.ofEpochSecond(blScore.getTimepost()));
         }
         scoreRepository.save(score);
-        log.debug("Enriched SS score {} with BL data (blScoreId={})", score.getId(), blScore.getId());
+        reconcileModifierLinks(score, blScore.getModifiers());
+        log.debug("Enriched score {} with BL data (blScoreId={})", score.getId(), blScore.getId());
+    }
+
+    private void reconcileModifierLinks(Score score, String modifiersStr) {
+        if (modifiersStr == null || modifiersStr.isBlank())
+            return;
+        Set<UUID> existingModifierIds = scoreModifierLinkRepository.findByScore_Id(score.getId()).stream()
+                .map(l -> l.getModifier().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, UUID> codeToId = modifierCacheService.getModifierCodeToId();
+        List<ScoreModifierLink> toAdd = new ArrayList<>();
+        for (String code : modifiersStr.split(",")) {
+            String trimmed = code.trim();
+            if (trimmed.isEmpty())
+                continue;
+            UUID modifierId = codeToId.get(trimmed);
+            if (modifierId == null || existingModifierIds.contains(modifierId))
+                continue;
+            Modifier modifier = modifierRepository.findById(modifierId).orElse(null);
+            if (modifier == null)
+                continue;
+            toAdd.add(ScoreModifierLink.builder().score(score).modifier(modifier).build());
+        }
+        if (!toAdd.isEmpty()) {
+            scoreModifierLinkRepository.saveAll(toAdd);
+            log.debug("Added {} missing modifier links to score {}", toAdd.size(), score.getId());
+        }
     }
 
     private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
