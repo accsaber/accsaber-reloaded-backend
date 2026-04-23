@@ -289,6 +289,7 @@ public class StatisticsService {
                 .rankedPlays(s.getRankedPlays())
                 .topPlayId(s.getTopPlay() != null ? s.getTopPlay().getId() : null)
                 .createdAt(s.getCreatedAt())
+                .updatedAt(s.getUpdatedAt())
                 .build();
     }
 }

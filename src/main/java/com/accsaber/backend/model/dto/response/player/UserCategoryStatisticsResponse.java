@@ -23,4 +23,5 @@ public class UserCategoryStatisticsResponse {
     private Integer rankedPlays;
     private UUID topPlayId;
     private Instant createdAt;
+    private Instant updatedAt;
 }
