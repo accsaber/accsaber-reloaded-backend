@@ -203,7 +203,7 @@ class OverallStatisticsServiceTest {
 
                         overallStatisticsService.recalculate(userId);
 
-                        verify(rankingService).updateRankingsAsync(overallCategory.getId());
+                        verify(rankingService).updateRankingForUserAsync(overallCategory.getId(), userId);
                 }
 
                 @Test

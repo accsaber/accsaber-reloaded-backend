@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.user;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -257,4 +258,130 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
             """, nativeQuery = true)
     List<Object[]> findRankingsOneWeekAgo(@Param("categoryId") UUID categoryId,
             @Param("userIds") List<Long> userIds);
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_category_statistics ucs
+            JOIN users u ON ucs.user_id = u.id
+            LEFT JOIN scores sp ON sp.id = ucs.top_play_id
+            WHERE ucs.category_id = :categoryId
+              AND ucs.active = true
+              AND u.active = true
+              AND u.banned = false
+              AND ucs.user_id <> :userId
+              AND (ucs.ap > :ap
+                   OR (ucs.ap = :ap
+                       AND sp.time_set IS NOT NULL
+                       AND (CAST(:tieBreaker AS timestamptz) IS NULL
+                            OR sp.time_set < CAST(:tieBreaker AS timestamptz))))
+            """, nativeQuery = true)
+    long countActiveAheadInCategory(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("ap") BigDecimal ap,
+            @Param("tieBreaker") Instant tieBreaker);
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM user_category_statistics ucs
+            JOIN users u ON ucs.user_id = u.id
+            LEFT JOIN scores sp ON sp.id = ucs.top_play_id
+            WHERE ucs.category_id = :categoryId
+              AND ucs.active = true
+              AND u.active = true
+              AND u.banned = false
+              AND u.country = :country
+              AND ucs.user_id <> :userId
+              AND (ucs.ap > :ap
+                   OR (ucs.ap = :ap
+                       AND sp.time_set IS NOT NULL
+                       AND (CAST(:tieBreaker AS timestamptz) IS NULL
+                            OR sp.time_set < CAST(:tieBreaker AS timestamptz))))
+            """, nativeQuery = true)
+    long countActiveAheadInCountry(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("country") String country,
+            @Param("ap") BigDecimal ap,
+            @Param("tieBreaker") Instant tieBreaker);
+
+    @Modifying
+    @Query(value = """
+            UPDATE user_category_statistics
+            SET ranking = ranking + 1, updated_at = NOW()
+            WHERE category_id = :categoryId AND active = true
+              AND user_id <> :userId
+              AND ranking IS NOT NULL
+              AND ranking >= :fromRank AND ranking < :toRankExclusive
+            """, nativeQuery = true)
+    void shiftGlobalRankingsDown(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("fromRank") int fromRank,
+            @Param("toRankExclusive") int toRankExclusive);
+
+    @Modifying
+    @Query(value = """
+            UPDATE user_category_statistics
+            SET ranking = ranking - 1, updated_at = NOW()
+            WHERE category_id = :categoryId AND active = true
+              AND user_id <> :userId
+              AND ranking IS NOT NULL
+              AND ranking > :fromRankExclusive AND ranking <= :toRank
+            """, nativeQuery = true)
+    void shiftGlobalRankingsUp(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("fromRankExclusive") int fromRankExclusive,
+            @Param("toRank") int toRank);
+
+    @Modifying
+    @Query(value = """
+            UPDATE user_category_statistics ucs
+            SET country_ranking = country_ranking + 1, updated_at = NOW()
+            FROM users u
+            WHERE ucs.user_id = u.id
+              AND ucs.category_id = :categoryId AND ucs.active = true
+              AND u.country = :country
+              AND ucs.user_id <> :userId
+              AND ucs.country_ranking IS NOT NULL
+              AND ucs.country_ranking >= :fromRank AND ucs.country_ranking < :toRankExclusive
+            """, nativeQuery = true)
+    void shiftCountryRankingsDown(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("country") String country,
+            @Param("fromRank") int fromRank,
+            @Param("toRankExclusive") int toRankExclusive);
+
+    @Modifying
+    @Query(value = """
+            UPDATE user_category_statistics ucs
+            SET country_ranking = country_ranking - 1, updated_at = NOW()
+            FROM users u
+            WHERE ucs.user_id = u.id
+              AND ucs.category_id = :categoryId AND ucs.active = true
+              AND u.country = :country
+              AND ucs.user_id <> :userId
+              AND ucs.country_ranking IS NOT NULL
+              AND ucs.country_ranking > :fromRankExclusive AND ucs.country_ranking <= :toRank
+            """, nativeQuery = true)
+    void shiftCountryRankingsUp(
+            @Param("categoryId") UUID categoryId,
+            @Param("userId") Long userId,
+            @Param("country") String country,
+            @Param("fromRankExclusive") int fromRankExclusive,
+            @Param("toRank") int toRank);
+
+    @Modifying
+    @Query(value = """
+            UPDATE user_category_statistics
+            SET ranking = :ranking, country_ranking = :countryRanking, updated_at = NOW()
+            WHERE user_id = :userId AND category_id = :categoryId AND active = true
+            """, nativeQuery = true)
+    void updateUserRankings(
+            @Param("userId") Long userId,
+            @Param("categoryId") UUID categoryId,
+            @Param("ranking") Integer ranking,
+            @Param("countryRanking") Integer countryRanking);
 }
