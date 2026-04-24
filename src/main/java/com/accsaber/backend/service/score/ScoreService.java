@@ -148,6 +148,8 @@ public class ScoreService {
 
                 final Long userId = user.getId();
                 final UUID scoreId = saved.getId();
+                final ScoreResponse response = toResponse(saved, accuracy, loadModifierIds(saved.getId()));
+                
                 rankingService.updateRankingForUserAsync(difficulty.getCategory().getId(), userId, () -> {
                         transactionTemplate.executeWithoutResult(status -> {
                                 Score freshScore = scoreRepository.findById(scoreId).orElse(null);
@@ -158,11 +160,10 @@ public class ScoreService {
                                                 || !evaluation.completedSets().isEmpty()) {
                                         awardMilestoneXp(userId, evaluation);
                                 }
+                                eventPublisher.publishEvent(new ScoreSubmittedEvent(response));
                         });
                 });
 
-                ScoreResponse response = toResponse(saved, accuracy, loadModifierIds(saved.getId()));
-                eventPublisher.publishEvent(new ScoreSubmittedEvent(response));
                 return response;
         }
 
