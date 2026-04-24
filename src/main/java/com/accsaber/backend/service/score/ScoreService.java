@@ -149,16 +149,17 @@ public class ScoreService {
                 final Long userId = user.getId();
                 final UUID scoreId = saved.getId();
                 final ScoreResponse response = toResponse(saved, accuracy, loadModifierIds(saved.getId()));
-                
+
                 rankingService.updateRankingForUserAsync(difficulty.getCategory().getId(), userId, () -> {
                         transactionTemplate.executeWithoutResult(status -> {
                                 Score freshScore = scoreRepository.findById(scoreId).orElse(null);
-                                if (freshScore == null)
-                                        return;
-                                var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, freshScore);
-                                if (!evaluation.completedMilestones().isEmpty()
-                                                || !evaluation.completedSets().isEmpty()) {
-                                        awardMilestoneXp(userId, evaluation);
+                                if (freshScore != null) {
+                                        var evaluation = milestoneEvaluationService.evaluateAfterScore(userId,
+                                                        freshScore);
+                                        if (!evaluation.completedMilestones().isEmpty()
+                                                        || !evaluation.completedSets().isEmpty()) {
+                                                awardMilestoneXp(userId, evaluation);
+                                        }
                                 }
                                 eventPublisher.publishEvent(new ScoreSubmittedEvent(response));
                         });

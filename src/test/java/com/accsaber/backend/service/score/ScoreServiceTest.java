@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -24,6 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -85,6 +88,8 @@ class ScoreServiceTest {
         private DuplicateUserService duplicateUserService;
         @Mock
         private ApplicationEventPublisher eventPublisher;
+        @Mock
+        private TransactionTemplate transactionTemplate;
 
         @InjectMocks
         private ScoreService scoreService;
@@ -178,6 +183,19 @@ class ScoreServiceTest {
                 lenient().when(milestoneEvaluationService.evaluateAfterScore(any(), any()))
                                 .thenReturn(new MilestoneEvaluationService.EvaluationResult(
                                                 Collections.emptyList(), Collections.emptyList()));
+                lenient().doAnswer(inv -> {
+                        Runnable cb = inv.getArgument(2);
+                        if (cb != null)
+                                cb.run();
+                        return null;
+                }).when(rankingService).updateRankingForUserAsync(any(UUID.class), any(Long.class),
+                                any(Runnable.class));
+                lenient().doAnswer(inv -> {
+                        @SuppressWarnings("unchecked")
+                        Consumer<TransactionStatus> cb = (Consumer<TransactionStatus>) inv.getArgument(0);
+                        cb.accept(null);
+                        return null;
+                }).when(transactionTemplate).executeWithoutResult(any());
         }
 
         @Nested
