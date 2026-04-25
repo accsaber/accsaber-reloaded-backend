@@ -332,6 +332,7 @@ public class BatchService {
                 .songAuthor(map.getSongAuthor())
                 .mapAuthor(map.getMapAuthor())
                 .coverUrl(map.getCoverUrl())
+                .beatsaverCode(map.getBeatsaverCode())
                 .categoryId(d.getCategory().getId())
                 .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
                 .difficulty(d.getDifficulty())
