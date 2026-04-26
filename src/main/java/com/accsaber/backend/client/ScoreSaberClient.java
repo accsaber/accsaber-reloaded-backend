@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
@@ -22,12 +21,9 @@ import reactor.util.retry.Retry;
 public class ScoreSaberClient {
 
     private final WebClient webClient;
-    private final PlatformProperties properties;
 
-    public ScoreSaberClient(@Qualifier("scoreSaberWebClient") WebClient webClient,
-            PlatformProperties properties) {
+    public ScoreSaberClient(@Qualifier("scoreSaberWebClient") WebClient webClient) {
         this.webClient = webClient;
-        this.properties = properties;
     }
 
     public Optional<ScoreSaberPlayerResponse> getPlayer(String steamId) {
@@ -36,8 +32,8 @@ public class ScoreSaberClient {
                     .uri("/player/{id}/basic", steamId)
                     .retrieve()
                     .bodyToMono(ScoreSaberPlayerResponse.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout()));
+                    .retryWhen(rateLimitRetrySpec())
+                    .block());
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
         } catch (Exception e) {
@@ -55,7 +51,7 @@ public class ScoreSaberClient {
                 .retrieve()
                 .bodyToMono(ScoreSaberScoresPage.class)
                 .retryWhen(rateLimitRetrySpec())
-                .block(timeout());
+                .block();
     }
 
     public Optional<ScoreSaberLeaderboardResponse> getLeaderboard(String leaderboardId) {
@@ -64,8 +60,8 @@ public class ScoreSaberClient {
                     .uri("/leaderboard/by-id/{id}/info", leaderboardId)
                     .retrieve()
                     .bodyToMono(ScoreSaberLeaderboardResponse.class)
-                    .retryWhen(retrySpec())
-                    .block(timeout()));
+                    .retryWhen(rateLimitRetrySpec())
+                    .block());
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
         } catch (Exception e) {
@@ -84,37 +80,33 @@ public class ScoreSaberClient {
                     .retrieve()
                     .bodyToMono(ScoreSaberScoresPage.class)
                     .retryWhen(rateLimitRetrySpec())
-                    .block(timeout());
+                    .block();
         } catch (Exception e) {
             log.error("Failed to fetch SS recent scores for {}: {}", leaderboardId, e.getMessage());
             return null;
         }
     }
 
-    private Retry retrySpec() {
-        return Retry.backoff(properties.getScoresaber().getMaxRetries(), Duration.ofSeconds(1))
-                .maxBackoff(Duration.ofSeconds(10))
-                .jitter(0.5)
-                .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound)
-                        && !(throwable instanceof DecodingException));
-    }
-
     private Retry rateLimitRetrySpec() {
-        return Retry.backoff(10, Duration.ofSeconds(3))
+        return Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(3))
                 .maxBackoff(Duration.ofSeconds(60))
                 .jitter(0.3)
                 .filter(throwable -> {
-                    if (throwable instanceof WebClientResponseException.NotFound) return false;
-                    if (throwable instanceof DecodingException) return false;
-                    if (throwable instanceof WebClientResponseException wce && wce.getStatusCode().value() == 429) {
-                        log.warn("ScoreSaber 429 rate limited, backing off and retrying");
-                        return true;
+                    if (throwable instanceof WebClientResponseException.NotFound)
+                        return false;
+                    if (throwable instanceof DecodingException)
+                        return false;
+                    if (throwable instanceof WebClientResponseException wce) {
+                        int code = wce.getStatusCode().value();
+                        if (code == 429) {
+                            log.warn("ScoreSaber 429 rate limited, backing off and retrying");
+                            return true;
+                        }
+                        if (code >= 400 && code < 500) {
+                            return false;
+                        }
                     }
                     return true;
                 });
-    }
-
-    private Duration timeout() {
-        return Duration.ofMillis(properties.getScoresaber().getTimeoutMs());
     }
 }
