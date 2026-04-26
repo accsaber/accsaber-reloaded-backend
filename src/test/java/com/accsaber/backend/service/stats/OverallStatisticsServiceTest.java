@@ -106,7 +106,7 @@ class OverallStatisticsServiceTest {
                                         5);
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
                                         .thenReturn(List.of(s1, s2));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -127,7 +127,7 @@ class OverallStatisticsServiceTest {
                                         5);
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
                                         .thenReturn(List.of(s1, s2));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -148,7 +148,7 @@ class OverallStatisticsServiceTest {
                                         new BigDecimal("0.960000"), 5, new BigDecimal("150.000000"));
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
                                         .thenReturn(List.of(s1, s2));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -175,7 +175,7 @@ class OverallStatisticsServiceTest {
                                         .active(true)
                                         .build();
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId)).thenReturn(List.of(s1));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.of(existing));
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -196,7 +196,7 @@ class OverallStatisticsServiceTest {
                         UserCategoryStatistics s1 = buildStat(new BigDecimal("500.000000"), new BigDecimal("0.980000"),
                                         10);
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId)).thenReturn(List.of(s1));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -209,7 +209,7 @@ class OverallStatisticsServiceTest {
                 @Test
                 void emptyStats_savesZeroApOverallRecord() {
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId)).thenReturn(List.of());
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -236,7 +236,7 @@ class OverallStatisticsServiceTest {
                                         .active(true)
                                         .build();
                         when(statisticsRepository.findActiveByUserWhereCountForOverall(userId)).thenReturn(List.of());
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(userId,
+                        when(statisticsRepository.findActiveForUpdate(userId,
                                         overallCategory.getId()))
                                         .thenReturn(Optional.of(existing));
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));

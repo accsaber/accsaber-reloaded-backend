@@ -157,7 +157,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(score));
                         when(apCalculationService.calculateWeightedAP(score.getAp(), 0, weightCurve))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -182,7 +182,7 @@ class StatisticsServiceTest {
                                         .thenReturn(new BigDecimal("386.000000"));
                         when(apCalculationService.calculateWeightedAP(s3.getAp(), 2, weightCurve))
                                         .thenReturn(new BigDecimal("279.490000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -209,7 +209,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(score));
                         when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.of(existing));
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -232,7 +232,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(score));
                         when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -254,7 +254,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(s1, s2));
                         when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
                                         .thenReturn(new BigDecimal("450.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -272,7 +272,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(s1));
                         when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(user.getId(),
+                        when(statisticsRepository.findActiveForUpdate(user.getId(),
                                         category.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -302,7 +302,7 @@ class StatisticsServiceTest {
                                         .thenReturn(List.of(score));
                         when(apCalculationService.calculateWeightedAP(any(), any(int.class), any()))
                                         .thenReturn(new BigDecimal("500.000000"));
-                        when(statisticsRepository.findByUser_IdAndCategory_IdAndActiveTrue(
+                        when(statisticsRepository.findActiveForUpdate(
                                         user.getId(), countForOverallCategory.getId()))
                                         .thenReturn(Optional.empty());
                         when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
