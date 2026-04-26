@@ -15,11 +15,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
 import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
 import com.accsaber.backend.model.dto.response.news.NewsResponse;
+import com.accsaber.backend.model.entity.news.NewsStatus;
+import com.accsaber.backend.model.entity.news.NewsType;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.news.NewsService;
 
@@ -37,12 +40,15 @@ public class RankingNewsController {
 
     private final NewsService newsService;
 
-    @Operation(summary = "List news authored by the current staff user")
+    @Operation(summary = "List news authored by the current staff user", description = "Optional ?status and ?type filters")
     @GetMapping("/mine")
     public ResponseEntity<Page<NewsResponse>> listMine(
+            @RequestParam(required = false) NewsStatus status,
+            @RequestParam(required = false) NewsType type,
             @PageableDefault(size = 20) Pageable pageable,
             Authentication authentication) {
-        return ResponseEntity.ok(newsService.findStaffByAuthor(StaffPrincipals.staffIdOf(authentication), pageable));
+        return ResponseEntity.ok(newsService.findStaffByAuthor(
+                StaffPrincipals.staffIdOf(authentication), status, type, pageable));
     }
 
     @Operation(summary = "Get a news post (any status) by id")

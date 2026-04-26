@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
 import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
 import com.accsaber.backend.model.dto.response.news.NewsResponse;
+import com.accsaber.backend.model.entity.news.NewsStatus;
+import com.accsaber.backend.model.entity.news.NewsType;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.news.NewsService;
 
@@ -39,10 +41,13 @@ public class AdminNewsController {
 
     private final NewsService newsService;
 
-    @Operation(summary = "List all active news (any status)")
+    @Operation(summary = "List all active news", description = "Optional ?status and ?type filters")
     @GetMapping
-    public ResponseEntity<Page<NewsResponse>> list(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(newsService.findStaffAll(pageable));
+    public ResponseEntity<Page<NewsResponse>> list(
+            @RequestParam(required = false) NewsStatus status,
+            @RequestParam(required = false) NewsType type,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(newsService.findStaffAll(status, type, pageable));
     }
 
     @Operation(summary = "Get any news post by id")

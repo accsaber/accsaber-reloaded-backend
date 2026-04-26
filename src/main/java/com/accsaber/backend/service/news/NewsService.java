@@ -25,6 +25,7 @@ import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.news.News;
 import com.accsaber.backend.model.entity.news.NewsStatus;
+import com.accsaber.backend.model.entity.news.NewsType;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.CurveRepository;
@@ -51,8 +52,9 @@ public class NewsService {
     private final MilestoneSetRepository milestoneSetRepository;
     private final CurveRepository curveRepository;
 
-    public Page<PublicNewsResponse> findPublic(Pageable pageable) {
-        return newsRepository.findByActiveTrueAndStatus(NewsStatus.PUBLISHED, applyPublicSort(pageable))
+    public Page<PublicNewsResponse> findPublic(NewsType type, Pageable pageable) {
+        return newsRepository
+                .search(NewsStatus.PUBLISHED, null, type != null ? type.filterCode() : 0, applyPublicSort(pageable))
                 .map(NewsService::toPublicResponse);
     }
 
@@ -70,12 +72,16 @@ public class NewsService {
         return toPublicResponse(news);
     }
 
-    public Page<NewsResponse> findStaffAll(Pageable pageable) {
-        return newsRepository.findByActiveTrue(pageable).map(NewsService::toResponse);
+    public Page<NewsResponse> findStaffAll(NewsStatus status, NewsType type, Pageable pageable) {
+        return newsRepository
+                .search(status, null, type != null ? type.filterCode() : 0, pageable)
+                .map(NewsService::toResponse);
     }
 
-    public Page<NewsResponse> findStaffByAuthor(UUID staffUserId, Pageable pageable) {
-        return newsRepository.findByStaffUser_Id(staffUserId, pageable).map(NewsService::toResponse);
+    public Page<NewsResponse> findStaffByAuthor(UUID staffUserId, NewsStatus status, NewsType type, Pageable pageable) {
+        return newsRepository
+                .search(status, staffUserId, type != null ? type.filterCode() : 0, pageable)
+                .map(NewsService::toResponse);
     }
 
     public NewsResponse findStaffById(UUID id) {
@@ -267,6 +273,7 @@ public class NewsService {
                 .content(news.getContent())
                 .imageUrl(news.getImageUrl())
                 .status(news.getStatus())
+                .type(NewsType.of(news))
                 .pinned(news.isPinned())
                 .batchId(news.getBatch() != null ? news.getBatch().getId() : null)
                 .campaignId(news.getCampaign() != null ? news.getCampaign().getId() : null)
@@ -289,6 +296,7 @@ public class NewsService {
                 .description(news.getDescription())
                 .content(news.getContent())
                 .imageUrl(news.getImageUrl())
+                .type(NewsType.of(news))
                 .pinned(news.isPinned())
                 .batchId(news.getBatch() != null ? news.getBatch().getId() : null)
                 .campaignId(news.getCampaign() != null ? news.getCampaign().getId() : null)

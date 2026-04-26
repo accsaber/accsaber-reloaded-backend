@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.accsaber.backend.model.entity.news.NewsStatus;
+import com.accsaber.backend.model.entity.news.NewsType;
 
 import lombok.Builder;
 import lombok.Value;
@@ -21,6 +22,7 @@ public class NewsResponse {
     String content;
     String imageUrl;
     NewsStatus status;
+    NewsType type;
     boolean pinned;
     UUID batchId;
     UUID campaignId;
