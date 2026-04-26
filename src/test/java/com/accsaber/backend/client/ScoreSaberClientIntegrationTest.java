@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
@@ -27,18 +26,11 @@ class ScoreSaberClientIntegrationTest {
 
     @BeforeAll
     static void setUp() {
-        PlatformProperties properties = new PlatformProperties();
-        PlatformProperties.PlatformConfig config = new PlatformProperties.PlatformConfig();
-        config.setBaseUrl("https://scoresaber.com/api");
-        config.setTimeoutMs(15000);
-        config.setMaxRetries(2);
-        properties.setScoresaber(config);
-
         WebClient webClient = WebClient.builder()
-                .baseUrl(config.getBaseUrl())
+                .baseUrl("https://scoresaber.com/api")
                 .build();
 
-        client = new ScoreSaberClient(webClient, properties);
+        client = new ScoreSaberClient(webClient);
     }
 
     @Nested
