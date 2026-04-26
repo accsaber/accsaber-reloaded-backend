@@ -22,7 +22,7 @@ public class MapAvgApResponse {
     private Difficulty difficulty;
     private UUID categoryId;
     private String categoryName;
-    private BigDecimal averageAp;
+    private BigDecimal averageWeightedAp;
     private long scoreCount;
     private UUID latestScoreId;
     private Instant latestScoreTimeSet;

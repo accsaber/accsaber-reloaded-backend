@@ -50,7 +50,7 @@ public class SiteStatisticsController {
         return ResponseEntity.ok(siteStatisticsService.getTopByAp(categoryId, pageable));
     }
 
-    @Operation(summary = "Maps with highest average AP", description = "Map difficulties ranked by average AP across all scores. Optional category filter and minimum score threshold.")
+    @Operation(summary = "Maps with highest average weighted AP", description = "Map difficulties ranked by average weighted AP across all scores. Optional category filter and minimum score threshold.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<Page<MapAvgApResponse>> getHighestAvgAp(
             @RequestParam(required = false) UUID categoryId,

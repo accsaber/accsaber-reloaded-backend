@@ -435,12 +435,12 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.map m
                         JOIN FETCH d.category c
-                        WHERE (s.active = true OR s.supersedesReason = 'Score improved')
+                        WHERE s.active = true
                         AND u.active = true AND u.banned = false
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
-                        WHERE (s.active = true OR s.supersedesReason = 'Score improved')
+                        WHERE s.active = true
                         AND u.active = true AND u.banned = false
                         """)
         Page<Score> findTopByAp(Pageable pageable);
@@ -451,14 +451,14 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.map m
                         JOIN FETCH d.category c
-                        WHERE (s.active = true OR s.supersedesReason = 'Score improved')
+                        WHERE s.active = true
                         AND d.category.id = :categoryId
                         AND u.active = true AND u.banned = false
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         JOIN s.mapDifficulty d
-                        WHERE (s.active = true OR s.supersedesReason = 'Score improved')
+                        WHERE s.active = true
                         AND d.category.id = :categoryId
                         AND u.active = true AND u.banned = false
                         """)

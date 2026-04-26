@@ -67,14 +67,14 @@ public class SiteStatisticsService {
                 return page.map(scoreService::mapToResponse);
         }
 
-        @Cacheable(value = "statistics", key = "'highavgap:' + #categoryId + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        @Cacheable(value = "statistics", key = "'highavgweightedap:' + #categoryId + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<MapAvgApResponse> getHighestAvgAp(UUID categoryId, int minScores, Pageable pageable) {
                 String sql = """
                                 SELECT d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url,
                                         d.difficulty, c.id AS cat_id, c.name AS cat_name,
-                                        AVG(s.ap) AS avg_ap, COUNT(*) AS score_count,
+                                        AVG(s.weighted_ap) AS avg_weighted_ap, COUNT(*) AS score_count,
                                         MAX(s.time_set) AS latest_time_set,
-                                        (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id 
+                                        (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id
                                         AND s2.active = true ORDER BY s2.time_set DESC NULLS LAST LIMIT 1) AS latest_score_id
                                 FROM scores s
                                 JOIN map_difficulties d ON d.id = s.map_difficulty_id
@@ -88,7 +88,7 @@ public class SiteStatisticsService {
                 }
                 sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url," +
                                 " d.difficulty, c.id, c.name HAVING COUNT(*) >= :minScores" +
-                                " ORDER BY avg_ap DESC, score_count DESC, m.song_name ASC";
+                                " ORDER BY avg_weighted_ap DESC, score_count DESC, m.song_name ASC";
 
                 Map<String, Object> params = new LinkedHashMap<>();
                 if (categoryId != null)
@@ -105,7 +105,7 @@ public class SiteStatisticsService {
                                 .difficulty(Difficulty.fromDbValue((String) row[6]))
                                 .categoryId((UUID) row[7])
                                 .categoryName((String) row[8])
-                                .averageAp((BigDecimal) row[9])
+                                .averageWeightedAp((BigDecimal) row[9])
                                 .scoreCount(((Number) row[10]).longValue())
                                 .latestScoreTimeSet(row[11] != null ? (Instant) row[11] : null)
                                 .latestScoreId(row[12] != null ? (UUID) row[12] : null)
