@@ -13,4 +13,5 @@ public class RankedDifficultyResponse {
     String songHash;
     Difficulty difficulty;
     BigDecimal complexity;
+    String categoryCode;
 }

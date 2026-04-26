@@ -9,15 +9,27 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 
+import jakarta.persistence.LockModeType;
+
 public interface UserCategoryStatisticsRepository extends JpaRepository<UserCategoryStatistics, UUID> {
 
     Optional<UserCategoryStatistics> findByUser_IdAndCategory_IdAndActiveTrue(Long userId, UUID categoryId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT s FROM UserCategoryStatistics s
+            WHERE s.user.id = :userId AND s.category.id = :categoryId AND s.active = true
+            """)
+    Optional<UserCategoryStatistics> findActiveForUpdate(
+            @Param("userId") Long userId,
+            @Param("categoryId") UUID categoryId);
 
     Optional<UserCategoryStatistics> findByUser_IdAndCategory_CodeAndActiveTrue(Long userId, String categoryCode);
 

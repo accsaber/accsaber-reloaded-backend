@@ -44,6 +44,10 @@ public class OverallStatisticsService {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
+                UserCategoryStatistics current = statisticsRepository
+                                .findActiveForUpdate(userId, overallCategory.getId())
+                                .orElse(null);
+
                 List<UserCategoryStatistics> sourceStats = statisticsRepository
                                 .findActiveByUserWhereCountForOverall(userId);
 
@@ -59,10 +63,6 @@ public class OverallStatisticsService {
                                 .filter(Objects::nonNull)
                                 .filter(s -> s.getAp() != null)
                                 .max(Comparator.comparing(Score::getAp))
-                                .orElse(null);
-
-                UserCategoryStatistics current = statisticsRepository
-                                .findByUser_IdAndCategory_IdAndActiveTrue(userId, overallCategory.getId())
                                 .orElse(null);
 
                 if (current != null) {

@@ -310,6 +310,7 @@ public class MapService {
                         .songHash((String) row[0])
                         .difficulty((Difficulty) row[1])
                         .complexity((BigDecimal) row[2])
+                        .categoryCode((String) row[3])
                         .build())
                 .toList();
     }

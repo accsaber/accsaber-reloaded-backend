@@ -104,15 +104,19 @@ public class ScoreRecalculationService {
         apCalculationService.evictAllCurveCaches();
 
         ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
+        ConcurrentHashMap<UUID, Boolean> categoryIsOverall = new ConcurrentHashMap<>();
 
         List<CompletableFuture<Void>> futures = difficulties.stream()
                 .map(difficulty -> CompletableFuture.runAsync(() -> {
                     try {
                         Set<Long> affected = recalculateRawApForDifficulty(difficulty);
                         if (!affected.isEmpty()) {
+                            UUID categoryId = difficulty.getCategory().getId();
                             affectedByCategory.computeIfAbsent(
-                                    difficulty.getCategory().getId(), k -> ConcurrentHashMap.newKeySet())
+                                    categoryId, k -> ConcurrentHashMap.newKeySet())
                                     .addAll(affected);
+                            categoryIsOverall.putIfAbsent(categoryId,
+                                    difficulty.getCategory().isCountForOverall());
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
                             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
@@ -125,13 +129,10 @@ public class ScoreRecalculationService {
 
         futures.forEach(CompletableFuture::join);
 
-        for (var entry : affectedByCategory.entrySet()) {
-            batchRecalculateStats(entry.getValue(), entry.getKey());
-            rankingService.updateRankings(entry.getKey());
-        }
+        coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
+
         boolean anyChanges = affectedByCategory.values().stream().anyMatch(s -> !s.isEmpty());
         if (anyChanges) {
-            overallStatisticsService.updateOverallRankings();
             userRepository.recalculateTotalXpForAllActiveUsers();
         }
 
@@ -158,15 +159,19 @@ public class ScoreRecalculationService {
         }
 
         ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
+        ConcurrentHashMap<UUID, Boolean> categoryIsOverall = new ConcurrentHashMap<>();
 
         List<CompletableFuture<Void>> futures = difficulties.stream()
                 .map(difficulty -> CompletableFuture.runAsync(() -> {
                     try {
                         Set<Long> affected = recalculateRawApForDifficulty(difficulty);
                         if (!affected.isEmpty()) {
+                            UUID categoryId = difficulty.getCategory().getId();
                             affectedByCategory.computeIfAbsent(
-                                    difficulty.getCategory().getId(), k -> ConcurrentHashMap.newKeySet())
+                                    categoryId, k -> ConcurrentHashMap.newKeySet())
                                     .addAll(affected);
+                            categoryIsOverall.putIfAbsent(categoryId,
+                                    difficulty.getCategory().isCountForOverall());
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
                             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
@@ -179,11 +184,7 @@ public class ScoreRecalculationService {
 
         futures.forEach(CompletableFuture::join);
 
-        for (var entry : affectedByCategory.entrySet()) {
-            batchRecalculateStats(entry.getValue(), entry.getKey());
-            rankingService.updateRankings(entry.getKey());
-        }
-        overallStatisticsService.updateOverallRankings();
+        coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
 
         userRepository.recalculateTotalXpForAllActiveUsers();
 
@@ -289,6 +290,72 @@ public class ScoreRecalculationService {
 
         futures.forEach(CompletableFuture::join);
         return affected;
+    }
+
+    private void coalescedStatsRecalc(java.util.Map<UUID, Set<Long>> affectedByCategory,
+            java.util.Map<UUID, Boolean> categoryIsOverall) {
+        if (affectedByCategory.isEmpty()) {
+            return;
+        }
+
+        Set<Long> allUsers = new HashSet<>();
+        Set<Long> overallUsers = new HashSet<>();
+        for (var e : affectedByCategory.entrySet()) {
+            allUsers.addAll(e.getValue());
+            if (Boolean.TRUE.equals(categoryIsOverall.get(e.getKey()))) {
+                overallUsers.addAll(e.getValue());
+            }
+        }
+
+        List<CompletableFuture<Void>> statsFutures = new java.util.ArrayList<>();
+        for (var e : affectedByCategory.entrySet()) {
+            UUID categoryId = e.getKey();
+            for (Long userId : e.getValue()) {
+                statsFutures.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        statisticsService.recalculate(userId, categoryId, false, false);
+                    } catch (Exception ex) {
+                        log.error("Stats recalc failed for user {} category {}: {}",
+                                userId, categoryId, ex.getMessage());
+                    }
+                }, backfillExecutor));
+            }
+        }
+        statsFutures.forEach(CompletableFuture::join);
+
+        List<CompletableFuture<Void>> userFutures = allUsers.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        if (overallUsers.contains(userId)) {
+                            overallStatisticsService.recalculate(userId, false);
+                        }
+                        var evaluation = milestoneEvaluationService.evaluateAllForUser(userId);
+                        awardMilestoneXp(userId, evaluation);
+                    } catch (Exception ex) {
+                        log.error("Per-user post-recalc failed for user {}: {}",
+                                userId, ex.getMessage());
+                    }
+                }, backfillExecutor))
+                .toList();
+        userFutures.forEach(CompletableFuture::join);
+
+        for (UUID categoryId : affectedByCategory.keySet()) {
+            try {
+                rankingService.updateRankings(categoryId);
+            } catch (Exception ex) {
+                log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
+            }
+        }
+
+        boolean anyOverall = overallUsers.size() > 0
+                || categoryIsOverall.values().stream().anyMatch(Boolean.TRUE::equals);
+        if (anyOverall) {
+            try {
+                overallStatisticsService.updateOverallRankings();
+            } catch (Exception ex) {
+                log.error("Overall ranking update failed: {}", ex.getMessage());
+            }
+        }
     }
 
     private void batchRecalculateStats(Set<Long> userIds, UUID categoryId) {

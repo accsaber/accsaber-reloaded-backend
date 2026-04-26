@@ -88,10 +88,18 @@ public class ScoreImportService {
     private long gapFillPageDelayMs;
 
     public void backfillDifficulty(MapDifficulty difficulty) {
+        Set<Long> affectedUserIds = importDifficulty(difficulty);
+        if (affectedUserIds == null) {
+            return;
+        }
+        batchRecalculateAfterBackfill(difficulty, affectedUserIds, true);
+    }
+
+    private Set<Long> importDifficulty(MapDifficulty difficulty) {
         BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
         if (complexity == null) {
             log.warn("No active complexity for difficulty {} - skipping backfill", difficulty.getId());
-            return;
+            return null;
         }
 
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
@@ -112,10 +120,10 @@ public class ScoreImportService {
         }
 
         log.info(
-                "Backfill import done for difficulty {}: {} BL scores, {} SS scores. Running batch recalc for {} affected users...",
+                "Backfill import done for difficulty {}: {} BL scores, {} SS scores ({} affected users)",
                 difficulty.getId(), blImported, ssImported, affectedUserIds.size());
 
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds, true);
+        return affectedUserIds;
     }
 
     @Async("taskExecutor")
@@ -134,6 +142,7 @@ public class ScoreImportService {
         log.info("Starting parallel backfill for {} difficulties", mapDifficultyIds.size());
         long start = System.currentTimeMillis();
         Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
+        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
 
         List<Thread> threads = mapDifficultyIds.stream()
                 .map(id -> Thread.startVirtualThread(() -> {
@@ -145,7 +154,10 @@ public class ScoreImportService {
                             log.warn("Cannot backfill: difficulty {} not found or inactive", id);
                             return;
                         }
-                        backfillDifficulty(difficulty);
+                        Set<Long> users = importDifficulty(difficulty);
+                        if (users != null) {
+                            imported.put(difficulty, users);
+                        }
                     } catch (Exception e) {
                         log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
                     } finally {
@@ -154,13 +166,10 @@ public class ScoreImportService {
                 }))
                 .toList();
 
-        threads.forEach(t -> {
-            try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+        joinAll(threads);
+
+        coalescedRecalcAfterBatchBackfill(imported, true);
+
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill complete for {} difficulties in {}s", mapDifficultyIds.size(), elapsed / 1000);
     }
@@ -172,12 +181,16 @@ public class ScoreImportService {
         log.info("Starting parallel backfill for {} ranked difficulties", ranked.size());
         long start = System.currentTimeMillis();
         Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
+        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
 
         List<Thread> threads = ranked.stream()
                 .map(difficulty -> Thread.startVirtualThread(() -> {
                     semaphore.acquireUninterruptibly();
                     try {
-                        backfillDifficulty(difficulty);
+                        Set<Long> users = importDifficulty(difficulty);
+                        if (users != null) {
+                            imported.put(difficulty, users);
+                        }
                     } catch (Exception e) {
                         log.error("Error backfilling difficulty {}: {}", difficulty.getId(), e.getMessage());
                     } finally {
@@ -186,6 +199,17 @@ public class ScoreImportService {
                 }))
                 .toList();
 
+        joinAll(threads);
+
+        coalescedRecalcAfterBatchBackfill(imported, true);
+
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
+        log.info("Running post-backfill rank repair");
+        scoreRankingService.reassignAllRanks();
+    }
+
+    private static void joinAll(List<Thread> threads) {
         threads.forEach(t -> {
             try {
                 t.join();
@@ -193,10 +217,6 @@ public class ScoreImportService {
                 Thread.currentThread().interrupt();
             }
         });
-        long elapsed = System.currentTimeMillis() - start;
-        log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
-        log.info("Running post-backfill rank repair");
-        scoreRankingService.reassignAllRanks();
     }
 
     public void backfillUser(Long userId) {
@@ -385,12 +405,16 @@ public class ScoreImportService {
 
         long start = System.currentTimeMillis();
         Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
+        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
 
         List<Thread> threads = ranked.stream()
                 .map(difficulty -> Thread.startVirtualThread(() -> {
                     semaphore.acquireUninterruptibly();
                     try {
-                        startupGapFillDifficulty(difficulty, since);
+                        Set<Long> users = startupGapFillImport(difficulty, since);
+                        if (users != null) {
+                            imported.put(difficulty, users);
+                        }
                     } catch (Exception e) {
                         log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
                     } finally {
@@ -399,24 +423,21 @@ public class ScoreImportService {
                 }))
                 .toList();
 
-        threads.forEach(t -> {
-            try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+        joinAll(threads);
+
+        coalescedRecalcAfterBatchBackfill(imported, false);
+
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel gap-fill complete for {} difficulties in {}s", ranked.size(), elapsed / 1000);
         log.info("Running post-gap-fill rank repair");
         scoreRankingService.reassignAllRanks();
     }
 
-    private void startupGapFillDifficulty(MapDifficulty difficulty, Instant since) {
+    private Set<Long> startupGapFillImport(MapDifficulty difficulty, Instant since) {
         BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
         if (complexity == null) {
             log.warn("No active complexity for difficulty {} - skipping gap-fill", difficulty.getId());
-            return;
+            return null;
         }
 
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
@@ -426,7 +447,7 @@ public class ScoreImportService {
             affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
         }
 
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds, false);
+        return affectedUserIds;
     }
 
     private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
@@ -507,6 +528,104 @@ public class ScoreImportService {
                 }
             }
         }
+    }
+
+    private void coalescedRecalcAfterBatchBackfill(java.util.Map<MapDifficulty, Set<Long>> imported,
+            boolean syncRankWhenSet) {
+        if (imported.isEmpty()) {
+            log.info("No new scores imported across batch - skipping coalesced recalc");
+            return;
+        }
+
+        java.util.Map<UUID, Set<Long>> usersByCategory = new java.util.HashMap<>();
+        Set<Long> allAffectedUsers = new HashSet<>();
+        java.util.Map<Long, Boolean> userTouchesOverall = new java.util.HashMap<>();
+        boolean anyOverall = false;
+
+        for (java.util.Map.Entry<MapDifficulty, Set<Long>> e : imported.entrySet()) {
+            MapDifficulty difficulty = e.getKey();
+            Set<Long> users = e.getValue();
+            if (users.isEmpty()) continue;
+            UUID categoryId = difficulty.getCategory().getId();
+            usersByCategory.computeIfAbsent(categoryId, k -> new HashSet<>()).addAll(users);
+            allAffectedUsers.addAll(users);
+            if (difficulty.getCategory().isCountForOverall()) {
+                anyOverall = true;
+                for (Long u : users) userTouchesOverall.put(u, Boolean.TRUE);
+            }
+        }
+
+        log.info("Coalesced recalc: {} difficulties, {} unique users, {} categories",
+                imported.size(), allAffectedUsers.size(), usersByCategory.size());
+
+        List<CompletableFuture<Void>> diffFutures = imported.keySet().stream()
+                .filter(d -> !imported.get(d).isEmpty())
+                .map(difficulty -> CompletableFuture.runAsync(() -> {
+                    try {
+                        if (syncRankWhenSet) {
+                            scoreRankingService.reassignRanksForBackfill(difficulty.getId());
+                        } else {
+                            scoreRankingService.reassignRanks(difficulty.getId());
+                        }
+                        mapDifficultyStatisticsService.recalculate(difficulty, null);
+                    } catch (Exception ex) {
+                        log.error("Per-difficulty recalc failed for {}: {}",
+                                difficulty.getId(), ex.getMessage());
+                    }
+                }, backfillExecutor))
+                .toList();
+        diffFutures.forEach(CompletableFuture::join);
+
+        List<CompletableFuture<Void>> statsFutures = new ArrayList<>();
+        for (java.util.Map.Entry<UUID, Set<Long>> e : usersByCategory.entrySet()) {
+            UUID categoryId = e.getKey();
+            for (Long userId : e.getValue()) {
+                statsFutures.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        statisticsService.recalculate(userId, categoryId, false, false);
+                    } catch (Exception ex) {
+                        log.error("Stats recalc failed for user {} category {}: {}",
+                                userId, categoryId, ex.getMessage());
+                    }
+                }, backfillExecutor));
+            }
+        }
+        statsFutures.forEach(CompletableFuture::join);
+
+        List<CompletableFuture<Void>> userFutures = allAffectedUsers.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        if (Boolean.TRUE.equals(userTouchesOverall.get(userId))) {
+                            overallStatisticsService.recalculate(userId, false);
+                        }
+                        var evaluation = milestoneEvaluationService.evaluateAllForUser(userId);
+                        awardMilestoneXp(userId, evaluation);
+                    } catch (Exception ex) {
+                        log.error("Per-user post-backfill work failed for user {}: {}",
+                                userId, ex.getMessage());
+                    }
+                }, backfillExecutor))
+                .toList();
+        userFutures.forEach(CompletableFuture::join);
+
+        for (UUID categoryId : usersByCategory.keySet()) {
+            try {
+                rankingService.updateRankings(categoryId);
+            } catch (Exception ex) {
+                log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
+            }
+        }
+
+        if (anyOverall) {
+            try {
+                overallStatisticsService.updateOverallRankings();
+            } catch (Exception ex) {
+                log.error("Overall ranking update failed: {}", ex.getMessage());
+            }
+        }
+
+        log.info("Coalesced recalc complete: {} (user,category) pairs, {} users",
+                statsFutures.size(), allAffectedUsers.size());
     }
 
     private void batchRecalculateAfterBackfill(MapDifficulty difficulty, Set<Long> affectedUserIds,

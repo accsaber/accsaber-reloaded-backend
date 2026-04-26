@@ -79,6 +79,10 @@ public class StatisticsService {
         Category category = categoryRepository.findByIdAndActiveTrue(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
 
+        UserCategoryStatistics current = statisticsRepository
+                .findActiveForUpdate(userId, categoryId)
+                .orElse(null);
+
         List<Score> scores = scoreRepository.findActiveByUserAndCategoryOrderByApDesc(userId, categoryId);
         recalculateWeightedAps(scores, category);
 
@@ -87,10 +91,6 @@ public class StatisticsService {
         BigDecimal averageAcc = computeAverageAcc(scores);
         BigDecimal averageAp = computeAverageAp(scores);
         Score topPlay = scores.isEmpty() ? null : scores.get(0);
-
-        UserCategoryStatistics current = statisticsRepository
-                .findByUser_IdAndCategory_IdAndActiveTrue(userId, categoryId)
-                .orElse(null);
 
         if (current != null) {
             current.setActive(false);
