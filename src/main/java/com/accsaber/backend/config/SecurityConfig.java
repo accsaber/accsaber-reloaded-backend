@@ -61,6 +61,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/milestones/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/levels/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/campaigns/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/news/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/playlists/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/discord/links/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/discord/links").permitAll()
