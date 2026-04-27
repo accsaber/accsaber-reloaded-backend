@@ -1,6 +1,7 @@
 package com.accsaber.backend.security;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,9 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.accsaber.backend.model.entity.staff.StaffRole;
+import com.accsaber.backend.model.entity.staff.StaffUser;
+import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.staff.JwtService;
@@ -29,6 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final List<StaffRole> PLAYER_LINKED_ROLES = List.of(StaffRole.RANKING, StaffRole.RANKING_HEAD);
+    private static final Comparator<StaffUser> HIGHEST_ROLE_FIRST = Comparator
+            .comparingInt((StaffUser s) -> PLAYER_LINKED_ROLES.indexOf(s.getRole()))
+            .reversed();
 
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
@@ -80,10 +89,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (JwtService.TYPE_PLAYER.equals(type)) {
             Long userId = jwtService.extractPlayerId(token);
             return userRepository.findByIdAndActiveTrue(userId)
-                    .map(user -> new PlayerUserDetails(
-                            user,
-                            jwtService.extractPlayerStaffId(token),
-                            jwtService.extractPlayerStaffRole(token)))
+                    .map(user -> {
+                        StaffUser staff = staffUserRepository
+                                .findByUserIdAndRoleInAndStatusAndActiveTrue(
+                                        userId, PLAYER_LINKED_ROLES, StaffUserStatus.ACCEPTED)
+                                .stream()
+                                .min(HIGHEST_ROLE_FIRST)
+                                .orElse(null);
+                        return new PlayerUserDetails(
+                                user,
+                                staff != null ? staff.getId() : null,
+                                staff != null ? staff.getRole() : null);
+                    })
                     .orElse(null);
         }
         if (JwtService.TYPE_STAFF.equals(type)) {
