@@ -1,10 +1,5 @@
 package com.accsaber.backend.service.playlist;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -12,16 +7,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,58 +30,66 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class PlaylistService {
 
+    public static final int SNIPE_PLAYLIST_MAX_SONGS = 100;
+
     private static final Logger log = LoggerFactory.getLogger(PlaylistService.class);
 
     private final CategoryRepository categoryRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
+    private final ScoreRepository scoreRepository;
+    private final UserRepository userRepository;
+    private final PlaylistAssembler playlistAssembler;
 
     @Cacheable(value = "playlists", key = "#categoryCode")
     public Map<String, Object> generatePlaylist(String categoryCode, String syncUrl) {
-        Category category = categoryRepository.findByCodeAndActiveTrue(categoryCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
+        Category category = requireCategory(categoryCode);
 
-        List<MapDifficulty> rankedDifficulties;
-        if ("overall".equals(categoryCode)) {
-            rankedDifficulties = mapDifficultyRepository
-                    .findByCountForOverallAndStatusWithMap(MapDifficultyStatus.RANKED);
-        } else {
-            rankedDifficulties = mapDifficultyRepository
-                    .findByCategoryIdAndStatusWithMap(category.getId(), MapDifficultyStatus.RANKED);
-        }
+        List<MapDifficulty> rankedDifficulties = "overall".equals(categoryCode)
+                ? mapDifficultyRepository.findByCountForOverallAndStatusWithMap(MapDifficultyStatus.RANKED)
+                : mapDifficultyRepository.findByCategoryIdAndStatusWithMap(category.getId(), MapDifficultyStatus.RANKED);
 
-        Map<String, Object> playlist = new LinkedHashMap<>();
-        playlist.put("playlistTitle", "AccSaber " + category.getName() + " Ranked Maps");
-        playlist.put("playlistAuthor", "AccSaber Reloaded");
-        playlist.put("image", loadImageBase64(categoryCode));
-        playlist.put("syncURL", syncUrl);
-        playlist.put("songs", buildSongs(rankedDifficulties));
-
-        return playlist;
+        return playlistAssembler.assemble(
+                "AccSaber " + category.getName() + " Ranked Maps",
+                playlistAssembler.loadCategoryImage(categoryCode),
+                syncUrl,
+                rankedDifficulties);
     }
 
     @Cacheable(value = "unrankedPlaylists", key = "#categoryCode")
     public Map<String, Object> generateUnrankedPlaylist(String categoryCode, String syncUrl) {
-        Category category = categoryRepository.findByCodeAndActiveTrue(categoryCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
+        Category category = requireCategory(categoryCode);
 
         List<MapDifficultyStatus> statuses = List.of(MapDifficultyStatus.QUEUE, MapDifficultyStatus.QUALIFIED);
-        List<MapDifficulty> unrankedDifficulties;
-        if ("overall".equals(categoryCode)) {
-            unrankedDifficulties = mapDifficultyRepository
-                    .findByCountForOverallAndStatusInWithMap(statuses);
-        } else {
-            unrankedDifficulties = mapDifficultyRepository
-                    .findByCategoryIdAndStatusInWithMap(category.getId(), statuses);
+        List<MapDifficulty> unrankedDifficulties = "overall".equals(categoryCode)
+                ? mapDifficultyRepository.findByCountForOverallAndStatusInWithMap(statuses)
+                : mapDifficultyRepository.findByCategoryIdAndStatusInWithMap(category.getId(), statuses);
+
+        return playlistAssembler.assemble(
+                "AccSaber " + category.getName() + " Queued Maps",
+                playlistAssembler.loadCategoryImage("unranked"),
+                syncUrl,
+                unrankedDifficulties);
+    }
+
+    public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, int size, String syncUrl) {
+        if (sniperId.equals(targetId)) {
+            throw new ValidationException("Sniper and target must be different players");
         }
+        requireUser(sniperId);
+        User target = requireUser(targetId);
 
-        Map<String, Object> playlist = new LinkedHashMap<>();
-        playlist.put("playlistTitle", "AccSaber " + category.getName() + " Queued Maps");
-        playlist.put("playlistAuthor", "AccSaber Reloaded");
-        playlist.put("image", loadImageBase64("unranked"));
-        playlist.put("syncURL", syncUrl);
-        playlist.put("songs", buildSongs(unrankedDifficulties));
+        int capped = Math.max(1, Math.min(size, SNIPE_PLAYLIST_MAX_SONGS));
+        List<MapDifficulty> difficulties = scoreRepository
+                .findClosestSnipePairs(sniperId, targetId, PageRequest.of(0, capped))
+                .stream()
+                .map(row -> ((Score) row[0]).getMapDifficulty())
+                .toList();
 
-        return playlist;
+        return playlistAssembler.assemble(
+                "Snipe " + target.getName(),
+                playlistAssembler.fetchAndEncodeImage(target.getAvatarUrl()),
+                syncUrl,
+                difficulties);
     }
 
     @CacheEvict(value = "playlists", allEntries = true)
@@ -104,47 +112,13 @@ public class PlaylistService {
         log.info("Evicted unranked playlist cache for category: {}", categoryCode);
     }
 
-    private List<Map<String, Object>> buildSongs(List<MapDifficulty> difficulties) {
-        LinkedHashMap<String, Map<String, Object>> songsByHash = new LinkedHashMap<>();
-
-        for (MapDifficulty diff : difficulties) {
-            var map = diff.getMap();
-            String hash = map.getSongHash();
-
-            songsByHash.computeIfAbsent(hash, h -> {
-                Map<String, Object> song = new LinkedHashMap<>();
-                song.put("hash", h);
-                song.put("songName", map.getSongName());
-                song.put("difficulties", new ArrayList<Map<String, String>>());
-                return song;
-            });
-
-            @SuppressWarnings("unchecked")
-            List<Map<String, String>> diffs = (List<Map<String, String>>) songsByHash.get(hash).get("difficulties");
-            Map<String, String> diffEntry = new LinkedHashMap<>();
-            diffEntry.put("characteristic", diff.getCharacteristic());
-            diffEntry.put("name", diff.getDifficulty().getDbValue());
-            diffs.add(diffEntry);
-        }
-
-        return new ArrayList<>(songsByHash.values());
+    private Category requireCategory(String categoryCode) {
+        return categoryRepository.findByCodeAndActiveTrue(categoryCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
     }
 
-    private String loadImageBase64(String categoryCode) {
-        String path = "playlist-images/" + categoryCode + ".png";
-        try {
-            ClassPathResource resource = new ClassPathResource(path);
-            if (!resource.exists()) {
-                log.warn("Playlist image not found: {}", path);
-                return "";
-            }
-            try (InputStream is = resource.getInputStream()) {
-                byte[] bytes = is.readAllBytes();
-                return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
-            }
-        } catch (IOException e) {
-            log.error("Failed to load playlist image: {}", path, e);
-            return "";
-        }
+    private User requireUser(Long userId) {
+        return userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
     }
 }

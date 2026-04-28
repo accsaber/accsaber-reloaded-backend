@@ -463,4 +463,37 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND u.active = true AND u.banned = false
                         """)
         Page<Score> findTopByApAndCategory(@Param("categoryId") UUID categoryId, Pageable pageable);
+
+        @Query(value = """
+                        SELECT s_b, s_a
+                        FROM Score s_b
+                        JOIN FETCH s_b.mapDifficulty d
+                        JOIN FETCH d.map
+                        JOIN FETCH d.category
+                        JOIN Score s_a
+                          ON s_a.mapDifficulty = s_b.mapDifficulty
+                         AND s_a.user.id = :sniperId
+                         AND s_a.active = true
+                        WHERE s_b.user.id = :targetId
+                          AND s_b.active = true
+                          AND d.active = true
+                          AND s_b.score > s_a.score
+                        ORDER BY (s_b.score - s_a.score) ASC
+                        """, countQuery = """
+                        SELECT COUNT(s_b)
+                        FROM Score s_b
+                        JOIN s_b.mapDifficulty d
+                        JOIN Score s_a
+                          ON s_a.mapDifficulty = s_b.mapDifficulty
+                         AND s_a.user.id = :sniperId
+                         AND s_a.active = true
+                        WHERE s_b.user.id = :targetId
+                          AND s_b.active = true
+                          AND d.active = true
+                          AND s_b.score > s_a.score
+                        """)
+        Page<Object[]> findClosestSnipePairs(
+                        @Param("sniperId") Long sniperId,
+                        @Param("targetId") Long targetId,
+                        Pageable pageable);
 }
