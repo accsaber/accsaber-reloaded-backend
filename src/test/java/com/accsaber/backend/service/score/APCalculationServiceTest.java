@@ -363,7 +363,7 @@ class APCalculationServiceTest {
                         for (int i = 0; i < sortedDesc.size(); i++) {
                                 total += sortedDesc.get(i).doubleValue()
                                                 * apCalculationService
-                                                                .calculateWeightedAP(BigDecimal.ONE, i + 1, weightCurve)
+                                                                .calculateWeightedAP(BigDecimal.ONE, i, weightCurve)
                                                                 .doubleValue();
                         }
                         return total;

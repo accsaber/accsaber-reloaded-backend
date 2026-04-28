@@ -78,7 +78,7 @@ public class APCalculationService {
     private double totalWeightedAP(List<BigDecimal> sortedRawApsDesc, Curve weightCurve) {
         double total = 0.0;
         for (int i = 0; i < sortedRawApsDesc.size(); i++) {
-            total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(i + 1, weightCurve);
+            total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(i, weightCurve);
         }
         return total;
     }
@@ -92,7 +92,7 @@ public class APCalculationService {
             }
         }
         double total = 0.0;
-        int pos = 1;
+        int pos = 0;
         for (int i = 0; i < insertAt; i++) {
             total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(pos++, weightCurve);
         }
