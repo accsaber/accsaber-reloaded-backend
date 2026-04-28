@@ -46,6 +46,7 @@ import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
+
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
 import com.accsaber.backend.util.PlatformScoreMapper;
@@ -611,19 +612,11 @@ public class ScoreImportService {
                 .toList();
         userFutures.forEach(CompletableFuture::join);
 
-        for (java.util.Map.Entry<UUID, Set<Long>> e : usersByCategory.entrySet()) {
-            UUID categoryId = e.getKey();
+        for (UUID categoryId : usersByCategory.keySet()) {
             try {
                 rankingService.updateRankings(categoryId);
             } catch (Exception ex) {
                 log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
-            }
-            for (Long userId : e.getValue()) {
-                try {
-                    skillService.upsertSkill(userId, categoryId);
-                } catch (Exception ex) {
-                    log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, ex.getMessage());
-                }
             }
         }
 
@@ -672,13 +665,6 @@ public class ScoreImportService {
         }
         mapDifficultyStatisticsService.recalculate(difficulty, null);
         rankingService.updateRankings(categoryId);
-        for (Long userId : affectedUserIds) {
-            try {
-                skillService.upsertSkill(userId, categoryId);
-            } catch (Exception e) {
-                log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, e.getMessage());
-            }
-        }
         if (difficulty.getCategory().isCountForOverall()) {
             overallStatisticsService.updateOverallRankings();
         }

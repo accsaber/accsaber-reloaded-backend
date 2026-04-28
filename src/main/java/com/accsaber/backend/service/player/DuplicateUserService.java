@@ -434,9 +434,6 @@ public class DuplicateUserService {
                 statisticsService.recalculate(userId, category.getId(), false, false);
             }
             rankingService.updateRankings(category.getId());
-            for (Long userId : primaryUserIds) {
-                skillService.upsertSkill(userId, category.getId());
-            }
         }
         for (Long userId : primaryUserIds) {
             overallStatisticsService.recalculate(userId, false);
