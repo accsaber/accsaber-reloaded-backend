@@ -122,35 +122,47 @@ class SkillServiceTest {
         }
 
         @Test
-        void relativePeakFactorIsOneWhenPlayerHoldsCategoryMax() {
+        void recordHolderPeakNormalizesToHundred() {
             Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
-            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1100));
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1131));
 
-            assertThat(skillService.relativePeakFactor(BigDecimal.valueOf(1100), c)).isEqualTo(1.0);
+            assertThat(skillService.computePeakScore(BigDecimal.valueOf(1131), c))
+                    .isCloseTo(100.0, within(0.0001));
         }
 
         @Test
-        void relativePeakFactorScalesByRatioToTheAlpha() {
+        void rankTwoPeakLandsCloseToHundred() {
             Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
-            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1100));
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1131));
 
-            double factor = skillService.relativePeakFactor(BigDecimal.valueOf(1000), c);
-            assertThat(factor).isCloseTo(Math.pow(1000.0 / 1100.0, 0.5), within(0.0001));
+            assertThat(skillService.computePeakScore(BigDecimal.valueOf(1124), c))
+                    .isGreaterThan(98.0).isLessThan(100.0);
         }
 
         @Test
-        void relativePeakFactorIsOneWhenCategoryHasNoTopAp() {
+        void distantPlayerPeakDropsProportionally() {
+            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1131));
+
+            assertThat(skillService.computePeakScore(BigDecimal.valueOf(900), c))
+                    .isGreaterThan(50.0).isLessThan(80.0);
+        }
+
+        @Test
+        void peakFallsBackToRawSigmoidWhenCategoryHasNoMax() {
             Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
             when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(null);
 
-            assertThat(skillService.relativePeakFactor(BigDecimal.valueOf(500), c)).isEqualTo(1.0);
+            double expected = skillService.sigmoidScore(500, 850, 90);
+            assertThat(skillService.computePeakScore(BigDecimal.valueOf(500), c))
+                    .isCloseTo(expected, within(0.0001));
         }
 
         @Test
-        void relativePeakFactorIsZeroWhenPlayerHasNoTopAp() {
+        void peakIsZeroWhenPlayerHasNoTopAp() {
             Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
 
-            assertThat(skillService.relativePeakFactor(BigDecimal.ZERO, c)).isEqualTo(0);
+            assertThat(skillService.computePeakScore(BigDecimal.ZERO, c)).isEqualTo(0);
         }
     }
 
