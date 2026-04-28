@@ -28,9 +28,11 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.SnipeComparisonResponse;
+import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapService;
@@ -46,6 +48,8 @@ class SnipeServiceTest {
     private ScoreRepository scoreRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private CategoryRepository categoryRepository;
     @Mock
     private ScoreService scoreService;
     @Mock
@@ -67,7 +71,7 @@ class SnipeServiceTest {
             Page<Object[]> page = new PageImpl<>(List.<Object[]>of(new Object[] { targetScore, sniperScore }));
 
             mockUsersExist();
-            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, pageable)).thenReturn(page);
+            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, null, false, pageable)).thenReturn(page);
             ScoreResponse sniperResponse = ScoreResponse.builder().build();
             ScoreResponse targetResponse = ScoreResponse.builder().build();
             PublicMapDifficultyResponse mapDiffResponse = PublicMapDifficultyResponse.builder().id(diffId).build();
@@ -75,7 +79,7 @@ class SnipeServiceTest {
             when(scoreService.mapToResponse(targetScore)).thenReturn(targetResponse);
             when(mapService.getDifficultyResponsePublic(diffId)).thenReturn(mapDiffResponse);
 
-            Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, pageable);
+            Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             SnipeComparisonResponse comparison = result.getContent().get(0);
@@ -89,18 +93,58 @@ class SnipeServiceTest {
         void emptyResultProducesEmptyPage() {
             Pageable pageable = PageRequest.of(0, 10);
             mockUsersExist();
-            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, pageable))
+            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, null, false, pageable))
                     .thenReturn(new PageImpl<>(List.<Object[]>of()));
 
-            Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, pageable);
+            Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
             verify(scoreService, never()).mapToResponse(any());
         }
 
         @Test
+        void filtersByCategoryCode() {
+            Pageable pageable = PageRequest.of(0, 10);
+            UUID categoryId = UUID.randomUUID();
+            Category category = Category.builder().id(categoryId).code("true_acc").name("True Acc").build();
+            mockUsersExist();
+            when(categoryRepository.findByCodeAndActiveTrue("true_acc")).thenReturn(Optional.of(category));
+            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, categoryId, false, pageable))
+                    .thenReturn(new PageImpl<>(List.<Object[]>of()));
+
+            Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, "true_acc",
+                    pageable);
+
+            assertThat(result.getContent()).isEmpty();
+            verify(scoreRepository).findClosestSnipePairs(SNIPER_ID, TARGET_ID, categoryId, false, pageable);
+        }
+
+        @Test
+        void overallCategoryFlipsFlag() {
+            Pageable pageable = PageRequest.of(0, 10);
+            mockUsersExist();
+            when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, null, true, pageable))
+                    .thenReturn(new PageImpl<>(List.<Object[]>of()));
+
+            snipeService.findClosestScores(SNIPER_ID, TARGET_ID, "overall", pageable);
+
+            verify(scoreRepository).findClosestSnipePairs(SNIPER_ID, TARGET_ID, null, true, pageable);
+            verify(categoryRepository, never()).findByCodeAndActiveTrue(any());
+        }
+
+        @Test
+        void unknownCategoryThrows() {
+            mockUsersExist();
+            when(categoryRepository.findByCodeAndActiveTrue("nope")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(
+                    () -> snipeService.findClosestScores(SNIPER_ID, TARGET_ID, "nope", PageRequest.of(0, 10)))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
         void rejectsSelfSnipe() {
-            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, SNIPER_ID, PageRequest.of(0, 10)))
+            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, SNIPER_ID, null, PageRequest.of(0, 10)))
                     .isInstanceOf(ValidationException.class);
             verify(userRepository, never()).findByIdAndActiveTrue(any());
         }
@@ -109,7 +153,7 @@ class SnipeServiceTest {
         void throwsWhenSniperMissing() {
             when(userRepository.findByIdAndActiveTrue(SNIPER_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, TARGET_ID, PageRequest.of(0, 10)))
+            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, TARGET_ID, null, PageRequest.of(0, 10)))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
 
@@ -119,7 +163,7 @@ class SnipeServiceTest {
                     .thenReturn(Optional.of(User.builder().id(SNIPER_ID).build()));
             when(userRepository.findByIdAndActiveTrue(TARGET_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, TARGET_ID, PageRequest.of(0, 10)))
+            assertThatThrownBy(() -> snipeService.findClosestScores(SNIPER_ID, TARGET_ID, null, PageRequest.of(0, 10)))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
     }

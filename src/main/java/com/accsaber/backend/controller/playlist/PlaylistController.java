@@ -1,6 +1,7 @@
 package com.accsaber.backend.controller.playlist;
 
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,23 +56,30 @@ public class PlaylistController {
 
         @Operation(summary = "Download snipe playlist", description = "Returns a Beat Saber playlist JSON file containing the maps where the target player outscores the sniper, ordered by closest score gap first. "
                         + "Playlist image is the target player's avatar. The syncURL field points back at this same endpoint so mod managers can refresh as scores change. "
-                        + "Use `size` to choose how many maps to include (default 20, max 100).")
+                        + "Use `size` to choose how many maps to include (default 20, max 100). "
+                        + "Use `category` to limit the playlist to a category (e.g. true_acc, standard_acc, tech_acc, overall).")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylist(
                         @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
                         @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId,
-                        @Parameter(description = "Number of maps to include (1-100)") @RequestParam(defaultValue = "20") int size) {
+                        @Parameter(description = "Number of maps to include (1-100)") @RequestParam(defaultValue = "20") int size,
+                        @Parameter(description = "Optional category code; omit for all categories") @RequestParam(required = false) String category) {
+                Optional<String> categoryParam = Optional.ofNullable(category).filter(c -> !c.isBlank());
                 String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
                                 .path("/v1/playlists/snipe/{sniperId}/{targetId}")
                                 .queryParam("size", size)
+                                .queryParamIfPresent("category", categoryParam)
                                 .buildAndExpand(sniperId, targetId)
                                 .toUriString();
-                Map<String, Object> playlist = playlistService.generateSnipePlaylist(sniperId, targetId, size, syncUrl);
+                Map<String, Object> playlist = playlistService.generateSnipePlaylist(sniperId, targetId, category, size,
+                                syncUrl);
 
-                String filename = "accsaber-snipe-" + sniperId + "-" + targetId + ".bplist";
+                String filenameSuffix = categoryParam.map(c -> "-" + c.replace("_", "-")).orElse("");
+                String filename = "accsaber-snipe-" + sniperId + "-" + targetId + filenameSuffix + ".bplist";
 
                 return ResponseEntity.ok()
                                 .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                                .header("Cache-Control", "no-store")
                                 .body(playlist);
         }
 

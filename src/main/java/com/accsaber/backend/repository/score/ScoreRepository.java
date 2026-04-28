@@ -469,7 +469,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         FROM Score s_b
                         JOIN FETCH s_b.mapDifficulty d
                         JOIN FETCH d.map
-                        JOIN FETCH d.category
+                        JOIN FETCH d.category c
                         JOIN Score s_a
                           ON s_a.mapDifficulty = s_b.mapDifficulty
                          AND s_a.user.id = :sniperId
@@ -478,11 +478,14 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND s_b.active = true
                           AND d.active = true
                           AND s_b.score > s_a.score
+                          AND (:categoryId IS NULL OR c.id = :categoryId)
+                          AND (:overallOnly = false OR c.countForOverall = true)
                         ORDER BY (s_b.score - s_a.score) ASC
                         """, countQuery = """
                         SELECT COUNT(s_b)
                         FROM Score s_b
                         JOIN s_b.mapDifficulty d
+                        JOIN d.category c
                         JOIN Score s_a
                           ON s_a.mapDifficulty = s_b.mapDifficulty
                          AND s_a.user.id = :sniperId
@@ -491,9 +494,13 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND s_b.active = true
                           AND d.active = true
                           AND s_b.score > s_a.score
+                          AND (:categoryId IS NULL OR c.id = :categoryId)
+                          AND (:overallOnly = false OR c.countForOverall = true)
                         """)
         Page<Object[]> findClosestSnipePairs(
                         @Param("sniperId") Long sniperId,
                         @Param("targetId") Long targetId,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("overallOnly") boolean overallOnly,
                         Pageable pageable);
 }

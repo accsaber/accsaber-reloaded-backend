@@ -2,6 +2,7 @@ package com.accsaber.backend.service.playlist;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class PlaylistService {
 
     public static final int SNIPE_PLAYLIST_MAX_SONGS = 100;
+    private static final String OVERALL_CODE = "overall";
 
     private static final Logger log = LoggerFactory.getLogger(PlaylistService.class);
 
@@ -71,25 +73,46 @@ public class PlaylistService {
                 unrankedDifficulties);
     }
 
-    public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, int size, String syncUrl) {
+    public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, String categoryCode, int size,
+            String syncUrl) {
         if (sniperId.equals(targetId)) {
             throw new ValidationException("Sniper and target must be different players");
         }
         requireUser(sniperId);
         User target = requireUser(targetId);
+        SnipeCategoryFilter filter = resolveSnipeCategoryFilter(categoryCode);
 
         int capped = Math.max(1, Math.min(size, SNIPE_PLAYLIST_MAX_SONGS));
         List<MapDifficulty> difficulties = scoreRepository
-                .findClosestSnipePairs(sniperId, targetId, PageRequest.of(0, capped))
+                .findClosestSnipePairs(sniperId, targetId, filter.categoryId, filter.overallOnly,
+                        PageRequest.of(0, capped))
                 .stream()
                 .map(row -> ((Score) row[0]).getMapDifficulty())
                 .toList();
 
+        String title = "Snipe " + target.getName()
+                + (filter.label != null ? " (" + filter.label + ")" : "");
+
         return playlistAssembler.assemble(
-                "Snipe " + target.getName(),
+                title,
                 playlistAssembler.fetchAndEncodeImage(target.getAvatarUrl()),
                 syncUrl,
                 difficulties);
+    }
+
+    private SnipeCategoryFilter resolveSnipeCategoryFilter(String categoryCode) {
+        if (categoryCode == null || categoryCode.isBlank()) {
+            return new SnipeCategoryFilter(null, false, null);
+        }
+        if (OVERALL_CODE.equalsIgnoreCase(categoryCode)) {
+            Category overall = requireCategory(OVERALL_CODE);
+            return new SnipeCategoryFilter(null, true, overall.getName());
+        }
+        Category category = requireCategory(categoryCode);
+        return new SnipeCategoryFilter(category.getId(), false, category.getName());
+    }
+
+    private record SnipeCategoryFilter(UUID categoryId, boolean overallOnly, String label) {
     }
 
     @CacheEvict(value = "playlists", allEntries = true)

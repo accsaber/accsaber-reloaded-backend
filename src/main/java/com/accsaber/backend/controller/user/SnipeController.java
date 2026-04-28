@@ -29,14 +29,16 @@ public class SnipeController {
     private final SnipeService snipeService;
 
     @Operation(summary = "Get scores closest to a target player", description = "Returns paginated map difficulties where the target player outscores the sniper, ordered by smallest score gap first. "
-            + "Each entry includes both players' active scores so the frontend can render the comparison.")
+            + "Each entry includes both players' active scores so the frontend can render the comparison. "
+            + "Use `category` to limit results to a category (e.g. true_acc, standard_acc, tech_acc, overall).")
     @GetMapping("/{sniperId}/closest-to/{targetId}")
     public ResponseEntity<Page<SnipeComparisonResponse>> getClosestScores(
             @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
             @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Optional category code; omit for all categories") @RequestParam(required = false) String category) {
         Pageable pageable = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE));
-        return ResponseEntity.ok(snipeService.findClosestScores(sniperId, targetId, pageable));
+        return ResponseEntity.ok(snipeService.findClosestScores(sniperId, targetId, category, pageable));
     }
 }
