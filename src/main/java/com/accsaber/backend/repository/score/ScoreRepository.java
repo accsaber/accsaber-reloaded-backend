@@ -480,7 +480,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND s_b.score > s_a.score
                           AND (:categoryId IS NULL OR c.id = :categoryId)
                           AND (:overallOnly = false OR c.countForOverall = true)
-                        ORDER BY (s_b.ap - s_a.ap) ASC
+                        ORDER BY ((s_b.score - s_a.score) * 1.0 / d.maxScore) ASC
                         """, countQuery = """
                         SELECT COUNT(s_b)
                         FROM Score s_b
