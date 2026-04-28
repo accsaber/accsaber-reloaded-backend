@@ -90,8 +90,8 @@ public class PlaylistService {
                 .map(row -> ((Score) row[0]).getMapDifficulty())
                 .toList();
 
-        String title = "Snipe " + target.getName()
-                + (filter.label != null ? " (" + filter.label + ")" : "");
+        String title = "AccSaber: Snipe " + target.getName()
+                    +(filter.label != null ? " (" + filter.label + ")" : "");
 
         return playlistAssembler.assemble(
                 title,
