@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +32,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class PlaylistService {
 
-    public static final int SNIPE_PLAYLIST_MAX_SONGS = 100;
     private static final String OVERALL_CODE = "overall";
 
     private static final Logger log = LoggerFactory.getLogger(PlaylistService.class);
@@ -82,10 +82,9 @@ public class PlaylistService {
         User target = requireUser(targetId);
         SnipeCategoryFilter filter = resolveSnipeCategoryFilter(categoryCode);
 
-        int capped = Math.max(1, Math.min(size, SNIPE_PLAYLIST_MAX_SONGS));
+        Pageable pageable = size <= 0 ? Pageable.unpaged() : PageRequest.of(0, size);
         List<MapDifficulty> difficulties = scoreRepository
-                .findClosestSnipePairs(sniperId, targetId, filter.categoryId, filter.overallOnly,
-                        PageRequest.of(0, capped))
+                .findClosestSnipePairs(sniperId, targetId, filter.categoryId, filter.overallOnly, pageable)
                 .stream()
                 .map(row -> ((Score) row[0]).getMapDifficulty())
                 .toList();

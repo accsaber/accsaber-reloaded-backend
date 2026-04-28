@@ -121,31 +121,31 @@ class PlaylistServiceTest {
         }
 
         @Test
-        void capsSizeAtMax() {
+        void honorsExplicitSize() {
             mockUsersExist(userWith(TARGET_ID, "Victim", AVATAR));
             when(scoreRepository.findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), any(), anyBoolean(),
-                    argThat(p -> p.getPageSize() == PlaylistService.SNIPE_PLAYLIST_MAX_SONGS)))
+                    argThat(p -> p.isPaged() && p.getPageSize() == 50)))
                     .thenReturn(new PageImpl<>(List.<Object[]>of()));
             when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
 
-            playlistService.generateSnipePlaylist(SNIPER_ID, TARGET_ID, null, 999, SYNC_URL);
+            playlistService.generateSnipePlaylist(SNIPER_ID, TARGET_ID, null, 50, SYNC_URL);
 
             verify(scoreRepository).findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), any(), anyBoolean(),
-                    argThat(p -> p.getPageSize() == PlaylistService.SNIPE_PLAYLIST_MAX_SONGS));
+                    argThat(p -> p.isPaged() && p.getPageSize() == 50));
         }
 
         @Test
-        void clampsSizeBelowOneToOne() {
+        void zeroOrNegativeSizeMeansUnlimited() {
             mockUsersExist(userWith(TARGET_ID, "Victim", AVATAR));
             when(scoreRepository.findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), any(), anyBoolean(),
-                    argThat(p -> p.getPageSize() == 1)))
+                    argThat(p -> !p.isPaged())))
                     .thenReturn(new PageImpl<>(List.<Object[]>of()));
             when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
 
             playlistService.generateSnipePlaylist(SNIPER_ID, TARGET_ID, null, 0, SYNC_URL);
 
             verify(scoreRepository).findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), any(), anyBoolean(),
-                    argThat(p -> p.getPageSize() == 1));
+                    argThat(p -> !p.isPaged()));
         }
 
         @Test
