@@ -120,6 +120,38 @@ class SkillServiceTest {
             assertThat(skillService.rankScore(null, 125000)).isEqualTo(0);
             assertThat(skillService.rankScore(0, 125000)).isEqualTo(0);
         }
+
+        @Test
+        void relativePeakFactorIsOneWhenPlayerHoldsCategoryMax() {
+            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1100));
+
+            assertThat(skillService.relativePeakFactor(BigDecimal.valueOf(1100), c)).isEqualTo(1.0);
+        }
+
+        @Test
+        void relativePeakFactorScalesByRatioToTheAlpha() {
+            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(BigDecimal.valueOf(1100));
+
+            double factor = skillService.relativePeakFactor(BigDecimal.valueOf(1000), c);
+            assertThat(factor).isCloseTo(Math.pow(1000.0 / 1100.0, 0.5), within(0.0001));
+        }
+
+        @Test
+        void relativePeakFactorIsOneWhenCategoryHasNoTopAp() {
+            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
+            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn(null);
+
+            assertThat(skillService.relativePeakFactor(BigDecimal.valueOf(500), c)).isEqualTo(1.0);
+        }
+
+        @Test
+        void relativePeakFactorIsZeroWhenPlayerHasNoTopAp() {
+            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
+
+            assertThat(skillService.relativePeakFactor(BigDecimal.ZERO, c)).isEqualTo(0);
+        }
     }
 
     @Nested

@@ -116,6 +116,7 @@ accsaber:
     sustained-spread: 90
     peak-center: 850
     peak-spread: 90
+    peak-relative-alpha: 0.5
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
   criteria-checker:

@@ -175,7 +175,8 @@ public class SkillService {
         BigDecimal rawApForOneGain = computeRawApForOneGain(user.getId(), category);
 
         double peak = sigmoidScore(topAp.doubleValue(),
-                skillProperties.getPeakCenter(), skillProperties.getPeakSpread());
+                skillProperties.getPeakCenter(), skillProperties.getPeakSpread())
+                * relativePeakFactor(topAp, category);
         double sustained = rawApForOneGain != null
                 ? sigmoidScore(rawApForOneGain.doubleValue(),
                         skillProperties.getSustainedCenter(), skillProperties.getSustainedSpread())
@@ -275,6 +276,18 @@ public class SkillService {
                 .map(Score::getAp)
                 .toList();
         return apCalculationService.calculateRawApForOneWeightedGain(rawAps, category.getWeightCurve());
+    }
+
+    double relativePeakFactor(BigDecimal topAp, Category category) {
+        if (topAp == null || topAp.signum() <= 0) {
+            return 0;
+        }
+        BigDecimal max = scoreRepository.findMaxApInCategory(category.getId());
+        if (max == null || max.signum() <= 0) {
+            return 1;
+        }
+        double ratio = Math.min(1.0, topAp.doubleValue() / max.doubleValue());
+        return Math.pow(ratio, skillProperties.getPeakRelativeAlpha());
     }
 
     double sigmoidScore(double value, double center, double spread) {

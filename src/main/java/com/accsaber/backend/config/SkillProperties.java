@@ -19,4 +19,5 @@ public class SkillProperties {
     private double sustainedSpread = 90;
     private double peakCenter = 850;
     private double peakSpread = 90;
+    private double peakRelativeAlpha = 0.5;
 }
