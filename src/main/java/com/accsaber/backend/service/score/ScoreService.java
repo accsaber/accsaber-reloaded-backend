@@ -71,6 +71,7 @@ public class ScoreService {
         private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
         private final ScoreRankingService scoreRankingService;
         private final DuplicateUserService duplicateUserService;
+        private final com.accsaber.backend.service.skill.SkillService skillService;
         private final ApplicationEventPublisher eventPublisher;
         private final TransactionTemplate transactionTemplate;
 
@@ -242,7 +243,8 @@ public class ScoreService {
                         return;
                 scoreRankingService.reassignRanks(result.difficultyId());
                 statisticsService.recalculate(result.userId(), result.categoryId());
-                rankingService.updateRankingsAsync(result.categoryId());
+                rankingService.updateRankingsAsync(result.categoryId(),
+                                () -> skillService.upsertSkill(result.userId(), result.categoryId()));
         }
 
         @Transactional

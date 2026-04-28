@@ -34,6 +34,7 @@ import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.MergeScoreActionRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -58,6 +59,7 @@ public class DuplicateUserService {
     private final StatisticsService statisticsService;
     private final OverallStatisticsService overallStatisticsService;
     private final RankingService rankingService;
+    private final SkillService skillService;
     private final EntityManager entityManager;
 
     private DuplicateUserService self;
@@ -318,6 +320,8 @@ public class DuplicateUserService {
             statisticsService.recalculate(primaryUserId, category.getId(), false, false);
             statisticsService.recalculate(secondaryUserId, category.getId(), false, false);
             rankingService.updateRankings(category.getId());
+            skillService.upsertSkill(primaryUserId, category.getId());
+            skillService.upsertSkill(secondaryUserId, category.getId());
         }
         overallStatisticsService.recalculate(primaryUserId, false);
         overallStatisticsService.recalculate(secondaryUserId, false);
@@ -430,6 +434,9 @@ public class DuplicateUserService {
                 statisticsService.recalculate(userId, category.getId(), false, false);
             }
             rankingService.updateRankings(category.getId());
+            for (Long userId : primaryUserIds) {
+                skillService.upsertSkill(userId, category.getId());
+            }
         }
         for (Long userId : primaryUserIds) {
             overallStatisticsService.recalculate(userId, false);

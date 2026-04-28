@@ -87,6 +87,8 @@ class ScoreServiceTest {
         @Mock
         private DuplicateUserService duplicateUserService;
         @Mock
+        private com.accsaber.backend.service.skill.SkillService skillService;
+        @Mock
         private ApplicationEventPublisher eventPublisher;
         @Mock
         private TransactionTemplate transactionTemplate;

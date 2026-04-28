@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.service.score.ScoreCorrectionService;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 import com.accsaber.backend.service.score.XPReweightService;
+import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.StatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +31,7 @@ public class AdminRecalculationController {
     private final ScoreRecalculationService scoreRecalculationService;
     private final StatisticsService statisticsService;
     private final XPReweightService xpReweightService;
+    private final SkillService skillService;
 
     @Operation(summary = "Recalculate raw AP for a single difficulty",
             description = "Versioned recalc: creates new score versions, reassigns ranks, updates stats.")
@@ -84,6 +86,7 @@ public class AdminRecalculationController {
     public ResponseEntity<Void> recalculatePlayer(@PathVariable Long userId,
             @RequestParam UUID categoryId) {
         statisticsService.recalculate(userId, categoryId);
+        skillService.upsertSkill(userId, categoryId);
         return ResponseEntity.accepted().build();
     }
 

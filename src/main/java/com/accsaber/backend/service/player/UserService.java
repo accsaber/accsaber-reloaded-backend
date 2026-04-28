@@ -28,6 +28,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.score.ScoreRankingService;
+import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -54,6 +55,7 @@ public class UserService {
     private final ScoreRankingService scoreRankingService;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final UserDuplicateLinkRepository userDuplicateLinkRepository;
+    private final SkillService skillService;
 
     @Autowired
     @Lazy
@@ -171,6 +173,7 @@ public class UserService {
         for (UUID categoryId : categoryIds) {
             statisticsService.recalculate(userId, categoryId, false, false);
             rankingService.updateRankings(categoryId);
+            skillService.upsertSkill(userId, categoryId);
         }
         overallStatisticsService.updateOverallRankings();
         userRepository.assignXpRankings();

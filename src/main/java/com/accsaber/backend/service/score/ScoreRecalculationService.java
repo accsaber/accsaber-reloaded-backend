@@ -33,6 +33,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
+import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -60,6 +61,7 @@ public class ScoreRecalculationService {
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository userCategoryStatisticsRepository;
     private final ScoreRankingService scoreRankingService;
+    private final SkillService skillService;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -86,6 +88,13 @@ public class ScoreRecalculationService {
         batchRecalculateStats(affected, categoryId);
         mapDifficultyStatisticsService.recalculate(difficulty, null);
         rankingService.updateRankings(categoryId);
+        for (Long userId : affected) {
+            try {
+                skillService.upsertSkill(userId, categoryId);
+            } catch (Exception e) {
+                log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, e.getMessage());
+            }
+        }
         if (difficulty.getCategory().isCountForOverall()) {
             overallStatisticsService.updateOverallRankings();
         }
@@ -251,6 +260,13 @@ public class ScoreRecalculationService {
 
             batchRecalculateStats(userIds, categoryId);
             rankingService.updateRankings(categoryId);
+            for (Long userId : userIds) {
+                try {
+                    skillService.upsertSkill(userId, categoryId);
+                } catch (Exception e) {
+                    log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, e.getMessage());
+                }
+            }
             log.info("Weighted AP recalculation complete for category {} ({} users)", categoryId, userIds.size());
         }
         overallStatisticsService.updateOverallRankings();
@@ -339,11 +355,19 @@ public class ScoreRecalculationService {
                 .toList();
         userFutures.forEach(CompletableFuture::join);
 
-        for (UUID categoryId : affectedByCategory.keySet()) {
+        for (var e : affectedByCategory.entrySet()) {
+            UUID categoryId = e.getKey();
             try {
                 rankingService.updateRankings(categoryId);
             } catch (Exception ex) {
                 log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
+            }
+            for (Long userId : e.getValue()) {
+                try {
+                    skillService.upsertSkill(userId, categoryId);
+                } catch (Exception ex) {
+                    log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, ex.getMessage());
+                }
             }
         }
 

@@ -76,6 +76,8 @@ class DuplicateUserServiceTest {
         @Mock
         private RankingService rankingService;
         @Mock
+        private com.accsaber.backend.service.skill.SkillService skillService;
+        @Mock
         private EntityManager entityManager;
 
         private DuplicateUserService service;
@@ -88,7 +90,8 @@ class DuplicateUserServiceTest {
                 service = new DuplicateUserService(
                                 linkRepository, mergeScoreActionRepository, userRepository, scoreRepository,
                                 modifierLinkRepository, staffUserRepository, categoryRepository,
-                                statisticsService, overallStatisticsService, rankingService, entityManager);
+                                statisticsService, overallStatisticsService, rankingService, skillService,
+                                entityManager);
                 service.setSelf(service);
 
                 primaryUser = User.builder()

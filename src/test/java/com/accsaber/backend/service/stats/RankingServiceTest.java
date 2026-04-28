@@ -28,6 +28,9 @@ class RankingServiceTest {
         @Mock
         private TransactionTemplate transactionTemplate;
 
+        @Mock
+        private com.accsaber.backend.service.skill.SkillService skillService;
+
         private final Executor directExecutor = Runnable::run;
 
         private RankingService rankingService;
@@ -40,7 +43,8 @@ class RankingServiceTest {
                         action.accept(null);
                         return null;
                 }).when(transactionTemplate).executeWithoutResult(any());
-                rankingService = new RankingService(statisticsRepository, transactionTemplate, directExecutor);
+                rankingService = new RankingService(statisticsRepository, transactionTemplate, directExecutor,
+                                skillService);
         }
 
         @Nested

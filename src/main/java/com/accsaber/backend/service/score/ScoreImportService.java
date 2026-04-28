@@ -44,6 +44,7 @@ import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
+import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -75,6 +76,7 @@ public class ScoreImportService {
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
+    private final SkillService skillService;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -372,6 +374,7 @@ public class ScoreImportService {
             try {
                 statisticsService.recalculate(userId, categoryId, false);
                 rankingService.updateRankings(categoryId);
+                skillService.upsertSkill(userId, categoryId);
             } catch (Exception e) {
                 log.error("Category recalc failed for category {} during user {} backfill: {}",
                         categoryId, userId, e.getMessage());
@@ -608,11 +611,19 @@ public class ScoreImportService {
                 .toList();
         userFutures.forEach(CompletableFuture::join);
 
-        for (UUID categoryId : usersByCategory.keySet()) {
+        for (java.util.Map.Entry<UUID, Set<Long>> e : usersByCategory.entrySet()) {
+            UUID categoryId = e.getKey();
             try {
                 rankingService.updateRankings(categoryId);
             } catch (Exception ex) {
                 log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
+            }
+            for (Long userId : e.getValue()) {
+                try {
+                    skillService.upsertSkill(userId, categoryId);
+                } catch (Exception ex) {
+                    log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, ex.getMessage());
+                }
             }
         }
 
@@ -661,6 +672,13 @@ public class ScoreImportService {
         }
         mapDifficultyStatisticsService.recalculate(difficulty, null);
         rankingService.updateRankings(categoryId);
+        for (Long userId : affectedUserIds) {
+            try {
+                skillService.upsertSkill(userId, categoryId);
+            } catch (Exception e) {
+                log.error("Skill upsert failed for user {} category {}: {}", userId, categoryId, e.getMessage());
+            }
+        }
         if (difficulty.getCategory().isCountForOverall()) {
             overallStatisticsService.updateOverallRankings();
         }

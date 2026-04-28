@@ -31,7 +31,6 @@ import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.score.APCalculationService;
-import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -53,7 +52,6 @@ public class StatisticsService {
     private final OverallStatisticsService overallStatisticsService;
     private final UserMilestoneLinkRepository userMilestoneLinkRepository;
     private final UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
-    private final SkillService skillService;
 
     private DuplicateUserService duplicateUserService;
 
@@ -120,8 +118,6 @@ public class StatisticsService {
         if (category.isCountForOverall() && triggerOverall) {
             overallStatisticsService.recalculate(userId, triggerRanking);
         }
-
-        skillService.upsertSkill(userId, categoryId);
 
         return toResponse(newStats);
     }

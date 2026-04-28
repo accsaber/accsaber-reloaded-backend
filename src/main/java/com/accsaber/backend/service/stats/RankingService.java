@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
+import com.accsaber.backend.service.skill.SkillService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,6 +30,7 @@ public class RankingService {
     private final UserCategoryStatisticsRepository statisticsRepository;
     private final TransactionTemplate transactionTemplate;
     private final Executor rankingExecutor;
+    private final SkillService skillService;
 
     private final ConcurrentHashMap<UUID, ReentrantLock> categoryLocks = new ConcurrentHashMap<>();
 
@@ -42,10 +44,12 @@ public class RankingService {
     public RankingService(
             UserCategoryStatisticsRepository statisticsRepository,
             TransactionTemplate transactionTemplate,
-            @Qualifier("rankingExecutor") Executor rankingExecutor) {
+            @Qualifier("rankingExecutor") Executor rankingExecutor,
+            SkillService skillService) {
         this.statisticsRepository = statisticsRepository;
         this.transactionTemplate = transactionTemplate;
         this.rankingExecutor = rankingExecutor;
+        this.skillService = skillService;
     }
 
     @CacheEvict(value = "leaderboards", allEntries = true)
@@ -149,6 +153,12 @@ public class RankingService {
                     userId, categoryId, e.getMessage());
         } finally {
             lock.unlock();
+        }
+        try {
+            skillService.upsertSkill(userId, categoryId);
+        } catch (Exception e) {
+            log.error("Skill upsert failed for user {} in category {}: {}",
+                    userId, categoryId, e.getMessage());
         }
         if (postRankingCallback != null) {
             try {
