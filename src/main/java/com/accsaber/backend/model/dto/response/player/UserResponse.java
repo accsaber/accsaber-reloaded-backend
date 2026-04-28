@@ -15,6 +15,13 @@ import lombok.With;
 public class UserResponse {
 
     String id;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    String blId;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    String ssId;
+
     String name;
     String avatarUrl;
     String country;

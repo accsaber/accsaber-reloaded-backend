@@ -18,6 +18,8 @@ public interface UserDuplicateLinkRepository extends JpaRepository<UserDuplicate
 
     List<UserDuplicateLink> findByPrimaryUser_Id(Long primaryUserId);
 
+    Optional<UserDuplicateLink> findFirstByPrimaryUser_IdAndMergedTrue(Long primaryUserId);
+
     boolean existsBySecondaryUser_Id(Long secondaryUserId);
 
     @Query("SELECT udl.primaryUser.id FROM UserDuplicateLink udl WHERE udl.secondaryUser.id = :secondaryId")

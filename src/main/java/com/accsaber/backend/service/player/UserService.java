@@ -22,6 +22,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
+import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
@@ -52,6 +53,7 @@ public class UserService {
     private final ScoreRepository scoreRepository;
     private final ScoreRankingService scoreRankingService;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
+    private final UserDuplicateLinkRepository userDuplicateLinkRepository;
 
     @Autowired
     @Lazy
@@ -221,8 +223,15 @@ public class UserService {
     private UserResponse toResponse(User user) {
         LevelResponse levelResponse = levelService.calculateLevel(user.getTotalXp());
         Optional<Score> latestScore = scoreRepository.findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(user.getId());
+        String secondaryId = userDuplicateLinkRepository
+                .findFirstByPrimaryUser_IdAndMergedTrue(user.getId())
+                .map(link -> String.valueOf(link.getSecondaryUser().getId()))
+                .orElse(null);
+        String primaryId = String.valueOf(user.getId());
         return UserResponse.builder()
-                .id(String.valueOf(user.getId()))
+                .id(primaryId)
+                .blId(secondaryId == null ? null : primaryId)
+                .ssId(secondaryId)
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .country(user.getCountry())

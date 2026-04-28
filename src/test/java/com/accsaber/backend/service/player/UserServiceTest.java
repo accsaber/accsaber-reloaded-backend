@@ -25,6 +25,7 @@ import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -49,6 +50,9 @@ class UserServiceTest {
     @Mock
     private LevelService levelService;
 
+    @Mock
+    private UserDuplicateLinkRepository userDuplicateLinkRepository;
+
     @InjectMocks
     private UserService userService;
 
@@ -59,6 +63,9 @@ class UserServiceTest {
         org.mockito.Mockito.lenient().when(levelService.calculateLevel(any()))
                 .thenReturn(com.accsaber.backend.model.dto.response.milestone.LevelResponse.builder()
                         .level(0).title(null).build());
+        org.mockito.Mockito.lenient().when(userDuplicateLinkRepository
+                .findFirstByPrimaryUser_IdAndMergedTrue(org.mockito.ArgumentMatchers.any(Long.class)))
+                .thenReturn(Optional.empty());
     }
 
     @Nested
