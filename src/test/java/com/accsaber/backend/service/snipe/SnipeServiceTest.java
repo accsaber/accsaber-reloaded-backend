@@ -25,12 +25,15 @@ import org.springframework.data.domain.Pageable;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.SnipeComparisonResponse;
+import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.score.ScoreService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +48,8 @@ class SnipeServiceTest {
     private UserRepository userRepository;
     @Mock
     private ScoreService scoreService;
+    @Mock
+    private MapService mapService;
 
     @InjectMocks
     private SnipeService snipeService;
@@ -55,21 +60,26 @@ class SnipeServiceTest {
         @Test
         void returnsComparisonsWithCorrectDelta() {
             Pageable pageable = PageRequest.of(0, 10);
-            Score sniperScore = scoreWithValue(900_000);
-            Score targetScore = scoreWithValue(950_000);
+            UUID diffId = UUID.randomUUID();
+            MapDifficulty diff = MapDifficulty.builder().id(diffId).build();
+            Score sniperScore = scoreOn(diff, 900_000);
+            Score targetScore = scoreOn(diff, 950_000);
             Page<Object[]> page = new PageImpl<>(List.<Object[]>of(new Object[] { targetScore, sniperScore }));
 
             mockUsersExist();
             when(scoreRepository.findClosestSnipePairs(SNIPER_ID, TARGET_ID, pageable)).thenReturn(page);
             ScoreResponse sniperResponse = ScoreResponse.builder().build();
             ScoreResponse targetResponse = ScoreResponse.builder().build();
+            PublicMapDifficultyResponse mapDiffResponse = PublicMapDifficultyResponse.builder().id(diffId).build();
             when(scoreService.mapToResponse(sniperScore)).thenReturn(sniperResponse);
             when(scoreService.mapToResponse(targetScore)).thenReturn(targetResponse);
+            when(mapService.getDifficultyResponsePublic(diffId)).thenReturn(mapDiffResponse);
 
             Page<SnipeComparisonResponse> result = snipeService.findClosestScores(SNIPER_ID, TARGET_ID, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             SnipeComparisonResponse comparison = result.getContent().get(0);
+            assertThat(comparison.getMapDifficulty()).isSameAs(mapDiffResponse);
             assertThat(comparison.getSniperScore()).isSameAs(sniperResponse);
             assertThat(comparison.getTargetScore()).isSameAs(targetResponse);
             assertThat(comparison.getScoreDelta()).isEqualTo(50_000);
@@ -121,9 +131,10 @@ class SnipeServiceTest {
                 .thenReturn(Optional.of(User.builder().id(TARGET_ID).name("Target").build()));
     }
 
-    private Score scoreWithValue(int value) {
+    private Score scoreOn(MapDifficulty diff, int value) {
         return Score.builder()
                 .id(UUID.randomUUID())
+                .mapDifficulty(diff)
                 .score(value)
                 .build();
     }
