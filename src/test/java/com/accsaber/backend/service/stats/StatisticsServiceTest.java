@@ -65,6 +65,8 @@ class StatisticsServiceTest {
         private UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
         @Mock
         private DuplicateUserService duplicateUserService;
+        @Mock
+        private com.accsaber.backend.service.skill.SkillService skillService;
 
         @InjectMocks
         private StatisticsService statisticsService;

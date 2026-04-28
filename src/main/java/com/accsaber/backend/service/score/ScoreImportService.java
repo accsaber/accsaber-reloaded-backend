@@ -44,7 +44,6 @@ import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
-import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -76,7 +75,6 @@ public class ScoreImportService {
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
-    private final SkillService skillService;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -270,7 +268,6 @@ public class ScoreImportService {
         log.info("User backfill fetch done for {}: {} affected difficulties. Running recalc...",
                 resolvedUserId, affectedDifficulties.size());
         batchRecalculateAfterUserBackfill(resolvedUserId, affectedDifficulties);
-        skillService.evictForUser(resolvedUserId);
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("User backfill complete for {} in {}s", resolvedUserId, elapsed / 1000);

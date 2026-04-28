@@ -1,17 +1,16 @@
 package com.accsaber.backend.service.skill;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.caffeine.CaffeineCache;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,10 +23,13 @@ import com.accsaber.backend.model.dto.response.player.SkillResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.model.entity.user.UserCategorySkillSnapshot;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
-import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategorySkillRepository;
+import com.accsaber.backend.repository.user.UserCategorySkillSnapshotRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.score.APCalculationService;
@@ -39,31 +41,41 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class SkillService {
 
+    private static final String OVERALL_CODE = "overall";
     private static final Logger log = LoggerFactory.getLogger(SkillService.class);
 
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository statsRepository;
     private final ScoreRepository scoreRepository;
+    private final UserCategorySkillRepository skillRepository;
+    private final UserCategorySkillSnapshotRepository snapshotRepository;
     private final APCalculationService apCalculationService;
     private final SkillProperties skillProperties;
-    private final CacheManager cacheManager;
 
-    @Cacheable(value = "skill", key = "#userId + ':' + (#categoryCode == null ? 'all' : #categoryCode)")
+    @Transactional
     public SkillResponse computeSkillForUser(Long userId, String categoryCode) {
         User user = requireUser(userId);
-        List<Category> categories = (categoryCode == null || categoryCode.isBlank())
-                ? categoryRepository.findByActiveTrue()
-                : List.of(requireCategory(categoryCode));
 
-        List<SkillCategoryResponse> skills = categories.stream()
-                .map(c -> computeForCategory(user.getId(), c))
-                .toList();
+        if (categoryCode == null || categoryCode.isBlank()) {
+            List<UserCategorySkill> rows = skillRepository.findByUserIdActive(userId);
+            if (rows.isEmpty()) {
+                upsertAllForUser(userId);
+                rows = skillRepository.findByUserIdActive(userId);
+            }
+            return toResponse(user, rows);
+        }
 
-        return SkillResponse.builder()
-                .userId(String.valueOf(user.getId()))
-                .skills(skills)
-                .build();
+        Category category = requireCategory(categoryCode);
+        UserCategorySkill row = skillRepository
+                .findByUserIdAndCategoryId(userId, category.getId())
+                .orElseGet(() -> {
+                    upsertAllForUser(userId);
+                    return skillRepository.findByUserIdAndCategoryId(userId, category.getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("UserCategorySkill",
+                                    userId + "/" + category.getCode()));
+                });
+        return toResponse(user, List.of(row));
     }
 
     public ApToNextResponse calculateApToNext(Long userId, String categoryCode) {
@@ -77,68 +89,178 @@ public class SkillService {
                 .build();
     }
 
-    public void evictForUser(Long userId) {
-        Cache cache = cacheManager.getCache("skill");
-        if (!(cache instanceof CaffeineCache caffeine)) {
+    @Transactional
+    public void upsertSkill(Long userId, UUID categoryId) {
+        User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
+        if (user == null) {
             return;
         }
-        String prefix = userId + ":";
-        caffeine.getNativeCache().asMap().keySet()
-                .removeIf(k -> k instanceof String s && s.startsWith(prefix));
-    }
-
-    @CacheEvict(value = "skill", allEntries = true)
-    public void evictAll() {
-        log.info("Evicted all skill caches");
-    }
-
-    @EventListener
-    public void onScoreSubmitted(ScoreSubmittedEvent event) {
-        try {
-            evictForUser(Long.parseLong(event.score().getUserId()));
-        } catch (NumberFormatException e) {
-            log.warn("ScoreSubmittedEvent carried non-numeric userId '{}'; skipping skill cache eviction",
-                    event.score().getUserId());
+        Category category = categoryRepository.findByIdAndActiveTrue(categoryId).orElse(null);
+        if (category == null) {
+            return;
+        }
+        if (OVERALL_CODE.equals(category.getCode())) {
+            persistOverall(user, category);
+        } else {
+            persistSingle(user, category);
+            categoryRepository.findByCodeAndActiveTrue(OVERALL_CODE)
+                    .ifPresent(overall -> persistOverall(user, overall));
         }
     }
 
-    private SkillCategoryResponse computeForCategory(Long userId, Category category) {
+    @Transactional
+    public void upsertAllForUser(Long userId) {
+        User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
+        if (user == null) {
+            return;
+        }
+        Category overall = null;
+        for (Category c : categoryRepository.findByActiveTrue()) {
+            if (OVERALL_CODE.equals(c.getCode())) {
+                overall = c;
+            } else {
+                persistSingle(user, c);
+            }
+        }
+        if (overall != null) {
+            persistOverall(user, overall);
+        }
+    }
+
+    @Scheduled(cron = "0 0 4 * * MON")
+    @Transactional
+    public void captureWeeklySnapshots() {
+        List<UserCategorySkill> all = skillRepository.findAll();
+        int inserted = 0;
+        for (UserCategorySkill skill : all) {
+            if (snapshotChanged(skill)) {
+                snapshotRepository.save(UserCategorySkillSnapshot.builder()
+                        .user(skill.getUser())
+                        .category(skill.getCategory())
+                        .skillLevel(skill.getSkillLevel())
+                        .rankScore(skill.getRankScore())
+                        .sustainedScore(skill.getSustainedScore())
+                        .peakScore(skill.getPeakScore())
+                        .combinedScore(skill.getCombinedScore())
+                        .build());
+                inserted++;
+            }
+        }
+        log.info("Weekly skill snapshot: inserted {} of {} rows", inserted, all.size());
+    }
+
+    private boolean snapshotChanged(UserCategorySkill skill) {
+        Optional<UserCategorySkillSnapshot> latest = snapshotRepository
+                .findFirstByUser_IdAndCategory_IdOrderByCapturedAtDesc(
+                        skill.getUser().getId(), skill.getCategory().getId());
+        if (latest.isEmpty()) {
+            return true;
+        }
+        UserCategorySkillSnapshot s = latest.get();
+        return s.getSkillLevel().compareTo(skill.getSkillLevel()) != 0
+                || s.getRankScore().compareTo(skill.getRankScore()) != 0
+                || s.getSustainedScore().compareTo(skill.getSustainedScore()) != 0
+                || s.getPeakScore().compareTo(skill.getPeakScore()) != 0
+                || s.getCombinedScore().compareTo(skill.getCombinedScore()) != 0;
+    }
+
+    private void persistSingle(User user, Category category) {
         Optional<UserCategoryStatistics> statsOpt = statsRepository
-                .findByUser_IdAndCategory_IdAndActiveTrue(userId, category.getId());
+                .findByUser_IdAndCategory_IdAndActiveTrue(user.getId(), category.getId());
         Integer rank = statsOpt.map(UserCategoryStatistics::getRanking).orElse(null);
         Score topPlay = statsOpt.map(UserCategoryStatistics::getTopPlay).orElse(null);
         BigDecimal topAp = topPlay != null ? topPlay.getAp() : BigDecimal.ZERO;
 
         long activePlayers = statsRepository.countActivePlayersInCategory(category.getId());
-        boolean hasCurve = category.getWeightCurve() != null;
-        BigDecimal rawApForOneGain = hasCurve ? computeRawApForOneGain(userId, category) : null;
+        BigDecimal rawApForOneGain = computeRawApForOneGain(user.getId(), category);
 
         double peak = sigmoidScore(topAp.doubleValue(),
                 skillProperties.getPeakCenter(), skillProperties.getPeakSpread());
-        double sustained = hasCurve
+        double sustained = rawApForOneGain != null
                 ? sigmoidScore(rawApForOneGain.doubleValue(),
                         skillProperties.getSustainedCenter(), skillProperties.getSustainedSpread())
                 : 0;
-        double combined = hasCurve ? harmonicMean(sustained, peak) : peak;
+        double combined = rawApForOneGain != null ? harmonicMean(sustained, peak) : peak;
         double rankScore = rankScore(rank, activePlayers);
         double skill = skillProperties.getRankWeight() * rankScore
                 + skillProperties.getCombinedWeight() * combined;
 
-        SkillComponents components = SkillComponents.builder()
-                .rank(round1(rankScore))
-                .sustained(hasCurve ? round1(sustained) : 0)
-                .peak(round1(peak))
-                .combined(round1(combined))
-                .rawApForOneGain(rawApForOneGain)
-                .topAp(topAp)
-                .categoryRank(rank)
-                .activePlayers(activePlayers)
-                .build();
+        save(user, category, skill, rankScore, sustained, peak, combined, rawApForOneGain, topAp,
+                rank, activePlayers);
+    }
 
+    private void persistOverall(User user, Category overall) {
+        List<UserCategorySkill> contributors = skillRepository.findByUserIdForOverall(user.getId());
+
+        Optional<UserCategoryStatistics> statsOpt = statsRepository
+                .findByUser_IdAndCategory_IdAndActiveTrue(user.getId(), overall.getId());
+        Integer rank = statsOpt.map(UserCategoryStatistics::getRanking).orElse(null);
+        long activePlayers = statsRepository.countActivePlayersInCategory(overall.getId());
+
+        double rankScore = rankScore(rank, activePlayers);
+
+        if (contributors.isEmpty()) {
+            save(user, overall, rankScore * skillProperties.getRankWeight(),
+                    rankScore, 0, 0, 0, null, BigDecimal.ZERO, rank, activePlayers);
+            return;
+        }
+
+        double sustained = mean(contributors, UserCategorySkill::getSustainedScore);
+        double peak = mean(contributors, UserCategorySkill::getPeakScore);
+        double combined = mean(contributors, UserCategorySkill::getCombinedScore);
+        double aggregatedSkill = mean(contributors, UserCategorySkill::getSkillLevel);
+        BigDecimal topAp = contributors.stream()
+                .map(UserCategorySkill::getTopAp)
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
+
+        save(user, overall, aggregatedSkill, rankScore, sustained, peak, combined, null, topAp,
+                rank, activePlayers);
+    }
+
+    private void save(User user, Category category, double skill, double rank, double sustained,
+            double peak, double combined, BigDecimal rawApForOneGain, BigDecimal topAp,
+            Integer categoryRank, long activePlayers) {
+        UserCategorySkill row = skillRepository
+                .findByUserIdAndCategoryId(user.getId(), category.getId())
+                .orElseGet(() -> UserCategorySkill.builder()
+                        .user(user)
+                        .category(category)
+                        .build());
+        row.setSkillLevel(round2(skill));
+        row.setRankScore(round2(rank));
+        row.setSustainedScore(round2(sustained));
+        row.setPeakScore(round2(peak));
+        row.setCombinedScore(round2(combined));
+        row.setRawApForOneGain(rawApForOneGain);
+        row.setTopAp(topAp);
+        row.setCategoryRank(categoryRank);
+        row.setActivePlayers(activePlayers);
+        skillRepository.save(row);
+    }
+
+    private SkillResponse toResponse(User user, List<UserCategorySkill> rows) {
+        return SkillResponse.builder()
+                .userId(String.valueOf(user.getId()))
+                .skills(rows.stream().map(this::toCategoryResponse).toList())
+                .build();
+    }
+
+    private SkillCategoryResponse toCategoryResponse(UserCategorySkill row) {
+        SkillComponents components = SkillComponents.builder()
+                .rank(row.getRankScore().doubleValue())
+                .sustained(row.getSustainedScore().doubleValue())
+                .peak(row.getPeakScore().doubleValue())
+                .combined(row.getCombinedScore().doubleValue())
+                .rawApForOneGain(row.getRawApForOneGain())
+                .topAp(row.getTopAp())
+                .categoryRank(row.getCategoryRank())
+                .activePlayers(row.getActivePlayers())
+                .build();
         return SkillCategoryResponse.builder()
-                .categoryCode(category.getCode())
-                .categoryName(category.getName())
-                .skillLevel(round1(skill))
+                .categoryCode(row.getCategory().getCode())
+                .categoryName(row.getCategory().getName())
+                .skillLevel(row.getSkillLevel().doubleValue())
                 .components(components)
                 .build();
     }
@@ -182,8 +304,12 @@ public class SkillService {
         return 100.0 * Math.pow(base, skillProperties.getRankCurveExponent());
     }
 
-    private double round1(double v) {
-        return Math.round(v * 10.0) / 10.0;
+    private double mean(List<UserCategorySkill> rows, Function<UserCategorySkill, BigDecimal> field) {
+        return rows.stream().mapToDouble(r -> field.apply(r).doubleValue()).average().orElse(0);
+    }
+
+    private BigDecimal round2(double v) {
+        return BigDecimal.valueOf(v).setScale(2, RoundingMode.HALF_UP);
     }
 
     private User requireUser(Long userId) {

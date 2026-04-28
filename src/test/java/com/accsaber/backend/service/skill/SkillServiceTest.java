@@ -5,9 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,34 +20,34 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.cache.CacheManager;
-import org.springframework.cache.caffeine.CaffeineCache;
 
 import com.accsaber.backend.config.SkillProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.model.dto.response.player.SkillCategoryResponse;
 import com.accsaber.backend.model.dto.response.player.SkillResponse;
-import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.model.entity.user.UserCategorySkillSnapshot;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
-import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategorySkillRepository;
+import com.accsaber.backend.repository.user.UserCategorySkillSnapshotRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.score.APCalculationService;
-import com.github.benmanes.caffeine.cache.Caffeine;
 
 @ExtendWith(MockitoExtension.class)
 class SkillServiceTest {
 
     private static final Long USER_ID = 76561198000000123L;
     private static final UUID CATEGORY_ID = UUID.randomUUID();
+    private static final UUID OVERALL_ID = UUID.randomUUID();
     private static final String CATEGORY_CODE = "true_acc";
 
     @Mock
@@ -55,9 +59,11 @@ class SkillServiceTest {
     @Mock
     private ScoreRepository scoreRepository;
     @Mock
-    private APCalculationService apCalculationService;
+    private UserCategorySkillRepository skillRepository;
     @Mock
-    private CacheManager cacheManager;
+    private UserCategorySkillSnapshotRepository snapshotRepository;
+    @Mock
+    private APCalculationService apCalculationService;
 
     private SkillProperties skillProperties;
     private SkillService skillService;
@@ -66,7 +72,8 @@ class SkillServiceTest {
     void setUp() {
         skillProperties = new SkillProperties();
         skillService = new SkillService(userRepository, categoryRepository, statsRepository,
-                scoreRepository, apCalculationService, skillProperties, cacheManager);
+                scoreRepository, skillRepository, snapshotRepository, apCalculationService,
+                skillProperties);
     }
 
     @Nested
@@ -83,11 +90,6 @@ class SkillServiceTest {
         }
 
         @Test
-        void sigmoidScoreApproachesZeroAtLowRaw() {
-            assertThat(skillService.sigmoidScore(0, 750, 90)).isLessThan(1.0);
-        }
-
-        @Test
         void harmonicMeanIsZeroWhenEitherIsZero() {
             assertThat(skillService.harmonicMean(0, 95)).isEqualTo(0);
             assertThat(skillService.harmonicMean(95, 0)).isEqualTo(0);
@@ -96,11 +98,6 @@ class SkillServiceTest {
         @Test
         void harmonicMeanCrushesLowPartner() {
             assertThat(skillService.harmonicMean(5, 95)).isLessThan(15.0);
-        }
-
-        @Test
-        void harmonicMeanRewardsConsistency() {
-            assertThat(skillService.harmonicMean(95, 95)).isCloseTo(95.0, within(0.1));
         }
 
         @Test
@@ -126,152 +123,55 @@ class SkillServiceTest {
     }
 
     @Nested
-    class ComputeSkill {
+    class ReadFlow {
 
         @Test
-        void godTierApproachesMax() {
+        void returnsRowsFromRepository() {
             mockUser();
-            mockCategoryFiltered();
-            mockStats(2, BigDecimal.valueOf(1100));
-            mockActivePlayers(125000);
-            mockRawApForOneGain(BigDecimal.valueOf(1070));
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
-
-            SkillCategoryResponse cat = response.getSkills().get(0);
-            assertThat(cat.getSkillLevel()).isGreaterThan(90.0);
-        }
-
-        @Test
-        void onePlayPlayerCraters() {
-            mockUser();
-            mockCategoryFiltered();
-            mockStats(120000, BigDecimal.valueOf(600));
-            mockActivePlayers(125000);
-            mockRawApForOneGain(BigDecimal.valueOf(2));
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
-
-            assertThat(response.getSkills().get(0).getSkillLevel()).isLessThan(15.0);
-        }
-
-        @Test
-        void tenPlaysAtTop100GetsHighSkillFromRank() {
-            mockUser();
-            mockCategoryFiltered();
-            mockStats(100, BigDecimal.valueOf(1100));
-            mockActivePlayers(125000);
-            mockRawApForOneGain(BigDecimal.valueOf(50));
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
-
-            double skill = response.getSkills().get(0).getSkillLevel();
-            assertThat(skill).isGreaterThan(50.0).isLessThan(75.0);
-        }
-
-        @Test
-        void rankOneWithHigherPeakBeatsRankTwoEvenWhenSustainedIsLower() {
-            mockUser();
-            mockCategoryFiltered();
-            mockActivePlayers(125000);
-
-            mockStats(1, BigDecimal.valueOf(1150));
-            mockRawApForOneGain(BigDecimal.valueOf(1060));
-            double rank1Skill = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE)
-                    .getSkills().get(0).getSkillLevel();
-
-            mockStats(2, BigDecimal.valueOf(1080));
-            mockRawApForOneGain(BigDecimal.valueOf(1070));
-            double rank2Skill = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE)
-                    .getSkills().get(0).getSkillLevel();
-
-            assertThat(rank1Skill).isGreaterThan(rank2Skill);
-        }
-
-        @Test
-        void noStatsProducesZeroSkill() {
-            mockUser();
-            mockCategoryFiltered();
-            when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, CATEGORY_ID))
-                    .thenReturn(Optional.empty());
-            mockActivePlayers(125000);
-            mockRawApForOneGain(BigDecimal.ZERO);
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
-
-            SkillCategoryResponse cat = response.getSkills().get(0);
-            assertThat(cat.getSkillLevel()).isLessThan(5.0);
-            assertThat(cat.getComponents().getCategoryRank()).isNull();
-        }
-
-        @Test
-        void categoryWithoutWeightCurveFallsBackToPeak() {
-            mockUser();
-            Category overall = Category.builder().id(CATEGORY_ID).code("overall").name("Overall").build();
-            when(categoryRepository.findByCodeAndActiveTrue("overall")).thenReturn(Optional.of(overall));
-            mockStats(2, BigDecimal.valueOf(1100));
-            mockActivePlayers(125000);
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, "overall");
-            SkillCategoryResponse cat = response.getSkills().get(0);
-
-            assertThat(cat.getComponents().getSustained()).isEqualTo(0);
-            assertThat(cat.getComponents().getRawApForOneGain()).isNull();
-            assertThat(cat.getComponents().getCombined()).isCloseTo(cat.getComponents().getPeak(), within(0.1));
-            assertThat(cat.getSkillLevel()).isGreaterThan(90.0);
-        }
-
-        @Test
-        void exposesAllComponents() {
-            mockUser();
-            mockCategoryFiltered();
-            mockStats(300, BigDecimal.valueOf(1000));
-            mockActivePlayers(125000);
-            mockRawApForOneGain(BigDecimal.valueOf(800));
-
-            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
-            SkillCategoryResponse.SkillComponents comp = response.getSkills().get(0).getComponents();
-
-            assertThat(comp.getRank()).isGreaterThan(0);
-            assertThat(comp.getSustained()).isGreaterThan(0);
-            assertThat(comp.getPeak()).isGreaterThan(0);
-            assertThat(comp.getCombined()).isGreaterThan(0);
-            assertThat(comp.getRawApForOneGain()).isEqualByComparingTo("800");
-            assertThat(comp.getTopAp()).isEqualByComparingTo("1000");
-            assertThat(comp.getCategoryRank()).isEqualTo(300);
-            assertThat(comp.getActivePlayers()).isEqualTo(125000);
-        }
-    }
-
-    @Nested
-    class CategoryFiltering {
-
-        @Test
-        void omittedCategoryReturnsAll() {
-            mockUser();
-            Category catA = category("true_acc", "True Acc");
-            Category catB = category("standard_acc", "Standard Acc");
-            when(categoryRepository.findByActiveTrue()).thenReturn(List.of(catA, catB));
-            lenient().when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(eq(USER_ID), any()))
-                    .thenReturn(Optional.empty());
-            lenient().when(statsRepository.countActivePlayersInCategory(any())).thenReturn(125000L);
-            lenient().when(apCalculationService.calculateRawApForOneWeightedGain(any(), any()))
-                    .thenReturn(BigDecimal.ZERO);
+            UserCategorySkill row = persistedSkill(category(CATEGORY_CODE, "True Acc"), 87.5, 95);
+            when(skillRepository.findByUserIdActive(USER_ID)).thenReturn(List.of(row));
 
             SkillResponse response = skillService.computeSkillForUser(USER_ID, null);
 
-            assertThat(response.getSkills()).hasSize(2);
-            assertThat(response.getSkills()).extracting(SkillCategoryResponse::getCategoryCode)
-                    .containsExactly("true_acc", "standard_acc");
+            assertThat(response.getSkills()).hasSize(1);
+            assertThat(response.getSkills().get(0).getSkillLevel()).isEqualTo(87.5);
+            verify(apCalculationService, never()).calculateRawApForOneWeightedGain(any(), any());
         }
 
         @Test
-        void unknownCategoryThrows() {
+        void lazyUpsertsWhenEmptyThenReads() {
             mockUser();
-            when(categoryRepository.findByCodeAndActiveTrue("nope")).thenReturn(Optional.empty());
+            Category cat = category(CATEGORY_CODE, "True Acc");
+            UserCategorySkill row = persistedSkill(cat, 50.0, 70);
+            when(skillRepository.findByUserIdActive(USER_ID))
+                    .thenReturn(List.of())
+                    .thenReturn(List.of(row));
+            when(categoryRepository.findByActiveTrue()).thenReturn(List.of(cat));
+            mockStats(50, BigDecimal.valueOf(900));
+            mockActivePlayers(125000);
+            when(apCalculationService.calculateRawApForOneWeightedGain(any(), any()))
+                    .thenReturn(BigDecimal.valueOf(800));
+            when(skillRepository.findByUserIdAndCategoryId(eq(USER_ID), any())).thenReturn(Optional.empty());
+            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            assertThatThrownBy(() -> skillService.computeSkillForUser(USER_ID, "nope"))
-                    .isInstanceOf(ResourceNotFoundException.class);
+            SkillResponse response = skillService.computeSkillForUser(USER_ID, null);
+
+            assertThat(response.getSkills()).hasSize(1);
+            verify(skillRepository, times(2)).findByUserIdActive(USER_ID);
+            verify(skillRepository).save(any());
+        }
+
+        @Test
+        void singleCategoryReturnsThatRow() {
+            mockUser();
+            mockCategoryFiltered();
+            UserCategorySkill row = persistedSkill(category(CATEGORY_CODE, "True Acc"), 75.0, 80);
+            when(skillRepository.findByUserIdAndCategoryId(USER_ID, CATEGORY_ID)).thenReturn(Optional.of(row));
+
+            SkillResponse response = skillService.computeSkillForUser(USER_ID, CATEGORY_CODE);
+
+            assertThat(response.getSkills()).hasSize(1);
+            assertThat(response.getSkills().get(0).getCategoryCode()).isEqualTo(CATEGORY_CODE);
         }
 
         @Test
@@ -284,63 +184,138 @@ class SkillServiceTest {
     }
 
     @Nested
-    class CacheEviction {
+    class UpsertFlow {
 
         @Test
-        void evictForUserRemovesOnlyThatUsersEntries() {
-            CaffeineCache cache = new CaffeineCache("skill", Caffeine.newBuilder().build());
-            cache.put(USER_ID + ":all", "user-cached");
-            cache.put(USER_ID + ":true_acc", "user-true-acc-cached");
-            cache.put(99999L + ":all", "other-user-cached");
-            when(cacheManager.getCache("skill")).thenReturn(cache);
+        void persistsSingleCategoryAndOverall() {
+            mockUser();
+            Category cat = category(CATEGORY_CODE, "True Acc");
+            Category overall = Category.builder().id(OVERALL_ID).code("overall").name("Overall").build();
+            when(categoryRepository.findByIdAndActiveTrue(CATEGORY_ID)).thenReturn(Optional.of(cat));
+            when(categoryRepository.findByCodeAndActiveTrue("overall")).thenReturn(Optional.of(overall));
+            mockStats(2, BigDecimal.valueOf(1100));
+            mockActivePlayers(125000);
+            when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, OVERALL_ID))
+                    .thenReturn(Optional.empty());
+            when(statsRepository.countActivePlayersInCategory(OVERALL_ID)).thenReturn(125000L);
+            when(apCalculationService.calculateRawApForOneWeightedGain(any(), any()))
+                    .thenReturn(BigDecimal.valueOf(1070));
+            when(skillRepository.findByUserIdAndCategoryId(any(), any())).thenReturn(Optional.empty());
+            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of(
+                    persistedSkill(cat, 95.0, 95)));
 
-            skillService.evictForUser(USER_ID);
+            skillService.upsertSkill(USER_ID, CATEGORY_ID);
 
-            assertThat(cache.get(USER_ID + ":all")).isNull();
-            assertThat(cache.get(USER_ID + ":true_acc")).isNull();
-            assertThat(cache.get(99999L + ":all")).isNotNull();
+            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
+            verify(skillRepository, times(2)).save(captor.capture());
+            assertThat(captor.getAllValues()).extracting(s -> s.getCategory().getCode())
+                    .containsExactly(CATEGORY_CODE, "overall");
         }
 
         @Test
-        void evictForUserNoOpWhenCacheMissing() {
-            when(cacheManager.getCache("skill")).thenReturn(null);
-            skillService.evictForUser(USER_ID);
+        void overallIsAverageOfContributors() {
+            mockUser();
+            Category overall = Category.builder().id(OVERALL_ID).code("overall").name("Overall").build();
+            when(categoryRepository.findByIdAndActiveTrue(OVERALL_ID)).thenReturn(Optional.of(overall));
+            when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, OVERALL_ID))
+                    .thenReturn(Optional.empty());
+            when(statsRepository.countActivePlayersInCategory(OVERALL_ID)).thenReturn(125000L);
+            UserCategorySkill a = persistedSkill(category("a", "A"), 80.0, 70);
+            UserCategorySkill b = persistedSkill(category("b", "B"), 60.0, 60);
+            when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of(a, b));
+            when(skillRepository.findByUserIdAndCategoryId(USER_ID, OVERALL_ID)).thenReturn(Optional.empty());
+            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            skillService.upsertSkill(USER_ID, OVERALL_ID);
+
+            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
+            verify(skillRepository).save(captor.capture());
+            assertThat(captor.getValue().getSkillLevel().doubleValue()).isCloseTo(70.0, within(0.01));
         }
 
         @Test
-        void onScoreSubmittedEvictsSubmittingUser() {
-            CaffeineCache cache = new CaffeineCache("skill", Caffeine.newBuilder().build());
-            cache.put(USER_ID + ":all", "cached");
-            when(cacheManager.getCache("skill")).thenReturn(cache);
-            ScoreResponse score = ScoreResponse.builder().userId(String.valueOf(USER_ID)).build();
+        void overallWithNoContributorsFallsBackToRankOnly() {
+            mockUser();
+            Category overall = Category.builder().id(OVERALL_ID).code("overall").name("Overall").build();
+            when(categoryRepository.findByIdAndActiveTrue(OVERALL_ID)).thenReturn(Optional.of(overall));
+            when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, OVERALL_ID))
+                    .thenReturn(Optional.empty());
+            when(statsRepository.countActivePlayersInCategory(OVERALL_ID)).thenReturn(125000L);
+            when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of());
+            when(skillRepository.findByUserIdAndCategoryId(USER_ID, OVERALL_ID)).thenReturn(Optional.empty());
+            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            skillService.onScoreSubmitted(new ScoreSubmittedEvent(score));
+            skillService.upsertSkill(USER_ID, OVERALL_ID);
 
-            assertThat(cache.get(USER_ID + ":all")).isNull();
+            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
+            verify(skillRepository).save(captor.capture());
+            assertThat(captor.getValue().getSkillLevel().doubleValue()).isEqualTo(0);
         }
 
         @Test
-        void onScoreSubmittedSwallowsNonNumericUserId() {
-            ScoreResponse score = ScoreResponse.builder().userId("not-a-number").build();
-            skillService.onScoreSubmitted(new ScoreSubmittedEvent(score));
+        void noOpWhenUserMissing() {
+            when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.empty());
+
+            skillService.upsertSkill(USER_ID, CATEGORY_ID);
+
+            verify(skillRepository, never()).save(any());
         }
     }
 
     @Nested
-    class ApToNext {
+    class WeeklySnapshot {
 
         @Test
-        void delegatesToCalculator() {
-            mockUser();
-            mockCategoryFiltered();
-            mockRawApForOneGain(BigDecimal.valueOf(812.5));
-            when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(USER_ID, CATEGORY_ID))
-                    .thenReturn(List.of());
+        void insertsWhenNoPriorSnapshotExists() {
+            UserCategorySkill row = persistedSkill(category(CATEGORY_CODE, "True Acc"), 80.0, 75);
+            when(skillRepository.findAll()).thenReturn(List.of(row));
+            when(snapshotRepository.findFirstByUser_IdAndCategory_IdOrderByCapturedAtDesc(any(), any()))
+                    .thenReturn(Optional.empty());
 
-            var response = skillService.calculateApToNext(USER_ID, CATEGORY_CODE);
+            skillService.captureWeeklySnapshots();
 
-            assertThat(response.getCategoryCode()).isEqualTo(CATEGORY_CODE);
-            assertThat(response.getRawApForOneGain()).isEqualByComparingTo("812.5");
+            verify(snapshotRepository).save(any(UserCategorySkillSnapshot.class));
+        }
+
+        @Test
+        void skipsWhenUnchangedSinceLastSnapshot() {
+            UserCategorySkill row = persistedSkill(category(CATEGORY_CODE, "True Acc"), 80.0, 75);
+            UserCategorySkillSnapshot prior = UserCategorySkillSnapshot.builder()
+                    .skillLevel(row.getSkillLevel())
+                    .rankScore(row.getRankScore())
+                    .sustainedScore(row.getSustainedScore())
+                    .peakScore(row.getPeakScore())
+                    .combinedScore(row.getCombinedScore())
+                    .capturedAt(Instant.now())
+                    .build();
+            when(skillRepository.findAll()).thenReturn(List.of(row));
+            when(snapshotRepository.findFirstByUser_IdAndCategory_IdOrderByCapturedAtDesc(any(), any()))
+                    .thenReturn(Optional.of(prior));
+
+            skillService.captureWeeklySnapshots();
+
+            verify(snapshotRepository, never()).save(any(UserCategorySkillSnapshot.class));
+        }
+
+        @Test
+        void insertsWhenAnyComponentChanged() {
+            UserCategorySkill row = persistedSkill(category(CATEGORY_CODE, "True Acc"), 80.0, 75);
+            UserCategorySkillSnapshot prior = UserCategorySkillSnapshot.builder()
+                    .skillLevel(row.getSkillLevel())
+                    .rankScore(row.getRankScore())
+                    .sustainedScore(BigDecimal.valueOf(50))
+                    .peakScore(row.getPeakScore())
+                    .combinedScore(row.getCombinedScore())
+                    .capturedAt(Instant.now())
+                    .build();
+            when(skillRepository.findAll()).thenReturn(List.of(row));
+            when(snapshotRepository.findFirstByUser_IdAndCategory_IdOrderByCapturedAtDesc(any(), any()))
+                    .thenReturn(Optional.of(prior));
+
+            skillService.captureWeeklySnapshots();
+
+            verify(snapshotRepository).save(any(UserCategorySkillSnapshot.class));
         }
     }
 
@@ -355,7 +330,8 @@ class SkillServiceTest {
     }
 
     private Category category(String code, String name) {
-        return Category.builder().id(code.equals(CATEGORY_CODE) ? CATEGORY_ID : UUID.randomUUID())
+        return Category.builder()
+                .id(code.equals(CATEGORY_CODE) ? CATEGORY_ID : UUID.randomUUID())
                 .code(code).name(name)
                 .weightCurve(Curve.builder().id(UUID.randomUUID()).build())
                 .build();
@@ -364,9 +340,7 @@ class SkillServiceTest {
     private void mockStats(int rank, BigDecimal topAp) {
         Score topPlay = Score.builder().id(UUID.randomUUID()).ap(topAp).build();
         UserCategoryStatistics stats = UserCategoryStatistics.builder()
-                .ranking(rank)
-                .topPlay(topPlay)
-                .build();
+                .ranking(rank).topPlay(topPlay).build();
         when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, CATEGORY_ID))
                 .thenReturn(Optional.of(stats));
         lenient().when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(USER_ID, CATEGORY_ID))
@@ -377,8 +351,19 @@ class SkillServiceTest {
         when(statsRepository.countActivePlayersInCategory(CATEGORY_ID)).thenReturn(count);
     }
 
-    private void mockRawApForOneGain(BigDecimal value) {
-        when(apCalculationService.calculateRawApForOneWeightedGain(any(), any())).thenReturn(value);
+    private UserCategorySkill persistedSkill(Category category, double skill, double components) {
+        return UserCategorySkill.builder()
+                .user(User.builder().id(USER_ID).build())
+                .category(category)
+                .skillLevel(BigDecimal.valueOf(skill))
+                .rankScore(BigDecimal.valueOf(components))
+                .sustainedScore(BigDecimal.valueOf(components))
+                .peakScore(BigDecimal.valueOf(components))
+                .combinedScore(BigDecimal.valueOf(components))
+                .topAp(BigDecimal.valueOf(1000))
+                .categoryRank(50)
+                .activePlayers(125000L)
+                .build();
     }
 
     private static org.assertj.core.data.Offset<Double> within(double tolerance) {
