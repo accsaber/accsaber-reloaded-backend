@@ -28,7 +28,7 @@ public class OpenApiConfig {
                                                                 REST API for the AccSaber Reloaded platform - an accuracy-based \
                                                                 leaderboard system for Beat Saber.
                                                                 """)
-                                                .version("ALPHA-4.4.0")
+                                                .version("ALPHA-4.5.0")
                                                 .contact(new Contact()
                                                                 .name("AccSaber Reloaded")
                                                                 .url(baseUrl)))
@@ -52,7 +52,11 @@ public class OpenApiConfig {
                                                 new Tag().name("Campaigns")
                                                                 .description("Campaign progressions with curated map sequences and XP rewards"),
                                                 new Tag().name("Playlists")
-                                                                .description("Downloadable Beat Saber playlist files for each ranked category, with syncURL for auto-updates"),
+                                                                .description("Downloadable Beat Saber playlist files - per-category (ranked & queued) and personalised snipe playlists (where the target outscores the sniper). All include syncURL for in-game refresh"),
+                                                new Tag().name("Snipe")
+                                                                .description("Per-pair score comparison - which map difficulties does the target outscore the sniper on, ordered by smallest gap first. Powers the snipe view on profiles"),
+                                                new Tag().name("Skill")
+                                                                .description("Per-category skill levels (0-100) for a user, with rank/sustained/peak component breakdown for charts. Includes the raw-AP-to-gain-one utility"),
                                                 new Tag().name("Curves")
                                                                 .description("Scoring curves - point-lookup and formula curves used for AP and weight calculations"),
                                                 new Tag().name("Discord Links")

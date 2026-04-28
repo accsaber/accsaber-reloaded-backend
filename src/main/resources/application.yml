@@ -108,6 +108,14 @@ accsaber:
     capacity: 400
     window-seconds: 60
     trusted-ips: ${RATE_LIMIT_TRUSTED_IPS:}
+  skill:
+    rank-weight: 0.70
+    combined-weight: 0.30
+    rank-curve-exponent: 0.5
+    sustained-center: 750
+    sustained-spread: 90
+    peak-center: 850
+    peak-spread: 90
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
   criteria-checker:

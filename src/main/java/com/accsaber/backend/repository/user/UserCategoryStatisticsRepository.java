@@ -127,6 +127,13 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
             """)
     List<UserCategoryStatistics> findActiveByCategoryOrderByApDesc(@Param("categoryId") UUID categoryId);
 
+    @Query("""
+            SELECT COUNT(s) FROM UserCategoryStatistics s
+            JOIN s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
+            """)
+    long countActivePlayersInCategory(@Param("categoryId") UUID categoryId);
+
     @Query(value = """
             SELECT s FROM UserCategoryStatistics s
             JOIN FETCH s.user u

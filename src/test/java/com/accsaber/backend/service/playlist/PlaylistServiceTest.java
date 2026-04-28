@@ -77,8 +77,8 @@ class PlaylistServiceTest {
             when(scoreRepository.findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), isNull(), eq(false),
                     any(Pageable.class))).thenReturn(page);
             when(playlistAssembler.fetchAndEncodeImage(AVATAR)).thenReturn("data:image/png;base64,XXX");
-            Map<String, Object> assembled = Map.of("playlistTitle", "Snipe Victim");
-            when(playlistAssembler.assemble(eq("Snipe Victim"), eq("data:image/png;base64,XXX"),
+            Map<String, Object> assembled = Map.of("playlistTitle", "AccSaber: Snipe Victim");
+            when(playlistAssembler.assemble(eq("AccSaber: Snipe Victim"), eq("data:image/png;base64,XXX"),
                     eq(SYNC_URL), any())).thenReturn(assembled);
 
             Map<String, Object> result = playlistService.generateSnipePlaylist(SNIPER_ID, TARGET_ID, null, 20, SYNC_URL);
@@ -97,12 +97,12 @@ class PlaylistServiceTest {
                     .thenReturn(Optional.of(Category.builder().id(catId).code("true_acc").name("True Acc").build()));
             when(scoreRepository.findClosestSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), eq(catId), eq(false),
                     any(Pageable.class))).thenReturn(new PageImpl<>(List.<Object[]>of()));
-            when(playlistAssembler.assemble(eq("Snipe Victim (True Acc)"), any(), anyString(), any()))
+            when(playlistAssembler.assemble(eq("AccSaber: Snipe Victim (True Acc)"), any(), anyString(), any()))
                     .thenReturn(Map.of());
 
             playlistService.generateSnipePlaylist(SNIPER_ID, TARGET_ID, "true_acc", 20, SYNC_URL);
 
-            verify(playlistAssembler).assemble(eq("Snipe Victim (True Acc)"), any(), anyString(), any());
+            verify(playlistAssembler).assemble(eq("AccSaber: Snipe Victim (True Acc)"), any(), anyString(), any());
         }
 
         @Test

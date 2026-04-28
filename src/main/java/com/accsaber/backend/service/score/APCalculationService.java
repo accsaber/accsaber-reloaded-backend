@@ -44,17 +44,71 @@ public class APCalculationService {
     }
 
     public BigDecimal calculateWeightedAP(BigDecimal rawAP, int position, Curve weightCurve) {
+        double weight = positionWeight(position, weightCurve);
+        BigDecimal weightBD = new BigDecimal(weight, MATH_CONTEXT);
+        return rawAP.multiply(weightBD, MATH_CONTEXT)
+                .setScale(AP_SCALE, RoundingMode.HALF_UP);
+    }
+
+    public BigDecimal calculateRawApForOneWeightedGain(List<BigDecimal> sortedRawApsDesc, Curve weightCurve) {
+        List<BigDecimal> sorted = sortedRawApsDesc == null ? List.of() : sortedRawApsDesc;
+        double currentTotal = totalWeightedAP(sorted, weightCurve);
+        double target = currentTotal + 1.0;
+
+        double lo = 0.0;
+        double hi = sorted.isEmpty()
+                ? 100.0
+                : Math.max(100.0, sorted.get(0).doubleValue() * 3.0);
+
+        for (int i = 0; i < 60; i++) {
+            double mid = (lo + hi) / 2.0;
+            double trial = totalWeightedAPWithInsert(sorted, mid, weightCurve);
+            if (trial < target) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+            if (hi - lo < 1e-4) {
+                break;
+            }
+        }
+        return BigDecimal.valueOf((lo + hi) / 2.0).setScale(AP_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private double totalWeightedAP(List<BigDecimal> sortedRawApsDesc, Curve weightCurve) {
+        double total = 0.0;
+        for (int i = 0; i < sortedRawApsDesc.size(); i++) {
+            total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(i + 1, weightCurve);
+        }
+        return total;
+    }
+
+    private double totalWeightedAPWithInsert(List<BigDecimal> sortedRawApsDesc, double newRaw, Curve weightCurve) {
+        int insertAt = sortedRawApsDesc.size();
+        for (int i = 0; i < sortedRawApsDesc.size(); i++) {
+            if (newRaw > sortedRawApsDesc.get(i).doubleValue()) {
+                insertAt = i;
+                break;
+            }
+        }
+        double total = 0.0;
+        int pos = 1;
+        for (int i = 0; i < insertAt; i++) {
+            total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(pos++, weightCurve);
+        }
+        total += newRaw * positionWeight(pos++, weightCurve);
+        for (int i = insertAt; i < sortedRawApsDesc.size(); i++) {
+            total += sortedRawApsDesc.get(i).doubleValue() * positionWeight(pos++, weightCurve);
+        }
+        return total;
+    }
+
+    private double positionWeight(int position, Curve weightCurve) {
         double k = weightCurve.getXParameterValue().doubleValue();
         double y1 = weightCurve.getYParameterValue().doubleValue();
         double x1 = weightCurve.getZParameterValue().doubleValue();
         double x0 = -Math.log((1 - y1) / (y1 * Math.exp(k * x1) - 1)) / k;
-
-        double x = position;
-        double weight = (1 + Math.exp(-k * x0)) / (1 + Math.exp(k * (x - x0)));
-
-        BigDecimal weightBD = new BigDecimal(weight, MATH_CONTEXT);
-        return rawAP.multiply(weightBD, MATH_CONTEXT)
-                .setScale(AP_SCALE, RoundingMode.HALF_UP);
+        return (1 + Math.exp(-k * x0)) / (1 + Math.exp(k * (position - x0)));
     }
 
     public BigDecimal interpolate(Curve curve, BigDecimal accuracy) {

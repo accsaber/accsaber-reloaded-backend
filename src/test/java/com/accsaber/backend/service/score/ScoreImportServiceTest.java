@@ -93,6 +93,8 @@ class ScoreImportServiceTest {
         private ScoreRankingService scoreRankingService;
         @Mock
         private DuplicateUserService duplicateUserService;
+        @Mock
+        private com.accsaber.backend.service.skill.SkillService skillService;
 
         private ScoreImportService scoreImportService;
         private MapDifficulty difficulty;
@@ -106,7 +108,7 @@ class ScoreImportServiceTest {
                                 scoreModifierLinkRepository, modifierRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
                                 milestoneEvaluationService, mapDifficultyStatisticsService, scoreRankingService,
-                                duplicateUserService);
+                                duplicateUserService, skillService);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",
                                 (java.util.concurrent.Executor) Runnable::run);

@@ -295,4 +295,86 @@ class APCalculationServiceTest {
                         assertThat(result).isEqualByComparingTo(new BigDecimal("0.8"));
                 }
         }
+
+        @Nested
+        class CalculateRawApForOneWeightedGain {
+
+                @Test
+                void emptyHistoryReturnsTinyRawAp() {
+                        BigDecimal result = apCalculationService
+                                        .calculateRawApForOneWeightedGain(List.of(), weightCurve);
+                        assertThat(result.doubleValue()).isLessThan(2.0).isGreaterThan(0.5);
+                }
+
+                @Test
+                void singleHighPlayMakesOneGainCheap() {
+                        // One play of 1100 raw — top is dominated by it. Adding a small play at
+                        // position 2 still gains > 1 weighted easily.
+                        BigDecimal result = apCalculationService.calculateRawApForOneWeightedGain(
+                                        List.of(new BigDecimal("1100")), weightCurve);
+                        assertThat(result.doubleValue()).isLessThan(10.0);
+                }
+
+                @Test
+                void deepConsistentPlayerNeedsHighRawToGainOne() {
+                        // 50 plays clustered near 1000 raw — to gain 1 weighted you need
+                        // a play comparable to the top.
+                        List<BigDecimal> plays = new java.util.ArrayList<>();
+                        for (int i = 0; i < 50; i++) {
+                                plays.add(new BigDecimal(1000 - i));
+                        }
+                        BigDecimal result = apCalculationService
+                                        .calculateRawApForOneWeightedGain(plays, weightCurve);
+                        assertThat(result.doubleValue()).isGreaterThan(700.0);
+                }
+
+                @Test
+                void monotonicInPlayCount_higherCountMeansHigherRawNeeded() {
+                        List<BigDecimal> few = List.of(
+                                        new BigDecimal("900"), new BigDecimal("800"), new BigDecimal("700"));
+                        List<BigDecimal> many = new java.util.ArrayList<>();
+                        for (int i = 0; i < 30; i++) {
+                                many.add(new BigDecimal(900 - i * 5));
+                        }
+                        BigDecimal fewResult = apCalculationService
+                                        .calculateRawApForOneWeightedGain(few, weightCurve);
+                        BigDecimal manyResult = apCalculationService
+                                        .calculateRawApForOneWeightedGain(many, weightCurve);
+                        assertThat(manyResult.doubleValue()).isGreaterThan(fewResult.doubleValue());
+                }
+
+                @Test
+                void resultIsConsistentWithTotalDelta() {
+                        // Sanity: applying the returned raw should add ~1 weighted to the total
+                        List<BigDecimal> plays = List.of(
+                                        new BigDecimal("1000"), new BigDecimal("950"),
+                                        new BigDecimal("900"), new BigDecimal("850"));
+                        double before = totalWeighted(plays);
+                        BigDecimal raw = apCalculationService
+                                        .calculateRawApForOneWeightedGain(plays, weightCurve);
+                        List<BigDecimal> after = new java.util.ArrayList<>(plays);
+                        insertSorted(after, raw);
+                        double afterTotal = totalWeighted(after);
+                        assertThat(afterTotal - before).isCloseTo(1.0, within(0.01));
+                }
+
+                private double totalWeighted(List<BigDecimal> sortedDesc) {
+                        double total = 0;
+                        for (int i = 0; i < sortedDesc.size(); i++) {
+                                total += sortedDesc.get(i).doubleValue()
+                                                * apCalculationService
+                                                                .calculateWeightedAP(BigDecimal.ONE, i + 1, weightCurve)
+                                                                .doubleValue();
+                        }
+                        return total;
+                }
+
+                private void insertSorted(List<BigDecimal> list, BigDecimal value) {
+                        int i = 0;
+                        while (i < list.size() && list.get(i).compareTo(value) >= 0) {
+                                i++;
+                        }
+                        list.add(i, value);
+                }
+        }
 }
