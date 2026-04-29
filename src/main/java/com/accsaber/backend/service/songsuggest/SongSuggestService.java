@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -94,21 +93,15 @@ public class SongSuggestService {
         List<SongSuggestPlayerResponse> players = new ArrayList<>(eligibleUserIds.size());
         int dropped = 0;
         for (Long userId : eligibleUserIds) {
-            List<Score> top = scoreRepository.findTopActiveByUserOrderByWeightedApDesc(
-                    userId, PageRequest.of(0, TOP_SCORE_COUNT));
-
-            if (top.size() < TOP_SCORE_COUNT) {
-                dropped++;
-                continue;
-            }
-            if (!isConsistent(top)) {
+            List<Score> top30 = pickTop30Consistent(userId);
+            if (top30 == null) {
                 dropped++;
                 continue;
             }
 
-            User user = top.get(0).getUser();
+            User user = top30.get(0).getUser();
             int rank = overallRankByUserId.getOrDefault(userId, 0);
-            players.add(buildPlayer(user, rank, top));
+            players.add(buildPlayer(user, rank, top30));
         }
 
         players.sort(Comparator.comparingInt(p -> p.getRank() == 0 ? Integer.MAX_VALUE : p.getRank()));
@@ -135,14 +128,23 @@ public class SongSuggestService {
         return ranks;
     }
 
-    private boolean isConsistent(List<Score> top30ByWeightedAp) {
-        List<BigDecimal> rawAps = top30ByWeightedAp.stream()
-                .map(Score::getAp)
-                .sorted(Comparator.reverseOrder())
-                .toList();
-        BigDecimal anchor = rawAps.get(CONSISTENCY_ANCHOR_INDEX);
+    private List<Score> pickTop30Consistent(Long userId) {
+        List<Score> all = scoreRepository.findActiveByUserOrderByApDescWithMap(userId);
+        if (all.size() <= CONSISTENCY_ANCHOR_INDEX) {
+            return null;
+        }
+        BigDecimal anchor = all.get(CONSISTENCY_ANCHOR_INDEX).getAp();
         BigDecimal threshold = anchor.multiply(CONSISTENCY_THRESHOLD_RATIO);
-        return rawAps.get(rawAps.size() - 1).compareTo(threshold) >= 0;
+        List<Score> consistent = all.stream()
+                .filter(s -> s.getAp().compareTo(threshold) >= 0)
+                .toList();
+        if (consistent.size() < TOP_SCORE_COUNT) {
+            return null;
+        }
+        return consistent.stream()
+                .sorted(Comparator.comparing(Score::getWeightedAp).reversed())
+                .limit(TOP_SCORE_COUNT)
+                .toList();
     }
 
     private SongSuggestPlayerResponse buildPlayer(User user, int globalRank, List<Score> top) {
