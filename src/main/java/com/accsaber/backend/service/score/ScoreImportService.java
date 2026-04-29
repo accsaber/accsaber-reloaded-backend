@@ -45,6 +45,7 @@ import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
 import com.accsaber.backend.service.skill.SkillService;
+import com.accsaber.backend.service.songsuggest.SongSuggestService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 
 import com.accsaber.backend.service.stats.RankingService;
@@ -78,6 +79,7 @@ public class ScoreImportService {
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
     private final SkillService skillService;
+    private final SongSuggestService songSuggestService;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -175,6 +177,8 @@ public class ScoreImportService {
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill complete for {} difficulties in {}s", mapDifficultyIds.size(), elapsed / 1000);
+
+        songSuggestService.regenerateAsync();
     }
 
     @Async("taskExecutor")

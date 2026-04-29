@@ -190,6 +190,17 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
+                        JOIN FETCH s.mapDifficulty d
+                        JOIN FETCH d.map
+                        WHERE s.user.id = :userId AND s.active = true
+                        ORDER BY s.weightedAp DESC
+                        """)
+        List<Score> findTopActiveByUserOrderByWeightedApDesc(
+                        @Param("userId") Long userId,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
                         WHERE s.user.id = :userId
                         AND s.mapDifficulty.category.id = :categoryId
                         AND s.active = true

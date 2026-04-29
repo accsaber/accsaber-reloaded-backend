@@ -33,6 +33,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
+import com.accsaber.backend.service.songsuggest.SongSuggestService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
@@ -60,6 +61,7 @@ public class ScoreRecalculationService {
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository userCategoryStatisticsRepository;
     private final ScoreRankingService scoreRankingService;
+    private final SongSuggestService songSuggestService;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -139,6 +141,8 @@ public class ScoreRecalculationService {
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Batch recalculation complete for {} difficulties, {} users affected",
                 difficulties.size(), totalUsers);
+
+        songSuggestService.regenerateAsync();
     }
 
     @Async("taskExecutor")

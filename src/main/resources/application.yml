@@ -119,6 +119,9 @@ accsaber:
     peak-relative-alpha: 0.5
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
+    songsuggest-cron: "0 0 4 * * MON"
+  songsuggest:
+    output-path: ${SONGSUGGEST_OUTPUT_PATH:data/songsuggest/leaderboard.json}
   criteria-checker:
     base-url: ${CRITERIA_CHECKER_URL:http://criteria-checker:8000}
     timeout-ms: 60000
