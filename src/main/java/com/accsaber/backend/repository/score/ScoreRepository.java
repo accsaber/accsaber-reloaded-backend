@@ -214,6 +214,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
+                        JOIN FETCH s.user
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.map
                         WHERE s.user.id = :userId AND s.active = true

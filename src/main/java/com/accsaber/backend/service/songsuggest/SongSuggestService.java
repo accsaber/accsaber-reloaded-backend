@@ -72,6 +72,7 @@ public class SongSuggestService {
     }
 
     @Async("taskExecutor")
+    @Transactional(readOnly = true)
     public void regenerateAsync() {
         try {
             generate();
