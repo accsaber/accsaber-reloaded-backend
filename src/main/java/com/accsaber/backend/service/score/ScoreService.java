@@ -439,16 +439,29 @@ public class ScoreService {
 
         public Page<ScoreResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, String country,
                         String search, Pageable pageable) {
+                return findLeaderboardByMapDifficulty(mapDifficultyId, country, search, null, pageable);
+        }
+
+        public Page<ScoreResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, String country,
+                        String search, java.util.Collection<Long> userIdFilter, Pageable pageable) {
                 MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(mapDifficultyId)
                                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
                 if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
                 Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.ASC, "rank"));
+                if (userIdFilter != null && userIdFilter.isEmpty()) {
+                        return Page.empty(effective);
+                }
                 boolean hasCountry = country != null && !country.isBlank();
                 boolean hasSearch = search != null && !search.isBlank();
                 Page<Score> scores;
-                if (hasCountry && hasSearch) {
+                if (userIdFilter != null) {
+                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
+                                        mapDifficultyId, userIdFilter,
+                                        hasCountry ? country.toUpperCase() : null,
+                                        hasSearch ? search.trim() : null, effective);
+                } else if (hasCountry && hasSearch) {
                         scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountryAndSearch(
                                         mapDifficultyId, country.toUpperCase(), search.trim(), effective);
                 } else if (hasCountry) {

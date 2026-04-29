@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.stats;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,39 +42,84 @@ public class LeaderboardService {
     @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
     public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, String hmd, boolean includeInactive,
             Pageable pageable) {
+        return getGlobalFiltered(categoryId, search, hmd, includeInactive, null, pageable);
+    }
+
+    public Page<LeaderboardResponse> getGlobalFiltered(UUID categoryId, String search, String hmd,
+            boolean includeInactive, Collection<Long> userIdFilter, Pageable pageable) {
         verifyCategory(categoryId);
+        if (userIdFilter != null && userIdFilter.isEmpty()) {
+            return Page.empty(pageable);
+        }
         boolean hasSearch = search != null && !search.isBlank();
         String normalizedHmd = HmdMapper.normalize(hmd);
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "ranking"));
-        Page<UserCategoryStatistics> page = hasSearch
-                ? statisticsRepository.findActiveByCategoryPagedWithSearch(categoryId, search.trim(),
-                        includeInactive, normalizedHmd, effective)
-                : statisticsRepository.findActiveByCategoryPaged(categoryId, includeInactive, normalizedHmd, effective);
+        Page<UserCategoryStatistics> page;
+        if (userIdFilter != null) {
+            page = statisticsRepository.findActiveByCategoryPagedFilteredByUserIds(
+                    categoryId, userIdFilter, null, hasSearch ? search.trim() : null,
+                    includeInactive, normalizedHmd, effective);
+        } else {
+            page = hasSearch
+                    ? statisticsRepository.findActiveByCategoryPagedWithSearch(categoryId, search.trim(),
+                            includeInactive, normalizedHmd, effective)
+                    : statisticsRepository.findActiveByCategoryPaged(categoryId, includeInactive, normalizedHmd,
+                            effective);
+        }
         return enrichWithLastWeekRanking(page, categoryId);
     }
 
     @Cacheable(value = "leaderboards", key = "'country:' + #categoryId + ':' + #country + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
     public Page<LeaderboardResponse> getByCountry(UUID categoryId, String country, String search, String hmd,
             boolean includeInactive, Pageable pageable) {
+        return getByCountryFiltered(categoryId, country, search, hmd, includeInactive, null, pageable);
+    }
+
+    public Page<LeaderboardResponse> getByCountryFiltered(UUID categoryId, String country, String search, String hmd,
+            boolean includeInactive, Collection<Long> userIdFilter, Pageable pageable) {
         verifyCategory(categoryId);
+        if (userIdFilter != null && userIdFilter.isEmpty()) {
+            return Page.empty(pageable);
+        }
         boolean hasSearch = search != null && !search.isBlank();
         String normalizedHmd = HmdMapper.normalize(hmd);
         Pageable effective = withDefaultSort(pageable, Sort.by(Sort.Direction.ASC, "countryRanking"));
-        Page<UserCategoryStatistics> page = hasSearch
-                ? statisticsRepository.findActiveByCategoryAndCountryPagedWithSearch(
-                        categoryId, country, search.trim(), includeInactive, normalizedHmd, effective)
-                : statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, includeInactive,
-                        normalizedHmd, effective);
+        Page<UserCategoryStatistics> page;
+        if (userIdFilter != null) {
+            page = statisticsRepository.findActiveByCategoryPagedFilteredByUserIds(
+                    categoryId, userIdFilter, country, hasSearch ? search.trim() : null,
+                    includeInactive, normalizedHmd, effective);
+        } else {
+            page = hasSearch
+                    ? statisticsRepository.findActiveByCategoryAndCountryPagedWithSearch(
+                            categoryId, country, search.trim(), includeInactive, normalizedHmd, effective)
+                    : statisticsRepository.findActiveByCategoryAndCountryPaged(categoryId, country, includeInactive,
+                            normalizedHmd, effective);
+        }
         return enrichWithLastWeekRanking(page, categoryId);
     }
 
     public Page<XpLeaderboardResponse> getXpLeaderboard(String country, String search, String hmd,
             boolean includeInactive, Pageable pageable) {
+        return getXpLeaderboardFiltered(country, search, hmd, includeInactive, null, pageable);
+    }
+
+    public Page<XpLeaderboardResponse> getXpLeaderboardFiltered(String country, String search, String hmd,
+            boolean includeInactive, Collection<Long> userIdFilter, Pageable pageable) {
+        if (userIdFilter != null && userIdFilter.isEmpty()) {
+            return Page.empty(pageable);
+        }
         boolean hasSearch = search != null && !search.isBlank();
         boolean hasCountry = country != null && !country.isBlank();
         String normalizedHmd = HmdMapper.normalize(hmd);
         Page<User> page;
-        if (hasCountry && hasSearch) {
+        if (userIdFilter != null) {
+            page = userRepository.findXpLeaderboardFilteredByUserIds(
+                    userIdFilter,
+                    hasCountry ? country : null,
+                    hasSearch ? search.trim() : null,
+                    includeInactive, normalizedHmd, pageable);
+        } else if (hasCountry && hasSearch) {
             page = userRepository.findXpLeaderboardByCountryWithSearch(country, search.trim(), includeInactive,
                     normalizedHmd, pageable);
         } else if (hasCountry) {

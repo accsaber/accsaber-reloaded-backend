@@ -176,6 +176,30 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("search") String search,
                         Pageable pageable);
 
+        @Query(value = """
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.active = true AND u.banned = false
+                        AND u.id IN :userIds
+                        AND (:country IS NULL OR u.country = :country)
+                        AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        """, countQuery = """
+                        SELECT COUNT(s) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
+                        AND u.active = true AND u.banned = false
+                        AND u.id IN :userIds
+                        AND (:country IS NULL OR u.country = :country)
+                        AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        """)
+        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("country") String country,
+                        @Param("search") String search,
+                        Pageable pageable);
+
         @Query("""
                         SELECT s FROM Score s
                         JOIN FETCH s.mapDifficulty d
@@ -198,6 +222,15 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         List<Score> findTopActiveByUserOrderByWeightedApDesc(
                         @Param("userId") Long userId,
                         Pageable pageable);
+
+        @Query("""
+                        SELECT s.user.id FROM Score s
+                        JOIN s.user u
+                        WHERE s.active = true AND u.active = true AND u.banned = false
+                        GROUP BY s.user.id
+                        HAVING COUNT(s) >= :minScores
+                        """)
+        List<Long> findUserIdsWithAtLeastActiveScores(@Param("minScores") long minScores);
 
         @Query("""
                         SELECT s FROM Score s

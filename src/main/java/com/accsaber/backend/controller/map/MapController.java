@@ -22,15 +22,20 @@ import com.accsaber.backend.model.dto.response.map.PublicMapResponse;
 import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
+import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.user.UserRelationType;
+import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.map.MapService;
+import com.accsaber.backend.service.player.UserRelationService;
 import com.accsaber.backend.service.score.ScoreService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/v1/maps")
@@ -41,6 +46,7 @@ public class MapController {
     private final MapService mapService;
     private final ScoreService scoreService;
     private final MapDifficultyStatisticsService statisticsService;
+    private final UserRelationService userRelationService;
 
     @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category, status, and/or search (matches song name, song author, or mapper)")
     @GetMapping
@@ -106,25 +112,43 @@ public class MapController {
         return ResponseEntity.ok(mapService.findDifficultiesByMapIdPublic(mapId));
     }
 
-    @Operation(summary = "Difficulty scores by leaderboard ID", description = "Paginated scores for a difficulty looked up by BeatLeader or ScoreSaber leaderboard ID (provide exactly one)")
+    @Operation(summary = "Difficulty scores by leaderboard ID", description = "Paginated scores for a difficulty looked up by BeatLeader or ScoreSaber leaderboard ID (provide exactly one). Optional relation filter restricts to the authenticated player's relations.")
     @GetMapping("/difficulties/leaderboard/{leaderboardId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyScoresByLeaderboardId(
             @PathVariable String leaderboardId,
             @RequestParam(required = false) String country,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) UserRelationType relation,
+            @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
         UUID difficultyId = mapService.findDifficultyIdByLeaderboardId(leaderboardId);
-        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, pageable));
+        java.util.Collection<Long> filter = resolveRelationFilter(relation, principal);
+        return ResponseEntity.ok(
+                scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, filter, pageable));
     }
 
-    @Operation(summary = "Difficulty leaderboard", description = "Paginated scores with player info for a specific difficulty, sorted by score descending. Optionally filter by country code (e.g. ES, GB) and/or player name search")
+    @Operation(summary = "Difficulty leaderboard", description = "Paginated scores with player info for a specific difficulty, sorted by score descending. Optionally filter by country code (e.g. ES, GB), player name search, or relation type (auth required).")
     @GetMapping("/difficulties/{difficultyId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyLeaderboard(
             @PathVariable UUID difficultyId,
             @RequestParam(required = false) String country,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) UserRelationType relation,
+            @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, pageable));
+        java.util.Collection<Long> filter = resolveRelationFilter(relation, principal);
+        return ResponseEntity.ok(
+                scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, filter, pageable));
+    }
+
+    private java.util.Collection<Long> resolveRelationFilter(UserRelationType relation, PlayerUserDetails principal) {
+        if (relation == null) {
+            return null;
+        }
+        if (principal == null) {
+            throw new UnauthorizedException("Player authentication required to filter by relation");
+        }
+        return userRelationService.findActiveTargetUserIds(principal.getUserId(), relation);
     }
 
     @Operation(summary = "Scores around a player", description = "Returns scores above and below a player on a difficulty leaderboard. "

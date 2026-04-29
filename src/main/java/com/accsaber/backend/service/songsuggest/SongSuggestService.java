@@ -8,7 +8,9 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,7 +20,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.songsuggest.SongSuggestPlayerResponse;
 import com.accsaber.backend.model.dto.response.songsuggest.SongSuggestScoreResponse;
 import com.accsaber.backend.model.entity.Category;
@@ -82,24 +83,18 @@ public class SongSuggestService {
     @Transactional(readOnly = true)
     public void generate() {
         long startMillis = System.currentTimeMillis();
-        Category overall = categoryRepository.findByCodeAndActiveTrue(OVERALL_CATEGORY_CODE)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", OVERALL_CATEGORY_CODE));
 
-        List<UserCategoryStatistics> eligible = statisticsRepository
-                .findActiveByCategoryOrderByApDesc(overall.getId()).stream()
-                .filter(s -> s.getRankedPlays() != null && s.getRankedPlays() >= MIN_RANKED_PLAYS)
-                .filter(s -> s.getRanking() != null)
-                .sorted(Comparator.comparingInt(UserCategoryStatistics::getRanking))
-                .toList();
+        List<Long> eligibleUserIds = scoreRepository.findUserIdsWithAtLeastActiveScores(MIN_RANKED_PLAYS);
+        log.info("songsuggest: {} active+unbanned players meet >={} active scores",
+                eligibleUserIds.size(), MIN_RANKED_PLAYS);
 
-        log.info("songsuggest: {} players meet >={} ranked plays", eligible.size(), MIN_RANKED_PLAYS);
+        Map<Long, Integer> overallRankByUserId = loadOverallRankings();
 
-        List<SongSuggestPlayerResponse> players = new ArrayList<>(eligible.size());
+        List<SongSuggestPlayerResponse> players = new ArrayList<>(eligibleUserIds.size());
         int dropped = 0;
-        for (UserCategoryStatistics stat : eligible) {
-            User user = stat.getUser();
+        for (Long userId : eligibleUserIds) {
             List<Score> top = scoreRepository.findTopActiveByUserOrderByWeightedApDesc(
-                    user.getId(), PageRequest.of(0, TOP_SCORE_COUNT));
+                    userId, PageRequest.of(0, TOP_SCORE_COUNT));
 
             if (top.size() < TOP_SCORE_COUNT) {
                 dropped++;
@@ -110,8 +105,12 @@ public class SongSuggestService {
                 continue;
             }
 
-            players.add(buildPlayer(user, stat.getRanking(), top));
+            User user = top.get(0).getUser();
+            int rank = overallRankByUserId.getOrDefault(userId, 0);
+            players.add(buildPlayer(user, rank, top));
         }
+
+        players.sort(Comparator.comparingInt(p -> p.getRank() == 0 ? Integer.MAX_VALUE : p.getRank()));
 
         log.info("songsuggest: {} players included, {} dropped by consistency/min-30 filter",
                 players.size(), dropped);
@@ -119,6 +118,20 @@ public class SongSuggestService {
         writeAtomically(players);
         log.info("songsuggest: leaderboard written to {} in {} ms", outputPath,
                 System.currentTimeMillis() - startMillis);
+    }
+
+    private Map<Long, Integer> loadOverallRankings() {
+        Optional<Category> overall = categoryRepository.findByCodeAndActiveTrue(OVERALL_CATEGORY_CODE);
+        if (overall.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Integer> ranks = new HashMap<>();
+        for (UserCategoryStatistics s : statisticsRepository.findActiveByCategoryOrderByApDesc(overall.get().getId())) {
+            if (s.getRanking() != null) {
+                ranks.put(s.getUser().getId(), s.getRanking());
+            }
+        }
+        return ranks;
     }
 
     private boolean isConsistent(List<Score> top30ByWeightedAp) {

@@ -222,6 +222,34 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
             @Param("hmd") String hmd,
             Pageable pageable);
 
+    @Query(value = """
+            SELECT s FROM UserCategoryStatistics s
+            JOIN FETCH s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
+            AND u.id IN :userIds
+            AND (:country IS NULL OR LOWER(u.country) = LOWER(:country))
+            AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (:includeInactive = true OR u.playerInactive = false)
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            """, countQuery = """
+            SELECT COUNT(s) FROM UserCategoryStatistics s
+            JOIN s.user u
+            WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
+            AND u.id IN :userIds
+            AND (:country IS NULL OR LOWER(u.country) = LOWER(:country))
+            AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (:includeInactive = true OR u.playerInactive = false)
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            """)
+    Page<UserCategoryStatistics> findActiveByCategoryPagedFilteredByUserIds(
+            @Param("categoryId") UUID categoryId,
+            @Param("userIds") java.util.Collection<Long> userIds,
+            @Param("country") String country,
+            @Param("search") String search,
+            @Param("includeInactive") boolean includeInactive,
+            @Param("hmd") String hmd,
+            Pageable pageable);
+
     @Query("""
             SELECT s FROM UserCategoryStatistics s
             JOIN FETCH s.category c
