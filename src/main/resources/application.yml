@@ -30,6 +30,11 @@ spring:
   jackson:
     default-property-inclusion: non_null
 
+  data:
+    web:
+      pageable:
+        max-page-size: 600
+
   web:
     error:
       include-message: always
