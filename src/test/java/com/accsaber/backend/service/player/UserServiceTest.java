@@ -57,6 +57,9 @@ class UserServiceTest {
     @Mock
     private UserRelationService userRelationService;
 
+    @Mock
+    private UserSettingsService userSettingsService;
+
     @InjectMocks
     private UserService userService;
 
@@ -71,8 +74,14 @@ class UserServiceTest {
                 .findFirstByPrimaryUser_IdAndMergedTrue(org.mockito.ArgumentMatchers.any(Long.class)))
                 .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(userRelationService.countsFor(
-                org.mockito.ArgumentMatchers.any(Long.class), org.mockito.ArgumentMatchers.anyBoolean()))
+                org.mockito.ArgumentMatchers.any(Long.class), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .thenReturn(UserRelationCounts.builder().build());
+        org.mockito.Mockito.lenient().when(userSettingsService.get(
+                org.mockito.ArgumentMatchers.any(Long.class),
+                org.mockito.ArgumentMatchers.any(com.accsaber.backend.model.entity.user.UserSettingKey.class),
+                org.mockito.ArgumentMatchers.eq(com.accsaber.backend.model.entity.user.Visibility.class)))
+                .thenReturn(com.accsaber.backend.model.entity.user.Visibility.PUBLIC);
     }
 
     @Nested

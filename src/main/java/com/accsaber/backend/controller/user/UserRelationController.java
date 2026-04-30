@@ -66,17 +66,19 @@ public class UserRelationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List a player's public relations", description = "direction=outgoing (default): users this player has added (follower/rival). direction=incoming: users who have added this player (follower/rival). Blocked relations are never exposed via this endpoint; use /me/relations for your own blocked list.")
+    @Operation(summary = "List a player's public relations", description = "direction=outgoing (default): users this player has added (follower/rival). direction=incoming: users who have added this player (follower/rival). Blocked relations are never exposed via this endpoint; use /me/relations for your own blocked list. Outgoing visibility is gated by the player's privacy settings (privacy.followingVisibility, privacy.rivalsVisibility).")
     @GetMapping("/{userId}/relations")
     public ResponseEntity<Page<UserRelationResponse>> getUserRelations(
             @PathVariable Long userId,
             @RequestParam(required = false) UserRelationType type,
             @RequestParam(defaultValue = "outgoing") String direction,
+            @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20) Pageable pageable) {
+        Long viewerId = principal != null ? principal.getUserId() : null;
         if ("incoming".equalsIgnoreCase(direction)) {
             return ResponseEntity.ok(relationService.findByTarget(userId, type, pageable));
         }
-        return ResponseEntity.ok(relationService.findByUser(userId, type, false, pageable));
+        return ResponseEntity.ok(relationService.findByUser(userId, type, false, viewerId, pageable));
     }
 
     private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {

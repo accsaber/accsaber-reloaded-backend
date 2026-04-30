@@ -17,6 +17,8 @@ import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelation;
 import com.accsaber.backend.model.entity.user.UserRelationType;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.model.entity.user.Visibility;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
@@ -29,6 +31,7 @@ public class UserRelationService {
 
     private final UserRelationRepository relationRepository;
     private final UserRepository userRepository;
+    private final UserSettingsService userSettingsService;
 
     public List<Long> findActiveTargetUserIds(Long userId, UserRelationType type) {
         return relationRepository.findByUser_IdAndTypeAndActiveTrue(userId, type, Pageable.unpaged())
@@ -37,28 +40,69 @@ public class UserRelationService {
     }
 
     public UserRelationCounts countsFor(Long userId, boolean isSelf) {
+        return countsFor(userId, isSelf, true, true);
+    }
+
+    public UserRelationCounts countsFor(Long userId, boolean isSelf, boolean canSeeFollowing, boolean canSeeRivals) {
+        long followerCount = relationRepository
+                .countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower);
+        long rivaledByCount = relationRepository
+                .countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival);
+        Long followingCount = (canSeeFollowing || isSelf)
+                ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower)
+                : null;
+        Long rivalCount = (canSeeRivals || isSelf)
+                ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival)
+                : null;
         return UserRelationCounts.builder()
-                .followingCount(relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower))
-                .followerCount(
-                        relationRepository.countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower))
-                .rivalCount(relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival))
-                .rivaledByCount(
-                        relationRepository.countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival))
+                .followingCount(followingCount)
+                .followerCount(followerCount)
+                .rivalCount(rivalCount)
+                .rivaledByCount(rivaledByCount)
                 .blockedCount(isSelf
                         ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.blocked)
                         : null)
                 .build();
     }
 
+    public boolean isFollowerOf(Long viewerId, Long targetUserId) {
+        if (viewerId == null) return false;
+        return relationRepository.existsByUser_IdAndTargetUser_IdAndTypeAndActiveTrue(
+                viewerId, targetUserId, UserRelationType.follower);
+    }
+
     public Page<UserRelationResponse> findByUser(Long userId, UserRelationType type, boolean includeBlocked,
             Pageable pageable) {
+        return findByUser(userId, type, includeBlocked, null, pageable);
+    }
+
+    public Page<UserRelationResponse> findByUser(Long userId, UserRelationType type, boolean includeBlocked,
+            Long viewerUserId, Pageable pageable) {
         if (type == UserRelationType.blocked && !includeBlocked) {
             throw new ForbiddenException("Cannot view another user's blocked list");
+        }
+        boolean isSelf = viewerUserId != null && viewerUserId.equals(userId);
+        if (!isSelf && type != null && type != UserRelationType.blocked) {
+            UserSettingKey settingKey = type == UserRelationType.follower
+                    ? UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY
+                    : UserSettingKey.PRIVACY_RIVALS_VISIBILITY;
+            Visibility visibility = userSettingsService.get(userId, settingKey, Visibility.class);
+            if (!canView(viewerUserId, userId, visibility)) {
+                throw new ForbiddenException("This list is not visible");
+            }
         }
         Page<UserRelation> page = type != null
                 ? relationRepository.findByUser_IdAndTypeAndActiveTrue(userId, type, pageable)
                 : relationRepository.findByUser_IdAndActiveTrue(userId, pageable);
         return page.map(this::toResponse);
+    }
+
+    private boolean canView(Long viewerId, Long ownerId, Visibility visibility) {
+        return switch (visibility) {
+            case PUBLIC -> true;
+            case PRIVATE -> false;
+            case FOLLOWERS_ONLY -> viewerId != null && isFollowerOf(viewerId, ownerId);
+        };
     }
 
     public Page<UserRelationResponse> findByTarget(Long targetUserId, UserRelationType type, Pageable pageable) {

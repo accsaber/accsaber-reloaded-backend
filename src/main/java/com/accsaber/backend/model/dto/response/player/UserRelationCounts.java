@@ -9,9 +9,14 @@ import lombok.Value;
 @Builder
 public class UserRelationCounts {
 
-    long followingCount;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Long followingCount;
+
     long followerCount;
-    long rivalCount;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Long rivalCount;
+
     long rivaledByCount;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

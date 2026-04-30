@@ -57,6 +57,7 @@ public class UserService {
     private final UserDuplicateLinkRepository userDuplicateLinkRepository;
     private final SkillService skillService;
     private final UserRelationService userRelationService;
+    private final UserSettingsService userSettingsService;
 
     @Autowired
     @Lazy
@@ -237,6 +238,14 @@ public class UserService {
                 .orElse(null);
         String primaryId = String.valueOf(user.getId());
         boolean isSelf = viewerUserId != null && viewerUserId.equals(user.getId());
+        boolean canSeeFollowing = isSelf || canView(viewerUserId, user.getId(),
+                userSettingsService.get(user.getId(),
+                        com.accsaber.backend.model.entity.user.UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY,
+                        com.accsaber.backend.model.entity.user.Visibility.class));
+        boolean canSeeRivals = isSelf || canView(viewerUserId, user.getId(),
+                userSettingsService.get(user.getId(),
+                        com.accsaber.backend.model.entity.user.UserSettingKey.PRIVACY_RIVALS_VISIBILITY,
+                        com.accsaber.backend.model.entity.user.Visibility.class));
         return UserResponse.builder()
                 .id(primaryId)
                 .blId(secondaryId == null ? null : primaryId)
@@ -258,7 +267,16 @@ public class UserService {
                 .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))
                 .lastActiveTime(latestScore.map(Score::getTimeSet).orElse(null))
                 .createdAt(user.getCreatedAt())
-                .relations(userRelationService.countsFor(user.getId(), isSelf))
+                .relations(userRelationService.countsFor(user.getId(), isSelf, canSeeFollowing, canSeeRivals))
                 .build();
+    }
+
+    private boolean canView(Long viewerId, Long ownerId,
+            com.accsaber.backend.model.entity.user.Visibility visibility) {
+        return switch (visibility) {
+            case PUBLIC -> true;
+            case PRIVATE -> false;
+            case FOLLOWERS_ONLY -> viewerId != null && userRelationService.isFollowerOf(viewerId, ownerId);
+        };
     }
 }
