@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
@@ -53,6 +54,9 @@ class UserServiceTest {
     @Mock
     private UserDuplicateLinkRepository userDuplicateLinkRepository;
 
+    @Mock
+    private UserRelationService userRelationService;
+
     @InjectMocks
     private UserService userService;
 
@@ -66,6 +70,9 @@ class UserServiceTest {
         org.mockito.Mockito.lenient().when(userDuplicateLinkRepository
                 .findFirstByPrimaryUser_IdAndMergedTrue(org.mockito.ArgumentMatchers.any(Long.class)))
                 .thenReturn(Optional.empty());
+        org.mockito.Mockito.lenient().when(userRelationService.countsFor(
+                org.mockito.ArgumentMatchers.any(Long.class), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenReturn(UserRelationCounts.builder().build());
     }
 
     @Nested

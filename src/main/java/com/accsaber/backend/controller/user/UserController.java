@@ -10,11 +10,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.accsaber.backend.security.PlayerUserDetails;
 
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
@@ -55,12 +58,14 @@ public class UserController {
     private final LevelService levelService;
     private final CampaignService campaignService;
 
-    @Operation(summary = "Get user profile", description = "Returns a player profile by user ID. Optionally include all category statistics.")
+    @Operation(summary = "Get user profile", description = "Returns a player profile by user ID. Optionally include all category statistics. Relation counts include `blockedCount` only when the authenticated viewer is the same user.")
     @GetMapping("/{userId}")
     public ResponseEntity<UserResponse> getUser(
             @PathVariable Long userId,
-            @RequestParam(defaultValue = "false") boolean statistics) {
-        UserResponse user = userService.findByUserId(userId);
+            @RequestParam(defaultValue = "false") boolean statistics,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        Long viewerId = principal != null ? principal.getUserId() : null;
+        UserResponse user = userService.findByUserId(userId, viewerId);
         if (statistics) {
             user = user.withStatistics(statisticsService.findCategoryStatsByUser(userId));
         }

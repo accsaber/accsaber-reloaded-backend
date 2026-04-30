@@ -23,5 +23,12 @@ public interface UserRelationRepository extends JpaRepository<UserRelation, UUID
 
     Page<UserRelation> findByUser_IdAndActiveTrue(Long userId, Pageable pageable);
 
+    Page<UserRelation> findByTargetUser_IdAndTypeAndActiveTrue(Long targetUserId, UserRelationType type,
+            Pageable pageable);
+
     List<UserRelation> findByUser_IdAndTargetUser_IdAndActiveTrue(Long userId, Long targetUserId);
+
+    long countByUser_IdAndTypeAndActiveTrue(Long userId, UserRelationType type);
+
+    long countByTargetUser_IdAndTypeAndActiveTrue(Long targetUserId, UserRelationType type);
 }

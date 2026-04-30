@@ -56,16 +56,21 @@ public class UserService {
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final UserDuplicateLinkRepository userDuplicateLinkRepository;
     private final SkillService skillService;
+    private final UserRelationService userRelationService;
 
     @Autowired
     @Lazy
     private UserService self;
 
     public UserResponse findByUserId(Long userId) {
+        return findByUserId(userId, null);
+    }
+
+    public UserResponse findByUserId(Long userId, Long viewerUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         User user = userRepository.findByIdAndActiveTrue(resolved)
                 .orElseThrow(() -> new ResourceNotFoundException("User", resolved));
-        return toResponse(user);
+        return toResponse(user, viewerUserId);
     }
 
     public Optional<User> findOptionalByUserId(Long userId) {
@@ -223,7 +228,7 @@ public class UserService {
         return userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(resolved);
     }
 
-    private UserResponse toResponse(User user) {
+    private UserResponse toResponse(User user, Long viewerUserId) {
         LevelResponse levelResponse = levelService.calculateLevel(user.getTotalXp());
         Optional<Score> latestScore = scoreRepository.findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(user.getId());
         String secondaryId = userDuplicateLinkRepository
@@ -231,6 +236,7 @@ public class UserService {
                 .map(link -> String.valueOf(link.getSecondaryUser().getId()))
                 .orElse(null);
         String primaryId = String.valueOf(user.getId());
+        boolean isSelf = viewerUserId != null && viewerUserId.equals(user.getId());
         return UserResponse.builder()
                 .id(primaryId)
                 .blId(secondaryId == null ? null : primaryId)
@@ -252,6 +258,7 @@ public class UserService {
                 .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))
                 .lastActiveTime(latestScore.map(Score::getTimeSet).orElse(null))
                 .createdAt(user.getCreatedAt())
+                .relations(userRelationService.countsFor(user.getId(), isSelf))
                 .build();
     }
 }

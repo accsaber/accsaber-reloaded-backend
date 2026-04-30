@@ -66,12 +66,16 @@ public class UserRelationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List a player's public relations (follower/rival only). Blocked list is private.")
+    @Operation(summary = "List a player's public relations", description = "direction=outgoing (default): users this player has added (follower/rival). direction=incoming: users who have added this player (follower/rival). Blocked relations are never exposed via this endpoint; use /me/relations for your own blocked list.")
     @GetMapping("/{userId}/relations")
     public ResponseEntity<Page<UserRelationResponse>> getUserRelations(
             @PathVariable Long userId,
             @RequestParam(required = false) UserRelationType type,
+            @RequestParam(defaultValue = "outgoing") String direction,
             @PageableDefault(size = 20) Pageable pageable) {
+        if ("incoming".equalsIgnoreCase(direction)) {
+            return ResponseEntity.ok(relationService.findByTarget(userId, type, pageable));
+        }
         return ResponseEntity.ok(relationService.findByUser(userId, type, false, pageable));
     }
 

@@ -41,4 +41,7 @@ public class UserResponse {
     @With
     @JsonInclude(JsonInclude.Include.NON_NULL)
     List<UserCategoryStatisticsResponse> statistics;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    UserRelationCounts relations;
 }

@@ -12,6 +12,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelation;
@@ -35,6 +36,20 @@ public class UserRelationService {
                 .getContent();
     }
 
+    public UserRelationCounts countsFor(Long userId, boolean isSelf) {
+        return UserRelationCounts.builder()
+                .followingCount(relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower))
+                .followerCount(
+                        relationRepository.countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower))
+                .rivalCount(relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival))
+                .rivaledByCount(
+                        relationRepository.countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival))
+                .blockedCount(isSelf
+                        ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.blocked)
+                        : null)
+                .build();
+    }
+
     public Page<UserRelationResponse> findByUser(Long userId, UserRelationType type, boolean includeBlocked,
             Pageable pageable) {
         if (type == UserRelationType.blocked && !includeBlocked) {
@@ -44,6 +59,17 @@ public class UserRelationService {
                 ? relationRepository.findByUser_IdAndTypeAndActiveTrue(userId, type, pageable)
                 : relationRepository.findByUser_IdAndActiveTrue(userId, pageable);
         return page.map(this::toResponse);
+    }
+
+    public Page<UserRelationResponse> findByTarget(Long targetUserId, UserRelationType type, Pageable pageable) {
+        if (type == UserRelationType.blocked) {
+            throw new ForbiddenException("Cannot list users who have blocked someone");
+        }
+        if (type == null) {
+            throw new ValidationException("type is required for incoming relations");
+        }
+        return relationRepository.findByTargetUser_IdAndTypeAndActiveTrue(targetUserId, type, pageable)
+                .map(this::toIncomingResponse);
     }
 
     @Transactional
@@ -118,14 +144,21 @@ public class UserRelationService {
     }
 
     private UserRelationResponse toResponse(UserRelation r) {
-        User target = r.getTargetUser();
+        return buildResponse(r, r.getUser(), r.getTargetUser());
+    }
+
+    private UserRelationResponse toIncomingResponse(UserRelation r) {
+        return buildResponse(r, r.getTargetUser(), r.getUser());
+    }
+
+    private UserRelationResponse buildResponse(UserRelation r, User from, User other) {
         return UserRelationResponse.builder()
                 .id(r.getId())
-                .userId(r.getUser().getId())
-                .targetUserId(target.getId())
-                .targetName(target.getName())
-                .targetAvatarUrl(target.getAvatarUrl())
-                .targetCountry(target.getCountry())
+                .userId(from.getId())
+                .targetUserId(other.getId())
+                .targetName(other.getName())
+                .targetAvatarUrl(other.getAvatarUrl())
+                .targetCountry(other.getCountry())
                 .type(r.getType())
                 .createdAt(r.getCreatedAt())
                 .build();
