@@ -75,10 +75,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
                         SELECT u FROM User u
                         WHERE u.active = true AND u.banned = false AND u.totalXp > 0
                         AND u.id IN :userIds
-                        AND (:country IS NULL OR LOWER(u.country) = LOWER(:country))
-                        AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
+                        AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
                         ORDER BY u.totalXp DESC
                         """)
         Page<User> findXpLeaderboardFilteredByUserIds(

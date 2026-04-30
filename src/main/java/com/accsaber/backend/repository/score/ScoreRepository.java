@@ -182,16 +182,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
                         AND u.active = true AND u.banned = false
                         AND u.id IN :userIds
-                        AND (:country IS NULL OR u.country = :country)
-                        AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
+                        AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
                         AND u.active = true AND u.banned = false
                         AND u.id IN :userIds
-                        AND (:country IS NULL OR u.country = :country)
-                        AND (:search IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
+                        AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         """)
         Page<Score> findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
