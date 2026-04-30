@@ -39,6 +39,20 @@ public class UserRelationService {
                 .getContent();
     }
 
+    public List<Long> findRelationFilterUserIds(Long userId, UserRelationType type) {
+        List<Long> targets = findActiveTargetUserIds(userId, type);
+        if (type == UserRelationType.blocked) {
+            return targets;
+        }
+        if (targets.contains(userId)) {
+            return targets;
+        }
+        List<Long> withSelf = new java.util.ArrayList<>(targets.size() + 1);
+        withSelf.add(userId);
+        withSelf.addAll(targets);
+        return withSelf;
+    }
+
     public UserRelationCounts countsFor(Long userId, boolean isSelf) {
         return countsFor(userId, isSelf, true, true);
     }

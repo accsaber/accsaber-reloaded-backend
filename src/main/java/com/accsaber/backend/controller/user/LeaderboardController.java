@@ -47,7 +47,7 @@ public class LeaderboardController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
         if (relation != null) {
-            List<Long> filter = userRelationService.findActiveTargetUserIds(requirePrincipal(principal).getUserId(),
+            List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
             return ResponseEntity.ok(
                     leaderboardService.getGlobalFiltered(categoryId, search, hmd, inactiveUsers, filter, pageable));
@@ -67,7 +67,7 @@ public class LeaderboardController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
         if (relation != null) {
-            List<Long> filter = userRelationService.findActiveTargetUserIds(requirePrincipal(principal).getUserId(),
+            List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
             return ResponseEntity.ok(leaderboardService.getByCountryFiltered(
                     categoryId, country, search, hmd, inactiveUsers, filter, pageable));
@@ -87,7 +87,7 @@ public class LeaderboardController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20) Pageable pageable) {
         if (relation != null) {
-            List<Long> filter = userRelationService.findActiveTargetUserIds(requirePrincipal(principal).getUserId(),
+            List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
             return ResponseEntity.ok(leaderboardService.getXpLeaderboardFiltered(
                     country, search, hmd, inactiveUsers, filter, pageable));

@@ -148,7 +148,7 @@ public class MapController {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required to filter by relation");
         }
-        return userRelationService.findActiveTargetUserIds(principal.getUserId(), relation);
+        return userRelationService.findRelationFilterUserIds(principal.getUserId(), relation);
     }
 
     @Operation(summary = "Scores around a player", description = "Returns scores above and below a player on a difficulty leaderboard. "
