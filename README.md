@@ -27,6 +27,7 @@ POSTGRES_PASSWORD=your_password_here
 SPRING_PROFILES_ACTIVE=dev
 JWT_SECRET=your_jwt_secret_here
 SERVICE_API_KEY=your_api_key_here
+COMPOSE_PROFILES=docker_compose_profiles_here
 
 # OAuth (optional; required to enable Discord / BeatLeader / Steam login)
 DISCORD_OAUTH_CLIENT_ID=
@@ -108,6 +109,7 @@ src/main/resources/
 | `SERVICE_API_KEY`         | Yes      | API key for authenticated score submission |
 | `SPRING_PROFILES_ACTIVE`  | No       | `dev` or `prod` (prod compose hardcodes this) |
 | `GRAFANA_ADMIN_PASSWORD`  | No       | Grafana admin password (default: `admin`)  |
+| `COMPOSE_PROFILES`        | No       | Set to `criteria` to include the local criteria checker sidecar |
 | `COMPLEXITY_AP_TARGET`    | No       | AP target for AI complexity estimation     |
 | `COMPLEXITY_ACCURACY_SHIFT` | No    | Accuracy shift for AI complexity estimation |
 | `COMPLEXITY_TRANSFORM_OFFSET` | No  | Curve transform offset parameter           |
