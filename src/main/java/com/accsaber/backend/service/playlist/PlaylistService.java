@@ -1,5 +1,7 @@
 package com.accsaber.backend.service.playlist;
 
+import com.accsaber.backend.model.entity.map.Batch;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,6 +73,17 @@ public class PlaylistService {
                 playlistAssembler.loadCategoryImage("unranked"),
                 syncUrl,
                 unrankedDifficulties);
+    }
+
+    @Cacheable(value = "batchPlaylists", key = "#batch.id")
+    public Map<String, Object> generateBatchPlaylist(Batch batch, String syncUrl) {
+        List<MapDifficulty> difficulties = batch.getDifficulties();
+
+        return playlistAssembler.assemble(
+                "AccSaber " + batch.getName(),
+                playlistAssembler.loadCategoryImage(OVERALL_CODE),
+                syncUrl,
+                difficulties);
     }
 
     public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, String categoryCode, int size,
