@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.playlist;
 
-import com.accsaber.backend.model.entity.map.Batch;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
@@ -77,7 +76,7 @@ public class PlaylistService {
 
     @Cacheable(value = "batchPlaylists", key = "#batch.id")
     public Map<String, Object> generateBatchPlaylist(Batch batch, String syncUrl) {
-        List<MapDifficulty> difficulties = batch.getDifficulties();
+        List<MapDifficulty> difficulties = mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId());
 
         return playlistAssembler.assemble(
                 "AccSaber " + batch.getName(),
