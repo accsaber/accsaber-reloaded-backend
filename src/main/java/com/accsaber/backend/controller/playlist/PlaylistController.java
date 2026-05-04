@@ -3,6 +3,11 @@ package com.accsaber.backend.controller.playlist;
 import java.util.Map;
 import java.util.Optional;
 
+import java.util.UUID;
+
+import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.entity.map.Batch;
+import com.accsaber.backend.repository.map.BatchRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class PlaylistController {
 
         private final PlaylistService playlistService;
+        private final BatchRepository batchRepository;
 
         @Deprecated
         @Operation(summary = "Download category playlist (query param)", deprecated = true, description = "Returns a Beat Saber playlist JSON file containing all ranked maps for the specified category. "
@@ -80,6 +86,32 @@ public class PlaylistController {
                         @Parameter(description = "Map count cap (0 = unlimited)") @PathVariable int size,
                         @Parameter(description = "Category code") @PathVariable String category) {
                 return buildSnipePlaylistResponse(sniperId, targetId, size, category);
+        }
+
+        @Operation(summary = "Download batch release playlist", description = "Returns a Beat Saber playlist JSON file containing all maps of the specified batch release.")
+        @GetMapping(value = "/batch/{batchId}", produces = "application/json")
+        public ResponseEntity<Map<String, Object>> getBatchPlaylist(
+                        @Parameter(description = "ID of batch") @PathVariable UUID batchId) {
+                return buildBatchPlaylistResponse(batchId);
+        }
+
+        private ResponseEntity<Map<String, Object>> buildBatchPlaylistResponse(UUID batchId) {
+                Batch batch = batchRepository.findById(batchId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path("/v1/playlists/batch/{batchId}")
+                                .buildAndExpand(batchId)
+                                .toUriString();
+
+                Map<String, Object> playlist = playlistService.generateBatchPlaylist(batch, syncUrl);
+
+                String filename = "accsaber-reloaded-"
+                                + batch.getName().toLowerCase().replace(" ", "-").replace("_", "-")
+                                + ".bplist";
+
+                return ResponseEntity.ok()
+                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                                .body(playlist);
         }
 
         private ResponseEntity<Map<String, Object>> buildSnipePlaylistResponse(Long sniperId, Long targetId,

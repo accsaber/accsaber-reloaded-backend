@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
@@ -71,6 +72,17 @@ public class PlaylistService {
                 playlistAssembler.loadCategoryImage("unranked"),
                 syncUrl,
                 unrankedDifficulties);
+    }
+
+    @Cacheable(value = "batchPlaylists", key = "#batch.id")
+    public Map<String, Object> generateBatchPlaylist(Batch batch, String syncUrl) {
+        List<MapDifficulty> difficulties = mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId());
+
+        return playlistAssembler.assemble(
+                "AccSaber " + batch.getName(),
+                playlistAssembler.loadCategoryImage(OVERALL_CODE),
+                syncUrl,
+                difficulties);
     }
 
     public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, String categoryCode, int size,
