@@ -6,7 +6,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.repository.map.BatchRepository;
 import org.springframework.http.ResponseEntity;
