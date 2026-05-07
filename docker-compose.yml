@@ -44,11 +44,12 @@ services:
       OAUTH_ALLOWED_RETURN_ORIGINS: ${OAUTH_ALLOWED_RETURN_ORIGINS}
     depends_on:
       - postgres
-      - criteria-checker
     networks:
       - accsaber-network
 
   criteria-checker:
+    profiles:
+      - criteria
     build:
       context: ../../accsaber-criteria-script
       dockerfile: Dockerfile
