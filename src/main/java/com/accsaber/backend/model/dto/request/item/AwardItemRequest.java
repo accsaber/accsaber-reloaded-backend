@@ -1,7 +1,9 @@
 package com.accsaber.backend.model.dto.request.item;
 
+import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -16,5 +18,8 @@ public class AwardItemRequest {
 
     private String reason;
 
-    private String modifierKey;
+    private List<String> modifierKeys;
+
+    @Min(1)
+    private Long quantity;
 }

@@ -37,11 +37,6 @@ public class ItemTypeService {
                 .orElseThrow(() -> new ResourceNotFoundException("ItemType", id));
     }
 
-    public ItemType findByKey(String key) {
-        return itemTypeRepository.findByKey(key)
-                .orElseThrow(() -> new ResourceNotFoundException("ItemType", key));
-    }
-
     @Transactional
     public ItemType create(UUID parentTypeId, String key, String name, String description, Object valueSchema) {
         if (itemTypeRepository.existsByKey(key)) {

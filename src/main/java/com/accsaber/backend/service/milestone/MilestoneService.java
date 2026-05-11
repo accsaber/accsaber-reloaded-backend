@@ -472,7 +472,7 @@ public class MilestoneService {
         List<Long> userIds = userRepository.findByActiveTrue().stream()
                 .map(User::getId)
                 .toList();
-        log.info("Backfill started for milestone '{}' ({}) — {} users", milestone.getTitle(), milestoneId,
+        log.info("Backfill started for milestone '{}' ({}) - {} users", milestone.getTitle(), milestoneId,
                 userIds.size());
         int processed = 0;
         for (Long userId : userIds) {
@@ -487,7 +487,7 @@ public class MilestoneService {
                         userIds.size());
             }
         }
-        log.info("Backfill complete for milestone '{}' ({}) — {} users processed", milestone.getTitle(), milestoneId,
+        log.info("Backfill complete for milestone '{}' ({}) - {} users processed", milestone.getTitle(), milestoneId,
                 processed);
     }
 
@@ -497,7 +497,7 @@ public class MilestoneService {
         List<Long> userIds = userRepository.findByActiveTrueOrderByTotalXpDesc().stream()
                 .map(User::getId)
                 .toList();
-        log.info("Bulk milestone backfill started — {} users (ordered by XP)", userIds.size());
+        log.info("Bulk milestone backfill started - {} users (ordered by XP)", userIds.size());
         int processed = 0;
         int totalCompleted = 0;
         for (Long userId : userIds) {
@@ -514,7 +514,7 @@ public class MilestoneService {
                         userIds.size(), totalCompleted);
             }
         }
-        log.info("Bulk milestone backfill complete — {} users processed, {} milestones completed", processed,
+        log.info("Bulk milestone backfill complete - {} users processed, {} milestones completed", processed,
                 totalCompleted);
     }
 

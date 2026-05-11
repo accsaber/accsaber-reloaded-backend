@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.milestone.LevelService;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +60,9 @@ class UserServiceTest {
 
     @Mock
     private UserSettingsService userSettingsService;
+
+    @Mock
+    private ItemService itemService;
 
     @InjectMocks
     private UserService userService;

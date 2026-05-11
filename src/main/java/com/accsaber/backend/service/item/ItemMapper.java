@@ -1,5 +1,10 @@
 package com.accsaber.backend.service.item;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
@@ -8,8 +13,10 @@ import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemType;
+import com.accsaber.backend.model.entity.item.TradeItemSide;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
+import com.accsaber.backend.model.entity.item.UserItemTradeItem;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,6 +54,11 @@ public final class ItemMapper {
                 .visible(item.isVisible())
                 .active(item.isActive())
                 .deprecated(item.isDeprecated())
+                .stackable(item.isStackable())
+                .welcomeGrant(item.isWelcomeGrant())
+                .worth(item.getWorth())
+                .requirement(item.getRequirement())
+                .unlockLevel(item.getUnlockLevel())
                 .createdAt(item.getCreatedAt())
                 .build();
     }
@@ -58,6 +70,8 @@ public final class ItemMapper {
                 .id(m.getId())
                 .key(m.getKey())
                 .name(m.getName())
+                .colorHex(m.getColorHex())
+                .effectSpec(toObject(m.getEffectSpec()))
                 .build();
     }
 
@@ -67,17 +81,25 @@ public final class ItemMapper {
                 .key(m.getKey())
                 .name(m.getName())
                 .description(m.getDescription())
+                .colorHex(m.getColorHex())
+                .effectSpec(toObject(m.getEffectSpec()))
                 .active(m.isActive())
                 .createdAt(m.getCreatedAt())
                 .build();
     }
 
     public static UserItemResponse toUserItemResponse(UserItemLink link) {
+        return toUserItemResponse(link, null);
+    }
+
+    public static UserItemResponse toUserItemResponse(UserItemLink link, Map<String, Long> counters) {
         return UserItemResponse.builder()
                 .linkId(link.getId())
                 .item(toItemResponse(link.getItem()))
-                .modifier(toModifierRef(link.getModifier()))
+                .modifiers(toModifierRefs(link.getModifiers()))
                 .serialNumber(link.getSerialNumber())
+                .quantity(link.getQuantity())
+                .counters(counters == null || counters.isEmpty() ? null : counters)
                 .source(link.getSource().name())
                 .sourceId(link.getSourceId())
                 .awardedByStaffId(link.getAwardedBy() != null ? link.getAwardedBy().getId() : null)
@@ -87,19 +109,45 @@ public final class ItemMapper {
     }
 
     public static TradeResponse toTradeResponse(UserItemTrade trade) {
-        UserItemLink link = trade.getUserItemLink();
         return TradeResponse.builder()
                 .id(trade.getId())
                 .fromUserId(trade.getFromUser().getId())
                 .toUserId(trade.getToUser().getId())
-                .userItemLinkId(link.getId())
-                .item(toItemResponse(link.getItem()))
-                .modifier(toModifierRef(link.getModifier()))
-                .serialNumber(link.getSerialNumber())
+                .offeredItems(tradeItemsForSide(trade, TradeItemSide.offered))
+                .requestedItems(tradeItemsForSide(trade, TradeItemSide.requested))
                 .status(trade.getStatus().name())
                 .message(trade.getMessage())
                 .createdAt(trade.getCreatedAt())
                 .resolvedAt(trade.getResolvedAt())
+                .build();
+    }
+
+    private static List<UserItemResponse.ModifierRef> toModifierRefs(Set<ItemModifier> modifiers) {
+        if (modifiers == null || modifiers.isEmpty()) {
+            return List.of();
+        }
+        return modifiers.stream()
+                .sorted(Comparator.comparing(ItemModifier::getKey))
+                .map(ItemMapper::toModifierRef)
+                .toList();
+    }
+
+    private static List<TradeResponse.TradeItemRef> tradeItemsForSide(UserItemTrade trade, TradeItemSide side) {
+        return trade.getItems().stream()
+                .filter(ti -> ti.getSide() == side)
+                .sorted(Comparator.comparing(UserItemTradeItem::getCreatedAt))
+                .map(ItemMapper::toTradeItemRef)
+                .toList();
+    }
+
+    private static TradeResponse.TradeItemRef toTradeItemRef(UserItemTradeItem entry) {
+        UserItemLink link = entry.getUserItemLink();
+        return TradeResponse.TradeItemRef.builder()
+                .linkId(link.getId())
+                .item(toItemResponse(link.getItem()))
+                .modifiers(toModifierRefs(link.getModifiers()))
+                .serialNumber(link.getSerialNumber())
+                .quantity(entry.getQuantity())
                 .build();
     }
 

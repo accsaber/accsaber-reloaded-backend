@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.milestone.LevelThresholdRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -18,6 +19,7 @@ public class LevelUpAwardService {
 
     private final LevelService levelService;
     private final LevelThresholdRepository levelThresholdRepository;
+    private final ItemRepository itemRepository;
     private final ItemService itemService;
     private final UserRepository userRepository;
 
@@ -39,19 +41,32 @@ public class LevelUpAwardService {
 
         int oldLevel = levelService.calculateLevel(previous).getLevel();
         int newLevel = levelService.calculateLevel(next).getLevel();
-        if (newLevel <= oldLevel)
+
+        int from = previous.signum() == 0 ? oldLevel : oldLevel + 1;
+        if (from > newLevel)
             return;
 
-        for (int level = oldLevel + 1; level <= newLevel; level++) {
-            int crossed = level;
-            levelThresholdRepository.findById(crossed)
-                    .filter(t -> t.getAwardsItem() != null)
-                    .ifPresent(t -> itemService.awardSystem(
-                            userId,
-                            t.getAwardsItem().getId(),
-                            ItemSource.level,
-                            String.valueOf(crossed),
-                            "Reached level " + crossed));
+        for (int level = from; level <= newLevel; level++) {
+            awardItemsForLevel(userId, level);
         }
+    }
+
+    private void awardItemsForLevel(Long userId, int level) {
+        levelThresholdRepository.findById(level)
+                .filter(t -> t.getAwardsItem() != null)
+                .ifPresent(t -> itemService.awardSystem(
+                        userId,
+                        t.getAwardsItem().getId(),
+                        ItemSource.level,
+                        String.valueOf(level),
+                        "Reached level " + level));
+
+        itemRepository.findByUnlockLevelAndActiveTrue(level).forEach(item ->
+                itemService.awardSystem(
+                        userId,
+                        item.getId(),
+                        ItemSource.level,
+                        String.valueOf(level),
+                        "Reached level " + level));
     }
 }

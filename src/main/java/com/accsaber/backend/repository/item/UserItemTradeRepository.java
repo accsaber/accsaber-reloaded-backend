@@ -3,7 +3,6 @@ package com.accsaber.backend.repository.item;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -23,8 +22,6 @@ public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UU
        List<UserItemTrade> findByToUser_IdAndStatus(Long toUserId, TradeStatus status);
 
        List<UserItemTrade> findByFromUser_IdAndStatus(Long fromUserId, TradeStatus status);
-
-       Optional<UserItemTrade> findByUserItemLink_IdAndStatus(UUID linkId, TradeStatus status);
 
        @Query("SELECT t FROM UserItemTrade t WHERE " +
                      "((:incoming = TRUE AND t.toUser.id = :userId) OR (:outgoing = TRUE AND t.fromUser.id = :userId)) "

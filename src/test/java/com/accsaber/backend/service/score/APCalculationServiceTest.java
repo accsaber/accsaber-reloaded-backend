@@ -308,7 +308,7 @@ class APCalculationServiceTest {
 
                 @Test
                 void singleHighPlayMakesOneGainCheap() {
-                        // One play of 1100 raw — top is dominated by it. Adding a small play at
+                        // One play of 1100 raw - top is dominated by it. Adding a small play at
                         // position 2 still gains > 1 weighted easily.
                         BigDecimal result = apCalculationService.calculateRawApForOneWeightedGain(
                                         List.of(new BigDecimal("1100")), weightCurve);
@@ -317,7 +317,7 @@ class APCalculationServiceTest {
 
                 @Test
                 void deepConsistentPlayerNeedsHighRawToGainOne() {
-                        // 50 plays clustered near 1000 raw — to gain 1 weighted you need
+                        // 50 plays clustered near 1000 raw - to gain 1 weighted you need
                         // a play comparable to the top.
                         List<BigDecimal> plays = new java.util.ArrayList<>();
                         for (int i = 0; i < 50; i++) {

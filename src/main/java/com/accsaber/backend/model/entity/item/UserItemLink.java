@@ -1,6 +1,8 @@
 package com.accsaber.backend.model.entity.item;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,6 +20,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -47,12 +51,20 @@ public class UserItemLink {
     @JoinColumn(name = "item_id", nullable = false)
     private Item item;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "modifier_id", nullable = false)
-    private ItemModifier modifier;
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_item_link_modifiers",
+            joinColumns = @JoinColumn(name = "user_item_link_id"),
+            inverseJoinColumns = @JoinColumn(name = "modifier_id"))
+    @Builder.Default
+    private Set<ItemModifier> modifiers = new HashSet<>();
 
     @Column(name = "serial_number")
     private Long serialNumber;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Long quantity = 1L;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)

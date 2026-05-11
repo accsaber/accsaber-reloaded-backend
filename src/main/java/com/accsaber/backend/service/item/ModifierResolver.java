@@ -3,6 +3,8 @@ package com.accsaber.backend.service.item;
 import java.time.LocalDate;
 import java.time.MonthDay;
 import java.time.ZoneId;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Component;
@@ -20,22 +22,23 @@ public class ModifierResolver {
     private static final MonthDay CHRISTMAS_FROM = MonthDay.of(12, 20);
     private static final MonthDay CHRISTMAS_TO = MonthDay.of(12, 31);
 
-    public String resolveAutoKey(long serial, LocalDate today) {
+    public Set<String> resolveAutoLayers(long serial, LocalDate today) {
+        Set<String> layers = new LinkedHashSet<>();
         if (serial > 0 && serial <= FOUNDERS_THRESHOLD) {
-            return ItemModifier.FOUNDERS;
+            layers.add(ItemModifier.FOUNDERS);
         }
         MonthDay md = MonthDay.from(today);
         if (within(md, HALLOWEEN_FROM, HALLOWEEN_TO) && roll()) {
-            return ItemModifier.HAUNTED;
+            layers.add(ItemModifier.HAUNTED);
         }
         if (within(md, CHRISTMAS_FROM, CHRISTMAS_TO) && roll()) {
-            return ItemModifier.JOLLY;
+            layers.add(ItemModifier.JOLLY);
         }
-        return ItemModifier.NORMAL;
+        return layers;
     }
 
-    public String resolveAutoKey(long serial) {
-        return resolveAutoKey(serial, LocalDate.now(ZoneId.systemDefault()));
+    public Set<String> resolveAutoLayers(long serial) {
+        return resolveAutoLayers(serial, LocalDate.now(ZoneId.systemDefault()));
     }
 
     private boolean roll() {

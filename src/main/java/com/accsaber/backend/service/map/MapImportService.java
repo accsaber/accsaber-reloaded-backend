@@ -12,21 +12,25 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
+import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.APCalculationService;
 
 import lombok.RequiredArgsConstructor;
@@ -46,6 +50,7 @@ public class MapImportService {
     private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
     private final AutoCriteriaService autoCriteriaService;
+    private final PlaylistService playlistService;
 
     private static final String COMPLEXITY_CURVE_NAME = "AI Complexity Curve";
 
@@ -155,6 +160,114 @@ public class MapImportService {
         scheduleAutoCriteriaCheck(response.getId());
 
         return response;
+    }
+
+    @Transactional
+    public MapDifficultyResponse refreshMapDifficulty(UUID difficultyId, RefreshMapDifficultyRequest request,
+            UUID staffId) {
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+
+        if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
+            throw new ValidationException(
+                    "Refresh is only allowed on QUEUE or QUALIFIED difficulties");
+        }
+
+        String newBlId = request.getBlLeaderboardId();
+        String newSsId = request.getSsLeaderboardId();
+
+        mapDifficultyRepository.findByBlLeaderboardId(newBlId)
+                .filter(existing -> !existing.getId().equals(difficultyId))
+                .ifPresent(existing -> {
+                    throw new ConflictException(String.format(
+                            "BeatLeader leaderboard ID '%s' is already used by another difficulty (ID: %s)",
+                            newBlId, existing.getId()));
+                });
+        mapDifficultyRepository.findBySsLeaderboardId(newSsId)
+                .filter(existing -> !existing.getId().equals(difficultyId))
+                .ifPresent(existing -> {
+                    throw new ConflictException(String.format(
+                            "ScoreSaber leaderboard ID '%s' is already used by another difficulty (ID: %s)",
+                            newSsId, existing.getId()));
+                });
+
+        BeatLeaderLeaderboardResponse blLeaderboard = beatLeaderClient.getLeaderboard(newBlId)
+                .orElseThrow(() -> new ValidationException(
+                        "BeatLeader leaderboard not found for ID: " + newBlId));
+
+        String songHash = blLeaderboard.getSong().getHash();
+        int maxScore = blLeaderboard.getDifficulty().getMaxScore();
+        String songName = blLeaderboard.getSong().getName();
+        String songSubName = blLeaderboard.getSong().getSubName();
+        String songAuthor = blLeaderboard.getSong().getAuthor();
+        String mapAuthor = blLeaderboard.getSong().getMapper();
+        String beatsaverCode = null;
+        String coverUrl = null;
+
+        BeatSaverMapResponse beatSaverMap = beatSaverClient.getMapByHash(songHash).orElse(null);
+        if (beatSaverMap != null) {
+            beatsaverCode = beatSaverMap.getId();
+            if (beatSaverMap.getMetadata() != null) {
+                if (beatSaverMap.getMetadata().getSongName() != null) {
+                    songName = beatSaverMap.getMetadata().getSongName();
+                }
+                if (beatSaverMap.getMetadata().getSongSubName() != null) {
+                    songSubName = beatSaverMap.getMetadata().getSongSubName();
+                }
+                if (beatSaverMap.getMetadata().getSongAuthorName() != null) {
+                    songAuthor = beatSaverMap.getMetadata().getSongAuthorName();
+                }
+                if (beatSaverMap.getMetadata().getLevelAuthorName() != null) {
+                    mapAuthor = beatSaverMap.getMetadata().getLevelAuthorName();
+                }
+            }
+            if (beatSaverMap.getVersions() != null && !beatSaverMap.getVersions().isEmpty()) {
+                coverUrl = beatSaverMap.getVersions().get(0).getCoverURL();
+            }
+        }
+
+        Map currentMap = difficulty.getMap();
+        if (currentMap.getSongHash().equalsIgnoreCase(songHash)) {
+            currentMap.setSongName(songName);
+            currentMap.setSongSubName(songSubName);
+            currentMap.setSongAuthor(songAuthor);
+            currentMap.setMapAuthor(mapAuthor);
+            currentMap.setBeatsaverCode(beatsaverCode);
+            currentMap.setCoverUrl(coverUrl);
+            mapRepository.save(currentMap);
+        } else {
+            final String newSongName = songName;
+            final String newSongSubName = songSubName;
+            final String newSongAuthor = songAuthor;
+            final String newMapAuthor = mapAuthor;
+            final String newBeatsaverCode = beatsaverCode;
+            final String newCoverUrl = coverUrl;
+            Map newMap = mapRepository.findBySongHashAndActiveTrue(songHash)
+                    .orElseGet(() -> mapRepository.save(Map.builder()
+                            .songName(newSongName)
+                            .songSubName(newSongSubName)
+                            .songAuthor(newSongAuthor)
+                            .songHash(songHash)
+                            .mapAuthor(newMapAuthor)
+                            .beatsaverCode(newBeatsaverCode)
+                            .coverUrl(newCoverUrl)
+                            .active(true)
+                            .build()));
+            difficulty.setMap(newMap);
+        }
+
+        difficulty.setBlLeaderboardId(newBlId);
+        difficulty.setSsLeaderboardId(newSsId);
+        difficulty.setMaxScore(maxScore);
+        difficulty.setLastUpdatedBy(staffId);
+        mapDifficultyRepository.save(difficulty);
+
+        log.info("Refreshed map difficulty {}: BL={} SS={} hash={}", difficultyId, newBlId, newSsId, songHash);
+
+        playlistService.evictAllUnrankedPlaylists();
+        scheduleAutoCriteriaCheck(difficultyId);
+
+        return mapService.getDifficultyResponse(difficultyId);
     }
 
     private void scheduleAutoCriteriaCheck(UUID difficultyId) {

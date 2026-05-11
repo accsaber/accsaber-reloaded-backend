@@ -1,5 +1,6 @@
 package com.accsaber.backend.model.dto.request.item;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,4 +26,9 @@ public class CreateItemRequest {
     private ItemRarity rarity = ItemRarity.common;
     private boolean tradeable = false;
     private boolean visible = true;
+    private boolean stackable = false;
+    private boolean welcomeGrant = false;
+    private BigDecimal worth;
+    private String requirement;
+    private Integer unlockLevel;
 }

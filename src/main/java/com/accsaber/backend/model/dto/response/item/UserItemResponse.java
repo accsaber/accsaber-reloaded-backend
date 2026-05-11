@@ -1,6 +1,8 @@
 package com.accsaber.backend.model.dto.response.item;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import lombok.Builder;
@@ -12,8 +14,10 @@ public class UserItemResponse {
 
     private UUID linkId;
     private ItemResponse item;
-    private ModifierRef modifier;
+    private List<ModifierRef> modifiers;
     private Long serialNumber;
+    private Long quantity;
+    private Map<String, Long> counters;
     private String source;
     private String sourceId;
     private UUID awardedByStaffId;
@@ -26,5 +30,7 @@ public class UserItemResponse {
         private UUID id;
         private String key;
         private String name;
+        private String colorHex;
+        private Object effectSpec;
     }
 }

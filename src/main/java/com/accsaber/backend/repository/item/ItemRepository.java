@@ -32,4 +32,8 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Item i WHERE i.id = :id")
     Optional<Item> findByIdForUpdate(@Param("id") UUID id);
+
+    List<Item> findByUnlockLevelAndActiveTrue(Integer unlockLevel);
+
+    List<Item> findByWelcomeGrantTrueAndActiveTrueAndDeprecatedFalse();
 }

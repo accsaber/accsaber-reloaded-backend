@@ -1,6 +1,7 @@
 package com.accsaber.backend.model.dto.response.item;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import lombok.Builder;
@@ -13,12 +14,20 @@ public class TradeResponse {
     private UUID id;
     private Long fromUserId;
     private Long toUserId;
-    private UUID userItemLinkId;
-    private ItemResponse item;
-    private UserItemResponse.ModifierRef modifier;
-    private Long serialNumber;
+    private List<TradeItemRef> offeredItems;
+    private List<TradeItemRef> requestedItems;
     private String status;
     private String message;
     private Instant createdAt;
     private Instant resolvedAt;
+
+    @Getter
+    @Builder
+    public static class TradeItemRef {
+        private UUID linkId;
+        private ItemResponse item;
+        private List<UserItemResponse.ModifierRef> modifiers;
+        private Long serialNumber;
+        private Long quantity;
+    }
 }

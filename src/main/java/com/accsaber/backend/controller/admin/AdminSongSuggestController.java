@@ -22,7 +22,7 @@ public class AdminSongSuggestController {
     private final SongSuggestService songSuggestService;
 
     @Operation(summary = "Regenerate the Song Suggest leaderboard now",
-            description = "Runs the same pipeline as the weekly schedule. Async — returns 202 immediately.")
+            description = "Runs the same pipeline as the weekly schedule. Async - returns 202 immediately.")
     @PostMapping("/regenerate")
     public ResponseEntity<Void> regenerate() {
         songSuggestService.regenerateAsync();

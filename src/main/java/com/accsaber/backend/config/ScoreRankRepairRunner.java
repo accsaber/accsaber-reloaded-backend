@@ -25,7 +25,7 @@ public class ScoreRankRepairRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (backfillOnStartup) {
-            log.info("Rank repair skipped — backfill runner will trigger it after import");
+            log.info("Rank repair skipped - backfill runner will trigger it after import");
             return;
         }
         scoreRankingService.reassignAllRanks();

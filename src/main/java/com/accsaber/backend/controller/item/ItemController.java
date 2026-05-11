@@ -21,10 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.EquipItemRequest;
+import com.accsaber.backend.model.dto.request.item.InventoryFilter;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
+import com.accsaber.backend.model.entity.item.ItemRarity;
+import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
@@ -86,28 +89,36 @@ public class ItemController {
         return ResponseEntity.ok(links.stream().map(ItemMapper::toUserItemResponse).toList());
     }
 
-    @Operation(summary = "Get a user's equipped items, fully hydrated, keyed by type key")
+    @Operation(summary = "Get a user's equipped items, keyed by type key")
     @GetMapping("/users/{userId}/items/equipped")
-    public ResponseEntity<Map<String, ItemResponse>> getEquipped(@PathVariable Long userId) {
+    public ResponseEntity<Map<String, UserItemResponse>> getEquipped(@PathVariable Long userId) {
         return ResponseEntity.ok(itemService.findEquippedHydrated(userId));
     }
 
-    @Operation(summary = "Paginated user inventory with optional type filter and sorting", description = "Sortable fields: awardedAt, item.name, item.type.key. Default sort: awardedAt desc.")
+    @Operation(summary = "Paginated user inventory with filtering and sorting")
     @GetMapping("/users/{userId}/inventory")
     public ResponseEntity<Page<UserItemResponse>> getInventory(
             @PathVariable Long userId,
-            @RequestParam(required = false) String typeKey,
+            @RequestParam(required = false) List<String> typeKey,
+            @RequestParam(required = false) List<ItemRarity> rarity,
+            @RequestParam(required = false) List<String> modifierKey,
+            @RequestParam(required = false) Boolean tradeable,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) List<ItemSource> source,
+            @RequestParam(required = false) Boolean deprecated,
             @PageableDefault(size = 50, sort = "awardedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(itemService.findInventory(userId, typeKey, pageable)
+        InventoryFilter filter = new InventoryFilter(typeKey, rarity, modifierKey, tradeable, search, source,
+                deprecated);
+        return ResponseEntity.ok(itemService.findInventory(userId, filter, pageable)
                 .map(ItemMapper::toUserItemResponse));
     }
 
-    @Operation(summary = "Equip an owned item to its corresponding profile slot")
+    @Operation(summary = "Equip an owned item link to its corresponding profile slot")
     @PostMapping("/users/me/items/equip")
     public ResponseEntity<Void> equip(
             @Valid @RequestBody EquipItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.equip(requirePrincipal(principal).getUserId(), request.getItemId());
+        itemService.equip(requirePrincipal(principal).getUserId(), request.getLinkId());
         return ResponseEntity.noContent().build();
     }
 

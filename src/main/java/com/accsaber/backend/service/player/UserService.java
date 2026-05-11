@@ -25,6 +25,7 @@ import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.score.ScoreRankingService;
@@ -58,6 +59,7 @@ public class UserService {
     private final SkillService skillService;
     private final UserRelationService userRelationService;
     private final UserSettingsService userSettingsService;
+    private final ItemService itemService;
 
     @Autowired
     @Lazy
@@ -84,12 +86,14 @@ public class UserService {
         if (userRepository.findByIdAndActiveTrue(userId).isPresent()) {
             throw new ConflictException("User", userId);
         }
-        return userRepository.save(User.builder()
+        User saved = userRepository.save(User.builder()
                 .id(userId)
                 .name(name)
                 .avatarUrl(avatarUrl)
                 .country(country)
                 .build());
+        itemService.grantWelcomeItems(saved.getId());
+        return saved;
     }
 
     public BigDecimal getTotalXp(Long userId) {

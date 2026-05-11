@@ -1,5 +1,6 @@
 package com.accsaber.backend.model.entity.item;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -81,6 +82,21 @@ public class Item {
     @Column(nullable = false)
     @Builder.Default
     private boolean deprecated = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean stackable = false;
+
+    @Column(name = "is_welcome_grant", nullable = false)
+    @Builder.Default
+    private boolean welcomeGrant = false;
+
+    private BigDecimal worth;
+
+    private String requirement;
+
+    @Column(name = "unlock_level")
+    private Integer unlockLevel;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

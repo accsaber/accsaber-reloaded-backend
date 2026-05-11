@@ -9,5 +9,5 @@ import lombok.Data;
 public class EquipItemRequest {
 
     @NotNull
-    private UUID itemId;
+    private UUID linkId;
 }

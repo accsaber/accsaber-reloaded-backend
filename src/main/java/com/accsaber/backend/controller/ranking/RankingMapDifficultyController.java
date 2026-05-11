@@ -17,6 +17,7 @@ import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
+import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
@@ -24,6 +25,7 @@ import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.AutoCriteriaService;
+import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.ReweightService;
 import com.accsaber.backend.service.map.UnrankService;
@@ -40,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 public class RankingMapDifficultyController {
 
         private final MapService mapService;
+        private final MapImportService mapImportService;
         private final ReweightService reweightService;
         private final UnrankService unrankService;
         private final AutoCriteriaService autoCriteriaService;
@@ -75,6 +78,17 @@ public class RankingMapDifficultyController {
                         Authentication authentication) {
                 return ResponseEntity.ok(mapService.updateComplexity(difficultyId, request,
                                 StaffPrincipals.linkedUserIdOf(authentication),
+                                StaffPrincipals.staffIdOf(authentication)));
+        }
+
+        @Operation(summary = "Refresh a map difficulty from BeatLeader/BeatSaver", description = "Updates leaderboard IDs, max score, and basic map metadata by re-fetching from BL/BS. Allowed only on QUEUE or QUALIFIED difficulties.")
+        @PostMapping("/{difficultyId}/refresh")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<MapDifficultyResponse> refresh(
+                        @PathVariable UUID difficultyId,
+                        @Valid @RequestBody RefreshMapDifficultyRequest request,
+                        Authentication authentication) {
+                return ResponseEntity.ok(mapImportService.refreshMapDifficulty(difficultyId, request,
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 

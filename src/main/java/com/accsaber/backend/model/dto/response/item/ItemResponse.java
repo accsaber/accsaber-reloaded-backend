@@ -1,5 +1,6 @@
 package com.accsaber.backend.model.dto.response.item;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -22,5 +23,10 @@ public class ItemResponse {
     private boolean visible;
     private boolean active;
     private boolean deprecated;
+    private boolean stackable;
+    private boolean welcomeGrant;
+    private BigDecimal worth;
+    private String requirement;
+    private Integer unlockLevel;
     private Instant createdAt;
 }

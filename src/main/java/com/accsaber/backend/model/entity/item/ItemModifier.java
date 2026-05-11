@@ -1,10 +1,15 @@
 package com.accsaber.backend.model.entity.item;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +47,8 @@ public class ItemModifier {
     public static final String BATTLE_WORN = "battle_worn";
     public static final String FOUNDERS = "founders";
 
+    public static final Set<String> PER_INSTANCE_KEYS = Set.of(STRANGE, FOUNDERS, DECORATED, BATTLE_WORN);
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -53,6 +60,13 @@ public class ItemModifier {
     private String name;
 
     private String description;
+
+    @Column(name = "color_hex", nullable = false)
+    private String colorHex;
+
+    @Column(name = "effect_spec", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private JsonNode effectSpec;
 
     @Column(nullable = false)
     @Builder.Default

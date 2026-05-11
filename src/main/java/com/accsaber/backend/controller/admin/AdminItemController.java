@@ -46,7 +46,7 @@ public class AdminItemController {
     private final ItemService itemService;
     private final ItemTypeService itemTypeService;
 
-    @Operation(summary = "List item types (admin)", description = "includeInactive=true returns deactivated types alongside active ones.")
+    @Operation(summary = "List item types (admin)")
     @GetMapping("/item-types")
     public ResponseEntity<List<ItemTypeResponse>> listTypes(
             @RequestParam(defaultValue = "false") boolean includeInactive) {
@@ -54,7 +54,7 @@ public class AdminItemController {
         return ResponseEntity.ok(types.stream().map(ItemMapper::toTypeResponse).toList());
     }
 
-    @Operation(summary = "List items (admin)", description = "includeInactive=true returns deactivated items. Optional typeId filter.")
+    @Operation(summary = "List items (admin)")
     @GetMapping("/items")
     public ResponseEntity<List<ItemResponse>> listItems(
             @RequestParam(required = false) UUID typeId,
@@ -98,7 +98,9 @@ public class AdminItemController {
     @PostMapping("/items")
     public ResponseEntity<ItemResponse> createItem(@Valid @RequestBody CreateItemRequest req) {
         var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
-                req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible());
+                req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
+                req.isStackable(), req.isWelcomeGrant(), req.getWorth(), req.getRequirement(),
+                req.getUnlockLevel());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
@@ -107,7 +109,9 @@ public class AdminItemController {
     public ResponseEntity<ItemResponse> updateItem(@PathVariable UUID id,
             @RequestBody UpdateItemRequest req) {
         var item = itemService.update(id, req.getName(), req.getDescription(), req.getIconUrl(),
-                req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible());
+                req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible(),
+                req.getStackable(), req.getWelcomeGrant(), req.getWorth(), req.getRequirement(),
+                req.getUnlockLevel());
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 
@@ -124,16 +128,16 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.reactivate(id)));
     }
 
-    @Operation(summary = "Manually award an item to a user", description = "If modifierKey is omitted, the auto-resolver runs (founders for first 5 serials, seasonal chance, normal otherwise). If provided, that modifier is forced.")
+    @Operation(summary = "Manually award an item to a user")
     @PostMapping("/items/award")
     public ResponseEntity<UserItemResponse> award(@Valid @RequestBody AwardItemRequest req,
             @AuthenticationPrincipal StaffUserDetails staff) {
         var link = itemService.awardManual(req.getUserId(), req.getItemId(),
-                staff.getStaffUser(), req.getReason(), req.getModifierKey());
+                staff.getStaffUser(), req.getReason(), req.getModifierKeys(), req.getQuantity());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toUserItemResponse(link));
     }
 
-    @Operation(summary = "Mark an item as deprecated", description = "Blocks new awards of this item and reassigns every existing user_item_link of it to the 'vintage' modifier. One-way — to re-enable, an admin would need to manually edit the data.")
+    @Operation(summary = "Mark an item as deprecated")
     @PostMapping("/items/{id}/deprecate")
     public ResponseEntity<ItemResponse> deprecateItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.deprecate(id)));
@@ -147,7 +151,7 @@ public class AdminItemController {
                 .toList());
     }
 
-    @Operation(summary = "Revoke a user's item award (hard delete)", description = "Removes a user_item_link by id. If the user had this item equipped, the equipped slot is silently cleared. Pending trades for this link are cascade-deleted.")
+    @Operation(summary = "Revoke a user's item award (hard delete)")
     @DeleteMapping("/items/awards/{linkId}")
     public ResponseEntity<Void> revokeAward(@PathVariable UUID linkId) {
         itemService.revokeAward(linkId);

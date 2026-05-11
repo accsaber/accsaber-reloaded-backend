@@ -14,6 +14,8 @@ public class ItemModifierResponse {
     private String key;
     private String name;
     private String description;
+    private String colorHex;
+    private Object effectSpec;
     private boolean active;
     private Instant createdAt;
 }
