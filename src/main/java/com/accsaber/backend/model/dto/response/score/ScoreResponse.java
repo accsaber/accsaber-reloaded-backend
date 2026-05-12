@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.UUID;
 
 import com.accsaber.backend.model.entity.map.Difficulty;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class ScoreResponse {
 
     private UUID id;
@@ -53,4 +54,7 @@ public class ScoreResponse {
     private boolean active;
     private List<UUID> modifierIds;
     private Instant createdAt;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private MyScoreSummary myScore;
 }

@@ -39,6 +39,13 @@ public class UserRelationService {
                 .getContent();
     }
 
+    public List<Long> findActiveTargetUserIdsByTypes(Long userId, java.util.Collection<UserRelationType> types) {
+        if (types == null || types.isEmpty()) {
+            return List.of();
+        }
+        return relationRepository.findActiveTargetUserIdsByTypes(userId, types);
+    }
+
     public List<Long> findRelationFilterUserIds(Long userId, UserRelationType type) {
         List<Long> targets = findActiveTargetUserIds(userId, type);
         if (type == UserRelationType.blocked) {

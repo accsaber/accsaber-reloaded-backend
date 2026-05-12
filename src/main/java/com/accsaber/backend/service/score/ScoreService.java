@@ -22,6 +22,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
+import com.accsaber.backend.model.dto.response.score.MyScoreSummary;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
 import com.accsaber.backend.model.entity.Modifier;
@@ -42,8 +43,10 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
+import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.player.UserRelationService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
 import com.accsaber.backend.util.HmdMapper;
@@ -72,6 +75,7 @@ public class ScoreService {
         private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
         private final ScoreRankingService scoreRankingService;
         private final DuplicateUserService duplicateUserService;
+        private final UserRelationService userRelationService;
         private final com.accsaber.backend.service.skill.SkillService skillService;
         private final LevelUpAwardService levelUpAwardService;
         private final ApplicationEventPublisher eventPublisher;
@@ -425,6 +429,68 @@ public class ScoreService {
 
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
                                 loadModifierIds(s.getId())));
+        }
+
+        public Page<ScoreResponse> findByUserRelations(Long viewerUserId, UserRelationType type, UUID categoryId,
+                        String search, Pageable pageable) {
+                Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "ap"));
+                List<UserRelationType> types = type != null
+                                ? List.of(type)
+                                : List.of(UserRelationType.follower, UserRelationType.rival);
+                if (types.contains(UserRelationType.blocked)) {
+                        throw new ValidationException("Cannot list scores of blocked users");
+                }
+                List<Long> userIds = userRelationService.findActiveTargetUserIdsByTypes(viewerUserId, types);
+                if (userIds.isEmpty()) {
+                        return Page.empty(effective);
+                }
+                boolean hasSearch = search != null && !search.isBlank();
+                Page<Score> scores;
+                if (categoryId != null && hasSearch) {
+                        scores = scoreRepository.findActiveByUsersAndCategoryAndSongNameSearch(
+                                        userIds, categoryId, search.trim(), effective);
+                } else if (categoryId != null) {
+                        scores = scoreRepository.findActiveByUsersAndCategory(userIds, categoryId, effective);
+                } else if (hasSearch) {
+                        scores = scoreRepository.findActiveByUsersAndSongNameSearch(
+                                        userIds, search.trim(), effective);
+                } else {
+                        scores = scoreRepository.findActiveByUsers(userIds, effective);
+                }
+
+                List<UUID> difficultyIds = scores.getContent().stream()
+                                .map(s -> s.getMapDifficulty().getId())
+                                .distinct()
+                                .toList();
+                java.util.Map<UUID, Score> myByDifficulty = difficultyIds.isEmpty()
+                                ? java.util.Map.of()
+                                : scoreRepository.findActiveByUserAndMapDifficultyIdIn(viewerUserId, difficultyIds)
+                                                .stream()
+                                                .collect(java.util.stream.Collectors.toMap(
+                                                                vs -> vs.getMapDifficulty().getId(),
+                                                                java.util.function.Function.identity(),
+                                                                (a, b) -> a));
+
+                return scores.map(s -> {
+                        Integer maxScore = s.getMapDifficulty().getMaxScore();
+                        ScoreResponse base = toResponse(s, computeAccuracy(s.getScore(), maxScore),
+                                        loadModifierIds(s.getId()));
+                        Score mine = myByDifficulty.get(s.getMapDifficulty().getId());
+                        if (mine == null) {
+                                return base;
+                        }
+                        return base.toBuilder()
+                                        .myScore(MyScoreSummary.builder()
+                                                        .id(mine.getId())
+                                                        .score(mine.getScore())
+                                                        .accuracy(computeAccuracy(mine.getScore(), maxScore))
+                                                        .ap(mine.getAp())
+                                                        .weightedAp(mine.getWeightedAp())
+                                                        .rank(mine.getRank())
+                                                        .timeSet(mine.getTimeSet())
+                                                        .build())
+                                        .build();
+                });
         }
 
         public Page<ScoreResponse> findByMapDifficulty(UUID mapDifficultyId, Pageable pageable) {

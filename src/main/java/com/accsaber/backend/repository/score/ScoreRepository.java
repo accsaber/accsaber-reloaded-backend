@@ -266,6 +266,64 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("search") String search,
                         Pageable pageable);
 
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.user.id IN :userIds
+                        AND s.active = true
+                        """)
+        Page<Score> findActiveByUsers(
+                        @Param("userIds") java.util.Collection<Long> userIds,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.user.id IN :userIds
+                        AND s.mapDifficulty.category.id = :categoryId
+                        AND s.active = true
+                        """)
+        Page<Score> findActiveByUsersAndCategory(
+                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("categoryId") UUID categoryId,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.user.id IN :userIds
+                        AND s.active = true
+                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """)
+        Page<Score> findActiveByUsersAndSongNameSearch(
+                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("search") String search,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.user.id IN :userIds
+                        AND s.mapDifficulty.category.id = :categoryId
+                        AND s.active = true
+                        AND LOWER(s.mapDifficulty.map.songName) LIKE LOWER(CONCAT('%', :search, '%'))
+                        """)
+        Page<Score> findActiveByUsersAndCategoryAndSongNameSearch(
+                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("search") String search,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        WHERE s.user.id = :userId
+                        AND s.mapDifficulty.id IN :mapDifficultyIds
+                        AND s.active = true
+                        """)
+        List<Score> findActiveByUserAndMapDifficultyIdIn(
+                        @Param("userId") Long userId,
+                        @Param("mapDifficultyIds") java.util.Collection<UUID> mapDifficultyIds);
+
         @Query("SELECT COALESCE(SUM(s.score), 0) FROM Score s WHERE s.user.id = :userId AND s.active = true")
         long sumActiveScoreByUser(@Param("userId") Long userId);
 

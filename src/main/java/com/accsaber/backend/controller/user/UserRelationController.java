@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,9 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.UserRelationRequest;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
+import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.player.UserRelationService;
+import com.accsaber.backend.service.score.ScoreService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 public class UserRelationController {
 
     private final UserRelationService relationService;
+    private final ScoreService scoreService;
 
     @Operation(summary = "List authenticated player's relations (followers/rivals/blocked)")
     @GetMapping("/me/relations")
@@ -44,6 +48,18 @@ public class UserRelationController {
             @PageableDefault(size = 20) Pageable pageable) {
         Long userId = requirePrincipal(principal).getUserId();
         return ResponseEntity.ok(relationService.findByUser(userId, type, true, pageable));
+    }
+
+    @Operation(summary = "Get scores from authenticated player's relations", description = "Paginated active scores from the players the authenticated user follows and/or rivals. Optional type filter (follower or rival; blocked is rejected). Supports the same categoryId and song-name search filters and sort options (ap, accuracy, rank, etc.) as the user scores endpoint.")
+    @GetMapping("/me/relations/scores")
+    public ResponseEntity<Page<ScoreResponse>> getRelationScores(
+            @RequestParam(required = false) UserRelationType type,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String search,
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
+        Long userId = requirePrincipal(principal).getUserId();
+        return ResponseEntity.ok(scoreService.findByUserRelations(userId, type, categoryId, search, pageable));
     }
 
     @Operation(summary = "Create a relation (follower, rival, or blocked) targeting another player")
