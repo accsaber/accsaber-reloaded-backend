@@ -13,7 +13,7 @@ import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 
 public final class PlatformScoreMapper {
 
-    public static final Set<String> BANNED_MODIFIER_CODES = Set.of("NO", "NB", "SS", "SC", "SN");
+    public static final Set<String> BANNED_MODIFIER_CODES = Set.of("NO", "NB", "SS", "SC", "SN", "OP");
 
     private PlatformScoreMapper() {
     }
