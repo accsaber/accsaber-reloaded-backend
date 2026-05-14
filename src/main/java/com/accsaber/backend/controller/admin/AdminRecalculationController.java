@@ -1,15 +1,19 @@
 package com.accsaber.backend.controller.admin;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.service.score.ScoreCorrectionService;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 import com.accsaber.backend.service.score.XPReweightService;
@@ -32,6 +36,7 @@ public class AdminRecalculationController {
     private final StatisticsService statisticsService;
     private final XPReweightService xpReweightService;
     private final SkillService skillService;
+    private final MapDifficultyRepository mapDifficultyRepository;
 
     @Operation(summary = "Recalculate raw AP for a single difficulty",
             description = "Versioned recalc: creates new score versions, reassigns ranks, updates stats.")
@@ -46,6 +51,16 @@ public class AdminRecalculationController {
     @PostMapping("/ap/raw")
     public ResponseEntity<Void> recalculateAllRawAp() {
         scoreRecalculationService.recalculateAllRawApAsync();
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Recalculate raw AP for a list of difficulties",
+            description = "Versioned recalc for the supplied difficulty IDs only.")
+    @PostMapping("/ap/difficulties")
+    public ResponseEntity<Void> recalculateDifficulties(@RequestBody List<UUID> difficultyIds) {
+        List<MapDifficulty> difficulties = mapDifficultyRepository
+                .findAllByIdInAndActiveTrueWithCategory(difficultyIds);
+        scoreRecalculationService.recalculateBatchAsync(difficulties);
         return ResponseEntity.accepted().build();
     }
 

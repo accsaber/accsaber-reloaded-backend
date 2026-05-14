@@ -43,6 +43,15 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         JOIN FETCH d.category c
                         JOIN FETCH c.scoreCurve
                         JOIN FETCH c.weightCurve
+                        WHERE d.id IN :ids AND d.active = true
+                        """)
+        List<MapDifficulty> findAllByIdInAndActiveTrueWithCategory(@Param("ids") List<UUID> ids);
+
+        @Query("""
+                        SELECT d FROM MapDifficulty d
+                        JOIN FETCH d.category c
+                        JOIN FETCH c.scoreCurve
+                        JOIN FETCH c.weightCurve
                         WHERE d.status = :status AND d.active = true
                         """)
         List<MapDifficulty> findByStatusAndActiveTrueWithCategory(@Param("status") MapDifficultyStatus status);
