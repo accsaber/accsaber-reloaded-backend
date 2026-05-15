@@ -5,6 +5,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+import com.accsaber.backend.websocket.server.MilestoneFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.ScoreFeedWebSocketHandler;
 
 import lombok.RequiredArgsConstructor;
@@ -15,10 +16,13 @@ import lombok.RequiredArgsConstructor;
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ScoreFeedWebSocketHandler scoreFeedHandler;
+    private final MilestoneFeedWebSocketHandler milestoneFeedHandler;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(scoreFeedHandler, "/ws/scores")
+                .setAllowedOrigins("*");
+        registry.addHandler(milestoneFeedHandler, "/ws/milestones")
                 .setAllowedOrigins("*");
     }
 }

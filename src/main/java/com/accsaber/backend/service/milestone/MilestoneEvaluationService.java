@@ -12,9 +12,11 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletedResponse;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
@@ -22,6 +24,7 @@ import com.accsaber.backend.model.entity.milestone.UserMilestoneLink;
 import com.accsaber.backend.model.entity.milestone.UserMilestoneSetBonus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.MilestoneCompletedEvent;
 import com.accsaber.backend.repository.milestone.MilestoneRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
@@ -42,6 +45,7 @@ public class MilestoneEvaluationService {
     private final MilestoneQueryBuilderService queryBuilderService;
     private final ItemService itemService;
     private final LevelUpAwardService levelUpAwardService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public record EvaluationResult(List<Milestone> completedMilestones, List<MilestoneSet> completedSets) {
     }
@@ -88,6 +92,7 @@ public class MilestoneEvaluationService {
         awardMilestoneItems(userId, newlyCompleted);
 
         List<MilestoneSet> completedSets = claimEligibleSetBonuses(userId, newlyCompleted);
+        publishCompletionEvent(userId, newlyCompleted, completedSets);
         return new EvaluationResult(newlyCompleted, completedSets);
     }
 
@@ -132,6 +137,7 @@ public class MilestoneEvaluationService {
             if (xpToAward.compareTo(BigDecimal.ZERO) > 0) {
                 awardXp(userId, xpToAward);
             }
+            publishCompletionEvent(userId, List.of(milestone), completedSets);
         }
     }
 
@@ -178,7 +184,59 @@ public class MilestoneEvaluationService {
         awardMilestoneItems(userId, newlyCompleted);
 
         List<MilestoneSet> completedSets = claimEligibleSetBonuses(userId, newlyCompleted);
+        publishCompletionEvent(userId, newlyCompleted, completedSets);
         return new EvaluationResult(newlyCompleted, completedSets);
+    }
+
+    private void publishCompletionEvent(Long userId, List<Milestone> milestones, List<MilestoneSet> sets) {
+        if (milestones.isEmpty() && sets.isEmpty())
+            return;
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null)
+            return;
+
+        List<MilestoneCompletedResponse.CompletedMilestone> milestonePayloads = milestones.stream()
+                .map(this::toMilestonePayload)
+                .toList();
+        List<MilestoneCompletedResponse.CompletedSet> setPayloads = sets.stream()
+                .map(this::toSetPayload)
+                .toList();
+
+        MilestoneCompletedResponse payload = MilestoneCompletedResponse.builder()
+                .userId(userId)
+                .userName(user.getName())
+                .userCountry(user.getCountry())
+                .userAvatarUrl(user.getAvatarUrl())
+                .completedAt(Instant.now())
+                .milestones(milestonePayloads.isEmpty() ? null : milestonePayloads)
+                .sets(setPayloads.isEmpty() ? null : setPayloads)
+                .build();
+
+        eventPublisher.publishEvent(new MilestoneCompletedEvent(payload));
+    }
+
+    private MilestoneCompletedResponse.CompletedMilestone toMilestonePayload(Milestone m) {
+        return MilestoneCompletedResponse.CompletedMilestone.builder()
+                .id(m.getId())
+                .setId(m.getMilestoneSet() != null ? m.getMilestoneSet().getId() : null)
+                .categoryId(m.getCategory() != null ? m.getCategory().getId() : null)
+                .title(m.getTitle())
+                .description(m.getDescription())
+                .type(m.getType())
+                .tier(m.getTier() != null ? m.getTier().name() : null)
+                .xp(m.getXp())
+                .awardsItemId(m.getAwardsItem() != null ? m.getAwardsItem().getId() : null)
+                .build();
+    }
+
+    private MilestoneCompletedResponse.CompletedSet toSetPayload(MilestoneSet s) {
+        return MilestoneCompletedResponse.CompletedSet.builder()
+                .id(s.getId())
+                .title(s.getTitle())
+                .description(s.getDescription())
+                .bonusXp(s.getSetBonusXp())
+                .awardsItemId(s.getAwardsItem() != null ? s.getAwardsItem().getId() : null)
+                .build();
     }
 
     private void awardMilestoneItems(Long userId, List<Milestone> milestones) {
