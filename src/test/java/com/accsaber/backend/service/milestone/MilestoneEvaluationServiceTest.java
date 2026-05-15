@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
@@ -61,6 +62,8 @@ class MilestoneEvaluationServiceTest {
         private ItemService itemService;
         @Mock
         private LevelUpAwardService levelUpAwardService;
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
 
         @InjectMocks
         private MilestoneEvaluationService service;
