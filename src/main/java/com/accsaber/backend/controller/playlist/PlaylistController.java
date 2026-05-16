@@ -51,6 +51,15 @@ public class PlaylistController {
                 return buildPlaylistResponse(category);
         }
 
+        @Operation(summary = "Download missing maps playlist", description = "Returns a Beat Saber playlist JSON file containing every ranked map in the category that the user has not yet scored on. "
+                        + "Use category 'overall' for all categories. Path-only URL so the syncURL works with standalone Beat Saber.")
+        @GetMapping(value = "/missing/{userId}/{category}", produces = "application/json")
+        public ResponseEntity<Map<String, Object>> getMissingPlaylistByPath(
+                        @Parameter(description = "Steam ID of the player") @PathVariable Long userId,
+                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc, overall)") @PathVariable String category) {
+                return buildMissingPlaylistResponse(category, userId);
+        }
+
         @Operation(summary = "Download category unranked playlist", description = "Returns a Beat Saber playlist JSON file containing all queued and qualified maps for the specified category. "
                         + "The syncURL field allows mod managers to auto-refresh the playlist. "
                         + "This path-based variant is compatible with standalone Beat Saber.")
@@ -131,6 +140,22 @@ public class PlaylistController {
 
                 String filenameSuffix = categoryParam.map(c -> "-" + c.replace("_", "-")).orElse("");
                 String filename = "accsaber-snipe-" + sniperId + "-" + targetId + filenameSuffix + ".bplist";
+
+                return ResponseEntity.ok()
+                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                                .header("Cache-Control", "no-store")
+                                .body(playlist);
+        }
+
+        private ResponseEntity<Map<String, Object>> buildMissingPlaylistResponse(String category, Long userId) {
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path("/v1/playlists/missing/{userId}/{category}")
+                                .buildAndExpand(userId, category)
+                                .toUriString();
+                Map<String, Object> playlist = playlistService.generateMissingPlaylist(userId, category, syncUrl);
+
+                String filename = "accsaber-reloaded-missing-" + userId + "-"
+                                + category.replace("_", "-") + ".bplist";
 
                 return ResponseEntity.ok()
                                 .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")

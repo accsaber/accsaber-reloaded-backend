@@ -377,6 +377,12 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         @Query("SELECT DISTINCT s.mapDifficulty.id FROM Score s")
         List<UUID> findDistinctMapDifficultyIds();
 
+        @Query("""
+                        SELECT DISTINCT s.mapDifficulty.id FROM Score s
+                        WHERE s.user.id = :userId AND s.active = true
+                        """)
+        List<UUID> findDistinctMapDifficultyIdsByUser(@Param("userId") Long userId);
+
         Optional<Score> findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(Long userId);
 
         @Query("SELECT DISTINCT s.user FROM Score s WHERE s.timeSet >= :since AND s.active = true")

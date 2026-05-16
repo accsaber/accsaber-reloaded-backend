@@ -1,7 +1,9 @@
 package com.accsaber.backend.service.playlist;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -56,6 +58,26 @@ public class PlaylistService {
                 playlistAssembler.loadCategoryImage(categoryCode),
                 syncUrl,
                 rankedDifficulties);
+    }
+
+    public Map<String, Object> generateMissingPlaylist(Long userId, String categoryCode, String syncUrl) {
+        Category category = requireCategory(categoryCode);
+        User user = requireUser(userId);
+
+        List<MapDifficulty> rankedDifficulties = OVERALL_CODE.equals(categoryCode)
+                ? mapDifficultyRepository.findByCountForOverallAndStatusWithMap(MapDifficultyStatus.RANKED)
+                : mapDifficultyRepository.findByCategoryIdAndStatusWithMap(category.getId(), MapDifficultyStatus.RANKED);
+
+        Set<UUID> playedIds = new HashSet<>(scoreRepository.findDistinctMapDifficultyIdsByUser(userId));
+        List<MapDifficulty> missing = rankedDifficulties.stream()
+                .filter(d -> !playedIds.contains(d.getId()))
+                .toList();
+
+        return playlistAssembler.assemble(
+                "AccSaber " + category.getName() + " Missing Maps - " + user.getName(),
+                playlistAssembler.loadCategoryImage(categoryCode),
+                syncUrl,
+                missing);
     }
 
     @Cacheable(value = "unrankedPlaylists", key = "#categoryCode")
