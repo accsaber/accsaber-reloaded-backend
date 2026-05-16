@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
 import com.accsaber.backend.model.dto.response.player.NameHistoryResponse;
+import com.accsaber.backend.model.dto.response.player.PinnedScoreResponse;
 import com.accsaber.backend.model.dto.response.player.RankingHistoryResponse;
 import com.accsaber.backend.model.dto.response.player.StatsDiffResponse;
 import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
@@ -79,6 +80,18 @@ public class UserController {
                 .map(h -> new NameHistoryResponse(h.getName(), h.getChangedAt()))
                 .toList();
         return ResponseEntity.ok(history);
+    }
+
+    @Operation(summary = "Get user pinned scores", description = "Returns a player's pinned scores in display order. Limited to 3 entries.")
+    @GetMapping("/{userId}/pinned-scores")
+    public ResponseEntity<List<PinnedScoreResponse>> getPinnedScores(@PathVariable Long userId) {
+        List<PinnedScoreResponse> pinned = userService.getPinnedScores(userId).stream()
+                .map(pin -> PinnedScoreResponse.builder()
+                        .score(scoreService.mapToResponse(pin.getScore()))
+                        .comment(pin.getComment())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(pinned);
     }
 
     @Operation(summary = "Get all user statistics", description = "Returns all active category statistics plus XP breakdown for a player")

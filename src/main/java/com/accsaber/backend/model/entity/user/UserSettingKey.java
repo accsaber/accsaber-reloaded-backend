@@ -14,6 +14,8 @@ public enum UserSettingKey {
     APPEARANCE_THEME("appearance.theme", String.class, "system", false),
     APPEARANCE_COLOR_SCHEME("appearance.colorScheme", String.class, "default", false),
 
+    SYNC_NAME("sync.name", Boolean.class, true, false),
+
     EQUIPPED_TITLE("equipped.title", UUID.class, null, true),
     EQUIPPED_PROFILE_BORDER_SHAPE("equipped.profileBorderShape", UUID.class, null, true),
     EQUIPPED_PROFILE_BORDER_COLOR("equipped.profileBorderColor", UUID.class, null, true),
@@ -25,6 +27,7 @@ public enum UserSettingKey {
     public static final String GROUP_PRIVACY = "privacy";
     public static final String GROUP_APPEARANCE = "appearance";
     public static final String GROUP_EQUIPPED = "equipped";
+    public static final String GROUP_SYNC = "sync";
 
     private final String key;
     private final Class<?> valueType;

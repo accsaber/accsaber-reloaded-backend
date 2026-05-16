@@ -39,8 +39,20 @@ class PlayerImportServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private UserSettingsService userSettingsService;
+
     @InjectMocks
     private PlayerImportService playerImportService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubSettings() {
+        org.mockito.Mockito.lenient().when(userSettingsService.get(
+                org.mockito.ArgumentMatchers.any(Long.class),
+                org.mockito.ArgumentMatchers.eq(com.accsaber.backend.model.entity.user.UserSettingKey.SYNC_NAME),
+                org.mockito.ArgumentMatchers.eq(Boolean.class)))
+                .thenReturn(true);
+    }
 
     @Nested
     class EnsurePlayerExists {

@@ -20,10 +20,12 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
+import com.accsaber.backend.model.entity.user.UserPinnedScore;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
+import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
@@ -46,6 +48,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserNameHistoryRepository userNameHistoryRepository;
+    private final UserPinnedScoreRepository userPinnedScoreRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
     private final DuplicateUserService duplicateUserService;
     private final StatisticsService statisticsService;
@@ -233,6 +236,11 @@ public class UserService {
         return userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(resolved);
     }
 
+    public List<UserPinnedScore> getPinnedScores(Long userId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        return userPinnedScoreRepository.findActiveByUserIdWithScoreGraph(resolved);
+    }
+
     private UserResponse toResponse(User user, Long viewerUserId) {
         LevelResponse levelResponse = levelService.calculateLevel(user.getTotalXp());
         Optional<Score> latestScore = scoreRepository.findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(user.getId());
@@ -257,6 +265,7 @@ public class UserService {
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .country(user.getCountry())
+                .bio(user.getBio())
                 .xpRanking(user.getXpRanking())
                 .xpCountryRanking(user.getXpCountryRanking())
                 .levelData(UserLevelData.builder()

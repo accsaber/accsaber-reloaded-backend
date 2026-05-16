@@ -14,6 +14,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class PlayerImportService {
         private final BeatLeaderClient beatLeaderClient;
         private final ScoreSaberClient scoreSaberClient;
         private final UserService userService;
+        private final UserSettingsService userSettingsService;
 
         public User ensurePlayerExists(Long userId) {
                 Optional<User> existing = userService.findOptionalByUserId(userId);
@@ -73,9 +75,12 @@ public class PlayerImportService {
                         return;
                 }
 
-                String name = blProfile.map(BeatLeaderPlayerResponse::getName)
-                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getName))
-                                .orElse(null);
+                boolean nameSyncEnabled = userSettingsService.get(userId, UserSettingKey.SYNC_NAME, Boolean.class);
+                String name = nameSyncEnabled
+                                ? blProfile.map(BeatLeaderPlayerResponse::getName)
+                                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getName))
+                                                .orElse(null)
+                                : null;
 
                 String avatarUrl = blProfile.map(BeatLeaderPlayerResponse::getAvatar)
                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getProfilePicture))

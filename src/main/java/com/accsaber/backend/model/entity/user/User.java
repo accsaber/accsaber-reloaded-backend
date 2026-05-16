@@ -40,6 +40,10 @@ public class User {
     @Builder.Default
     private boolean countryOverride = false;
 
+    @Column(name = "bio", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private String bio = "";
+
     @Column(name = "total_xp", nullable = false, precision = 20, scale = 6)
     @Builder.Default
     private BigDecimal totalXp = BigDecimal.ZERO;
