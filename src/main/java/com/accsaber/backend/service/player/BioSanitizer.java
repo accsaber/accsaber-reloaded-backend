@@ -17,15 +17,22 @@ public class BioSanitizer {
     public static final int MAX_LINKS = 5;
 
     private static final Pattern ANCHOR_OPEN = Pattern.compile("<a\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ALIGN_VALUES = Pattern.compile("(?i)^(left|center|right|justify)$");
 
     private static final CssSchema TEXT_ALIGN_ONLY = CssSchema.withProperties(Set.of("text-align"));
 
+    private static final String[] BLOCK_ELEMENTS = {
+            "p", "div", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li"
+    };
+
     private static final PolicyFactory POLICY = new HtmlPolicyBuilder()
             .allowCommonInlineFormattingElements()
-            .allowElements("p", "br", "ul", "ol", "li", "blockquote", "h3", "h4", "h5", "h6", "pre", "hr", "a")
+            .allowElements("p", "div", "br", "ul", "ol", "li", "blockquote",
+                    "h1", "h2", "h3", "h4", "h5", "h6", "pre", "hr", "a")
             .allowUrlProtocols("http", "https")
             .allowAttributes("href").onElements("a")
             .requireRelNofollowOnLinks()
+            .allowAttributes("align").matching(ALIGN_VALUES).onElements(BLOCK_ELEMENTS)
             .allowStyling(TEXT_ALIGN_ONLY)
             .toFactory();
 

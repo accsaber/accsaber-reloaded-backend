@@ -80,6 +80,33 @@ class BioSanitizerTest {
     }
 
     @Test
+    void preservesAlignmentOnDivAndAllHeadings() {
+        String out = sanitizer.sanitize(
+                "<div style=\"text-align: center\">d</div>"
+                        + "<h1 style=\"text-align: right\">h1</h1>"
+                        + "<h2 style=\"text-align: left\">h2</h2>");
+        assertThat(out).contains("<div").contains("text-align:center");
+        assertThat(out).contains("<h1").contains("text-align:right");
+        assertThat(out).contains("<h2").contains("text-align:left");
+    }
+
+    @Test
+    void preservesLegacyAlignAttribute() {
+        String out = sanitizer.sanitize(
+                "<p align=\"center\">c</p><h3 align=\"right\">r</h3><div align=\"justify\">j</div>");
+        assertThat(out).contains("align=\"center\"");
+        assertThat(out).contains("align=\"right\"");
+        assertThat(out).contains("align=\"justify\"");
+    }
+
+    @Test
+    void dropsAlignAttributeWithJunkValue() {
+        String out = sanitizer.sanitize("<p align=\"javascript:alert(1)\">x</p>");
+        assertThat(out).doesNotContain("align=");
+        assertThat(out).doesNotContain("javascript");
+    }
+
+    @Test
     void stripsNonTextAlignCssEvenOnAllowedElements() {
         String out = sanitizer.sanitize("<p style=\"color:red;text-align:center;font-size:99px\">x</p>");
         assertThat(out).contains("text-align:center");
