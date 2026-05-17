@@ -1,7 +1,9 @@
 package com.accsaber.backend.service.player;
 
+import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.owasp.html.CssSchema;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 import org.springframework.stereotype.Component;
@@ -16,12 +18,15 @@ public class BioSanitizer {
 
     private static final Pattern ANCHOR_OPEN = Pattern.compile("<a\\b", Pattern.CASE_INSENSITIVE);
 
+    private static final CssSchema TEXT_ALIGN_ONLY = CssSchema.withProperties(Set.of("text-align"));
+
     private static final PolicyFactory POLICY = new HtmlPolicyBuilder()
             .allowCommonInlineFormattingElements()
             .allowElements("p", "br", "ul", "ol", "li", "blockquote", "h3", "h4", "h5", "h6", "pre", "hr", "a")
             .allowUrlProtocols("http", "https")
             .allowAttributes("href").onElements("a")
             .requireRelNofollowOnLinks()
+            .allowStyling(TEXT_ALIGN_ONLY)
             .toFactory();
 
     public String sanitize(String html) {

@@ -71,6 +71,23 @@ class BioSanitizerTest {
     }
 
     @Test
+    void preservesTextAlignOnBlockElements() {
+        String out = sanitizer.sanitize(
+                "<p style=\"text-align: center\">c</p>"
+                        + "<h3 style=\"text-align: right\">r</h3>"
+                        + "<blockquote style=\"text-align:left\">l</blockquote>");
+        assertThat(out).contains("text-align:center").contains("text-align:right").contains("text-align:left");
+    }
+
+    @Test
+    void stripsNonTextAlignCssEvenOnAllowedElements() {
+        String out = sanitizer.sanitize("<p style=\"color:red;text-align:center;font-size:99px\">x</p>");
+        assertThat(out).contains("text-align:center");
+        assertThat(out).doesNotContain("color");
+        assertThat(out).doesNotContain("font-size");
+    }
+
+    @Test
     void allowsUpToMaxLinks() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < BioSanitizer.MAX_LINKS; i++) {
