@@ -1,0 +1,252 @@
+{
+  "uid": "accsaber-endpoint-usage",
+  "title": "AccSaber - Endpoint Usage",
+  "tags": ["accsaber", "http"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "uri",
+        "type": "query",
+        "label": "URI",
+        "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+        "query": { "qryType": 1, "query": "label_values(http_server_requests_seconds_count, uri)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "method",
+        "type": "query",
+        "label": "Method",
+        "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+        "query": { "qryType": 1, "query": "label_values(http_server_requests_seconds_count, method)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "status",
+        "type": "query",
+        "label": "Status",
+        "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+        "query": { "qryType": 1, "query": "label_values(http_server_requests_seconds_count, status)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Total Requests (selected range)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range]))",
+          "legendFormat": "Total",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0 }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "title": "Unique Endpoints",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "count(count by (uri) (http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}))",
+          "legendFormat": "Endpoints",
+          "instant": true
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+    },
+    {
+      "title": "Avg Response Time (selected range)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(http_server_requests_seconds_sum{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range])) / sum(increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range]))",
+          "legendFormat": "Avg",
+          "instant": true
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 } }
+    },
+    {
+      "title": "Error Rate (4xx/5xx)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"(4..|5..)\"}[$__range])) / sum(increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\"}[$__range]))",
+          "legendFormat": "Error %",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "value" }
+    },
+    {
+      "title": "Endpoint Usage (filterable table)",
+      "type": "table",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (method, uri) (increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (method, uri) (increase(http_server_requests_seconds_sum{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range])) / sum by (method, uri) (increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "max by (method, uri) (http_server_requests_seconds_max{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"})",
+          "legendFormat": "{{method}} {{uri}}",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "Time 3": true },
+            "renameByName": {
+              "method": "Method",
+              "uri": "URI",
+              "Value #A": "Requests",
+              "Value #B": "Avg (s)",
+              "Value #C": "Max (s)"
+            },
+            "indexByName": { "Method": 0, "URI": 1, "Value #A": 2, "Value #B": 3, "Value #C": 4 }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": { "fields": {}, "sort": [{ "field": "Requests", "desc": true }] }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "filterable": true, "align": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Requests" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "decimals", "value": 0 }] },
+          { "matcher": { "id": "byName", "options": "Avg (s)" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 3 }] },
+          { "matcher": { "id": "byName", "options": "Max (s)" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 3 }] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": true, "reducer": ["sum"], "fields": ["Requests"] } }
+    },
+    {
+      "title": "Request Rate by URI",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[5m]))",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Request Count by Status",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Top 20 Endpoints by Traffic",
+      "type": "bargauge",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "topk(20, sum by (uri) (increase(http_server_requests_seconds_count{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[$__range])))",
+          "legendFormat": "{{uri}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+    },
+    {
+      "title": "Latency Quantiles (selected URIs)",
+      "type": "timeseries",
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{uri=~\"$uri\",method=~\"$method\",status=~\"$status\"}[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    }
+  ]
+}
