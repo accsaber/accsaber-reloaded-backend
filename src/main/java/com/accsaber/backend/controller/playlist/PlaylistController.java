@@ -159,7 +159,7 @@ public class PlaylistController {
 
                 return ResponseEntity.ok()
                                 .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .header("Cache-Control", "no-store")
+                                .header("Cache-Control", "public, max-age=300")
                                 .body(playlist);
         }
 

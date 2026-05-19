@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,7 @@ public class PlaylistService {
                 rankedDifficulties);
     }
 
+    @Cacheable(value = "missingPlaylists", key = "#userId + ':' + #categoryCode")
     public Map<String, Object> generateMissingPlaylist(Long userId, String categoryCode, String syncUrl) {
         Category category = requireCategory(categoryCode);
         User user = requireUser(userId);
@@ -148,7 +150,10 @@ public class PlaylistService {
     private record SnipeCategoryFilter(UUID categoryId, boolean overallOnly, String label) {
     }
 
-    @CacheEvict(value = "playlists", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "playlists", allEntries = true),
+            @CacheEvict(value = "missingPlaylists", allEntries = true)
+    })
     public void evictAllPlaylists() {
         log.info("Evicted all playlist caches");
     }
