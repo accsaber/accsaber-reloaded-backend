@@ -117,6 +117,12 @@ public class ScoreService {
                         saveModifierLinks(history, modifiers);
                         updateUserXp(user.getId(), xpGained);
 
+                        var evaluation = milestoneEvaluationService.evaluateAfterScore(user.getId(), history);
+                        if (!evaluation.completedMilestones().isEmpty()
+                                        || !evaluation.completedSets().isEmpty()) {
+                                awardMilestoneXp(user.getId(), evaluation);
+                        }
+
                         ScoreResponse worseResponse = toResponse(history,
                                         computeAccuracy(history.getScore(), difficulty.getMaxScore()),
                                         loadModifierIds(history.getId()));

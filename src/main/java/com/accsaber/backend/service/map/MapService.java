@@ -307,10 +307,11 @@ public class MapService {
     public List<RankedDifficultyResponse> findAllRankedDifficulties() {
         return mapDifficultyRepository.findAllRankedWithComplexity().stream()
                 .map(row -> RankedDifficultyResponse.builder()
-                        .songHash((String) row[0])
-                        .difficulty((Difficulty) row[1])
-                        .complexity((BigDecimal) row[2])
-                        .categoryCode((String) row[3])
+                        .id((UUID) row[0])
+                        .songHash((String) row[1])
+                        .difficulty((Difficulty) row[2])
+                        .complexity((BigDecimal) row[3])
+                        .categoryCode((String) row[4])
                         .build())
                 .toList();
     }
