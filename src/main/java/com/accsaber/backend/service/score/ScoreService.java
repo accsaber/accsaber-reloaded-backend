@@ -85,6 +85,7 @@ public class ScoreService {
         @Transactional
         public ScoreResponse submit(SubmitScoreRequest request) {
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
+                validateScoreBounds(request, difficulty);
                 User user = loadActiveUser(request.getUserId());
 
                 Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
@@ -203,6 +204,7 @@ public class ScoreService {
         }
 
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
+                validateScoreBounds(request, difficulty);
                 User user = loadUserForBackfill(request.getUserId());
 
                 Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
@@ -636,6 +638,16 @@ public class ScoreService {
                 BigDecimal total = milestoneXp.add(setXp);
                 if (total.compareTo(BigDecimal.ZERO) > 0) {
                         updateUserXp(userId, total);
+                }
+        }
+
+        private void validateScoreBounds(SubmitScoreRequest request, MapDifficulty difficulty) {
+                Integer max = difficulty.getMaxScore();
+                if (max == null || max <= 0) {
+                        return;
+                }
+                if (request.getScoreNoMods() != null && request.getScoreNoMods() > max) {
+                        throw new ValidationException("scoreNoMods exceeds the map's maxScore");
                 }
         }
 

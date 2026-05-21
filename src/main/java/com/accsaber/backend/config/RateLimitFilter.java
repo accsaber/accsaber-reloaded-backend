@@ -7,12 +7,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
+
+import com.accsaber.backend.exception.TooManyRequestsException;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,11 +30,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final ConcurrentHashMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
     private final int capacity;
     private final Set<String> trustedIps;
+    private final HandlerExceptionResolver exceptionResolver;
 
     public RateLimitFilter(
             @Value("${accsaber.rate-limit.capacity:400}") int capacity,
-            @Value("${accsaber.rate-limit.trusted-ips:}") String trustedIpsConfig) {
+            @Value("${accsaber.rate-limit.trusted-ips:}") String trustedIpsConfig,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) {
         this.capacity = capacity;
+        this.exceptionResolver = exceptionResolver;
         this.trustedIps = trustedIpsConfig.isBlank()
                 ? Set.of()
                 : Stream.of(trustedIpsConfig.split(","))
@@ -50,9 +57,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setHeader("X-Rate-Limit-Remaining", String.valueOf(remaining));
 
         if (count > capacity) {
-            response.setStatus(429);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Rate limit exceeded. Try again later.\"}");
+            exceptionResolver.resolveException(request, response, null,
+                    new TooManyRequestsException("Rate limit exceeded. Try again later."));
             return;
         }
 

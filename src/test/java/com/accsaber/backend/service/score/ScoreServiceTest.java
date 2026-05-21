@@ -391,6 +391,18 @@ class ScoreServiceTest {
                 }
 
                 @Test
+                void scoreNoModsExceedingMaxScore_throwsValidationException() {
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
+                                        .thenReturn(Optional.of(rankedDifficulty));
+
+                        SubmitScoreRequest req = buildRequest(rankedDifficulty.getMaxScore() + 1);
+
+                        assertThatThrownBy(() -> scoreService.submit(req))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("scoreNoMods");
+                }
+
+                @Test
                 void unrankedDifficulty_throwsValidationException() {
                         rankedDifficulty.setStatus(MapDifficultyStatus.QUEUE);
                         when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
