@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -439,6 +440,11 @@ public class ScoreService {
 
         public Page<ScoreResponse> findByUserRelations(Long viewerUserId, UserRelationType type, UUID categoryId,
                         String search, Pageable pageable) {
+                return findByUserRelations(viewerUserId, type, categoryId, search, false, pageable);
+        }
+
+        public Page<ScoreResponse> findByUserRelations(Long viewerUserId, UserRelationType type, UUID categoryId,
+                        String search, boolean includePrincipal, Pageable pageable) {
                 Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.DESC, "ap"));
                 List<UserRelationType> types = type != null
                                 ? List.of(type)
@@ -447,6 +453,11 @@ public class ScoreService {
                         throw new ValidationException("Cannot list scores of blocked users");
                 }
                 List<Long> userIds = userRelationService.findActiveTargetUserIdsByTypes(viewerUserId, types);
+                if (includePrincipal) {
+                        HashSet<Long> includedUserIds = new HashSet<>(userIds);
+                        includedUserIds.add(viewerUserId);
+                        userIds = List.copyOf(includedUserIds);
+                }
                 if (userIds.isEmpty()) {
                         return Page.empty(effective);
                 }
