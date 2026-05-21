@@ -50,16 +50,18 @@ public class UserRelationController {
         return ResponseEntity.ok(relationService.findByUser(userId, type, true, pageable));
     }
 
-    @Operation(summary = "Get scores from authenticated player's relations", description = "Paginated active scores from the players the authenticated user follows and/or rivals. Optional type filter (follower or rival; blocked is rejected). Supports the same categoryId and song-name search filters and sort options (ap, accuracy, rank, etc.) as the user scores endpoint.")
+    @Operation(summary = "Get scores from authenticated player's relations", description = "Paginated active scores from the players the authenticated user follows and/or rivals. Optional type filter (follower or rival; blocked is rejected). Set includePrincipal=true to include the authenticated player's own scores in the returned page. Supports the same categoryId and song-name search filters and sort options (ap, accuracy, rank, etc.) as the user scores endpoint.")
     @GetMapping("/me/relations/scores")
     public ResponseEntity<Page<ScoreResponse>> getRelationScores(
             @RequestParam(required = false) UserRelationType type,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "false") boolean includePrincipal,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
         Long userId = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(scoreService.findByUserRelations(userId, type, categoryId, search, pageable));
+        return ResponseEntity
+                .ok(scoreService.findByUserRelations(userId, type, categoryId, search, includePrincipal, pageable));
     }
 
     @Operation(summary = "Create a relation (follower, rival, or blocked) targeting another player")
