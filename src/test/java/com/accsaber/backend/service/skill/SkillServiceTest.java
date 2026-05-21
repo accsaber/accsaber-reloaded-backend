@@ -195,14 +195,13 @@ class SkillServiceTest {
             mockActivePlayers(125000);
             when(apCalculationService.calculateRawApForOneWeightedGain(any(), any()))
                     .thenReturn(BigDecimal.valueOf(800));
-            when(skillRepository.findByUserIdAndCategoryId(eq(USER_ID), any())).thenReturn(Optional.empty());
-            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             SkillResponse response = skillService.computeSkillForUser(USER_ID, null);
 
             assertThat(response.getSkills()).hasSize(1);
             verify(skillRepository, times(2)).findByUserIdActive(USER_ID);
-            verify(skillRepository).save(any());
+            verify(skillRepository).upsert(eq(USER_ID), eq(CATEGORY_ID),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -244,17 +243,15 @@ class SkillServiceTest {
             when(statsRepository.countActivePlayersInCategory(OVERALL_ID)).thenReturn(125000L);
             when(apCalculationService.calculateRawApForOneWeightedGain(any(), any()))
                     .thenReturn(BigDecimal.valueOf(1070));
-            when(skillRepository.findByUserIdAndCategoryId(any(), any())).thenReturn(Optional.empty());
-            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of(
                     persistedSkill(cat, 95.0, 95)));
 
             skillService.upsertSkill(USER_ID, CATEGORY_ID);
 
-            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
-            verify(skillRepository, times(2)).save(captor.capture());
-            assertThat(captor.getAllValues()).extracting(s -> s.getCategory().getCode())
-                    .containsExactly(CATEGORY_CODE, "overall");
+            ArgumentCaptor<UUID> categoryCaptor = ArgumentCaptor.forClass(UUID.class);
+            verify(skillRepository, times(2)).upsert(eq(USER_ID), categoryCaptor.capture(),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any());
+            assertThat(categoryCaptor.getAllValues()).containsExactly(CATEGORY_ID, OVERALL_ID);
         }
 
         @Test
@@ -268,14 +265,13 @@ class SkillServiceTest {
             UserCategorySkill a = persistedSkill(category("a", "A"), 80.0, 70);
             UserCategorySkill b = persistedSkill(category("b", "B"), 60.0, 60);
             when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of(a, b));
-            when(skillRepository.findByUserIdAndCategoryId(USER_ID, OVERALL_ID)).thenReturn(Optional.empty());
-            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             skillService.upsertSkill(USER_ID, OVERALL_ID);
 
-            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
-            verify(skillRepository).save(captor.capture());
-            assertThat(captor.getValue().getSkillLevel().doubleValue()).isCloseTo(70.0, within(0.01));
+            ArgumentCaptor<BigDecimal> skillCaptor = ArgumentCaptor.forClass(BigDecimal.class);
+            verify(skillRepository).upsert(eq(USER_ID), eq(OVERALL_ID), skillCaptor.capture(),
+                    any(), any(), any(), any(), any(), any(), any(), any());
+            assertThat(skillCaptor.getValue().doubleValue()).isCloseTo(70.0, within(0.01));
         }
 
         @Test
@@ -287,14 +283,13 @@ class SkillServiceTest {
                     .thenReturn(Optional.empty());
             when(statsRepository.countActivePlayersInCategory(OVERALL_ID)).thenReturn(125000L);
             when(skillRepository.findByUserIdForOverall(USER_ID)).thenReturn(List.of());
-            when(skillRepository.findByUserIdAndCategoryId(USER_ID, OVERALL_ID)).thenReturn(Optional.empty());
-            when(skillRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             skillService.upsertSkill(USER_ID, OVERALL_ID);
 
-            ArgumentCaptor<UserCategorySkill> captor = ArgumentCaptor.forClass(UserCategorySkill.class);
-            verify(skillRepository).save(captor.capture());
-            assertThat(captor.getValue().getSkillLevel().doubleValue()).isEqualTo(0);
+            ArgumentCaptor<BigDecimal> skillCaptor = ArgumentCaptor.forClass(BigDecimal.class);
+            verify(skillRepository).upsert(eq(USER_ID), eq(OVERALL_ID), skillCaptor.capture(),
+                    any(), any(), any(), any(), any(), any(), any(), any());
+            assertThat(skillCaptor.getValue().doubleValue()).isEqualTo(0);
         }
 
         @Test
@@ -303,7 +298,8 @@ class SkillServiceTest {
 
             skillService.upsertSkill(USER_ID, CATEGORY_ID);
 
-            verify(skillRepository, never()).save(any());
+            verify(skillRepository, never()).upsert(any(), any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any());
         }
     }
 

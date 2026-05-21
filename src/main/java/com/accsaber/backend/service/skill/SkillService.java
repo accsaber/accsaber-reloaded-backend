@@ -232,22 +232,18 @@ public class SkillService {
     private void save(User user, Category category, double skill, double rank, double sustained,
             double peak, double combined, BigDecimal rawApForOneGain, BigDecimal topAp,
             Integer categoryRank, long activePlayers) {
-        UserCategorySkill row = skillRepository
-                .findByUserIdAndCategoryId(user.getId(), category.getId())
-                .orElseGet(() -> UserCategorySkill.builder()
-                        .user(user)
-                        .category(category)
-                        .build());
-        row.setSkillLevel(round2(skill));
-        row.setRankScore(round2(rank));
-        row.setSustainedScore(round2(sustained));
-        row.setPeakScore(round2(peak));
-        row.setCombinedScore(round2(combined));
-        row.setRawApForOneGain(rawApForOneGain);
-        row.setTopAp(topAp);
-        row.setCategoryRank(categoryRank);
-        row.setActivePlayers(activePlayers);
-        skillRepository.save(row);
+        skillRepository.upsert(
+                user.getId(),
+                category.getId(),
+                round2(skill),
+                round2(rank),
+                round2(sustained),
+                round2(peak),
+                round2(combined),
+                rawApForOneGain,
+                topAp,
+                categoryRank,
+                activePlayers);
     }
 
     private SkillResponse toResponse(User user, List<UserCategorySkill> rows) {
