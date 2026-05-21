@@ -10,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,13 +45,9 @@ public class SubmitController {
     @PostMapping
     public ResponseEntity<ScoreResponse> submit(
             @Valid @RequestBody PluginSubmitRequest body,
-            @RequestHeader(value = "X-Plugin-Build", required = false) String pluginBuild,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required");
-        }
-        if (pluginBuild == null || pluginBuild.isBlank()) {
-            throw new ValidationException("X-Plugin-Build header is required");
         }
         validateModifiers(body.getModifierCodes());
         if (!nonceService.tryConsume(principal.getUserId(), body.getNonce())) {
