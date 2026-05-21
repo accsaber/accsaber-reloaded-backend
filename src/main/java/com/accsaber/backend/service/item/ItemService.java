@@ -91,6 +91,11 @@ public class ItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
     }
 
+    public Item findByIdForStaff(UUID id) {
+        return itemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Item", id));
+    }
+
     public List<UserItemLink> findUserCollection(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         return userItemLinkRepository.findByUser_Id(resolved);
@@ -228,8 +233,8 @@ public class ItemService {
     @Transactional
     public Item create(UUID typeId, String name, String description, String iconUrl,
             Object value, ItemRarity rarity, boolean tradeable,
-            boolean visible, boolean stackable, boolean welcomeGrant, BigDecimal worth, String requirement,
-            Integer unlockLevel) {
+            boolean visible, boolean stackable, boolean welcomeGrant, boolean active, BigDecimal worth,
+            String requirement, Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
         itemValueValidator.validate(type, value);
         Item item = Item.builder()
@@ -243,6 +248,7 @@ public class ItemService {
                 .visible(visible)
                 .stackable(stackable)
                 .welcomeGrant(welcomeGrant)
+                .active(active)
                 .worth(worth)
                 .requirement(requirement)
                 .unlockLevel(unlockLevel)
@@ -346,6 +352,19 @@ public class ItemService {
         }
 
         awardOrMerge(resolved, item, null, 1L, source, sourceId, null, reason);
+    }
+
+    @Transactional
+    public UserItemLink awardFromCrate(Long userId, Item rewardItem, UUID consumedCrateLinkId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        if (!userRepository.existsById(resolved)) {
+            throw new ResourceNotFoundException("User", userId);
+        }
+        if (rewardItem.isDeprecated()) {
+            throw new ValidationException("rewardItem", "cannot award a deprecated item");
+        }
+        return awardOrMerge(resolved, rewardItem, null, 1L, ItemSource.crate_drop,
+                consumedCrateLinkId.toString(), null, "Opened from crate");
     }
 
     @Transactional

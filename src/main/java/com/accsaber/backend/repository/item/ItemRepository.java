@@ -36,4 +36,6 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     List<Item> findByUnlockLevelAndActiveTrue(Integer unlockLevel);
 
     List<Item> findByWelcomeGrantTrueAndActiveTrueAndDeprecatedFalse();
+
+    List<Item> findByType_Key(String typeKey);
 }

@@ -28,6 +28,7 @@ public class CreateItemRequest {
     private boolean visible = true;
     private boolean stackable = false;
     private boolean welcomeGrant = false;
+    private boolean active = true;
     private BigDecimal worth;
     private String requirement;
     private Integer unlockLevel;

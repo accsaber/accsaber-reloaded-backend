@@ -5,15 +5,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
+import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
+import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.TradeItemSide;
+import com.accsaber.backend.model.entity.item.UserCrateOpen;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 import com.accsaber.backend.model.entity.item.UserItemTradeItem;
@@ -105,6 +109,28 @@ public final class ItemMapper {
                 .awardedByStaffId(link.getAwardedBy() != null ? link.getAwardedBy().getId() : null)
                 .reason(link.getReason())
                 .awardedAt(link.getAwardedAt())
+                .build();
+    }
+
+    public static CrateContentResponse toCrateContentResponse(CrateContent content, long totalWeight) {
+        return CrateContentResponse.builder()
+                .rewardItem(toItemResponse(content.getRewardItem()))
+                .dropWeight(content.getDropWeight())
+                .dropChance(totalWeight <= 0
+                        ? java.math.BigDecimal.ZERO
+                        : java.math.BigDecimal.valueOf(content.getDropWeight())
+                                .divide(java.math.BigDecimal.valueOf(totalWeight), 6,
+                                        java.math.RoundingMode.HALF_UP))
+                .build();
+    }
+
+    public static CrateOpenResponse toCrateOpenResponse(UserCrateOpen open) {
+        return CrateOpenResponse.builder()
+                .id(open.getId())
+                .crate(toItemResponse(open.getCrateItem()))
+                .consumedLinkId(open.getConsumedLinkId())
+                .reward(open.getRewardLink() != null ? toUserItemResponse(open.getRewardLink()) : null)
+                .rolledAt(open.getRolledAt())
                 .build();
     }
 

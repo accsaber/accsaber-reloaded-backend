@@ -6,5 +6,6 @@ public enum ItemSource {
     campaign_milestone,
     level,
     trade,
-    manual
+    manual,
+    crate_drop
 }

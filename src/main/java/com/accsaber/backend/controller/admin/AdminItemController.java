@@ -65,6 +65,12 @@ public class AdminItemController {
         return ResponseEntity.ok(items.stream().map(ItemMapper::toItemResponse).toList());
     }
 
+    @Operation(summary = "Get an item by id (admin — includes drafts and deactivated items)")
+    @GetMapping("/items/{id}")
+    public ResponseEntity<ItemResponse> getItem(@PathVariable UUID id) {
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.findByIdForStaff(id)));
+    }
+
     @Operation(summary = "Create an item type")
     @PostMapping("/item-types")
     public ResponseEntity<ItemTypeResponse> createType(@Valid @RequestBody CreateItemTypeRequest req) {
@@ -99,7 +105,7 @@ public class AdminItemController {
     public ResponseEntity<ItemResponse> createItem(@Valid @RequestBody CreateItemRequest req) {
         var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
                 req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
-                req.isStackable(), req.isWelcomeGrant(), req.getWorth(), req.getRequirement(),
+                req.isStackable(), req.isWelcomeGrant(), req.isActive(), req.getWorth(), req.getRequirement(),
                 req.getUnlockLevel());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
