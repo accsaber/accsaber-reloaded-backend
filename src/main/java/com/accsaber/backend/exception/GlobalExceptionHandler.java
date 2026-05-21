@@ -8,6 +8,7 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindingResult;
@@ -63,6 +64,24 @@ public class GlobalExceptionHandler {
                                 .build();
 
                 return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
+        }
+
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<ErrorResponse> handleUnreadableBody(
+                        HttpMessageNotReadableException ex, HttpServletRequest request) {
+                log.warn("Malformed request body on {}: {}", request.getRequestURI(), ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                                .code("MALFORMED_REQUEST_BODY")
+                                .message("Request body is missing or could not be parsed")
+                                .path(request.getRequestURI())
+                                .correlationId(MDC.get("correlationId"))
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
 
         @ExceptionHandler(MethodArgumentTypeMismatchException.class)
