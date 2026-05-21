@@ -2,6 +2,7 @@ package com.accsaber.backend.service.score;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -86,12 +87,16 @@ public class ScoreService {
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
                 User user = loadActiveUser(request.getUserId());
 
+                Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
+                                request.getScoreNoMods(), request.isPartial());
+                if (playMatch.isPresent()) {
+                        return backfillExistingScore(playMatch.get(), request, difficulty);
+                }
+
                 Optional<Score> existing = scoreRepository
                                 .findByUser_IdAndMapDifficulty_IdAndActiveTrue(user.getId(), difficulty.getId());
 
-                if (existing.isPresent() && Objects.equals(existing.get().getScoreNoMods(), request.getScoreNoMods())) {
-                        throw new ValidationException("Duplicate score: this exact score is already registered");
-                }
+                ensurePlayCount(request, user.getId(), difficulty.getId());
 
                 List<Modifier> modifiers = resolveModifiers(request.getModifierIds());
                 Integer modifiedScore = applyModifierMultiplier(request.getScore(), modifiers);
@@ -106,12 +111,14 @@ public class ScoreService {
                 BigDecimal rawAp = apResult.rawAP();
 
                 BigDecimal xpGained;
-                if (existing.isPresent()
-                                && request.getScoreNoMods().compareTo(existing.get().getScoreNoMods()) <= 0) {
+                boolean isPartial = request.isPartial();
+                boolean isWorseThanExisting = existing.isPresent()
+                                && request.getScoreNoMods().compareTo(existing.get().getScoreNoMods()) <= 0;
+                if (isPartial || isWorseThanExisting) {
                         xpGained = xpCalculationService.calculateXpForWorseScore();
                         Score history = buildScore(request, user, difficulty, modifiedScore, rawAp, null);
                         history.setActive(false);
-                        history.setSupersedesReason("Worse score");
+                        history.setSupersedesReason(isPartial ? "Partial attempt" : "Worse score");
                         history.setXpGained(xpGained);
                         scoreRepository.saveAndFlush(history);
                         saveModifierLinks(history, modifiers);
@@ -198,12 +205,17 @@ public class ScoreService {
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
                 User user = loadUserForBackfill(request.getUserId());
 
+                Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
+                                request.getScoreNoMods(), request.isPartial());
+                if (playMatch.isPresent()) {
+                        backfillExistingScore(playMatch.get(), request, difficulty);
+                        return;
+                }
+
                 Optional<Score> existing = scoreRepository
                                 .findByUser_IdAndMapDifficulty_IdAndActiveTrue(user.getId(), difficulty.getId());
 
-                if (existing.isPresent() && Objects.equals(existing.get().getScoreNoMods(), request.getScoreNoMods())) {
-                        return;
-                }
+                ensurePlayCount(request, user.getId(), difficulty.getId());
 
                 List<Modifier> modifiers = resolveModifiers(request.getModifierIds());
                 Integer modifiedScore = applyModifierMultiplier(request.getScore(), modifiers);
@@ -214,11 +226,14 @@ public class ScoreService {
                 BigDecimal rawAp = apResult.rawAP();
 
                 BigDecimal xpGained;
-                if (existing.isPresent()
-                                && request.getScoreNoMods().compareTo(existing.get().getScoreNoMods()) <= 0) {
+                boolean isPartial = request.isPartial();
+                boolean isWorseThanExisting = existing.isPresent()
+                                && request.getScoreNoMods().compareTo(existing.get().getScoreNoMods()) <= 0;
+                if (isPartial || isWorseThanExisting) {
                         xpGained = xpCalculationService.calculateXpForWorseScore();
                         Score history = buildScore(request, user, difficulty, modifiedScore, rawAp, null);
                         history.setActive(false);
+                        history.setSupersedesReason(isPartial ? "Partial attempt" : "Worse score");
                         history.setXpGained(xpGained);
                         scoreRepository.saveAndFlush(history);
                         saveModifierLinks(history, modifiers);
@@ -305,23 +320,13 @@ public class ScoreService {
                                 .rankWhenSet(score.getRankWhenSet())
                                 .ap(apResult.rawAP())
                                 .weightedAp(BigDecimal.ZERO)
-                                .blScoreId(score.getBlScoreId())
-                                .maxCombo(score.getMaxCombo())
-                                .badCuts(score.getBadCuts())
-                                .misses(score.getMisses())
-                                .wallHits(score.getWallHits())
-                                .bombHits(score.getBombHits())
-                                .pauses(score.getPauses())
-                                .streak115(score.getStreak115())
-                                .playCount(score.getPlayCount())
-                                .hmd(score.getHmd())
-                                .timeSet(score.getTimeSet())
                                 .reweightDerivative(true)
                                 .xpGained(BigDecimal.ZERO)
                                 .supersedes(score)
                                 .supersedesReason("Complexity reweight")
                                 .active(true)
                                 .build();
+                ScorePayloadFields.copyAll(score, recalculated);
 
                 scoreRepository.saveAndFlush(recalculated);
                 copyModifierLinks(score, recalculated);
@@ -378,23 +383,13 @@ public class ScoreService {
                                 .rankWhenSet(score.getRankWhenSet())
                                 .ap(score.getAp())
                                 .weightedAp(score.getWeightedAp())
-                                .blScoreId(score.getBlScoreId())
-                                .maxCombo(score.getMaxCombo())
-                                .badCuts(score.getBadCuts())
-                                .misses(score.getMisses())
-                                .wallHits(score.getWallHits())
-                                .bombHits(score.getBombHits())
-                                .pauses(score.getPauses())
-                                .streak115(score.getStreak115())
-                                .playCount(score.getPlayCount())
-                                .hmd(score.getHmd())
-                                .timeSet(score.getTimeSet())
                                 .reweightDerivative(score.isReweightDerivative())
                                 .xpGained(newXpGained)
                                 .supersedes(score)
                                 .supersedesReason("XP curve update")
                                 .active(true)
                                 .build();
+                ScorePayloadFields.copyAll(score, recalculated);
 
                 scoreRepository.saveAndFlush(recalculated);
                 copyModifierLinks(score, recalculated);
@@ -644,6 +639,41 @@ public class ScoreService {
                 }
         }
 
+        private void ensurePlayCount(SubmitScoreRequest request, Long userId, UUID mapDifficultyId) {
+                if (request.getPlayCount() != null) {
+                        return;
+                }
+                long prior = scoreRepository.countAttemptsByUserAndDifficulty(userId, mapDifficultyId);
+                request.setPlayCount((int) (prior + 1));
+        }
+
+        private Optional<Score> findRecentMatchingPlay(Long userId, UUID mapDifficultyId, Integer scoreNoMods,
+                        boolean partial) {
+                if (scoreNoMods == null) {
+                        return Optional.empty();
+                }
+                Instant since = Instant.now().minus(Duration.ofDays(1));
+                List<Score> matches = scoreRepository.findRecentMatchingPlay(userId, mapDifficultyId, scoreNoMods,
+                                partial, since, PageRequest.of(0, 1));
+                return matches.isEmpty() ? Optional.empty() : Optional.of(matches.get(0));
+        }
+
+        private ScoreResponse backfillExistingScore(Score existing, SubmitScoreRequest request,
+                        MapDifficulty difficulty) {
+                if (ScorePayloadFields.mergeNullOnly(existing, request)) {
+                        scoreRepository.saveAndFlush(existing);
+                        Long userId = existing.getUser().getId();
+                        var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, existing);
+                        if (!evaluation.completedMilestones().isEmpty()
+                                        || !evaluation.completedSets().isEmpty()) {
+                                awardMilestoneXp(userId, evaluation);
+                        }
+                }
+                return toResponse(existing,
+                                computeAccuracy(existing.getScore(), difficulty.getMaxScore()),
+                                loadModifierIds(existing.getId()));
+        }
+
         private MapDifficulty loadRankedDifficulty(UUID id) {
                 MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(id)
                                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", id));
@@ -681,7 +711,7 @@ public class ScoreService {
 
         private Score buildScore(SubmitScoreRequest req, User user, MapDifficulty difficulty,
                         Integer modifiedScore, BigDecimal ap, Score supersedes) {
-                return Score.builder()
+                Score score = Score.builder()
                                 .user(user)
                                 .mapDifficulty(difficulty)
                                 .score(modifiedScore)
@@ -690,21 +720,13 @@ public class ScoreService {
                                 .rankWhenSet(req.getRankWhenSet())
                                 .ap(ap)
                                 .weightedAp(BigDecimal.ZERO)
-                                .blScoreId(req.getBlScoreId())
-                                .maxCombo(req.getMaxCombo())
-                                .badCuts(req.getBadCuts())
-                                .misses(req.getMisses())
-                                .wallHits(req.getWallHits())
-                                .bombHits(req.getBombHits())
-                                .pauses(req.getPauses())
-                                .streak115(req.getStreak115())
-                                .playCount(req.getPlayCount())
-                                .hmd(req.getHmd())
-                                .timeSet(req.getTimeSet())
                                 .supersedes(supersedes)
                                 .supersedesReason(supersedes != null ? "Score improved" : null)
                                 .active(true)
+                                .partial(req.isPartial())
                                 .build();
+                ScorePayloadFields.applyAll(score, req);
+                return score;
         }
 
         private List<Modifier> resolveModifiers(List<UUID> modifierIds) {
@@ -832,6 +854,7 @@ public class ScoreService {
                                                                 .max(BigDecimal.ZERO)
                                                 : BigDecimal.ZERO)
                                 .active(s.isActive())
+                                .partial(s.isPartial())
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();

@@ -3,7 +3,6 @@ package com.accsaber.backend.service.score;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +21,6 @@ import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreRespons
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
@@ -41,7 +39,6 @@ public class ScoreIngestionService {
     private final ScoreService scoreService;
     private final PlayerImportService playerImportService;
     private final MapDifficultyRepository mapDifficultyRepository;
-    private final ScoreRepository scoreRepository;
     private final ScoreImportService scoreImportService;
     private final ModifierCacheService modifierCacheService;
     private final PlatformProperties properties;
@@ -67,7 +64,6 @@ public class ScoreIngestionService {
         this.scoreService = scoreService;
         this.playerImportService = playerImportService;
         this.mapDifficultyRepository = mapDifficultyRepository;
-        this.scoreRepository = scoreRepository;
         this.scoreImportService = scoreImportService;
         this.modifierCacheService = modifierCacheService;
         this.properties = properties;
@@ -150,13 +146,6 @@ public class ScoreIngestionService {
             ScheduledFuture<?> future = ingestionScheduler.schedule(() -> {
                 try {
                     pendingSsScores.remove(playKey);
-                    Optional<Score> existingScore = scoreRepository
-                            .findByUser_IdAndMapDifficulty_IdAndActiveTrue(resolvedUserId, difficulty.getId());
-                    if (existingScore.isPresent()
-                            && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getBaseScore())) {
-                        log.debug("Skipping delayed SS score for {} - identical score already exists", playKey);
-                        return;
-                    }
                     playerImportService.ensurePlayerExists(resolvedUserId);
                     SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(
                             ssScore, difficulty.getId(), resolvedUserId, modifierCacheService.getModifierCodeToId());

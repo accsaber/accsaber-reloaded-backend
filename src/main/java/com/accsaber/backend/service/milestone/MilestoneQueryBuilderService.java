@@ -198,6 +198,7 @@ public class MilestoneQueryBuilderService {
         scores.put("streak_115", ColumnDef.int_("s.streak115"));
         scores.put("play_count", ColumnDef.int_("s.playCount"));
         scores.put("active", ColumnDef.bool_("s.active"));
+        scores.put("partial", ColumnDef.bool_("s.partial"));
         scores.put("xp_gained", ColumnDef.bd("s.xpGained"));
         scores.put("reweight_derivative", ColumnDef.bool_("s.reweightDerivative"));
         scores.put("time_set", ColumnDef.instant("s.timeSet"));
@@ -782,6 +783,7 @@ public class MilestoneQueryBuilderService {
         JPQL_TO_SQL.put("s.streak115", "s.streak_115");
         JPQL_TO_SQL.put("s.playCount", "s.play_count");
         JPQL_TO_SQL.put("s.active", "s.active");
+        JPQL_TO_SQL.put("s.partial", "s.partial");
         JPQL_TO_SQL.put("s.timeSet", "s.time_set");
         JPQL_TO_SQL.put("s.supersedes.id", "s.supersedes_id");
         JPQL_TO_SQL.put("s.supersedesReason", "s.supersedes_reason");

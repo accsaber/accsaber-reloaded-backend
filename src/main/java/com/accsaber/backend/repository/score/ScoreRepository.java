@@ -21,6 +21,23 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.id = :mapDifficultyId
+                          AND s.scoreNoMods = :scoreNoMods
+                          AND s.partial = :partial
+                          AND (s.createdAt >= :since OR (s.timeSet IS NOT NULL AND s.timeSet >= :since))
+                        ORDER BY COALESCE(s.timeSet, s.createdAt) DESC
+                        """)
+        List<Score> findRecentMatchingPlay(
+                        @Param("userId") Long userId,
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("scoreNoMods") Integer scoreNoMods,
+                        @Param("partial") boolean partial,
+                        @Param("since") Instant since,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
                         JOIN FETCH s.user
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.map m
@@ -369,6 +386,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("SELECT COALESCE(SUM(s.xpGained), 0) FROM Score s WHERE s.user.id = :userId")
         java.math.BigDecimal sumXpGainedByUserId(@Param("userId") Long userId);
+
+        @Query("""
+                        SELECT COUNT(s) FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.id = :mapDifficultyId
+                          AND s.reweightDerivative = false
+                        """)
+        long countAttemptsByUserAndDifficulty(
+                        @Param("userId") Long userId,
+                        @Param("mapDifficultyId") UUID mapDifficultyId);
 
         @Query("SELECT COALESCE(SUM(s.xpGained), 0) FROM Score s WHERE s.user.id = :userId AND s.createdAt >= :since")
         java.math.BigDecimal sumXpGainedByUserIdSince(@Param("userId") Long userId,

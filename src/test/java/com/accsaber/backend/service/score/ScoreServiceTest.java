@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -292,19 +293,101 @@ class ScoreServiceTest {
                 }
 
                 @Test
-                void duplicateScore_throwsValidationException() {
+                void duplicateScore_backfillsExistingRow_reEvaluatesMilestones() {
                         Score existing = buildExistingScore(new BigDecimal("600.000000"));
                         when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
                                         .thenReturn(Optional.of(rankedDifficulty));
                         when(userRepository.findById(activeUser.getId()))
                                         .thenReturn(Optional.of(activeUser));
+                        when(scoreRepository.findRecentMatchingPlay(eq(activeUser.getId()),
+                                        eq(rankedDifficulty.getId()), eq(900_000), eq(false), any(), any()))
+                                        .thenReturn(List.of(existing));
+                        when(milestoneEvaluationService.evaluateAfterScore(eq(activeUser.getId()), eq(existing)))
+                                        .thenReturn(new MilestoneEvaluationService.EvaluationResult(
+                                                        Collections.emptyList(), Collections.emptyList()));
+
+                        SubmitScoreRequest request = buildRequest(900_000);
+                        request.setBlScoreId(123_456L);
+                        request.setStreak115(42);
+
+                        ScoreResponse response = scoreService.submit(request);
+
+                        assertThat(response.getId()).isEqualTo(existing.getId());
+                        assertThat(existing.getBlScoreId()).isEqualTo(123_456L);
+                        assertThat(existing.getStreak115()).isEqualTo(42);
+                        verify(scoreRepository).saveAndFlush(existing);
+                        verify(milestoneEvaluationService).evaluateAfterScore(activeUser.getId(), existing);
+                        verify(statisticsService, never()).recalculate(any(), any());
+                }
+
+                @Test
+                void duplicateScore_noFieldChanges_skipsSaveAndMilestoneEval() {
+                        Score existing = buildExistingScore(new BigDecimal("600.000000"));
+                        existing.setBlScoreId(123_456L);
+                        existing.setStreak115(42);
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
+                                        .thenReturn(Optional.of(rankedDifficulty));
+                        when(userRepository.findById(activeUser.getId()))
+                                        .thenReturn(Optional.of(activeUser));
+                        when(scoreRepository.findRecentMatchingPlay(eq(activeUser.getId()),
+                                        eq(rankedDifficulty.getId()), eq(900_000), eq(false), any(), any()))
+                                        .thenReturn(List.of(existing));
+
+                        SubmitScoreRequest request = buildRequest(900_000);
+                        request.setBlScoreId(123_456L);
+                        request.setStreak115(42);
+
+                        scoreService.submit(request);
+
+                        verify(scoreRepository, never()).saveAndFlush(any());
+                        verify(milestoneEvaluationService, never()).evaluateAfterScore(any(), any());
+                }
+
+                @Test
+                void partialSubmit_noExisting_insertsInactivePartial_awardsXp_evaluatesMilestones() {
+                        BigDecimal rawAp = new BigDecimal("100.000000");
+                        stubCommonMocks(rawAp);
                         when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                                         activeUser.getId(), rankedDifficulty.getId()))
-                                        .thenReturn(Optional.of(existing));
+                                        .thenReturn(Optional.empty());
+                        ArgumentCaptor<Score> savedCaptor = ArgumentCaptor.forClass(Score.class);
+                        when(scoreRepository.saveAndFlush(savedCaptor.capture()))
+                                        .thenAnswer(inv -> inv.getArgument(0));
 
-                        assertThatThrownBy(() -> scoreService.submit(buildRequest(900_000)))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("Duplicate");
+                        SubmitScoreRequest request = buildRequest(720_000);
+                        request.setPartial(true);
+
+                        scoreService.submit(request);
+
+                        Score saved = savedCaptor.getValue();
+                        assertThat(saved.isPartial()).isTrue();
+                        assertThat(saved.isActive()).isFalse();
+                        assertThat(saved.getSupersedesReason()).isEqualTo("Partial attempt");
+                        verify(milestoneEvaluationService).evaluateAfterScore(activeUser.getId(), saved);
+                        verify(statisticsService, never()).recalculate(any(), any());
+                        verify(scoreRankingService, never()).rankNewScore(any(), any(), any());
+                }
+
+                @Test
+                void partialSubmit_doesNotMergeIntoNonPartialRow() {
+                        BigDecimal rawAp = new BigDecimal("100.000000");
+                        stubCommonMocks(rawAp);
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
+                                        activeUser.getId(), rankedDifficulty.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(scoreRepository.findRecentMatchingPlay(eq(activeUser.getId()),
+                                        eq(rankedDifficulty.getId()), eq(720_000), eq(true), any(), any()))
+                                        .thenReturn(List.of());
+                        when(scoreRepository.saveAndFlush(any(Score.class)))
+                                        .thenAnswer(inv -> inv.getArgument(0));
+
+                        SubmitScoreRequest request = buildRequest(720_000);
+                        request.setPartial(true);
+
+                        scoreService.submit(request);
+
+                        verify(scoreRepository).findRecentMatchingPlay(eq(activeUser.getId()),
+                                        eq(rankedDifficulty.getId()), eq(720_000), eq(true), any(), any());
                 }
 
                 @Test
