@@ -160,6 +160,23 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         List<Object[]> findAllRankedWithComplexity();
 
+        @Query("""
+                        SELECT d, c.complexity FROM MapDifficulty d
+                        JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
+                        JOIN FETCH d.map
+                        JOIN FETCH d.category cat
+                        LEFT JOIN FETCH cat.scoreCurve
+                        WHERE d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
+                          AND d.active = true
+                          AND (:categoryId IS NULL OR cat.id = :categoryId)
+                          AND c.complexity BETWEEN :minComplexity AND :maxComplexity
+                        ORDER BY d.id
+                        """)
+        List<Object[]> findRankedWithComplexityInRange(
+                        @Param("categoryId") UUID categoryId,
+                        @Param("minComplexity") BigDecimal minComplexity,
+                        @Param("maxComplexity") BigDecimal maxComplexity);
+
         @Query(value = """
                         SELECT d FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true

@@ -28,7 +28,7 @@ public class OpenApiConfig {
                                                                 REST API for the AccSaber Reloaded platform - an accuracy-based \
                                                                 leaderboard system for Beat Saber.
                                                                 """)
-                                                .version("ALPHA-4.5.0")
+                                                .version("ALPHA-5.0.0")
                                                 .contact(new Contact()
                                                                 .name("AccSaber Reloaded")
                                                                 .url(baseUrl)))
@@ -61,6 +61,8 @@ public class OpenApiConfig {
                                                                 .description("Scoring curves - point-lookup and formula curves used for AP and weight calculations"),
                                                 new Tag().name("Discord Links")
                                                                 .description("Discord-to-player account linking and lookup"),
+                                                new Tag().name("Missions")
+                                                                .description("Per-player daily and weekly missions - skill-calibrated targets with XP and crate rewards. Rotates at 4AM server time (daily) and Monday 4AM (weekly)"),
                                                 new Tag().name("Site Statistics")
                                                                 .description("Site-wide statistics, leaderboards (streaks, AP, retries, improvements, milestones), and chart data (time series, distributions)"),
                                                 new Tag().name("Calculate")
@@ -89,6 +91,8 @@ public class OpenApiConfig {
                                                                 .description("Detect, link, and merge duplicate user accounts across platforms (Admin role)"),
                                                 new Tag().name("Admin Curves")
                                                                 .description("Create and update scoring curves (Admin role)"),
+                                                new Tag().name("Admin Missions")
+                                                                .description("Manage mission templates - CRUD on the template pool that feeds daily/weekly assignments, plus per-user regeneration (Admin role)"),
                                                 new Tag().name("Admin WebSocket")
                                                                 .description("Monitor and reconnect BeatLeader/ScoreSaber WebSocket feeds (Admin role)"),
 

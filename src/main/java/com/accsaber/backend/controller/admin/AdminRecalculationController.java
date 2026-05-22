@@ -89,7 +89,7 @@ public class AdminRecalculationController {
     }
 
     @Operation(summary = "Recalculate total XP for all users",
-            description = "Recomputes totalXp from score XP + milestone XP + set bonus XP. Does not recalculate per-score XP.")
+            description = "Recomputes totalXp from score XP + milestone XP + set bonus XP + campaign XP + mission XP. Does not recalculate per-score XP.")
     @PostMapping("/xp/sum")
     public ResponseEntity<Void> recalculateTotalXp() {
         xpReweightService.recalculateTotalXpForAllUsers();

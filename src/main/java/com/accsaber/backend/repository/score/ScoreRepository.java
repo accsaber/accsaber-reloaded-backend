@@ -230,6 +230,59 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId);
 
         @Query("""
+                        SELECT MAX(s.ap) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                        """)
+        java.math.BigDecimal findMaxApByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.mapDifficulty d
+                        JOIN FETCH d.map
+                        JOIN FETCH d.category
+                        WHERE s.user.id = :userId
+                          AND d.category.id = :categoryId
+                          AND s.active = true
+                          AND s.timeSet IS NOT NULL
+                          AND s.timeSet < :before
+                        ORDER BY s.timeSet ASC
+                        """)
+        List<Score> findActiveByUserAndCategoryOlderThan(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("before") Instant before);
+
+        @Query("""
+                        SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.category.id = :categoryId
+                          AND s.active = true
+                          AND s.streak115 IS NOT NULL
+                        """)
+        Integer findMaxStreak115ByUserAndCategoryActive(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.user.id <> :excludeUserId
+                          AND s.score > :minScore
+                        ORDER BY s.score ASC
+                        """)
+        List<Score> findSnipeCandidatesAboveScore(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("excludeUserId") Long excludeUserId,
+                        @Param("minScore") Integer minScore,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
                         SELECT s FROM Score s
                         JOIN FETCH s.user
                         JOIN FETCH s.mapDifficulty d
