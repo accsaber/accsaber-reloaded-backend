@@ -867,6 +867,7 @@ public class ScoreService {
                                                 : BigDecimal.ZERO)
                                 .active(s.isActive())
                                 .partial(s.isPartial())
+                                .supersedesReason(s.getSupersedesReason())
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();

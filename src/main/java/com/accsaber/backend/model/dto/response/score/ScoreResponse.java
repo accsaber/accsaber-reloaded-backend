@@ -53,6 +53,7 @@ public class ScoreResponse {
     private BigDecimal bonusXp;
     private boolean active;
     private boolean partial;
+    private String supersedesReason;
     private List<UUID> modifierIds;
     private Instant createdAt;
 
