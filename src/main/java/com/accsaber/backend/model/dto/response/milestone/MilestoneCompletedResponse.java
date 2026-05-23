@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -15,6 +17,7 @@ import lombok.Getter;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MilestoneCompletedResponse {
 
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
     private String userName;
     private String userCountry;
