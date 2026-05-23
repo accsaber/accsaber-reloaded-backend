@@ -75,7 +75,17 @@ public class MissionProgressService {
             case STREAK_ON_MAP -> evalStreakOnMap(mission, score);
             case STREAK_N_IN_CATEGORY -> evalStreakNInCategory(mission, score);
             case COMEBACK_PB -> evalPbSpecificMap(mission, score);
+            case SCORES_N -> evalScoresN(mission, score);
         };
+    }
+
+    private boolean evalScoresN(UserMission mission, ScoreResponse score) {
+        if (!score.isActive())
+            return false;
+        if (!matchesCategoryScope(mission, score))
+            return false;
+        mission.setProgressCount(mission.getProgressCount() + 1);
+        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
     }
 
     private boolean evalStreakNInCategory(UserMission mission, ScoreResponse score) {

@@ -331,6 +331,9 @@ public class MissionAssignmentService {
         if (template.getType() == MissionType.XP_IN_WINDOW) {
             return null;
         }
+        if (template.getType() == MissionType.SCORES_N) {
+            return null;
+        }
         if (template.getType() == MissionType.PLAY_N_MAPS && template.getCode() != null
                 && template.getCode().endsWith("_any")) {
             return null;
@@ -358,7 +361,8 @@ public class MissionAssignmentService {
     private UserMission buildMission(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, Random rng, MissionPoolCache cache, MissionBand forcedBand) {
         if (category == null && template.getType() != MissionType.XP_IN_WINDOW
-                && template.getType() != MissionType.PLAY_N_MAPS)
+                && template.getType() != MissionType.PLAY_N_MAPS
+                && template.getType() != MissionType.SCORES_N)
             return null;
         MissionBand band = forcedBand != null ? forcedBand : pickBand(rng);
         return switch (template.getType()) {
@@ -372,6 +376,7 @@ public class MissionAssignmentService {
             case STREAK_ON_MAP -> buildStreakOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_N_IN_CATEGORY -> buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
             case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
         };
     }
 
@@ -775,6 +780,17 @@ public class MissionAssignmentService {
             case ACC_ON_MAP, AP_ON_MAP, PB_SPECIFIC_MAP, SNIPE_PLAYER_ON_MAP, STREAK_ON_MAP, COMEBACK_PB -> true;
             default -> false;
         };
+    }
+
+    private UserMission buildScoresN(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        int count = pickCount(template, band, rng);
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetCount(count)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
     }
 
     private UserMission buildComebackPb(MissionAssignmentContext ctx, MissionTemplate template, Category category,
