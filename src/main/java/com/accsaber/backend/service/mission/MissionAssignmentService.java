@@ -779,7 +779,7 @@ public class MissionAssignmentService {
 
     private UserMission buildComebackPb(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        Instant olderThan = Instant.now().minus(java.time.Duration.ofDays(90));
+        Instant olderThan = Instant.now().minus(java.time.Duration.ofDays(365));
         List<Score> oldScores = scoreRepository.findActiveByUserAndCategoryOlderThan(
                 ctx.userId(), category.getId(), olderThan);
         if (oldScores.isEmpty())

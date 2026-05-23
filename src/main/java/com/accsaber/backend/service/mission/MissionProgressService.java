@@ -108,8 +108,6 @@ public class MissionProgressService {
     }
 
     private boolean evalPlayN(UserMission mission, ScoreResponse score) {
-        if (score.isPartial())
-            return false;
         if (!matchesCategoryScope(mission, score))
             return false;
         mission.setProgressCount(mission.getProgressCount() + 1);
