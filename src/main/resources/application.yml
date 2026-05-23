@@ -68,6 +68,8 @@ springdoc:
     path: /v1/api-docs
 
 accsaber:
+  missions:
+    enabled: false
   voting:
     qualify-threshold: 3
     reweight-threshold: 3

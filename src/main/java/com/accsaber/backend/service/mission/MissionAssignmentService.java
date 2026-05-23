@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,9 @@ public class MissionAssignmentService {
     private final TransactionTemplate transactionTemplate;
     private final Executor backfillExecutor;
 
+    @Value("${accsaber.missions.enabled:false}")
+    private boolean missionsEnabled;
+
     public MissionAssignmentService(
             UserRepository userRepository,
             UserCategorySkillRepository skillRepository,
@@ -100,17 +104,27 @@ public class MissionAssignmentService {
 
     @Scheduled(cron = "${accsaber.scheduler.mission-daily-cron:0 0 4 * * *}")
     public void runDailyCron() {
+        if (!missionsEnabled) {
+            return;
+        }
         log.info("Daily mission rollover starting");
         purgeAndRollPool(MissionPool.daily, false);
     }
 
     @Scheduled(cron = "${accsaber.scheduler.mission-weekly-cron:0 5 4 * * MON}")
     public void runWeeklyCron() {
+        if (!missionsEnabled) {
+            return;
+        }
         log.info("Weekly mission rollover starting");
         purgeAndRollPool(MissionPool.weekly, false);
     }
 
     public boolean bootstrapIfEmpty() {
+        if (!missionsEnabled) {
+            log.info("Mission bootstrap skipped — accsaber.missions.enabled=false");
+            return false;
+        }
         if (userMissionRepository.count() > 0) {
             return false;
         }
@@ -121,6 +135,9 @@ public class MissionAssignmentService {
     }
 
     public void assignOnLoginAsync(Long userId) {
+        if (!missionsEnabled) {
+            return;
+        }
         backfillExecutor.execute(() -> {
             try {
                 MissionPoolCache cache = loadPoolCache();
@@ -140,6 +157,8 @@ public class MissionAssignmentService {
 
     @Transactional
     public void assignDailyIfMissing(Long userId) {
+        if (!missionsEnabled)
+            return;
         if (hasActive(userId, MissionPool.daily))
             return;
         assignForUser(userId, MissionPool.daily, loadPoolCache(), false);
@@ -147,6 +166,8 @@ public class MissionAssignmentService {
 
     @Transactional
     public void assignWeeklyIfMissing(Long userId) {
+        if (!missionsEnabled)
+            return;
         if (hasActive(userId, MissionPool.weekly))
             return;
         assignForUser(userId, MissionPool.weekly, loadPoolCache(), false);
