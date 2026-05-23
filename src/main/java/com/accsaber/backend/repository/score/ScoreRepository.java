@@ -82,6 +82,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         java.math.BigDecimal findMaxApInCategory(@Param("categoryId") UUID categoryId);
 
         @Query("""
+                        SELECT MAX(s.weightedAp) FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.category.id = :categoryId
+                          AND s.active = true
+                        """)
+        java.math.BigDecimal findMaxWeightedApByUserAndCategory(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId);
+
+        @Query("""
                         SELECT s FROM Score s
                         JOIN FETCH s.mapDifficulty d
                         JOIN FETCH d.category c
@@ -254,6 +264,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("userId") Long userId,
                         @Param("categoryId") UUID categoryId,
                         @Param("before") Instant before);
+
+        @Query("""
+                        SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.category.id = :categoryId
+                          AND s.active = true
+                          AND s.streak115 IS NOT NULL
+                          AND u.active = true AND u.banned = false
+                        """)
+        Integer findMaxStreak115ByCategory(@Param("categoryId") UUID categoryId);
 
         @Query("""
                         SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
