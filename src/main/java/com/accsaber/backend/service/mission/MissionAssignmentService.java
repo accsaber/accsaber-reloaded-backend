@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -185,7 +186,8 @@ public class MissionAssignmentService {
         List<MissionTemplate> daily = templateRepository.findByPoolAndActiveTrue(MissionPool.daily);
         List<MissionTemplate> weekly = templateRepository.findByPoolAndActiveTrue(MissionPool.weekly);
         List<Item> poolable = itemRepository.findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
-        return new MissionPoolCache(daily, weekly, poolable);
+        return new MissionPoolCache(daily, weekly, poolable,
+                new ConcurrentHashMap<>(), new ConcurrentHashMap<>());
     }
 
     private void purgeAndRollPool(MissionPool pool, boolean freshSeed) {
@@ -429,7 +431,7 @@ public class MissionAssignmentService {
 
     private UserMission buildAccOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng);
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache);
         if (result == null)
             return null;
         return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
@@ -443,7 +445,7 @@ public class MissionAssignmentService {
 
     private UserMission buildApOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng);
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache);
         if (result == null)
             return null;
         return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
@@ -456,7 +458,7 @@ public class MissionAssignmentService {
     }
 
     private MapTargetResult computeMapTarget(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, MissionBand band, Random rng) {
+            Category category, MissionBand band, Random rng, MissionPoolCache cache) {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null)
             return null;
@@ -482,7 +484,7 @@ public class MissionAssignmentService {
         BigDecimal effectiveMultiplier = calibrationService.bandMultiplier(template, effectiveBand);
         BigDecimal targetRawAp = calibrationService.targetRawAp(threshold, effectiveMultiplier);
         targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
-        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache);
         targetRawAp = floorAtUserScoreOnMap(targetRawAp, ctx.userId(), pick.difficulty().getId());
         BigDecimal targetAcc = calibrationService.targetAccuracy(targetRawAp, pick.complexity(), scoreCurve,
                 skill.getTopAp());
@@ -586,8 +588,14 @@ public class MissionAssignmentService {
     }
 
     private BigDecimal capAtMapRealisticCeiling(BigDecimal targetRawAp, MapPick pick, Curve scoreCurve,
-            MissionBand band) {
-        BigDecimal wr = scoreRepository.findMaxApByMapDifficulty(pick.difficulty().getId());
+            MissionBand band, MissionPoolCache cache) {
+        BigDecimal wr = cache.mapWrApByDifficulty().computeIfAbsent(pick.difficulty().getId(), id -> {
+            BigDecimal val = scoreRepository.findMaxApByMapDifficulty(id);
+            return val != null ? val : BigDecimal.ZERO;
+        });
+        if (wr.signum() == 0) {
+            wr = null;
+        }
         BigDecimal bandFraction = switch (band) {
             case easy -> new BigDecimal("0.82");
             case medium -> new BigDecimal("0.90");
@@ -616,7 +624,7 @@ public class MissionAssignmentService {
             return null;
         BigDecimal targetRawAp = calibrationService.targetRawAp(threshold, multiplier);
         targetRawAp = capExtremeAtTopAp(targetRawAp, band, skill);
-        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), band);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), band, cache);
         Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                 ctx.userId(), pick.difficulty().getId());
         if (existing.isPresent() && existing.get().getAp().compareTo(targetRawAp) >= 0) {
@@ -881,7 +889,7 @@ public class MissionAssignmentService {
             targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
         }
         MapPick pick = new MapPick(chosen.getMapDifficulty(), null, chosen.getMapDifficulty().getMaxScore());
-        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), effectiveBand);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), effectiveBand, cache);
         int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), effectiveBand, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
                 .targetMapDifficulty(chosen.getMapDifficulty())
@@ -911,7 +919,10 @@ public class MissionAssignmentService {
         Integer topStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
         if (topStreak == null || topStreak < 3)
             return null;
-        Integer popTopStreak = scoreRepository.findMaxStreak115ByCategory(category.getId());
+        Integer popTopStreak = cache.popStreakByCategory().computeIfAbsent(category.getId(), id -> {
+            Integer val = scoreRepository.findMaxStreak115ByCategory(id);
+            return val != null ? val : 0;
+        });
         BigDecimal skillLevel = skillLevelFor(ctx, category);
         double effectiveTop = blendTopStreak(topStreak, popTopStreak, skillLevel);
         double categoryScaled = popScaledStreakMultiplier(popTopStreak != null ? popTopStreak : 25);
@@ -963,6 +974,8 @@ public class MissionAssignmentService {
     }
 
     public record MissionPoolCache(List<MissionTemplate> daily, List<MissionTemplate> weekly,
-            List<Item> poolableItems) {
+            List<Item> poolableItems,
+            ConcurrentHashMap<UUID, Integer> popStreakByCategory,
+            ConcurrentHashMap<UUID, BigDecimal> mapWrApByDifficulty) {
     }
 }
