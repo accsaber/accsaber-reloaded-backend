@@ -21,6 +21,7 @@ import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
 import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
+import com.accsaber.backend.service.mission.MissionQueryService;
 import com.accsaber.backend.service.mission.MissionTemplateService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,6 +38,7 @@ public class AdminMissionController {
 
     private final MissionTemplateService templateService;
     private final MissionAssignmentService assignmentService;
+    private final MissionQueryService queryService;
 
     @Operation(summary = "List all mission templates")
     @GetMapping("/templates")
@@ -72,6 +74,24 @@ public class AdminMissionController {
             @RequestParam(defaultValue = "daily") MissionPool pool) {
         return ResponseEntity.ok(
                 assignmentService.regenerateForUser(userId, pool).stream()
+                        .map(UserMissionResponse::from).toList());
+    }
+
+    @Operation(summary = "List active missions for any user")
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<List<UserMissionResponse>> listForUser(@PathVariable Long userId,
+            @RequestParam(required = false) MissionPool pool) {
+        var missions = pool == null
+                ? queryService.listActive(userId)
+                : queryService.listActiveByPool(userId, pool);
+        return ResponseEntity.ok(missions.stream().map(UserMissionResponse::from).toList());
+    }
+
+    @Operation(summary = "List completed missions for any user")
+    @GetMapping("/users/{userId}/completed")
+    public ResponseEntity<List<UserMissionResponse>> listCompletedForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(
+                queryService.listCompleted(userId).stream()
                         .map(UserMissionResponse::from).toList());
     }
 }

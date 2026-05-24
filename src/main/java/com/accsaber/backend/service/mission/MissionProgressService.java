@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,9 +40,15 @@ public class MissionProgressService {
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
 
+    @Value("${accsaber.missions.enabled:false}")
+    private boolean missionsEnabled;
+
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onScoreSubmitted(ScoreSubmittedEvent event) {
+        if (!missionsEnabled) {
+            return;
+        }
         ScoreResponse score = event.score();
         Long userId = Long.parseLong(score.getUserId());
         evaluateAllForUser(userId, score);
