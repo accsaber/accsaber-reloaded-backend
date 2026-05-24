@@ -82,6 +82,14 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
 
         @Modifying
         @Query("""
+                        DELETE FROM UserMission m
+                        WHERE m.user.id = :userId
+                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
+                        """)
+        int deleteActiveForUser(@Param("userId") Long userId);
+
+        @Modifying
+        @Query("""
                         UPDATE UserMission m SET m.status =
                             com.accsaber.backend.model.entity.mission.MissionStatus.voided
                         WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active

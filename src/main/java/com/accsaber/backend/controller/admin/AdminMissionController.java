@@ -94,4 +94,12 @@ public class AdminMissionController {
                 queryService.listCompleted(userId).stream()
                         .map(UserMissionResponse::from).toList());
     }
+
+    @Operation(summary = "Force a fresh daily + weekly rollout for ALL eligible users",
+            description = "Async. Purges active+expired for both pools, then re-rolls per user with fresh random seeds.")
+    @PostMapping("/rollout")
+    public ResponseEntity<Void> rolloutAll() {
+        assignmentService.rolloutAllUsers(true);
+        return ResponseEntity.accepted().build();
+    }
 }

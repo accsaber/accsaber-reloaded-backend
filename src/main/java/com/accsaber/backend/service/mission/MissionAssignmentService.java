@@ -115,9 +115,28 @@ public class MissionAssignmentService {
             return false;
         }
         log.info("Mission table empty - bootstrapping daily + weekly missions for all eligible users (fresh random)");
-        purgeAndRollPool(MissionPool.daily, true);
-        purgeAndRollPool(MissionPool.weekly, true);
+        rolloutAllUsers(true);
         return true;
+    }
+
+    public void rolloutAllUsers(boolean freshSeed) {
+        MissionPoolCache cache = loadPoolCache();
+        List<Long> eligible = scoreRepository.findUserIdsWithAtLeastActiveScores(1);
+        log.info("Rolling out daily + weekly for {} users (fresh={})", eligible.size(), freshSeed);
+
+        for (Long userId : eligible) {
+            backfillExecutor.execute(() -> {
+                try {
+                    transactionTemplate.executeWithoutResult(status -> {
+                        userMissionRepository.deleteActiveForUser(userId);
+                        assignForUser(userId, MissionPool.daily, cache, freshSeed);
+                        assignForUser(userId, MissionPool.weekly, cache, freshSeed);
+                    });
+                } catch (Exception e) {
+                    log.error("Rollout failed for user {}: {}", userId, e.getMessage());
+                }
+            });
+        }
     }
 
     public void assignOnLoginAsync(Long userId) {
@@ -154,7 +173,7 @@ public class MissionAssignmentService {
 
     @Transactional
     public List<UserMission> regenerateForUser(Long userId, MissionPool pool) {
-        userMissionRepository.voidActiveForUser(userId);
+        userMissionRepository.deleteActiveForUser(userId);
         return assignForUser(userId, pool, loadPoolCache(), true);
     }
 
