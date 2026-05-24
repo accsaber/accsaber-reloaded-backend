@@ -192,8 +192,8 @@ public class MissionAssignmentService {
 
     private void purgeAndRollPool(MissionPool pool, boolean freshSeed) {
         transactionTemplate.executeWithoutResult(status -> {
-            userMissionRepository.expireDueByPool(Instant.now(), pool);
-            userMissionRepository.deleteExpiredByPool(pool);
+            int removed = userMissionRepository.deleteNonCompletedByPool(pool);
+            log.info("Purged {} non-completed {} missions before rollout", removed, pool);
         });
 
         MissionPoolCache cache = loadPoolCache();

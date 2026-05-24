@@ -1,6 +1,5 @@
 package com.accsaber.backend.repository.mission;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,33 +54,6 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
 
         @Modifying
         @Query("""
-                        UPDATE UserMission m SET m.status =
-                            com.accsaber.backend.model.entity.mission.MissionStatus.expired
-                        WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                          AND m.expiresAt <= :now
-                          AND m.pool = :pool
-                        """)
-        int expireDueByPool(@Param("now") Instant now, @Param("pool") MissionPool pool);
-
-        @Modifying
-        @Query("""
-                        DELETE FROM UserMission m
-                        WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.expired
-                          AND m.pool = :pool
-                        """)
-        int deleteExpiredByPool(@Param("pool") MissionPool pool);
-
-        @Modifying
-        @Query("""
-                        UPDATE UserMission m SET m.status =
-                            com.accsaber.backend.model.entity.mission.MissionStatus.voided
-                        WHERE m.user.id = :userId
-                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                        """)
-        int voidActiveForUser(@Param("userId") Long userId);
-
-        @Modifying
-        @Query("""
                         DELETE FROM UserMission m
                         WHERE m.user.id = :userId
                           AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
@@ -90,19 +62,25 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
 
         @Modifying
         @Query("""
-                        UPDATE UserMission m SET m.status =
-                            com.accsaber.backend.model.entity.mission.MissionStatus.voided
+                        DELETE FROM UserMission m
                         WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                           AND m.targetMapDifficulty.id = :mapDifficultyId
                         """)
-        int voidActiveByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
+        int deleteActiveByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         @Modifying
         @Query("""
-                        UPDATE UserMission m SET m.status =
-                            com.accsaber.backend.model.entity.mission.MissionStatus.voided
+                        DELETE FROM UserMission m
                         WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                           AND m.targetPlayer.id = :playerId
                         """)
-        int voidActiveByTargetPlayer(@Param("playerId") Long playerId);
+        int deleteActiveByTargetPlayer(@Param("playerId") Long playerId);
+
+        @Modifying
+        @Query("""
+                        DELETE FROM UserMission m
+                        WHERE m.pool = :pool
+                          AND m.status <> com.accsaber.backend.model.entity.mission.MissionStatus.completed
+                        """)
+        int deleteNonCompletedByPool(@Param("pool") MissionPool pool);
 }
