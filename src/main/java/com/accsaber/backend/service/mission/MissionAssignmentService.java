@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -58,6 +59,8 @@ public class MissionAssignmentService {
     private static final int DAILY_MISSION_COUNT = 2;
     private static final int SNIPE_CANDIDATE_LIMIT = 50;
     private static final String OVERALL_CODE = "overall";
+    private static final int ROLLOUT_CONCURRENCY = 2;
+    private final Semaphore rolloutSemaphore = new Semaphore(ROLLOUT_CONCURRENCY);
 
     private final UserRepository userRepository;
     private final UserCategorySkillRepository skillRepository;
@@ -123,10 +126,17 @@ public class MissionAssignmentService {
     public void rolloutAllUsers(boolean freshSeed) {
         MissionPoolCache cache = loadPoolCache();
         List<Long> eligible = scoreRepository.findUserIdsWithAtLeastActiveScores(1);
-        log.info("Rolling out daily + weekly for {} users (fresh={})", eligible.size(), freshSeed);
+        log.info("Rolling out daily + weekly for {} users (fresh={}, concurrency={})",
+                eligible.size(), freshSeed, ROLLOUT_CONCURRENCY);
 
         for (Long userId : eligible) {
             backfillExecutor.execute(() -> {
+                try {
+                    rolloutSemaphore.acquire();
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
                 try {
                     transactionTemplate.executeWithoutResult(status -> {
                         userMissionRepository.deleteActiveForUser(userId);
@@ -135,6 +145,8 @@ public class MissionAssignmentService {
                     });
                 } catch (Exception e) {
                     log.error("Rollout failed for user {}: {}", userId, e.getMessage());
+                } finally {
+                    rolloutSemaphore.release();
                 }
             });
         }
@@ -198,14 +210,23 @@ public class MissionAssignmentService {
 
         MissionPoolCache cache = loadPoolCache();
         List<Long> eligible = scoreRepository.findUserIdsWithAtLeastActiveScores(1);
-        log.info("Rolling {} missions for {} users (fresh={})", pool, eligible.size(), freshSeed);
+        log.info("Rolling {} missions for {} users (fresh={}, concurrency={})",
+                pool, eligible.size(), freshSeed, ROLLOUT_CONCURRENCY);
 
         for (Long userId : eligible) {
             backfillExecutor.execute(() -> {
                 try {
+                    rolloutSemaphore.acquire();
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
                     transactionTemplate.executeWithoutResult(status -> assignForUser(userId, pool, cache, freshSeed));
                 } catch (Exception e) {
                     log.error("Mission assignment failed for user {} pool {}: {}", userId, pool, e.getMessage());
+                } finally {
+                    rolloutSemaphore.release();
                 }
             });
         }
