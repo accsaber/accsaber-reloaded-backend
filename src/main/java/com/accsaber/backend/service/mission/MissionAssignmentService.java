@@ -878,44 +878,73 @@ public class MissionAssignmentService {
         BigDecimal effectiveUserSkill = liftedSkillLevel(ctx, category, userSkillLevel);
         double userSkillVal = effectiveUserSkill != null ? effectiveUserSkill.doubleValue() : 50.0;
 
-        double bandSkillOffset = switch (band) {
-            case easy -> 0.5;
-            case medium -> 2.0;
-            case hard -> 4.0;
-            case extreme -> 7.0;
+        double maxSkillDistance = switch (band) {
+            case easy -> 5.0;
+            case medium -> 8.0;
+            case hard -> 12.0;
+            case extreme -> 18.0;
         };
-        double targetSkillVal = Math.min(100.0, userSkillVal + bandSkillOffset);
-        BigDecimal targetSkill = BigDecimal.valueOf(targetSkillVal);
-        BigDecimal minMapSkill = BigDecimal.valueOf(Math.max(0.0, userSkillVal - 3.0));
+        int rankFloorIdx = switch (band) {
+            case easy -> 0;
+            case medium -> 2;
+            case hard -> 7;
+            case extreme -> 19;
+        };
+        int rankCeilIdx = switch (band) {
+            case easy -> 2;
+            case medium -> 7;
+            case hard -> 19;
+            case extreme -> 49;
+        };
 
         MapPick pick = null;
+        Score target = null;
+        Optional<Score> mine = Optional.empty();
         for (int attempt = 0; attempt < 8; attempt++) {
             MapPick candidate = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
             if (candidate == null)
                 break;
-            BigDecimal maxMapSkill = scoreRepository.findMaxSkillLevelOnMap(
-                    candidate.difficulty().getId(), category.getId());
-            if (maxMapSkill == null || maxMapSkill.compareTo(minMapSkill) < 0) {
-                continue;
+            Optional<Score> myScore = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
+                    ctx.userId(), candidate.difficulty().getId());
+            int baseline = myScore.map(Score::getScore).orElse(0);
+            BigDecimal userCurrentAp = myScore.map(Score::getAp).orElse(BigDecimal.ZERO);
+
+            BigDecimal apCap = userCurrentAp.signum() > 0
+                    ? calibrationService.bandLiftedFloorAp(userCurrentAp, candidate.complexity(), scoreCurve, band)
+                    : null;
+
+            List<Object[]> candidateRows = scoreRepository.findSnipeCandidatesAboveBaselineWithSkill(
+                    candidate.difficulty().getId(), ctx.userId(), baseline, category.getId(),
+                    PageRequest.of(0, SNIPE_CANDIDATE_LIMIT));
+
+            List<Score> skillFiltered = new ArrayList<>();
+            for (Object[] row : candidateRows) {
+                Score s = (Score) row[0];
+                BigDecimal candidateSkill = (BigDecimal) row[1];
+                double skillDist = Math.abs(candidateSkill.doubleValue() - userSkillVal);
+                if (skillDist > maxSkillDistance)
+                    continue;
+                if (apCap != null && s.getAp() != null && s.getAp().compareTo(apCap) > 0)
+                    continue;
+                skillFiltered.add(s);
             }
+            if (skillFiltered.isEmpty())
+                continue;
+
+            int lo = Math.min(rankFloorIdx, skillFiltered.size() - 1);
+            int hi = Math.min(rankCeilIdx, skillFiltered.size() - 1);
+            if (lo > hi)
+                continue;
+            List<Score> bandSlice = skillFiltered.subList(lo, hi + 1);
+
+            int jitter = Math.min(3, bandSlice.size());
             pick = candidate;
+            target = bandSlice.get(rng.nextInt(jitter));
+            mine = myScore;
             break;
         }
-        if (pick == null)
-            return failBuild("no-eligible-map-matching-skill");
-
-        Optional<Score> mine = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
-                ctx.userId(), pick.difficulty().getId());
-        int baselineScore = mine.map(Score::getScore).orElse(0);
-
-        List<Score> candidates = scoreRepository.findSnipeCandidatesNearSkillLevel(
-                pick.difficulty().getId(), ctx.userId(), baselineScore, category.getId(), targetSkill,
-                PageRequest.of(0, SNIPE_CANDIDATE_LIMIT));
-        if (candidates.isEmpty())
-            return failBuild("no-snipe-candidates");
-
-        int jitterRange = Math.min(5, candidates.size());
-        Score target = candidates.get(rng.nextInt(jitterRange));
+        if (pick == null || target == null)
+            return failBuild("no-snipe-candidate-within-band");
 
         BigDecimal effectiveUserAp = mine.map(s -> ageAdjustedUserAp(s, skill.getTopAp()))
                 .orElse(BigDecimal.ZERO);
