@@ -44,4 +44,16 @@ public interface UserCategoryRankingHistoryRepository extends JpaRepository<User
                         @Param("userId") Long userId,
                         @Param("categoryCode") String categoryCode,
                         @Param("since") Instant since);
+
+        @Query(value = """
+                        SELECT DISTINCT ON (h.user_id) h.user_id, h.ranking
+                        FROM user_category_ranking_history h
+                        WHERE h.category_id = :categoryId
+                        AND h.user_id IN :userIds
+                        AND h.recorded_at <= NOW() - INTERVAL '7 days'
+                        ORDER BY h.user_id, h.recorded_at DESC
+                        """, nativeQuery = true)
+        List<Object[]> findRankingsOneWeekAgo(
+                        @Param("categoryId") UUID categoryId,
+                        @Param("userIds") List<Long> userIds);
 }

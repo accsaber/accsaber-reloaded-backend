@@ -303,17 +303,6 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
         void assignCountryRankings(@Param("categoryId") UUID categoryId);
 
         @Query(value = """
-                        SELECT DISTINCT ON (ucs.user_id) ucs.user_id, ucs.ranking
-                        FROM user_category_statistics ucs
-                        WHERE ucs.category_id = :categoryId
-                        AND ucs.user_id IN :userIds
-                        AND ucs.created_at <= NOW() - INTERVAL '7 days'
-                        ORDER BY ucs.user_id, ucs.created_at DESC
-                        """, nativeQuery = true)
-        List<Object[]> findRankingsOneWeekAgo(@Param("categoryId") UUID categoryId,
-                        @Param("userIds") List<Long> userIds);
-
-        @Query(value = """
                         SELECT COUNT(*)
                         FROM user_category_statistics ucs
                         JOIN users u ON ucs.user_id = u.id

@@ -27,6 +27,7 @@ import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserXpRankingHistoryRepository;
@@ -44,6 +45,8 @@ class LeaderboardServiceTest {
         @Mock
         private UserXpRankingHistoryRepository xpRankingHistoryRepository;
         @Mock
+        private UserCategoryRankingHistoryRepository categoryRankingHistoryRepository;
+        @Mock
         private LevelService levelService;
 
         private LeaderboardService leaderboardService;
@@ -53,9 +56,10 @@ class LeaderboardServiceTest {
         @BeforeEach
         void setUp() {
                 leaderboardService = new LeaderboardService(statisticsRepository, categoryRepository,
-                                userRepository, xpRankingHistoryRepository, levelService);
+                                userRepository, xpRankingHistoryRepository, categoryRankingHistoryRepository,
+                                levelService);
 
-                org.mockito.Mockito.lenient().when(statisticsRepository.findRankingsOneWeekAgo(any(), any()))
+                org.mockito.Mockito.lenient().when(categoryRankingHistoryRepository.findRankingsOneWeekAgo(any(), any()))
                                 .thenReturn(List.of());
 
                 category = Category.builder()

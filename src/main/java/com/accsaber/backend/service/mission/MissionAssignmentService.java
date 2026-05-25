@@ -334,7 +334,8 @@ public class MissionAssignmentService {
                 .filter(t -> excludeTemplateIds == null || !excludeTemplateIds.contains(t.getId()))
                 .filter(t -> forcedBand != MissionBand.extreme
                         || (t.getType() != MissionType.PLAY_N_MAPS && t.getType() != MissionType.XP_IN_WINDOW
-                                && t.getType() != MissionType.SCORES_N))
+                                && t.getType() != MissionType.SCORES_N
+                                && t.getType() != MissionType.COMEBACK_PB))
                 .collect(Collectors.toCollection(ArrayList::new));
         if (shuffled.isEmpty())
             shuffled = new ArrayList<>(pool);
@@ -387,11 +388,12 @@ public class MissionAssignmentService {
                 && template.getType() != MissionType.SCORES_N)
             return null;
         MissionBand band = forcedBand != null ? forcedBand : pickBand(rng);
+        boolean bandForced = forcedBand != null;
         return switch (template.getType()) {
             case PLAY_N_MAPS -> buildPlayNMaps(ctx, template, category, expiresAt, pool, band, rng, cache);
             case XP_IN_WINDOW -> buildXpInWindow(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case ACC_ON_MAP -> buildAccOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case AP_ON_MAP -> buildApOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case ACC_ON_MAP -> buildAccOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
+            case AP_ON_MAP -> buildApOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
             case PB_SPECIFIC_MAP -> buildPbSpecificMap(ctx, template, category, expiresAt, pool, band, rng, cache);
             case PB_ABOVE_THRESHOLD -> buildPbAboveThreshold(ctx, template, category, expiresAt, pool, band, rng, cache);
             case SNIPE_PLAYER_ON_MAP -> buildSnipe(ctx, template, category, expiresAt, pool, band, rng, cache);
@@ -430,8 +432,9 @@ public class MissionAssignmentService {
     }
 
     private UserMission buildAccOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache);
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
+            boolean bandForced) {
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
         if (result == null)
             return null;
         return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
@@ -444,8 +447,9 @@ public class MissionAssignmentService {
     }
 
     private UserMission buildApOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache);
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
+            boolean bandForced) {
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
         if (result == null)
             return null;
         return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
@@ -458,7 +462,7 @@ public class MissionAssignmentService {
     }
 
     private MapTargetResult computeMapTarget(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, MissionBand band, Random rng, MissionPoolCache cache) {
+            Category category, MissionBand band, Random rng, MissionPoolCache cache, boolean bandForced) {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null)
             return null;
@@ -474,7 +478,7 @@ public class MissionAssignmentService {
         MissionBand effectiveBand = band;
         Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                 ctx.userId(), pick.difficulty().getId());
-        if (existing.isPresent() && existing.get().getWeightedAp() != null) {
+        if (!bandForced && existing.isPresent() && existing.get().getWeightedAp() != null) {
             BigDecimal maxWeightedAp = scoreRepository.findMaxWeightedApByUserAndCategory(
                     ctx.userId(), category.getId());
             MissionBand derived = bandFromWeightedRatio(existing.get().getWeightedAp(), maxWeightedAp);

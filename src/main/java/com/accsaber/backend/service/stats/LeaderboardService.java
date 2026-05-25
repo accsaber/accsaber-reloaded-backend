@@ -20,6 +20,7 @@ import com.accsaber.backend.model.dto.response.player.XpLeaderboardResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserXpRankingHistoryRepository;
@@ -37,6 +38,7 @@ public class LeaderboardService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final UserXpRankingHistoryRepository xpRankingHistoryRepository;
+    private final UserCategoryRankingHistoryRepository categoryRankingHistoryRepository;
     private final LevelService levelService;
 
     @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
@@ -138,7 +140,7 @@ public class LeaderboardService {
                 .toList();
         Map<Long, Integer> lastWeekRankings = Map.of();
         if (!userIds.isEmpty()) {
-            lastWeekRankings = statisticsRepository.findRankingsOneWeekAgo(categoryId, userIds).stream()
+            lastWeekRankings = categoryRankingHistoryRepository.findRankingsOneWeekAgo(categoryId, userIds).stream()
                     .collect(Collectors.toMap(
                             row -> ((Number) row[0]).longValue(),
                             row -> row[1] != null ? ((Number) row[1]).intValue() : null));
