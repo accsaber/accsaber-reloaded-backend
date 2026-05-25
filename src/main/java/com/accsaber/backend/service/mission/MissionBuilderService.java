@@ -518,12 +518,19 @@ public class MissionBuilderService {
                 .orElse(BigDecimal.ZERO);
         BigDecimal snipeDistance = target.getAp().subtract(effectiveUserAp).max(BigDecimal.ZERO);
 
+        BigDecimal targetAcc = null;
+        if (pick.maxScore() != null && pick.maxScore() > 0 && target.getScoreNoMods() != null) {
+            targetAcc = BigDecimal.valueOf(target.getScoreNoMods())
+                    .divide(BigDecimal.valueOf(pick.maxScore()), 10, RoundingMode.HALF_UP);
+        }
+
         int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, snipeDistance);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
                 .targetMapDifficulty(pick.difficulty())
                 .targetPlayer(target.getUser())
                 .targetScore(target.getScore())
                 .targetAp(target.getAp())
+                .targetAcc(targetAcc)
                 .snipeDistance(snipeDistance)
                 .xpReward(xp)
                 .itemReward(rollItemReward(template, rng, cache))
@@ -824,10 +831,10 @@ public class MissionBuilderService {
         double skillVal = skill.getSkillLevel() != null ? skill.getSkillLevel().doubleValue() : 50.0;
         double skillAdj = Math.max(0.0, Math.min(1.0, (skillVal - 50.0) / 50.0));
         double factor = switch (band) {
-            case easy -> 0.88 + skillAdj * 0.06;
-            case medium -> 0.90 + skillAdj * 0.07;
-            case hard -> 0.94 + skillAdj * 0.07;
-            case extreme -> 0.98 + skillAdj * 0.06;
+            case easy -> 0.89 + skillAdj * 0.06;
+            case medium -> 0.91 + skillAdj * 0.07;
+            case hard -> 0.93 + skillAdj * 0.08;
+            case extreme -> 0.92 + skillAdj * 0.12;
         };
         return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
     }
