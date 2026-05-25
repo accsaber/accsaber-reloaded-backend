@@ -267,16 +267,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.category.id = :categoryId
-                          AND s.active = true
-                          AND s.streak115 IS NOT NULL
-                          AND u.active = true AND u.banned = false
-                        """)
-        Integer findMaxStreak115ByCategory(@Param("categoryId") UUID categoryId);
-
-        @Query("""
-                        SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
                         WHERE s.user.id = :userId
                           AND s.mapDifficulty.category.id = :categoryId
                           AND s.active = true
