@@ -459,10 +459,10 @@ public class MissionBuilderService {
                 apCap = targetAp;
             } else {
                 BigDecimal snipeBandFraction = switch (band) {
-                    case easy -> new BigDecimal("0.94");
-                    case medium -> new BigDecimal("0.98");
-                    case hard -> new BigDecimal("1.00");
-                    case extreme -> new BigDecimal("1.04");
+                    case easy -> new BigDecimal("0.90");
+                    case medium -> new BigDecimal("0.95");
+                    case hard -> new BigDecimal("0.98");
+                    case extreme -> new BigDecimal("1.02");
                 };
                 targetAp = threshold.multiply(snipeBandFraction);
                 targetAp = capExtremeAtTopAp(targetAp, band, skill);
