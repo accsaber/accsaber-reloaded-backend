@@ -294,13 +294,25 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND u.active = true AND u.banned = false
                           AND s.user.id <> :excludeUserId
                           AND s.score > :minScore
-                        ORDER BY s.score ASC
+                          AND s.ap IS NOT NULL
+                        ORDER BY ABS(s.ap - :targetAp) ASC
                         """)
-        List<Score> findSnipeCandidatesAboveScore(
+        List<Score> findSnipeCandidatesNearTargetAp(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("excludeUserId") Long excludeUserId,
                         @Param("minScore") Integer minScore,
+                        @Param("targetAp") java.math.BigDecimal targetAp,
                         org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND s.streak115 IS NOT NULL
+                          AND u.active = true AND u.banned = false
+                        """)
+        Integer findMaxStreak115ByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         @Query("""
                         SELECT s FROM Score s

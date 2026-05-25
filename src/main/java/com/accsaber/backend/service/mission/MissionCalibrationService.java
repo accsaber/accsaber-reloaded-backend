@@ -28,7 +28,7 @@ public class MissionCalibrationService {
 
     private final APCalculationService apCalculationService;
 
-    private static final BigDecimal EXTREME_BOOST = new BigDecimal("1.25");
+    private static final BigDecimal EXTREME_BOOST = new BigDecimal("1.35");
 
     public BigDecimal bandMultiplier(MissionTemplate template, MissionBand band) {
         return switch (band) {
@@ -82,6 +82,35 @@ public class MissionCalibrationService {
         BigDecimal shift = scoreCurve.getShift() != null ? scoreCurve.getShift() : BigDecimal.ZERO;
         BigDecimal normalized = apCalculationService.interpolate(scoreCurve, REALISTIC_ACC_CAP);
         return normalized.multiply(complexity.subtract(shift), MATH).multiply(scale, MATH);
+    }
+
+    public BigDecimal bandLiftedFloorAp(BigDecimal existingAp, BigDecimal complexity, Curve scoreCurve,
+            MissionBand band) {
+        if (existingAp == null || existingAp.signum() <= 0) {
+            return null;
+        }
+        BigDecimal existingNormalized = targetNormalizedAp(existingAp, complexity, scoreCurve);
+        if (existingNormalized == null) {
+            return existingAp.add(BigDecimal.ONE);
+        }
+        BigDecimal absoluteStep = switch (band) {
+            case easy -> new BigDecimal("0.015");
+            case medium -> new BigDecimal("0.030");
+            case hard -> new BigDecimal("0.055");
+            case extreme -> new BigDecimal("0.090");
+        };
+        BigDecimal headroomFraction = switch (band) {
+            case easy -> new BigDecimal("0.15");
+            case medium -> new BigDecimal("0.30");
+            case hard -> new BigDecimal("0.50");
+            case extreme -> new BigDecimal("0.75");
+        };
+        BigDecimal headroom = BigDecimal.ONE.subtract(existingNormalized).max(BigDecimal.ZERO);
+        BigDecimal step = absoluteStep.min(headroom.multiply(headroomFraction, MATH));
+        BigDecimal liftedNormalized = existingNormalized.add(step);
+        BigDecimal scale = scoreCurve.getScale() != null ? scoreCurve.getScale() : BigDecimal.ONE;
+        BigDecimal shift = scoreCurve.getShift() != null ? scoreCurve.getShift() : BigDecimal.ZERO;
+        return liftedNormalized.multiply(complexity.subtract(shift), MATH).multiply(scale, MATH);
     }
 
     public ComplexityRange complexityRange(BigDecimal threshold, BigDecimal multiplier, Curve scoreCurve) {

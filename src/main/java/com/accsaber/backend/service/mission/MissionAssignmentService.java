@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.mission;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -234,7 +235,7 @@ public class MissionAssignmentService {
                 .filter(s -> s.getRankedPlays() != null && s.getRankedPlays() > 0)
                 .toList();
         if (activeStats.isEmpty()) {
-            return new MissionAssignmentContext(userId, List.of(), Map.of(), BigDecimal.ZERO);
+            return new MissionAssignmentContext(userId, List.of(), Map.of(), Map.of(), BigDecimal.ZERO);
         }
         List<Category> active = activeStats.stream()
                 .map(UserCategoryStatistics::getCategory)
@@ -243,6 +244,12 @@ public class MissionAssignmentService {
                 .toList();
         Map<UUID, UserCategorySkill> skills = skillRepository.findByUserIdActive(userId).stream()
                 .collect(Collectors.toMap(s -> s.getCategory().getId(), s -> s, (a, b) -> a));
+        Map<UUID, Long> rankedPlays = activeStats.stream()
+                .filter(s -> !OVERALL_CODE.equals(s.getCategory().getCode()))
+                .collect(Collectors.toMap(
+                        s -> s.getCategory().getId(),
+                        s -> s.getRankedPlays().longValue(),
+                        (a, b) -> a));
 
         BigDecimal rollingXp = activeStats.stream()
                 .map(UserCategoryStatistics::getScoreXp)
@@ -250,7 +257,7 @@ public class MissionAssignmentService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .divide(BigDecimal.valueOf(365), 2, RoundingMode.HALF_UP);
 
-        return new MissionAssignmentContext(userId, active, skills, rollingXp);
+        return new MissionAssignmentContext(userId, active, skills, rankedPlays, rollingXp);
     }
 
     private List<UserMission> assignDaily(MissionAssignmentContext ctx, MissionPoolCache cache, boolean freshSeed) {
@@ -469,7 +476,7 @@ public class MissionAssignmentService {
         Curve scoreCurve = category.getScoreCurve();
         if (scoreCurve == null)
             return null;
-        BigDecimal threshold = skill.getRawApForOneGain();
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
         BigDecimal pickMultiplier = calibrationService.bandMultiplier(template, band);
         MapPick pick = sampleEligibleMap(category, threshold, pickMultiplier, scoreCurve, rng);
         if (pick == null)
@@ -486,10 +493,26 @@ public class MissionAssignmentService {
         }
 
         BigDecimal effectiveMultiplier = calibrationService.bandMultiplier(template, effectiveBand);
-        BigDecimal targetRawAp = calibrationService.targetRawAp(threshold, effectiveMultiplier);
+        BigDecimal skillAnchored = calibrationService.targetRawAp(threshold, effectiveMultiplier);
+        BigDecimal existingAp = existing.map(Score::getAp).orElse(null);
+        BigDecimal liftedFloor = existingAp != null
+                ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, effectiveBand)
+                : null;
+        BigDecimal targetRawAp = skillAnchored;
+        if (liftedFloor != null) {
+            targetRawAp = targetRawAp.max(liftedFloor);
+        }
         targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
         targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache);
-        targetRawAp = floorAtUserScoreOnMap(targetRawAp, ctx.userId(), pick.difficulty().getId());
+
+        if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0) {
+            return null;
+        }
+        BigDecimal minMeaningful = skillAnchored.multiply(new BigDecimal("0.80"));
+        if (existingAp == null && targetRawAp.compareTo(minMeaningful) < 0) {
+            return null;
+        }
+
         BigDecimal targetAcc = calibrationService.targetAccuracy(targetRawAp, pick.complexity(), scoreCurve,
                 skill.getTopAp());
         Integer targetScore = pick.maxScore() != null
@@ -523,6 +546,53 @@ public class MissionAssignmentService {
                 .findFirst()
                 .map(UserCategorySkill::getSkillLevel)
                 .orElse(BigDecimal.ZERO);
+    }
+
+    private BigDecimal liftedThreshold(MissionAssignmentContext ctx, Category targetCategory,
+            BigDecimal categoryThreshold) {
+        if (categoryThreshold == null || targetCategory == null) {
+            return categoryThreshold;
+        }
+        UserCategorySkill maxOtherSkill = ctx.skillByCategoryId().values().stream()
+                .filter(s -> s.getCategory() != null)
+                .filter(s -> !OVERALL_CODE.equals(s.getCategory().getCode()))
+                .filter(s -> !s.getCategory().getId().equals(targetCategory.getId()))
+                .filter(s -> s.getRawApForOneGain() != null)
+                .max(java.util.Comparator.comparing(UserCategorySkill::getRawApForOneGain))
+                .orElse(null);
+        if (maxOtherSkill == null) {
+            return categoryThreshold;
+        }
+        BigDecimal maxOther = maxOtherSkill.getRawApForOneGain();
+        if (maxOther.compareTo(categoryThreshold) <= 0) {
+            return categoryThreshold;
+        }
+
+        Long targetPlays = ctx.rankedPlaysByCategoryId().get(targetCategory.getId());
+        Long maxOtherPlays = ctx.rankedPlaysByCategoryId().get(maxOtherSkill.getCategory().getId());
+        if (targetPlays == null || maxOtherPlays == null || maxOtherPlays <= 0) {
+            return categoryThreshold;
+        }
+        double playRatio = targetPlays.doubleValue() / maxOtherPlays.doubleValue();
+        if (playRatio >= 0.40) {
+            return categoryThreshold;
+        }
+        double underplayFactor = 1.0 - (playRatio / 0.40);
+
+        BigDecimal ratio = maxOther.divide(categoryThreshold, MathContext.DECIMAL64);
+        BigDecimal baseLiftFraction;
+        if (ratio.compareTo(new BigDecimal("1.50")) >= 0) {
+            baseLiftFraction = new BigDecimal("0.70");
+        } else if (ratio.compareTo(new BigDecimal("1.25")) >= 0) {
+            baseLiftFraction = new BigDecimal("0.55");
+        } else if (ratio.compareTo(new BigDecimal("1.10")) >= 0) {
+            baseLiftFraction = new BigDecimal("0.40");
+        } else {
+            baseLiftFraction = new BigDecimal("0.25");
+        }
+        BigDecimal scaledLiftFraction = baseLiftFraction.multiply(BigDecimal.valueOf(underplayFactor));
+        BigDecimal gap = maxOther.subtract(categoryThreshold);
+        return categoryThreshold.add(gap.multiply(scaledLiftFraction));
     }
 
     private BigDecimal ageAdjustedUserAp(Score myScore, BigDecimal topAp) {
@@ -581,16 +651,6 @@ public class MissionAssignmentService {
         return 1.0 + freshness * 0.30;
     }
 
-    private BigDecimal floorAtUserScoreOnMap(BigDecimal targetRawAp, Long userId, UUID mapDifficultyId) {
-        Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
-                userId, mapDifficultyId);
-        if (existing.isEmpty() || existing.get().getAp() == null) {
-            return targetRawAp;
-        }
-        BigDecimal floor = existing.get().getAp().add(BigDecimal.ONE);
-        return targetRawAp.max(floor);
-    }
-
     private BigDecimal capAtMapRealisticCeiling(BigDecimal targetRawAp, MapPick pick, Curve scoreCurve,
             MissionBand band, MissionPoolCache cache) {
         BigDecimal wr = cache.mapWrApByDifficulty().computeIfAbsent(pick.difficulty().getId(), id -> {
@@ -621,19 +681,34 @@ public class MissionAssignmentService {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return null;
-        BigDecimal threshold = skill.getRawApForOneGain();
+        Curve scoreCurve = category.getScoreCurve();
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
         BigDecimal multiplier = calibrationService.bandMultiplier(template, band);
-        MapPick pick = sampleEligibleMap(category, threshold, multiplier, category.getScoreCurve(), rng);
+        MapPick pick = sampleEligibleMap(category, threshold, multiplier, scoreCurve, rng);
         if (pick == null)
             return null;
-        BigDecimal targetRawAp = calibrationService.targetRawAp(threshold, multiplier);
-        targetRawAp = capExtremeAtTopAp(targetRawAp, band, skill);
-        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), band, cache);
+        BigDecimal skillAnchored = calibrationService.targetRawAp(threshold, multiplier);
         Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                 ctx.userId(), pick.difficulty().getId());
-        if (existing.isPresent() && existing.get().getAp().compareTo(targetRawAp) >= 0) {
-            targetRawAp = existing.get().getAp().add(BigDecimal.ONE);
+        BigDecimal existingAp = existing.map(Score::getAp).orElse(null);
+        BigDecimal liftedFloor = existingAp != null
+                ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, band)
+                : null;
+        BigDecimal targetRawAp = skillAnchored;
+        if (liftedFloor != null) {
+            targetRawAp = targetRawAp.max(liftedFloor);
         }
+        targetRawAp = capExtremeAtTopAp(targetRawAp, band, skill);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, band, cache);
+
+        if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0) {
+            return null;
+        }
+        BigDecimal minMeaningful = skillAnchored.multiply(new BigDecimal("0.80"));
+        if (existingAp == null && targetRawAp.compareTo(minMeaningful) < 0) {
+            return null;
+        }
+
         int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
         xp = (int) Math.round(xp * pbFreshnessBoost(existing.orElse(null)));
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
@@ -648,18 +723,31 @@ public class MissionAssignmentService {
             Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
             MissionPoolCache cache) {
         List<Score> scores = scoreRepository.findActiveByUserAndCategoryOrderByApDesc(ctx.userId(), category.getId());
-        if (scores.isEmpty())
+        if (scores.size() < 5)
             return null;
-        int idx = Math.min(scores.size() - 1, (int) (scores.size() * 0.5));
-        BigDecimal median = scores.get(idx).getAp();
-        BigDecimal thresholdShift = switch (band) {
-            case easy -> new BigDecimal("0.95");
-            case medium -> new BigDecimal("0.98");
-            case hard -> BigDecimal.ONE;
-            case extreme -> new BigDecimal("1.025");
+        double percentile = switch (band) {
+            case easy -> 0.70;
+            case medium -> 0.40;
+            case hard -> 0.20;
+            case extreme -> 0.08;
         };
-        BigDecimal threshold = median.multiply(thresholdShift).setScale(0, RoundingMode.HALF_UP);
-        int count = pickCount(template, band, rng);
+        int idx = Math.min(scores.size() - 1, Math.max(0, (int) Math.round(scores.size() * percentile)));
+        BigDecimal anchor = scores.get(idx).getAp();
+        BigDecimal thresholdShift = switch (band) {
+            case easy -> new BigDecimal("0.98");
+            case medium -> new BigDecimal("1.01");
+            case hard -> new BigDecimal("1.03");
+            case extreme -> new BigDecimal("1.06");
+        };
+        BigDecimal threshold = anchor.multiply(thresholdShift).setScale(0, RoundingMode.HALF_UP);
+        long qualifying = scores.stream()
+                .filter(s -> s.getAp() != null && s.getAp().compareTo(threshold) >= 0)
+                .count();
+        int desiredCount = pickCount(template, band, rng);
+        int maxFeasibleCount = Math.max(1, (int) Math.floor(qualifying / 2.0));
+        int count = Math.min(desiredCount, maxFeasibleCount);
+        if (count <= 0)
+            return null;
         int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
                 .targetThresholdAp(threshold)
@@ -672,29 +760,33 @@ public class MissionAssignmentService {
     private UserMission buildSnipe(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
-        if (skill == null)
+        if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return null;
-        MapPick pick = sampleAnyRankedMap(category, rng);
+
+        Curve scoreCurve = category.getScoreCurve();
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        BigDecimal bandMult = calibrationService.bandMultiplier(template, band);
+        MapPick pick = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
         if (pick == null)
             return null;
 
         Optional<Score> mine = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                 ctx.userId(), pick.difficulty().getId());
-        int baselineScore;
-        if (mine.isPresent()) {
-            baselineScore = mine.get().getScore();
-        } else {
-            baselineScore = 0;
-        }
+        int baselineScore = mine.map(Score::getScore).orElse(0);
 
-        List<Score> candidates = scoreRepository.findSnipeCandidatesAboveScore(
-                pick.difficulty().getId(), ctx.userId(), baselineScore,
+        BigDecimal targetAp = calibrationService.targetRawAp(threshold, bandMult);
+        targetAp = capExtremeAtTopAp(targetAp, band, skill);
+        targetAp = capAtMapRealisticCeiling(targetAp, pick, scoreCurve, band, cache);
+
+        List<Score> candidates = scoreRepository.findSnipeCandidatesNearTargetAp(
+                pick.difficulty().getId(), ctx.userId(), baselineScore, targetAp,
                 PageRequest.of(0, SNIPE_CANDIDATE_LIMIT));
         if (candidates.isEmpty())
             return null;
 
-        int bandIndex = snipeBandIndex(band, candidates.size(), skillLevelFor(ctx, category));
-        Score target = candidates.get(bandIndex);
+        int jitterRange = Math.min(5, candidates.size());
+        Score target = candidates.get(rng.nextInt(jitterRange));
+
         BigDecimal effectiveUserAp = mine.map(s -> ageAdjustedUserAp(s, skill.getTopAp()))
                 .orElse(BigDecimal.ZERO);
         BigDecimal snipeDistance = target.getAp().subtract(effectiveUserAp).max(BigDecimal.ZERO);
@@ -709,17 +801,6 @@ public class MissionAssignmentService {
                 .xpReward(xp)
                 .itemReward(rollItemReward(template, rng, cache))
                 .build();
-    }
-
-    private MapPick sampleAnyRankedMap(Category category, Random rng) {
-        List<Object[]> rows = mapDifficultyRepository.findRankedWithComplexityInRange(
-                category.getId(), BigDecimal.ZERO, new BigDecimal("9999"));
-        if (rows.isEmpty())
-            return null;
-        Object[] row = rows.get(rng.nextInt(rows.size()));
-        MapDifficulty diff = (MapDifficulty) row[0];
-        BigDecimal complexity = (BigDecimal) row[1];
-        return new MapPick(diff, complexity, diff.getMaxScore());
     }
 
     private MapPick sampleEligibleMap(Category category, BigDecimal threshold, BigDecimal multiplier,
@@ -801,56 +882,6 @@ public class MissionAssignmentService {
                 .category(category)
                 .band(band)
                 .expiresAt(expiresAt);
-    }
-
-    private int snipeBandIndex(MissionBand band, int size, BigDecimal skillLevel) {
-        int last = size - 1;
-        int baseIndex = baseSnipeBandIndex(band, size);
-        if (size <= 15) {
-            return baseIndex;
-        }
-        double skill = skillLevel != null ? skillLevel.doubleValue() : 0.0;
-        double promoter = Math.max(0.0, Math.min(1.0, (skill - 75.0) / 25.0));
-        if (promoter <= 0.0) {
-            return baseIndex;
-        }
-        int headroom = last - baseIndex;
-        int promoted = baseIndex + (int) Math.round(headroom * promoter);
-        return Math.min(last, promoted);
-    }
-
-    private int baseSnipeBandIndex(MissionBand band, int size) {
-        int last = size - 1;
-        if (size <= 5) {
-            return switch (band) {
-                case easy -> 0;
-                case medium -> Math.min(last, 1);
-                case hard -> Math.min(last, 1);
-                case extreme -> Math.min(last, 2);
-            };
-        }
-        if (size <= 15) {
-            return switch (band) {
-                case easy -> 0;
-                case medium -> Math.min(last, 1);
-                case hard -> Math.min(last, 3);
-                case extreme -> Math.min(last, 4);
-            };
-        }
-        if (size <= 30) {
-            return switch (band) {
-                case easy -> 0;
-                case medium -> 2;
-                case hard -> 5;
-                case extreme -> 7;
-            };
-        }
-        return switch (band) {
-            case easy -> 0;
-            case medium -> 3;
-            case hard -> 8;
-            case extreme -> 14;
-        };
     }
 
     private boolean requiresMapPick(MissionType type) {
@@ -948,19 +979,33 @@ public class MissionAssignmentService {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return null;
-        Integer topStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
-        if (topStreak == null || topStreak < 3)
+        Integer userTopStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
+        if (userTopStreak == null || userTopStreak < 3)
             return null;
-        MapPick pick = sampleEligibleMap(category, skill.getRawApForOneGain(),
+        BigDecimal streakThreshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        MapPick pick = sampleEligibleMap(category, streakThreshold,
                 calibrationService.bandMultiplier(template, band), category.getScoreCurve(), rng);
         if (pick == null)
             return null;
-        BigDecimal bandMult = calibrationService.bandMultiplier(template, band);
-        int targetStreak = BigDecimal.valueOf(topStreak)
-                .multiply(new BigDecimal("0.85"))
-                .multiply(bandMult)
-                .setScale(0, RoundingMode.HALF_UP).intValue();
+
+        Integer mapTopStreak = scoreRepository.findMaxStreak115ByMapDifficulty(pick.difficulty().getId());
+        int reference = mapTopStreak != null && mapTopStreak > 0 ? mapTopStreak : userTopStreak;
+        double skill1 = skillLevelFor(ctx, category) != null
+                ? skillLevelFor(ctx, category).doubleValue()
+                : 0.0;
+        boolean topTier = skill1 >= 90.0;
+
+        int targetStreak = switch (band) {
+            case easy -> (int) Math.round(reference * 0.50);
+            case medium -> (int) Math.round(reference * 0.70);
+            case hard -> topTier ? reference : (int) Math.round(reference * 0.90);
+            case extreme -> topTier ? reference + 1 : reference;
+        };
+
+        int userCap = userTopStreak + 2;
+        targetStreak = Math.min(targetStreak, userCap);
         targetStreak = Math.max(2, targetStreak);
+
         int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
                 .targetMapDifficulty(pick.difficulty())

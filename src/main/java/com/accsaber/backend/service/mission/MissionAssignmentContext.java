@@ -12,5 +12,6 @@ public record MissionAssignmentContext(
         Long userId,
         List<Category> activeCategories,
         Map<UUID, UserCategorySkill> skillByCategoryId,
+        Map<UUID, Long> rankedPlaysByCategoryId,
         BigDecimal rollingDailyXp) {
 }
