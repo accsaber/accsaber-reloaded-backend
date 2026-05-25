@@ -315,6 +315,22 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId,
                         org.springframework.data.domain.Pageable pageable);
 
+        @Query("""
+                        SELECT s.ap, ucs.skillLevel FROM Score s
+                        JOIN s.user u
+                        JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
+                          ON ucs.user.id = u.id AND ucs.category.id = :categoryId
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.ap IS NOT NULL
+                          AND ucs.skillLevel IS NOT NULL
+                        ORDER BY s.ap DESC
+                        """)
+        List<Object[]> findLeaderboardApAndSkill(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("categoryId") UUID categoryId);
+
 
         @Query("""
                         SELECT COALESCE(MAX(s.streak115), 0) FROM Score s

@@ -299,12 +299,15 @@ public class MissionBuilderService {
             BigDecimal liftedFloor = existingAp != null
                     ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, effectiveBand)
                     : null;
-            BigDecimal targetRawAp = skillAnchored;
+            BigDecimal categorySkill = skillLevelFor(ctx, category);
+            BigDecimal mapTarget = mapAwareTarget(pick.difficulty().getId(), category.getId(),
+                    categorySkill != null ? categorySkill.doubleValue() : 50.0, effectiveBand);
+            BigDecimal targetRawAp = blendSkillAndMapTarget(skillAnchored, mapTarget);
             if (liftedFloor != null)
                 targetRawAp = targetRawAp.max(liftedFloor);
             targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
             targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache,
-                    skillLevelFor(ctx, category));
+                    categorySkill);
 
             if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0) {
                 lastReason = "target-below-existing-after-caps";
@@ -349,12 +352,14 @@ public class MissionBuilderService {
         BigDecimal liftedFloor = existingAp != null
                 ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, band)
                 : null;
-        BigDecimal targetRawAp = skillAnchored;
+        BigDecimal categorySkill = skillLevelFor(ctx, category);
+        BigDecimal mapTarget = mapAwareTarget(pick.difficulty().getId(), category.getId(),
+                categorySkill != null ? categorySkill.doubleValue() : 50.0, band);
+        BigDecimal targetRawAp = blendSkillAndMapTarget(skillAnchored, mapTarget);
         if (liftedFloor != null)
             targetRawAp = targetRawAp.max(liftedFloor);
         targetRawAp = capExtremeAtTopAp(targetRawAp, band, skill);
-        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, band, cache,
-                skillLevelFor(ctx, category));
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, band, cache, categorySkill);
 
         if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0)
             return failBuild("target-below-existing-after-caps");
@@ -464,7 +469,10 @@ public class MissionBuilderService {
                     case hard -> new BigDecimal("0.98");
                     case extreme -> new BigDecimal("1.02");
                 };
-                targetAp = threshold.multiply(snipeBandFraction);
+                BigDecimal skillAnchoredSnipe = threshold.multiply(snipeBandFraction);
+                BigDecimal mapTarget = mapAwareTarget(candidate.difficulty().getId(), category.getId(),
+                        userSkillVal, band);
+                targetAp = blendSkillAndMapTarget(skillAnchoredSnipe, mapTarget);
                 targetAp = capExtremeAtTopAp(targetAp, band, skill);
                 apCap = null;
             }
@@ -813,14 +821,61 @@ public class MissionBuilderService {
     private BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill) {
         if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
             return targetRawAp;
-        BigDecimal factor = switch (band) {
-            case extreme -> new BigDecimal("1.02");
-            case hard -> new BigDecimal("0.95");
-            default -> null;
+        double skillVal = skill.getSkillLevel() != null ? skill.getSkillLevel().doubleValue() : 50.0;
+        double skillAdj = Math.max(0.0, Math.min(1.0, (skillVal - 50.0) / 50.0));
+        double factor = switch (band) {
+            case easy -> 0.88 + skillAdj * 0.06;
+            case medium -> 0.90 + skillAdj * 0.07;
+            case hard -> 0.94 + skillAdj * 0.07;
+            case extreme -> 0.98 + skillAdj * 0.06;
         };
-        if (factor == null)
-            return targetRawAp;
-        return targetRawAp.min(skill.getTopAp().multiply(factor));
+        return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
+    }
+
+    /**
+     * Blends the skill-derived target with the map-derived target.
+     * Map signal is weighted slightly higher (60/40) because it reflects what actual scorers
+     * achieved on this specific map, but skill signal still anchors to the user's portfolio.
+     * If the map signal is missing (no leaderboard data), falls back to skill-anchored only.
+     */
+    private BigDecimal blendSkillAndMapTarget(BigDecimal skillAnchored, BigDecimal mapTarget) {
+        if (mapTarget == null)
+            return skillAnchored;
+        if (skillAnchored == null)
+            return mapTarget;
+        BigDecimal mapWeighted = mapTarget.multiply(new BigDecimal("0.60"));
+        BigDecimal skillWeighted = skillAnchored.multiply(new BigDecimal("0.40"));
+        return mapWeighted.add(skillWeighted);
+    }
+
+    /**
+     * Returns the AP at the user's "natural" leaderboard position on this map, shifted by band.
+     * Uses skill_level distribution on the map's leaderboard to estimate where the user fits,
+     * then picks a target rank above (harder) or below (easier) based on band.
+     * Returns null if the map has no scored players with skill data.
+     */
+    private BigDecimal mapAwareTarget(java.util.UUID mapDifficultyId, java.util.UUID categoryId,
+            double userSkill, MissionBand band) {
+        List<Object[]> rows = scoreRepository.findLeaderboardApAndSkill(mapDifficultyId, categoryId);
+        if (rows.isEmpty())
+            return null;
+        int size = rows.size();
+        int naturalIdx = size;
+        for (int i = 0; i < size; i++) {
+            BigDecimal candidateSkill = (BigDecimal) rows.get(i)[1];
+            if (candidateSkill.doubleValue() <= userSkill) {
+                naturalIdx = i;
+                break;
+            }
+        }
+        int rankShift = switch (band) {
+            case easy -> Math.max(1, size / 30);
+            case medium -> 0;
+            case hard -> -Math.max(2, size / 20);
+            case extreme -> -Math.max(5, size / 10);
+        };
+        int targetIdx = Math.max(0, Math.min(size - 1, naturalIdx + rankShift));
+        return (BigDecimal) rows.get(targetIdx)[0];
     }
 
     private BigDecimal capAtMapRealisticCeiling(BigDecimal targetRawAp, MapPick pick, Curve scoreCurve,
