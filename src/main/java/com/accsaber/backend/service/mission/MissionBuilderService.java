@@ -1,0 +1,890 @@
+package com.accsaber.backend.service.mission;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+
+import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.Curve;
+import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.mission.MissionBand;
+import com.accsaber.backend.model.entity.mission.MissionPool;
+import com.accsaber.backend.model.entity.mission.MissionTemplate;
+import com.accsaber.backend.model.entity.mission.MissionType;
+import com.accsaber.backend.model.entity.mission.UserMission;
+import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
+
+@Service
+public class MissionBuilderService {
+
+    private static final Logger log = LoggerFactory.getLogger(MissionBuilderService.class);
+    private static final int SNIPE_CANDIDATE_LIMIT = 50;
+    private static final String OVERALL_CODE = "overall";
+    private static final ThreadLocal<String> LAST_FAIL_REASON = new ThreadLocal<>();
+
+    private static <T> T failBuild(String reason) {
+        LAST_FAIL_REASON.set(reason);
+        return null;
+    }
+
+    private final UserRepository userRepository;
+    private final ScoreRepository scoreRepository;
+    private final MapDifficultyRepository mapDifficultyRepository;
+    private final MissionCalibrationService calibrationService;
+
+    public MissionBuilderService(
+            UserRepository userRepository,
+            ScoreRepository scoreRepository,
+            MapDifficultyRepository mapDifficultyRepository,
+            MissionCalibrationService calibrationService) {
+        this.userRepository = userRepository;
+        this.scoreRepository = scoreRepository;
+        this.mapDifficultyRepository = mapDifficultyRepository;
+        this.calibrationService = calibrationService;
+    }
+
+    public UserMission pickAndBuild(MissionAssignmentContext ctx, List<MissionTemplate> pool,
+            Instant expiresAt, MissionPool poolType, Random rng, Set<UUID> excludeCategories,
+            MissionPoolCache cache, MissionBand forcedBand) {
+        if (pool.isEmpty()) {
+            log.warn("Mission template pool empty pool={} forcedBand={}", poolType, forcedBand);
+            return null;
+        }
+        Set<UUID> triedTemplateIds = new HashSet<>();
+        List<String> attempts = log.isDebugEnabled() ? new ArrayList<>() : null;
+        while (triedTemplateIds.size() < pool.size()) {
+            MissionTemplate template = weightedPickExcluding(pool, rng, triedTemplateIds);
+            if (template == null)
+                break;
+            triedTemplateIds.add(template.getId());
+            Category category = pickCategoryForType(ctx, template, rng, excludeCategories);
+            LAST_FAIL_REASON.remove();
+            UserMission built = buildMission(ctx, template, category, expiresAt, poolType, rng, cache, forcedBand);
+            if (built != null)
+                return built;
+            if (attempts != null) {
+                String reason = LAST_FAIL_REASON.get();
+                attempts.add(template.getCode() + (category != null ? "/" + category.getCode() : "/-")
+                        + ":" + (reason != null ? reason : "no-reason"));
+            }
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Mission slot empty user={} pool={} forcedBand={} reason=all-templates-exhausted attempts={}",
+                    ctx.userId(), poolType, forcedBand, attempts);
+        }
+        return null;
+    }
+
+    public UserMission pickAndBuildForCategory(MissionAssignmentContext ctx, List<MissionTemplate> pool,
+            Category category, Instant expiresAt, MissionPool poolType, Random rng, MissionPoolCache cache,
+            MissionBand forcedBand, Set<UUID> excludeTemplateIds) {
+        if (pool.isEmpty()) {
+            log.warn("Mission template pool empty pool={} category={} forcedBand={}",
+                    poolType, category.getCode(), forcedBand);
+            return null;
+        }
+        List<MissionTemplate> shuffled = pool.stream()
+                .filter(t -> excludeTemplateIds == null || !excludeTemplateIds.contains(t.getId()))
+                .filter(t -> forcedBand != MissionBand.extreme
+                        || (t.getType() != MissionType.PLAY_N_MAPS && t.getType() != MissionType.XP_IN_WINDOW
+                                && t.getType() != MissionType.SCORES_N
+                                && t.getType() != MissionType.COMEBACK_PB))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (shuffled.isEmpty())
+            shuffled = new ArrayList<>(pool);
+        Collections.shuffle(shuffled, rng);
+        List<String> tried = log.isDebugEnabled() ? new ArrayList<>() : null;
+        for (MissionTemplate template : shuffled) {
+            LAST_FAIL_REASON.remove();
+            UserMission built = buildMission(ctx, template, category, expiresAt, poolType, rng, cache, forcedBand);
+            if (built != null)
+                return built;
+            if (tried != null) {
+                String reason = LAST_FAIL_REASON.get();
+                tried.add(template.getCode() + ":" + (reason != null ? reason : "no-reason"));
+            }
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Mission slot empty user={} pool={} category={} forcedBand={} reason=all-templates-exhausted attempts={}",
+                    ctx.userId(), poolType, category.getCode(), forcedBand, tried);
+        }
+        return null;
+    }
+
+    private MissionTemplate weightedPickExcluding(List<MissionTemplate> pool, Random rng, Set<UUID> exclude) {
+        int total = 0;
+        for (MissionTemplate t : pool) {
+            if (!exclude.contains(t.getId()))
+                total += t.getWeight();
+        }
+        if (total <= 0)
+            return null;
+        int roll = rng.nextInt(total);
+        int acc = 0;
+        for (MissionTemplate t : pool) {
+            if (exclude.contains(t.getId()))
+                continue;
+            acc += t.getWeight();
+            if (roll < acc)
+                return t;
+        }
+        return null;
+    }
+
+    private Category pickCategoryForType(MissionAssignmentContext ctx, MissionTemplate template, Random rng,
+            Set<UUID> exclude) {
+        if (template.getType() == MissionType.XP_IN_WINDOW)
+            return null;
+        if (template.getType() == MissionType.SCORES_N)
+            return null;
+        if (template.getType() == MissionType.PLAY_N_MAPS && template.getCode() != null
+                && template.getCode().endsWith("_any"))
+            return null;
+        if (requiresMapPick(template.getType())) {
+            List<Category> nonOverall = ctx.activeCategories().stream()
+                    .filter(c -> !OVERALL_CODE.equals(c.getCode()))
+                    .filter(c -> !exclude.contains(c.getId()))
+                    .toList();
+            if (nonOverall.isEmpty()) {
+                nonOverall = ctx.activeCategories().stream()
+                        .filter(c -> !OVERALL_CODE.equals(c.getCode()))
+                        .toList();
+            }
+            return nonOverall.isEmpty() ? null : nonOverall.get(rng.nextInt(nonOverall.size()));
+        }
+        List<Category> filtered = ctx.activeCategories().stream()
+                .filter(c -> !exclude.contains(c.getId()))
+                .toList();
+        if (filtered.isEmpty())
+            filtered = ctx.activeCategories();
+        return filtered.get(rng.nextInt(filtered.size()));
+    }
+
+    private boolean requiresMapPick(MissionType type) {
+        return switch (type) {
+            case ACC_ON_MAP, AP_ON_MAP, PB_SPECIFIC_MAP, SNIPE_PLAYER_ON_MAP, STREAK_ON_MAP, COMEBACK_PB -> true;
+            default -> false;
+        };
+    }
+
+    private UserMission buildMission(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, Random rng, MissionPoolCache cache, MissionBand forcedBand) {
+        if (category == null && template.getType() != MissionType.XP_IN_WINDOW
+                && template.getType() != MissionType.PLAY_N_MAPS
+                && template.getType() != MissionType.SCORES_N)
+            return failBuild("no-category-for-type");
+        MissionBand band = forcedBand != null ? forcedBand : pickBand(rng);
+        boolean bandForced = forcedBand != null;
+        return switch (template.getType()) {
+            case PLAY_N_MAPS -> buildPlayNMaps(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case XP_IN_WINDOW -> buildXpInWindow(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case ACC_ON_MAP -> buildAccOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
+            case AP_ON_MAP -> buildApOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
+            case PB_SPECIFIC_MAP -> buildPbSpecificMap(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case PB_ABOVE_THRESHOLD -> buildPbAboveThreshold(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case SNIPE_PLAYER_ON_MAP -> buildSnipe(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case STREAK_ON_MAP -> buildStreakOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case STREAK_N_IN_CATEGORY -> buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
+        };
+    }
+
+    private UserMission buildPlayNMaps(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        int count = pickCount(template, band, rng);
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetCount(count)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildXpInWindow(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        BigDecimal multiplier = calibrationService.bandMultiplier(template, band);
+        BigDecimal rolling = ctx.rollingDailyXp() == null ? BigDecimal.valueOf(500) : ctx.rollingDailyXp();
+        int targetXp = rolling.multiply(multiplier).max(BigDecimal.valueOf(100))
+                .setScale(0, RoundingMode.HALF_UP).intValue();
+        int xp = Math.max(50, calibrationService.computeXpReward(template,
+                skillLevelFor(ctx, category), band, null));
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetXp(targetXp)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildAccOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
+            boolean bandForced) {
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
+        if (result == null)
+            return null;
+        return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
+                .targetMapDifficulty(result.pick().difficulty())
+                .targetAcc(result.targetAcc())
+                .targetScore(result.targetScore())
+                .xpReward(result.xpReward())
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildApOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
+            boolean bandForced) {
+        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
+        if (result == null)
+            return null;
+        return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
+                .targetMapDifficulty(result.pick().difficulty())
+                .targetAp(result.targetRawAp())
+                .targetScore(result.targetScore())
+                .xpReward(result.xpReward())
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private MapTargetResult computeMapTarget(MissionAssignmentContext ctx, MissionTemplate template,
+            Category category, MissionBand band, Random rng, MissionPoolCache cache, boolean bandForced) {
+        UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        if (skill == null || skill.getRawApForOneGain() == null)
+            return failBuild("no-skill-or-threshold");
+        Curve scoreCurve = category.getScoreCurve();
+        if (scoreCurve == null)
+            return failBuild("no-score-curve");
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        BigDecimal pickMultiplier = calibrationService.bandMultiplier(template, band);
+        MapPick pick = sampleEligibleMap(category, threshold, pickMultiplier, scoreCurve, rng);
+        if (pick == null)
+            return failBuild("no-eligible-map");
+
+        MissionBand effectiveBand = band;
+        Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
+                ctx.userId(), pick.difficulty().getId());
+        if (!bandForced && existing.isPresent() && existing.get().getWeightedAp() != null) {
+            BigDecimal maxWeightedAp = scoreRepository.findMaxWeightedApByUserAndCategory(
+                    ctx.userId(), category.getId());
+            MissionBand derived = bandFromWeightedRatio(existing.get().getWeightedAp(), maxWeightedAp);
+            effectiveBand = blendBands(band, derived);
+        }
+
+        BigDecimal effectiveMultiplier = calibrationService.bandMultiplier(template, effectiveBand);
+        BigDecimal skillAnchored = calibrationService.targetRawAp(threshold, effectiveMultiplier);
+        BigDecimal existingAp = existing.map(Score::getAp).orElse(null);
+        BigDecimal liftedFloor = existingAp != null
+                ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, effectiveBand)
+                : null;
+        BigDecimal targetRawAp = skillAnchored;
+        if (liftedFloor != null) {
+            targetRawAp = targetRawAp.max(liftedFloor);
+        }
+        targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache,
+                skillLevelFor(ctx, category));
+
+        if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0)
+            return failBuild("target-below-existing-after-caps");
+        BigDecimal minMeaningful = (effectiveBand == MissionBand.hard || effectiveBand == MissionBand.extreme)
+                && skill.getTopAp() != null
+                ? skill.getTopAp().multiply(new BigDecimal("0.70"))
+                : skillAnchored.multiply(new BigDecimal("0.80"));
+        if (existingAp == null && targetRawAp.compareTo(minMeaningful) < 0)
+            return failBuild("target-below-min-meaningful");
+
+        BigDecimal targetAcc = calibrationService.targetAccuracy(targetRawAp, pick.complexity(), scoreCurve,
+                skill.getTopAp());
+        Integer targetScore = pick.maxScore() != null
+                ? BigDecimal.valueOf(pick.maxScore()).multiply(targetAcc)
+                        .setScale(0, RoundingMode.HALF_UP).intValue()
+                : null;
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), effectiveBand, null);
+        return new MapTargetResult(pick, targetRawAp, targetAcc, targetScore, xp, effectiveBand);
+    }
+
+    private UserMission buildPbSpecificMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
+            return failBuild("no-skill-or-threshold-or-curve");
+        Curve scoreCurve = category.getScoreCurve();
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        BigDecimal multiplier = calibrationService.bandMultiplier(template, band);
+        MapPick pick = sampleEligibleMap(category, threshold, multiplier, scoreCurve, rng);
+        if (pick == null)
+            return failBuild("no-eligible-map");
+        BigDecimal skillAnchored = calibrationService.targetRawAp(threshold, multiplier);
+        Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
+                ctx.userId(), pick.difficulty().getId());
+        BigDecimal existingAp = existing.map(Score::getAp).orElse(null);
+        BigDecimal liftedFloor = existingAp != null
+                ? calibrationService.bandLiftedFloorAp(existingAp, pick.complexity(), scoreCurve, band)
+                : null;
+        BigDecimal targetRawAp = skillAnchored;
+        if (liftedFloor != null)
+            targetRawAp = targetRawAp.max(liftedFloor);
+        targetRawAp = capExtremeAtTopAp(targetRawAp, band, skill);
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, band, cache,
+                skillLevelFor(ctx, category));
+
+        if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0)
+            return failBuild("target-below-existing-after-caps");
+        BigDecimal minMeaningful = (band == MissionBand.hard || band == MissionBand.extreme)
+                && skill.getTopAp() != null
+                ? skill.getTopAp().multiply(new BigDecimal("0.70"))
+                : skillAnchored.multiply(new BigDecimal("0.80"));
+        if (existingAp == null && targetRawAp.compareTo(minMeaningful) < 0)
+            return failBuild("target-below-min-meaningful");
+
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        xp = (int) Math.round(xp * pbFreshnessBoost(existing.orElse(null)));
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetMapDifficulty(pick.difficulty())
+                .targetAp(targetRawAp)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildPbAboveThreshold(MissionAssignmentContext ctx, MissionTemplate template,
+            Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
+            MissionPoolCache cache) {
+        List<Score> scores = scoreRepository.findActiveByUserAndCategoryOrderByApDesc(ctx.userId(), category.getId());
+        if (scores.size() < 5)
+            return failBuild("too-few-scores-in-category");
+        double percentile = switch (band) {
+            case easy -> 0.70;
+            case medium -> 0.45;
+            case hard -> 0.22;
+            case extreme -> 0.10;
+        };
+        int idx = Math.min(scores.size() - 1, Math.max(0, (int) Math.round(scores.size() * percentile)));
+        BigDecimal anchor = scores.get(idx).getAp();
+        BigDecimal thresholdShift = switch (band) {
+            case easy -> new BigDecimal("0.98");
+            case medium -> BigDecimal.ONE;
+            case hard -> new BigDecimal("1.015");
+            case extreme -> new BigDecimal("1.02");
+        };
+        BigDecimal rawThreshold = anchor.multiply(thresholdShift).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal topAp = scores.get(0).getAp();
+        BigDecimal hardCap = topAp.multiply(new BigDecimal("0.97")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal threshold = rawThreshold.compareTo(hardCap) > 0 ? hardCap : rawThreshold;
+        long qualifying = scores.stream()
+                .filter(s -> s.getAp() != null && s.getAp().compareTo(threshold) >= 0)
+                .count();
+        if (qualifying < 2)
+            return failBuild("too-few-qualifying-above-threshold");
+        int desiredCount = pickCount(template, band, rng);
+        int maxFeasibleCount = (int) Math.floor(qualifying / 2.0);
+        int count = Math.min(desiredCount, Math.max(1, maxFeasibleCount));
+        if (count <= 0)
+            return failBuild("count-clamp-zero");
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetThresholdAp(threshold)
+                .targetCount(count)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildSnipe(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
+            return failBuild("no-skill-or-threshold-or-curve");
+
+        Curve scoreCurve = category.getScoreCurve();
+        BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        BigDecimal bandMult = calibrationService.bandMultiplier(template, band);
+
+        BigDecimal userSkillLevel = skillLevelFor(ctx, category);
+        BigDecimal effectiveUserSkill = liftedSkillLevel(ctx, category, userSkillLevel);
+        double userSkillVal = effectiveUserSkill != null ? effectiveUserSkill.doubleValue() : 50.0;
+
+        double maxSkillDistance = switch (band) {
+            case easy -> 5.0;
+            case medium -> 8.0;
+            case hard -> 12.0;
+            case extreme -> 18.0;
+        };
+
+        MapPick pick = null;
+        Score target = null;
+        Optional<Score> mine = Optional.empty();
+        for (int attempt = 0; attempt < 8; attempt++) {
+            MapPick candidate = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
+            if (candidate == null)
+                break;
+            Optional<Score> myScore = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
+                    ctx.userId(), candidate.difficulty().getId());
+            int baseline = myScore.map(Score::getScore).orElse(0);
+            BigDecimal userCurrentAp = myScore.map(Score::getAp).orElse(null);
+
+            BigDecimal targetAp;
+            BigDecimal apCap;
+            if (userCurrentAp != null && userCurrentAp.signum() > 0) {
+                targetAp = calibrationService.bandLiftedFloorAp(userCurrentAp, candidate.complexity(),
+                        scoreCurve, band);
+                apCap = targetAp;
+            } else {
+                BigDecimal snipeBandFraction = switch (band) {
+                    case easy -> new BigDecimal("0.94");
+                    case medium -> new BigDecimal("0.98");
+                    case hard -> new BigDecimal("1.00");
+                    case extreme -> new BigDecimal("1.04");
+                };
+                targetAp = threshold.multiply(snipeBandFraction);
+                targetAp = capExtremeAtTopAp(targetAp, band, skill);
+                apCap = null;
+            }
+            if (targetAp == null)
+                continue;
+
+            List<Object[]> candidateRows = scoreRepository.findSnipeCandidatesAboveBaselineWithSkill(
+                    candidate.difficulty().getId(), ctx.userId(), baseline, category.getId(),
+                    PageRequest.of(0, SNIPE_CANDIDATE_LIMIT * 2));
+
+            final BigDecimal targetApFinal = targetAp;
+            final BigDecimal apCapFinal = apCap;
+            List<Score> viable = candidateRows.stream()
+                    .filter(row -> {
+                        BigDecimal cSkill = (BigDecimal) row[1];
+                        return Math.abs(cSkill.doubleValue() - userSkillVal) <= maxSkillDistance;
+                    })
+                    .filter(row -> {
+                        Score s = (Score) row[0];
+                        if (apCapFinal == null || s.getAp() == null)
+                            return true;
+                        return s.getAp().compareTo(apCapFinal) <= 0;
+                    })
+                    .sorted(Comparator.comparing(row -> {
+                        Score s = (Score) row[0];
+                        return s.getAp().subtract(targetApFinal).abs();
+                    }))
+                    .map(row -> (Score) row[0])
+                    .toList();
+            if (viable.isEmpty())
+                continue;
+
+            int jitter = Math.min(3, viable.size());
+            pick = candidate;
+            target = viable.get(rng.nextInt(jitter));
+            mine = myScore;
+            break;
+        }
+        if (pick == null || target == null)
+            return failBuild("no-snipe-candidate-within-band");
+
+        BigDecimal effectiveUserAp = mine.map(s -> ageAdjustedUserAp(s, skill.getTopAp()))
+                .orElse(BigDecimal.ZERO);
+        BigDecimal snipeDistance = target.getAp().subtract(effectiveUserAp).max(BigDecimal.ZERO);
+
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, snipeDistance);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetMapDifficulty(pick.difficulty())
+                .targetPlayer(target.getUser())
+                .targetScore(target.getScore())
+                .targetAp(target.getAp())
+                .snipeDistance(snipeDistance)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildScoresN(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
+        int min = template.getTargetCountMin() != null ? template.getTargetCountMin() : 1;
+        int max = template.getTargetCountMax() != null ? template.getTargetCountMax() : 3;
+        int count = min + rng.nextInt(Math.max(1, max - min + 1));
+        int baseXp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), effectiveBand, null);
+        int xp = (int) Math.round(baseXp * (0.5 + 0.5 * count));
+        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+                .targetCount(count)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildComebackPb(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        Instant olderThan = Instant.now().minus(java.time.Duration.ofDays(365));
+        List<Score> oldScores = scoreRepository.findActiveByUserAndCategoryOlderThan(
+                ctx.userId(), category.getId(), olderThan);
+        if (oldScores.isEmpty())
+            return failBuild("no-old-scores-for-comeback");
+        Score chosen = oldScores.get(rng.nextInt(oldScores.size()));
+        BigDecimal maxWeightedAp = scoreRepository.findMaxWeightedApByUserAndCategory(
+                ctx.userId(), category.getId());
+        MissionBand effectiveBand = bandFromWeightedRatio(chosen.getWeightedAp(), maxWeightedAp);
+        BigDecimal bandMult = calibrationService.bandMultiplier(template, effectiveBand);
+        BigDecimal targetRawAp = chosen.getAp().multiply(bandMult).max(chosen.getAp().add(BigDecimal.ONE));
+        UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        if (skill != null)
+            targetRawAp = capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
+        MapPick pick = new MapPick(chosen.getMapDifficulty(), null, chosen.getMapDifficulty().getMaxScore());
+        targetRawAp = capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(), effectiveBand, cache,
+                skillLevelFor(ctx, category));
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), effectiveBand, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+                .targetMapDifficulty(chosen.getMapDifficulty())
+                .targetAp(targetRawAp)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildStreakNInCategory(MissionAssignmentContext ctx, MissionTemplate template,
+            Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
+            MissionPoolCache cache) {
+        Integer topStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
+        if (topStreak == null || topStreak < 3)
+            return failBuild("user-streak-too-low");
+        BigDecimal skillLevel = skillLevelFor(ctx, category);
+        double skill = skillLevel != null ? skillLevel.doubleValue() : 0.0;
+        boolean topTier = skill >= 90.0;
+
+        int targetStreak = switch (band) {
+            case easy -> (int) Math.round(topStreak * 0.50);
+            case medium -> (int) Math.round(topStreak * 0.70);
+            case hard -> (int) Math.round(topStreak * 0.90);
+            case extreme -> topTier ? topStreak + 1 : topStreak;
+        };
+        targetStreak = Math.max(2, targetStreak);
+
+        int count = pickCount(template, band, rng);
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetStreak(targetStreak)
+                .targetCount(count)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private UserMission buildStreakOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
+            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+        UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
+            return failBuild("no-skill-or-threshold-or-curve");
+        Integer userTopStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
+        if (userTopStreak == null || userTopStreak < 3)
+            return failBuild("user-streak-too-low");
+        BigDecimal streakThreshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
+        MapPick pick = sampleEligibleMap(category, streakThreshold,
+                calibrationService.bandMultiplier(template, band), category.getScoreCurve(), rng);
+        if (pick == null)
+            return failBuild("no-eligible-map");
+
+        Integer mapTopStreak = scoreRepository.findMaxStreak115ByMapDifficulty(pick.difficulty().getId());
+        int reference = mapTopStreak != null && mapTopStreak > 0 ? mapTopStreak : userTopStreak;
+        BigDecimal skillLvl = skillLevelFor(ctx, category);
+        boolean topTier = (skillLvl != null ? skillLvl.doubleValue() : 0.0) >= 90.0;
+
+        int targetStreak = switch (band) {
+            case easy -> (int) Math.round(reference * 0.50);
+            case medium -> (int) Math.round(reference * 0.70);
+            case hard -> topTier ? reference : (int) Math.round(reference * 0.90);
+            case extreme -> topTier ? reference + 1 : reference;
+        };
+
+        int userCap = userTopStreak + 2;
+        targetStreak = Math.min(targetStreak, userCap);
+        targetStreak = Math.max(2, targetStreak);
+
+        int xp = calibrationService.computeXpReward(template, skillLevelFor(ctx, category), band, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                .targetMapDifficulty(pick.difficulty())
+                .targetStreak(targetStreak)
+                .xpReward(xp)
+                .itemReward(rollItemReward(template, rng, cache))
+                .build();
+    }
+
+    private MapPick sampleEligibleMap(Category category, BigDecimal threshold, BigDecimal multiplier,
+            Curve scoreCurve, Random rng) {
+        var range = calibrationService.complexityRange(threshold, multiplier, scoreCurve);
+        if (range == null)
+            return null;
+        List<Object[]> rows = mapDifficultyRepository.findRankedWithComplexityInRange(
+                category.getId(), range.min(), range.max());
+        if (rows.isEmpty())
+            return null;
+        Object[] row = rows.get(rng.nextInt(rows.size()));
+        MapDifficulty diff = (MapDifficulty) row[0];
+        BigDecimal complexity = (BigDecimal) row[1];
+        return new MapPick(diff, complexity, diff.getMaxScore());
+    }
+
+    private int pickCount(MissionTemplate template, MissionBand band, Random rng) {
+        int min = template.getTargetCountMin() != null ? template.getTargetCountMin() : 1;
+        int max = template.getTargetCountMax() != null ? template.getTargetCountMax() : Math.max(min + 1, 10);
+        int spread = Math.max(1, max - min);
+        double centerFrac = switch (band) {
+            case easy -> 0.17;
+            case medium -> 0.50;
+            case hard -> 0.83;
+            case extreme -> 1.00;
+        };
+        int center = min + (int) Math.round(spread * centerFrac);
+        int jitterRange = Math.max(1, spread / 6);
+        int jitter = rng.nextInt(jitterRange * 2 + 1) - jitterRange;
+        return Math.min(max, Math.max(min, center + jitter));
+    }
+
+    private MissionBand pickBand(Random rng) {
+        int roll = rng.nextInt(100);
+        if (roll < 30)
+            return MissionBand.easy;
+        if (roll < 70)
+            return MissionBand.medium;
+        if (roll < 95)
+            return MissionBand.hard;
+        return MissionBand.extreme;
+    }
+
+    private Item rollItemReward(MissionTemplate template, Random rng, MissionPoolCache cache) {
+        if (template.getAwardsItem() != null)
+            return template.getAwardsItem();
+        List<Item> pool = cache.poolableItems();
+        if (pool.isEmpty())
+            return null;
+        if (rng.nextInt(100) >= 15)
+            return null;
+        return pool.get(rng.nextInt(pool.size()));
+    }
+
+    private UserMission.UserMissionBuilder baseBuilder(MissionAssignmentContext ctx, MissionTemplate template,
+            Category category, Instant expiresAt, MissionPool pool, MissionBand band) {
+        return UserMission.builder()
+                .user(userRepository.getReferenceById(ctx.userId()))
+                .template(template)
+                .pool(pool)
+                .category(category)
+                .band(band)
+                .expiresAt(expiresAt);
+    }
+
+    private BigDecimal skillLevelFor(MissionAssignmentContext ctx, Category category) {
+        if (category != null) {
+            UserCategorySkill s = ctx.skillByCategoryId().get(category.getId());
+            if (s != null && s.getSkillLevel() != null)
+                return s.getSkillLevel();
+        }
+        return ctx.skillByCategoryId().values().stream()
+                .filter(s -> s.getCategory() != null && OVERALL_CODE.equals(s.getCategory().getCode()))
+                .filter(s -> s.getSkillLevel() != null)
+                .findFirst()
+                .map(UserCategorySkill::getSkillLevel)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private BigDecimal liftedThreshold(MissionAssignmentContext ctx, Category targetCategory,
+            BigDecimal categoryThreshold) {
+        if (categoryThreshold == null || targetCategory == null)
+            return categoryThreshold;
+        UserCategorySkill targetSkill = ctx.skillByCategoryId().get(targetCategory.getId());
+        BigDecimal targetSkillLevel = targetSkill != null && targetSkill.getSkillLevel() != null
+                ? targetSkill.getSkillLevel()
+                : BigDecimal.ZERO;
+
+        UserCategorySkill bestOther = ctx.skillByCategoryId().values().stream()
+                .filter(s -> s.getCategory() != null)
+                .filter(s -> !OVERALL_CODE.equals(s.getCategory().getCode()))
+                .filter(s -> !s.getCategory().getId().equals(targetCategory.getId()))
+                .filter(s -> s.getRawApForOneGain() != null && s.getSkillLevel() != null)
+                .max(Comparator.comparing(UserCategorySkill::getSkillLevel))
+                .orElse(null);
+        if (bestOther == null)
+            return categoryThreshold;
+        BigDecimal skillGap = bestOther.getSkillLevel().subtract(targetSkillLevel);
+        if (skillGap.compareTo(new BigDecimal("10")) < 0)
+            return categoryThreshold;
+        BigDecimal bestThreshold = bestOther.getRawApForOneGain();
+        if (bestThreshold.compareTo(categoryThreshold) <= 0)
+            return categoryThreshold;
+
+        BigDecimal liftFraction;
+        if (skillGap.compareTo(new BigDecimal("40")) >= 0) {
+            liftFraction = new BigDecimal("0.85");
+        } else if (skillGap.compareTo(new BigDecimal("25")) >= 0) {
+            liftFraction = new BigDecimal("0.65");
+        } else {
+            liftFraction = new BigDecimal("0.40");
+        }
+
+        Long targetPlays = ctx.rankedPlaysByCategoryId().get(targetCategory.getId());
+        Long bestPlays = ctx.rankedPlaysByCategoryId().get(bestOther.getCategory().getId());
+        if (targetPlays != null && bestPlays != null && bestPlays > 0) {
+            double playRatio = targetPlays.doubleValue() / bestPlays.doubleValue();
+            if (playRatio >= 1.0)
+                return categoryThreshold;
+            double playDampen = Math.max(0.30, 1.0 - playRatio * 0.7);
+            liftFraction = liftFraction.multiply(BigDecimal.valueOf(playDampen));
+        }
+        BigDecimal gap = bestThreshold.subtract(categoryThreshold);
+        return categoryThreshold.add(gap.multiply(liftFraction));
+    }
+
+    private BigDecimal liftedSkillLevel(MissionAssignmentContext ctx, Category targetCategory,
+            BigDecimal categorySkillLevel) {
+        if (categorySkillLevel == null || targetCategory == null)
+            return categorySkillLevel;
+        UserCategorySkill bestOther = ctx.skillByCategoryId().values().stream()
+                .filter(s -> s.getCategory() != null)
+                .filter(s -> !OVERALL_CODE.equals(s.getCategory().getCode()))
+                .filter(s -> !s.getCategory().getId().equals(targetCategory.getId()))
+                .filter(s -> s.getSkillLevel() != null)
+                .max(Comparator.comparing(UserCategorySkill::getSkillLevel))
+                .orElse(null);
+        if (bestOther == null)
+            return categorySkillLevel;
+        BigDecimal skillGap = bestOther.getSkillLevel().subtract(categorySkillLevel);
+        if (skillGap.compareTo(new BigDecimal("10")) < 0)
+            return categorySkillLevel;
+
+        BigDecimal liftFraction;
+        if (skillGap.compareTo(new BigDecimal("40")) >= 0) {
+            liftFraction = new BigDecimal("0.45");
+        } else if (skillGap.compareTo(new BigDecimal("25")) >= 0) {
+            liftFraction = new BigDecimal("0.30");
+        } else {
+            liftFraction = new BigDecimal("0.18");
+        }
+
+        Long targetPlays = ctx.rankedPlaysByCategoryId().get(targetCategory.getId());
+        Long bestPlays = ctx.rankedPlaysByCategoryId().get(bestOther.getCategory().getId());
+        if (targetPlays != null && bestPlays != null && bestPlays > 0) {
+            double playRatio = targetPlays.doubleValue() / bestPlays.doubleValue();
+            if (playRatio >= 1.0)
+                return categorySkillLevel;
+            double playDampen = Math.max(0.30, 1.0 - playRatio * 0.7);
+            liftFraction = liftFraction.multiply(BigDecimal.valueOf(playDampen));
+        }
+        return categorySkillLevel.add(skillGap.multiply(liftFraction));
+    }
+
+    private BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill) {
+        if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
+            return targetRawAp;
+        BigDecimal factor = switch (band) {
+            case extreme -> new BigDecimal("1.02");
+            case hard -> new BigDecimal("0.95");
+            default -> null;
+        };
+        if (factor == null)
+            return targetRawAp;
+        return targetRawAp.min(skill.getTopAp().multiply(factor));
+    }
+
+    private BigDecimal capAtMapRealisticCeiling(BigDecimal targetRawAp, MapPick pick, Curve scoreCurve,
+            MissionBand band, MissionPoolCache cache, BigDecimal skillLevel) {
+        BigDecimal wr = cache.mapWrApByDifficulty().computeIfAbsent(pick.difficulty().getId(), id -> {
+            BigDecimal val = scoreRepository.findMaxApByMapDifficulty(id);
+            return val != null ? val : BigDecimal.ZERO;
+        });
+        if (wr.signum() == 0)
+            wr = null;
+        BigDecimal bandFraction = skillAwareBandFraction(band, skillLevel);
+        if (wr != null && wr.signum() > 0)
+            return targetRawAp.min(wr.multiply(bandFraction));
+        BigDecimal fallback = calibrationService.maxRealisticRawAp(pick.complexity(), scoreCurve);
+        if (fallback == null || fallback.signum() <= 0)
+            return targetRawAp;
+        return targetRawAp.min(fallback.multiply(bandFraction));
+    }
+
+    private BigDecimal skillAwareBandFraction(MissionBand band, BigDecimal skillLevel) {
+        double skill = skillLevel != null ? Math.min(100.0, Math.max(0.0, skillLevel.doubleValue())) : 50.0;
+        double skillAdj = Math.max(0.0, (skill - 50.0) / 50.0);
+        double frac = switch (band) {
+            case easy -> 0.50 + skillAdj * 0.12;
+            case medium -> 0.58 + skillAdj * 0.17;
+            case hard -> 0.66 + skillAdj * 0.22;
+            case extreme -> 0.74 + skillAdj * 0.26;
+        };
+        return BigDecimal.valueOf(frac);
+    }
+
+    private MissionBand bandFromWeightedRatio(BigDecimal weighted, BigDecimal maxWeighted) {
+        if (weighted == null || maxWeighted == null || maxWeighted.signum() <= 0)
+            return MissionBand.medium;
+        double ratio = weighted.doubleValue() / maxWeighted.doubleValue();
+        if (ratio >= 0.80)
+            return MissionBand.extreme;
+        if (ratio >= 0.40)
+            return MissionBand.hard;
+        if (ratio >= 0.10)
+            return MissionBand.medium;
+        return MissionBand.easy;
+    }
+
+    private MissionBand blendBands(MissionBand assigned, MissionBand derived) {
+        if (assigned == null)
+            return derived;
+        if (derived == null)
+            return assigned;
+        double blended = 0.6 * assigned.ordinal() + 0.4 * derived.ordinal();
+        int idx = (int) Math.round(blended);
+        MissionBand[] all = MissionBand.values();
+        return all[Math.min(all.length - 1, Math.max(0, idx))];
+    }
+
+    private BigDecimal ageAdjustedUserAp(Score myScore, BigDecimal topAp) {
+        BigDecimal scoreAp = myScore.getAp() != null ? myScore.getAp() : BigDecimal.ZERO;
+        Instant when = myScore.getTimeSet() != null ? myScore.getTimeSet() : myScore.getCreatedAt();
+        if (when == null || topAp == null || topAp.compareTo(scoreAp) <= 0)
+            return scoreAp;
+        long days = java.time.Duration.between(when, Instant.now()).toDays();
+        if (days <= 0)
+            return scoreAp;
+        double agingFactor = Math.max(0.0, Math.min(1.0, (365.0 - days) / 365.0));
+        double liftWeight = (1.0 - agingFactor) * 0.20;
+        if (liftWeight <= 0)
+            return scoreAp;
+        BigDecimal lift = topAp.subtract(scoreAp).multiply(BigDecimal.valueOf(liftWeight));
+        return scoreAp.add(lift);
+    }
+
+    private double pbFreshnessBoost(Score existing) {
+        if (existing == null)
+            return 1.0;
+        Instant when = existing.getTimeSet() != null ? existing.getTimeSet() : existing.getCreatedAt();
+        if (when == null)
+            return 1.0;
+        long days = java.time.Duration.between(when, Instant.now()).toDays();
+        if (days <= 0)
+            return 1.30;
+        double freshness = Math.max(0.0, Math.min(1.0, (180.0 - days) / 180.0));
+        return 1.0 + freshness * 0.30;
+    }
+
+    private record MapPick(MapDifficulty difficulty, BigDecimal complexity, Integer maxScore) {
+    }
+
+    private record MapTargetResult(MapPick pick, BigDecimal targetRawAp, BigDecimal targetAcc,
+            Integer targetScore, int xpReward, MissionBand effectiveBand) {
+    }
+}
