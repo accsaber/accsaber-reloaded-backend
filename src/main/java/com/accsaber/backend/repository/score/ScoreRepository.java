@@ -295,6 +295,42 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         org.springframework.data.domain.Pageable pageable);
 
         @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
+                          ON ucs.user.id = u.id AND ucs.category.id = :categoryId
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.user.id <> :excludeUserId
+                          AND s.score > :minScore
+                          AND s.ap IS NOT NULL
+                          AND ucs.skillLevel IS NOT NULL
+                        ORDER BY ABS(ucs.skillLevel - :targetSkill) ASC
+                        """)
+        List<Score> findSnipeCandidatesNearSkillLevel(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("excludeUserId") Long excludeUserId,
+                        @Param("minScore") Integer minScore,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("targetSkill") java.math.BigDecimal targetSkill,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT MAX(ucs.skillLevel) FROM Score s
+                        JOIN s.user u
+                        JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
+                          ON ucs.user.id = u.id AND ucs.category.id = :categoryId
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND ucs.skillLevel IS NOT NULL
+                        """)
+        java.math.BigDecimal findMaxSkillLevelOnMap(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("categoryId") UUID categoryId);
+
+        @Query("""
                         SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId

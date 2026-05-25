@@ -723,14 +723,53 @@ public class MissionAssignmentService {
         return targetRawAp.min(fallback.multiply(bandFraction));
     }
 
+    private BigDecimal liftedSkillLevel(MissionAssignmentContext ctx, Category targetCategory,
+            BigDecimal categorySkillLevel) {
+        if (categorySkillLevel == null || targetCategory == null) {
+            return categorySkillLevel;
+        }
+        UserCategorySkill bestOther = ctx.skillByCategoryId().values().stream()
+                .filter(s -> s.getCategory() != null)
+                .filter(s -> !OVERALL_CODE.equals(s.getCategory().getCode()))
+                .filter(s -> !s.getCategory().getId().equals(targetCategory.getId()))
+                .filter(s -> s.getSkillLevel() != null)
+                .max(java.util.Comparator.comparing(UserCategorySkill::getSkillLevel))
+                .orElse(null);
+        if (bestOther == null)
+            return categorySkillLevel;
+        BigDecimal skillGap = bestOther.getSkillLevel().subtract(categorySkillLevel);
+        if (skillGap.compareTo(new BigDecimal("10")) < 0)
+            return categorySkillLevel;
+
+        BigDecimal liftFraction;
+        if (skillGap.compareTo(new BigDecimal("40")) >= 0) {
+            liftFraction = new BigDecimal("0.45");
+        } else if (skillGap.compareTo(new BigDecimal("25")) >= 0) {
+            liftFraction = new BigDecimal("0.30");
+        } else {
+            liftFraction = new BigDecimal("0.18");
+        }
+
+        Long targetPlays = ctx.rankedPlaysByCategoryId().get(targetCategory.getId());
+        Long bestPlays = ctx.rankedPlaysByCategoryId().get(bestOther.getCategory().getId());
+        if (targetPlays != null && bestPlays != null && bestPlays > 0) {
+            double playRatio = targetPlays.doubleValue() / bestPlays.doubleValue();
+            if (playRatio >= 1.0)
+                return categorySkillLevel;
+            double playDampen = Math.max(0.30, 1.0 - playRatio * 0.7);
+            liftFraction = liftFraction.multiply(BigDecimal.valueOf(playDampen));
+        }
+        return categorySkillLevel.add(skillGap.multiply(liftFraction));
+    }
+
     private BigDecimal skillAwareBandFraction(MissionBand band, BigDecimal skillLevel) {
         double skill = skillLevel != null ? Math.min(100.0, Math.max(0.0, skillLevel.doubleValue())) : 50.0;
         double skillAdj = Math.max(0.0, (skill - 50.0) / 50.0);
         double frac = switch (band) {
-            case easy -> 0.55 + skillAdj * 0.15;
-            case medium -> 0.65 + skillAdj * 0.20;
-            case hard -> 0.75 + skillAdj * 0.20;
-            case extreme -> 0.85 + skillAdj * 0.15;
+            case easy -> 0.50 + skillAdj * 0.12;
+            case medium -> 0.58 + skillAdj * 0.17;
+            case hard -> 0.66 + skillAdj * 0.22;
+            case extreme -> 0.74 + skillAdj * 0.26;
         };
         return BigDecimal.valueOf(frac);
     }
@@ -834,45 +873,46 @@ public class MissionAssignmentService {
         Curve scoreCurve = category.getScoreCurve();
         BigDecimal threshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
         BigDecimal bandMult = calibrationService.bandMultiplier(template, band);
-        MapPick pick = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
+
+        BigDecimal userSkillLevel = skillLevelFor(ctx, category);
+        BigDecimal effectiveUserSkill = liftedSkillLevel(ctx, category, userSkillLevel);
+        double userSkillVal = effectiveUserSkill != null ? effectiveUserSkill.doubleValue() : 50.0;
+
+        double bandSkillOffset = switch (band) {
+            case easy -> 0.5;
+            case medium -> 2.0;
+            case hard -> 4.0;
+            case extreme -> 7.0;
+        };
+        double targetSkillVal = Math.min(100.0, userSkillVal + bandSkillOffset);
+        BigDecimal targetSkill = BigDecimal.valueOf(targetSkillVal);
+        BigDecimal minMapSkill = BigDecimal.valueOf(Math.max(0.0, userSkillVal - 3.0));
+
+        MapPick pick = null;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            MapPick candidate = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
+            if (candidate == null)
+                break;
+            BigDecimal maxMapSkill = scoreRepository.findMaxSkillLevelOnMap(
+                    candidate.difficulty().getId(), category.getId());
+            if (maxMapSkill == null || maxMapSkill.compareTo(minMapSkill) < 0) {
+                continue;
+            }
+            pick = candidate;
+            break;
+        }
         if (pick == null)
-            return failBuild("no-eligible-map");
+            return failBuild("no-eligible-map-matching-skill");
 
         Optional<Score> mine = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                 ctx.userId(), pick.difficulty().getId());
         int baselineScore = mine.map(Score::getScore).orElse(0);
-        BigDecimal userCurrentAp = mine.map(Score::getAp).orElse(BigDecimal.ZERO);
 
-        BigDecimal targetAp = calibrationService.targetRawAp(threshold, bandMult);
-        targetAp = capExtremeAtTopAp(targetAp, band, skill);
-        targetAp = capAtMapRealisticCeiling(targetAp, pick, scoreCurve, band, cache,
-                skillLevelFor(ctx, category));
-
-        BigDecimal apCap = null;
-        if (userCurrentAp.signum() > 0) {
-            BigDecimal curveLifted = calibrationService.bandLiftedFloorAp(
-                    userCurrentAp, pick.complexity(), scoreCurve, band);
-            if (curveLifted != null) {
-                apCap = curveLifted;
-                targetAp = targetAp.min(apCap);
-            }
-        }
-
-        List<Score> candidates = scoreRepository.findSnipeCandidatesNearTargetAp(
-                pick.difficulty().getId(), ctx.userId(), baselineScore, targetAp,
+        List<Score> candidates = scoreRepository.findSnipeCandidatesNearSkillLevel(
+                pick.difficulty().getId(), ctx.userId(), baselineScore, category.getId(), targetSkill,
                 PageRequest.of(0, SNIPE_CANDIDATE_LIMIT));
         if (candidates.isEmpty())
             return failBuild("no-snipe-candidates");
-
-        if (apCap != null) {
-            final BigDecimal cap = apCap;
-            List<Score> filtered = candidates.stream()
-                    .filter(c -> c.getAp() != null && c.getAp().compareTo(cap) <= 0)
-                    .toList();
-            if (!filtered.isEmpty()) {
-                candidates = filtered;
-            }
-        }
 
         int jitterRange = Math.min(5, candidates.size());
         Score target = candidates.get(rng.nextInt(jitterRange));
