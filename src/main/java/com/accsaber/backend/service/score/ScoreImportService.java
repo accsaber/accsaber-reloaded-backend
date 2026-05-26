@@ -92,6 +92,9 @@ public class ScoreImportService {
     @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
     private long gapFillPageDelayMs;
 
+    @Value("${accsaber.backfill.scoresaber-enabled:true}")
+    private boolean scoreSaberBackfillEnabled;
+
     public void backfillDifficulty(MapDifficulty difficulty) {
         Set<Long> affectedUserIds = importDifficulty(difficulty);
         if (affectedUserIds == null) {
@@ -118,7 +121,7 @@ public class ScoreImportService {
             affectedUserIds.addAll(blUsers);
         }
 
-        if (difficulty.getSsLeaderboardId() != null) {
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
             Set<Long> ssUsers = backfillFromScoreSaber(difficulty, complexity, modifiers);
             ssImported = ssUsers.size();
             affectedUserIds.addAll(ssUsers);
@@ -455,7 +458,75 @@ public class ScoreImportService {
             affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
         }
 
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+            affectedUserIds.addAll(gapFillFromScoreSaber(difficulty, complexity, modifiers, since));
+        }
+
         return affectedUserIds;
+    }
+
+    private Set<Long> gapFillFromScoreSaber(MapDifficulty difficulty, BigDecimal complexity,
+            Map<String, UUID> modifiers, Instant since) {
+        Set<Long> affected = new HashSet<>();
+        int page = 1;
+        int pageSize = 100;
+        long sinceEpoch = since.getEpochSecond();
+
+        while (true) {
+            ScoreSaberScoresPage scoresPage;
+            try {
+                scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(
+                        difficulty.getSsLeaderboardId(), page);
+            } catch (Exception e) {
+                log.error("SS gap-fill failed on page {} for difficulty {}: {}",
+                        page, difficulty.getId(), e.getMessage());
+                break;
+            }
+
+            if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
+                break;
+
+            List<ScoreSaberScoreResponse> recent = new ArrayList<>();
+            boolean reachedThreshold = false;
+            for (ScoreSaberScoreResponse score : scoresPage.getData()) {
+                if (score.getCreatedAt() == null)
+                    continue;
+                long ts;
+                try {
+                    ts = Instant.parse(score.getCreatedAt()).getEpochSecond();
+                } catch (Exception e) {
+                    log.warn("Could not parse SS createdAt '{}', skipping", score.getCreatedAt());
+                    continue;
+                }
+                if (ts <= sinceEpoch) {
+                    reachedThreshold = true;
+                    break;
+                }
+                recent.add(score);
+            }
+
+            recent.stream()
+                    .map(s -> CompletableFuture.supplyAsync(
+                            () -> importScoreSaberScore(s, difficulty, complexity, modifiers, true),
+                            backfillExecutor))
+                    .toList()
+                    .stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .forEach(affected::add);
+
+            if (reachedThreshold || scoresPage.getData().size() < pageSize)
+                break;
+            page++;
+
+            try {
+                Thread.sleep(gapFillPageDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return affected;
     }
 
     private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
@@ -518,7 +589,7 @@ public class ScoreImportService {
             }
         }
 
-        if (difficulty.getSsLeaderboardId() != null) {
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
             int page = 1;
             outer: while (true) {
                 ScoreSaberScoresPage scoresPage;
