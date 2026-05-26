@@ -98,19 +98,19 @@ public class MissionSkillService {
         int median = top.get(Math.min(top.size() / 2, top.size() - 1));
         if (top.size() >= 5 && max > median * 1.5) {
             double multiplier = switch (band) {
-                case easy -> 0.85;
-                case medium -> 0.95;
-                case hard -> 1.05;
-                case extreme -> 1.15;
+                case easy -> 0.80;
+                case medium -> 0.90;
+                case hard -> 1.00;
+                case extreme -> 1.10;
             };
             return Math.max(2, (int) Math.round(median * multiplier));
         }
         int effectiveTop = top.size() >= 2 && max > top.get(1) * 1.5 ? top.get(1) : max;
         return switch (band) {
-            case easy -> top.get(Math.min(7, top.size() - 1));
-            case medium -> top.get(Math.min(5, top.size() - 1));
-            case hard -> top.get(Math.min(3, top.size() - 1));
-            case extreme -> top.size() >= 2 ? Math.min(top.get(1), effectiveTop) : effectiveTop;
+            case easy -> top.get(Math.min(8, top.size() - 1));
+            case medium -> top.get(Math.min(6, top.size() - 1));
+            case hard -> top.get(Math.min(4, top.size() - 1));
+            case extreme -> top.size() >= 3 ? Math.min(top.get(2), effectiveTop) : effectiveTop;
         };
     }
 

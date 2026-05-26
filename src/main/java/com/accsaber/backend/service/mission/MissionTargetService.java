@@ -74,6 +74,15 @@ public class MissionTargetService {
         return mapTarget.multiply(MAP_BLEND_WEIGHT).add(skillAnchored.multiply(SKILL_BLEND_WEIGHT));
     }
 
+    public BigDecimal snipeBandFraction(MissionBand band) {
+        return switch (band) {
+            case easy -> new BigDecimal("0.93");
+            case medium -> new BigDecimal("0.95");
+            case hard -> new BigDecimal("0.97");
+            case extreme -> new BigDecimal("0.985");
+        };
+    }
+
     public BigDecimal skillFloorFraction(MissionBand band) {
         return switch (band) {
             case easy -> new BigDecimal("0.935");

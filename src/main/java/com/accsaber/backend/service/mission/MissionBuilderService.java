@@ -440,26 +440,22 @@ public class MissionBuilderService {
     private SnipeTarget computeSnipeTarget(MapPick candidate, Curve scoreCurve, BigDecimal threshold,
             MissionBand band, UserCategorySkill skill, BigDecimal userCurrentAp, double userSkillVal,
             Category category, MissionPoolCache cache) {
+        BigDecimal skillAnchored = threshold.multiply(targetService.snipeBandFraction(band));
+        BigDecimal skillFloor = skillAnchored.multiply(targetService.skillFloorFraction(band));
         if (userCurrentAp != null && userCurrentAp.signum() > 0) {
             BigDecimal lifted = calibrationService.bandLiftedFloorAp(userCurrentAp, candidate.complexity(),
                     scoreCurve, band);
-            BigDecimal capped = targetService.capExtremeAtTopAp(lifted, band, skill);
+            BigDecimal capped = lifted.max(skillFloor);
+            capped = targetService.capExtremeAtTopAp(capped, band, skill);
             capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache, userCurrentAp);
             if (capped.compareTo(userCurrentAp) <= 0)
                 return null;
             return new SnipeTarget(capped, capped);
         }
-        BigDecimal snipeBandFraction = switch (band) {
-            case easy -> new BigDecimal("0.90");
-            case medium -> new BigDecimal("0.95");
-            case hard -> new BigDecimal("0.98");
-            case extreme -> new BigDecimal("1.02");
-        };
-        BigDecimal skillAnchored = threshold.multiply(snipeBandFraction);
         BigDecimal mapTarget = targetService.mapAwareTarget(candidate.difficulty().getId(), category.getId(),
                 userSkillVal, null, band);
         BigDecimal target = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
-        target = target.max(skillAnchored.multiply(targetService.skillFloorFraction(band)));
+        target = target.max(skillFloor);
         target = targetService.capExtremeAtTopAp(target, band, skill);
         target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache, null);
         if (target == null)
