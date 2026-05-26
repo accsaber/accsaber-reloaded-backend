@@ -74,12 +74,21 @@ public class MissionTargetService {
         return mapTarget.multiply(MAP_BLEND_WEIGHT).add(skillAnchored.multiply(SKILL_BLEND_WEIGHT));
     }
 
+    public BigDecimal skillFloorFraction(MissionBand band) {
+        return switch (band) {
+            case easy -> new BigDecimal("0.935");
+            case medium -> new BigDecimal("0.95");
+            case hard -> new BigDecimal("0.965");
+            case extreme -> new BigDecimal("0.975");
+        };
+    }
+
     public BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill) {
         if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
             return targetRawAp;
         double factor = switch (band) {
-            case easy -> 0.965;
-            case medium -> 0.975;
+            case easy -> 0.96;
+            case medium -> 0.97;
             case hard -> 0.98;
             case extreme -> 1.005;
         };

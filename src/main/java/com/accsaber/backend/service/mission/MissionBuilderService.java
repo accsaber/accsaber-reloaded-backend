@@ -235,6 +235,7 @@ public class MissionBuilderService {
             BigDecimal mapTarget = targetService.mapAwareTarget(pick.difficulty().getId(), category.getId(),
                     categorySkill != null ? categorySkill.doubleValue() : 50.0, existingAp, effectiveBand);
             BigDecimal targetRawAp = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
+            targetRawAp = targetRawAp.max(skillAnchored.multiply(targetService.skillFloorFraction(effectiveBand)));
             if (liftedFloor != null)
                 targetRawAp = targetRawAp.max(liftedFloor);
             targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
@@ -297,6 +298,7 @@ public class MissionBuilderService {
             BigDecimal mapTarget = targetService.mapAwareTarget(candidate.difficulty().getId(), category.getId(),
                     categorySkill != null ? categorySkill.doubleValue() : 50.0, existingAp, band);
             BigDecimal computed = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
+            computed = computed.max(skillAnchored.multiply(targetService.skillFloorFraction(band)));
             if (liftedFloor != null)
                 computed = computed.max(liftedFloor);
             computed = targetService.capExtremeAtTopAp(computed, band, skill);
@@ -457,6 +459,7 @@ public class MissionBuilderService {
         BigDecimal mapTarget = targetService.mapAwareTarget(candidate.difficulty().getId(), category.getId(),
                 userSkillVal, null, band);
         BigDecimal target = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
+        target = target.max(skillAnchored.multiply(targetService.skillFloorFraction(band)));
         target = targetService.capExtremeAtTopAp(target, band, skill);
         target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache, null);
         if (target == null)
