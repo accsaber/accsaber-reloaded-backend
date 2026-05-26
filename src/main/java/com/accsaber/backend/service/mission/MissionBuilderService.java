@@ -842,13 +842,11 @@ public class MissionBuilderService {
     private BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill) {
         if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
             return targetRawAp;
-        double skillVal = skill.getSkillLevel() != null ? skill.getSkillLevel().doubleValue() : 50.0;
-        double skillAdj = Math.max(0.0, Math.min(1.0, (skillVal - 50.0) / 50.0));
         double factor = switch (band) {
-            case easy -> 0.89 + skillAdj * 0.06;
-            case medium -> 0.91 + skillAdj * 0.07;
-            case hard -> 0.93 + skillAdj * 0.08;
-            case extreme -> 0.91 + skillAdj * 0.11;
+            case easy -> 0.96;
+            case medium -> 0.97;
+            case hard -> 0.98;
+            case extreme -> 1.005;
         };
         return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
     }
@@ -868,10 +866,10 @@ public class MissionBuilderService {
             effectiveTop = max;
         }
         return switch (band) {
-            case easy -> top.get(Math.min(5, top.size() - 1));
-            case medium -> top.get(Math.min(3, top.size() - 1));
-            case hard -> top.get(Math.min(1, top.size() - 1));
-            case extreme -> effectiveTop;
+            case easy -> top.get(Math.min(7, top.size() - 1));
+            case medium -> top.get(Math.min(5, top.size() - 1));
+            case hard -> top.get(Math.min(3, top.size() - 1));
+            case extreme -> top.size() >= 2 ? Math.min(top.get(1), effectiveTop) : effectiveTop;
         };
     }
 
