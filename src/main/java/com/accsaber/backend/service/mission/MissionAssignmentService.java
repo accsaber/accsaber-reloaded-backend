@@ -16,8 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -42,10 +41,14 @@ import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class MissionAssignmentService {
 
-    private static final Logger log = LoggerFactory.getLogger(MissionAssignmentService.class);
     private static final int DAILY_MISSION_COUNT = 2;
     private static final String OVERALL_CODE = "overall";
 
@@ -59,32 +62,10 @@ public class MissionAssignmentService {
     private final MissionBuilderService builderService;
     private final MissionRolloverService rolloverService;
     private final TransactionTemplate transactionTemplate;
-    private final Executor backfillExecutor;
 
-    public MissionAssignmentService(
-            UserRepository userRepository,
-            UserCategorySkillRepository skillRepository,
-            UserCategoryStatisticsRepository statsRepository,
-            ScoreRepository scoreRepository,
-            MissionTemplateRepository templateRepository,
-            UserMissionRepository userMissionRepository,
-            ItemRepository itemRepository,
-            MissionBuilderService builderService,
-            MissionRolloverService rolloverService,
-            TransactionTemplate transactionTemplate,
-            @Qualifier("backfillExecutor") Executor backfillExecutor) {
-        this.userRepository = userRepository;
-        this.skillRepository = skillRepository;
-        this.statsRepository = statsRepository;
-        this.scoreRepository = scoreRepository;
-        this.templateRepository = templateRepository;
-        this.userMissionRepository = userMissionRepository;
-        this.itemRepository = itemRepository;
-        this.builderService = builderService;
-        this.rolloverService = rolloverService;
-        this.transactionTemplate = transactionTemplate;
-        this.backfillExecutor = backfillExecutor;
-    }
+    @Autowired
+    @Qualifier("backfillExecutor")
+    private Executor backfillExecutor;
 
     @Scheduled(cron = "${accsaber.scheduler.mission-daily-cron:0 0 4 * * *}")
     public void runDailyCron() {

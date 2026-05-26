@@ -13,8 +13,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -33,10 +31,14 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class MissionBuilderService {
 
-    private static final Logger log = LoggerFactory.getLogger(MissionBuilderService.class);
     private static final int SNIPE_CANDIDATE_LIMIT = 50;
     private static final String OVERALL_CODE = "overall";
     private static final ThreadLocal<String> LAST_FAIL_REASON = new ThreadLocal<>();
@@ -50,17 +52,6 @@ public class MissionBuilderService {
     private final ScoreRepository scoreRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MissionCalibrationService calibrationService;
-
-    public MissionBuilderService(
-            UserRepository userRepository,
-            ScoreRepository scoreRepository,
-            MapDifficultyRepository mapDifficultyRepository,
-            MissionCalibrationService calibrationService) {
-        this.userRepository = userRepository;
-        this.scoreRepository = scoreRepository;
-        this.mapDifficultyRepository = mapDifficultyRepository;
-        this.calibrationService = calibrationService;
-    }
 
     public UserMission pickAndBuild(MissionAssignmentContext ctx, List<MissionTemplate> pool,
             Instant expiresAt, MissionPool poolType, Random rng, Set<UUID> excludeCategories,
@@ -594,19 +585,14 @@ public class MissionBuilderService {
     private UserMission buildStreakNInCategory(MissionAssignmentContext ctx, MissionTemplate template,
             Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
             MissionPoolCache cache) {
-        Integer topStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
-        if (topStreak == null || topStreak < 3)
+        int reference = representativeUserStreak(ctx.userId(), category.getId(), band);
+        if (reference < 3)
             return failBuild("user-streak-too-low");
         BigDecimal skillLevel = skillLevelFor(ctx, category);
         double skill = skillLevel != null ? skillLevel.doubleValue() : 0.0;
         boolean topTier = skill >= 90.0;
 
-        int targetStreak = switch (band) {
-            case easy -> (int) Math.round(topStreak * 0.50);
-            case medium -> (int) Math.round(topStreak * 0.70);
-            case hard -> (int) Math.round(topStreak * 0.90);
-            case extreme -> topTier ? topStreak + 1 : topStreak;
-        };
+        int targetStreak = band == MissionBand.extreme && topTier ? reference + 1 : reference;
         targetStreak = Math.max(2, targetStreak);
 
         int count = pickCount(template, band, rng);
@@ -624,8 +610,8 @@ public class MissionBuilderService {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
-        Integer userTopStreak = scoreRepository.findMaxStreak115ByUserAndCategoryActive(ctx.userId(), category.getId());
-        if (userTopStreak == null || userTopStreak < 3)
+        int userRepresentativeStreak = representativeUserStreak(ctx.userId(), category.getId(), band);
+        if (userRepresentativeStreak < 3)
             return failBuild("user-streak-too-low");
         BigDecimal streakThreshold = liftedThreshold(ctx, category, skill.getRawApForOneGain());
         MapPick pick = sampleEligibleMap(category, streakThreshold,
@@ -648,7 +634,7 @@ public class MissionBuilderService {
                 complexityFactor = 0.75;
             else
                 complexityFactor = 0.95;
-            reference = Math.max(2, (int) Math.round(userTopStreak * complexityFactor));
+            reference = Math.max(2, (int) Math.round(userRepresentativeStreak * complexityFactor));
         }
         BigDecimal skillLvl = skillLevelFor(ctx, category);
         boolean topTier = (skillLvl != null ? skillLvl.doubleValue() : 0.0) >= 90.0;
@@ -660,7 +646,7 @@ public class MissionBuilderService {
             case extreme -> topTier ? reference + 1 : reference;
         };
 
-        int userCap = userTopStreak + 2;
+        int userCap = userRepresentativeStreak + 2;
         targetStreak = Math.min(targetStreak, userCap);
         targetStreak = Math.max(2, targetStreak);
 
@@ -850,6 +836,21 @@ public class MissionBuilderService {
         return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
     }
 
+    private int representativeUserStreak(Long userId, java.util.UUID categoryId, MissionBand band) {
+        List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategory(
+                userId, categoryId, PageRequest.of(0, 10));
+        if (top.isEmpty())
+            return 0;
+        int max = top.get(0);
+        int effectiveTop = (top.size() >= 2 && max > top.get(1) * 1.5) ? top.get(1) : max;
+        return switch (band) {
+            case easy -> top.get(Math.min(5, top.size() - 1));
+            case medium -> top.get(Math.min(3, top.size() - 1));
+            case hard -> top.get(Math.min(1, top.size() - 1));
+            case extreme -> effectiveTop;
+        };
+    }
+
     private BigDecimal mapWrFloorForBand(MissionBand band) {
         return switch (band) {
             case easy -> new BigDecimal("0.80");
@@ -864,8 +865,8 @@ public class MissionBuilderService {
             return skillAnchored;
         if (skillAnchored == null)
             return mapTarget;
-        BigDecimal mapWeighted = mapTarget.multiply(new BigDecimal("0.60"));
-        BigDecimal skillWeighted = skillAnchored.multiply(new BigDecimal("0.40"));
+        BigDecimal mapWeighted = mapTarget.multiply(new BigDecimal("0.70"));
+        BigDecimal skillWeighted = skillAnchored.multiply(new BigDecimal("0.30"));
         return mapWeighted.add(skillWeighted);
     }
 
@@ -884,10 +885,10 @@ public class MissionBuilderService {
             }
         }
         int rankShift = switch (band) {
-            case easy -> Math.max(1, size / 30);
+            case easy -> Math.max(1, (int) Math.round(naturalIdx * 0.10));
             case medium -> 0;
-            case hard -> -Math.max(2, size / 20);
-            case extreme -> -Math.max(5, size / 10);
+            case hard -> -Math.max(2, (int) Math.round(naturalIdx * 0.30));
+            case extreme -> -Math.max(3, (int) Math.round(naturalIdx * 0.50));
         };
         int targetIdx = Math.max(0, Math.min(size - 1, naturalIdx + rankShift));
         return (BigDecimal) rows.get(targetIdx)[0];

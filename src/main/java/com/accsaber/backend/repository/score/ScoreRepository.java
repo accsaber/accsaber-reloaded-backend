@@ -266,15 +266,17 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("before") Instant before);
 
         @Query("""
-                        SELECT COALESCE(MAX(s.streak115), 0) FROM Score s
+                        SELECT s.streak115 FROM Score s
                         WHERE s.user.id = :userId
                           AND s.mapDifficulty.category.id = :categoryId
                           AND s.active = true
                           AND s.streak115 IS NOT NULL
+                        ORDER BY s.streak115 DESC
                         """)
-        Integer findMaxStreak115ByUserAndCategoryActive(
+        List<Integer> findTopStreak115ValuesByUserAndCategory(
                         @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId);
+                        @Param("categoryId") java.util.UUID categoryId,
+                        org.springframework.data.domain.Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
