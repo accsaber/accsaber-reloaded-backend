@@ -22,7 +22,10 @@ import lombok.RequiredArgsConstructor;
 public class MissionTargetService {
 
     private static final BigDecimal WR_DENSITY_THRESHOLD = new BigDecimal("0.85");
-    private static final double WR_DENSITY_SLOPE = 0.20;
+    private static final double WR_DENSITY_SLOPE = 0.40;
+    private static final double CLIMB_GAP_THRESHOLD = 0.03;
+    private static final double CLIMB_GAP_SLOPE = 0.70;
+    private static final double DAMPEN_FLOOR = 0.90;
     private static final BigDecimal MAP_BLEND_WEIGHT = new BigDecimal("0.70");
     private static final BigDecimal SKILL_BLEND_WEIGHT = new BigDecimal("0.30");
 
@@ -96,7 +99,7 @@ public class MissionTargetService {
     }
 
     public BigDecimal applyLeaderboardDensityDampener(BigDecimal targetRawAp, MissionBand band,
-            MapPick pick, MissionPoolCache cache) {
+            MapPick pick, MissionPoolCache cache, BigDecimal userCurrentAp) {
         if (targetRawAp == null || targetRawAp.signum() <= 0)
             return targetRawAp;
         if (band != MissionBand.hard && band != MissionBand.extreme)
@@ -104,10 +107,20 @@ public class MissionTargetService {
         BigDecimal wr = cache.mapWrApByDifficulty().get(pick.difficulty().getId());
         if (wr == null || wr.signum() <= 0)
             return targetRawAp;
-        BigDecimal ratio = targetRawAp.divide(wr, 6, java.math.RoundingMode.HALF_UP);
-        if (ratio.compareTo(WR_DENSITY_THRESHOLD) <= 0)
+        double targetRatio = targetRawAp.doubleValue() / wr.doubleValue();
+        if (targetRatio <= WR_DENSITY_THRESHOLD.doubleValue())
             return targetRawAp;
-        double dampen = 1.0 - ratio.subtract(WR_DENSITY_THRESHOLD).doubleValue() * WR_DENSITY_SLOPE;
+        double dampen;
+        if (userCurrentAp != null && userCurrentAp.signum() > 0) {
+            double userRatio = userCurrentAp.doubleValue() / wr.doubleValue();
+            double climbGap = targetRatio - userRatio;
+            if (climbGap <= CLIMB_GAP_THRESHOLD)
+                return targetRawAp;
+            dampen = 1.0 - (climbGap - CLIMB_GAP_THRESHOLD) * CLIMB_GAP_SLOPE;
+        } else {
+            dampen = 1.0 - (targetRatio - WR_DENSITY_THRESHOLD.doubleValue()) * WR_DENSITY_SLOPE;
+        }
+        dampen = Math.max(DAMPEN_FLOOR, dampen);
         return targetRawAp.multiply(BigDecimal.valueOf(dampen));
     }
 

@@ -240,7 +240,8 @@ public class MissionBuilderService {
             targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
             targetRawAp = targetService.capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache,
                     categorySkill);
-            targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache);
+            targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache,
+                    existingAp);
 
             if (existingAp != null && targetRawAp.compareTo(existingAp) <= 0) {
                 lastReason = "target-below-existing-after-caps";
@@ -301,7 +302,7 @@ public class MissionBuilderService {
             computed = targetService.capExtremeAtTopAp(computed, band, skill);
             computed = targetService.capAtMapRealisticCeiling(computed, candidate, scoreCurve, band, cache,
                     categorySkill);
-            computed = targetService.applyLeaderboardDensityDampener(computed, band, candidate, cache);
+            computed = targetService.applyLeaderboardDensityDampener(computed, band, candidate, cache, existingAp);
 
             if (existingAp != null && computed.compareTo(existingAp) <= 0) {
                 lastReason = "target-below-existing-after-caps";
@@ -442,7 +443,7 @@ public class MissionBuilderService {
             BigDecimal lifted = calibrationService.bandLiftedFloorAp(userCurrentAp, candidate.complexity(),
                     scoreCurve, band);
             BigDecimal capped = targetService.capExtremeAtTopAp(lifted, band, skill);
-            capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache);
+            capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache, userCurrentAp);
             if (capped.compareTo(userCurrentAp) <= 0)
                 return null;
             return new SnipeTarget(capped, capped);
@@ -458,7 +459,7 @@ public class MissionBuilderService {
                 userSkillVal, null, band);
         BigDecimal target = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
         target = targetService.capExtremeAtTopAp(target, band, skill);
-        target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache);
+        target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache, null);
         if (target == null)
             return null;
         BigDecimal slack = switch (band) {
@@ -540,7 +541,8 @@ public class MissionBuilderService {
         MapPick pick = new MapPick(chosen.getMapDifficulty(), null, chosen.getMapDifficulty().getMaxScore());
         targetRawAp = targetService.capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(),
                 effectiveBand, cache, skillService.skillLevelFor(ctx, category));
-        targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache);
+        targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache,
+                chosen.getAp());
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
                 effectiveBand, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
