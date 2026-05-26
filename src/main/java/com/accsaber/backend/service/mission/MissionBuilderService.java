@@ -283,6 +283,17 @@ public class MissionBuilderService {
                 lastReason = "no-eligible-map";
                 break;
             }
+            if (skill.getTopAp() != null && skill.getTopAp().signum() > 0) {
+                BigDecimal mapWr = cache.mapWrApByDifficulty().computeIfAbsent(pick.difficulty().getId(), id -> {
+                    BigDecimal val = scoreRepository.findMaxApByMapDifficulty(id);
+                    return val != null ? val : BigDecimal.ZERO;
+                });
+                if (mapWr.signum() > 0
+                        && mapWr.compareTo(skill.getTopAp().multiply(mapWrFloorForBand(band))) < 0) {
+                    lastReason = "map-wr-below-user-tier";
+                    continue;
+                }
+            }
             MissionBand effectiveBand = band;
             Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                     ctx.userId(), pick.difficulty().getId());
@@ -834,17 +845,20 @@ public class MissionBuilderService {
             case easy -> 0.89 + skillAdj * 0.06;
             case medium -> 0.91 + skillAdj * 0.07;
             case hard -> 0.93 + skillAdj * 0.08;
-            case extreme -> 0.92 + skillAdj * 0.12;
+            case extreme -> 0.92 + skillAdj * 0.11;
         };
         return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
     }
 
-    /**
-     * Blends the skill-derived target with the map-derived target.
-     * Map signal is weighted slightly higher (60/40) because it reflects what actual scorers
-     * achieved on this specific map, but skill signal still anchors to the user's portfolio.
-     * If the map signal is missing (no leaderboard data), falls back to skill-anchored only.
-     */
+    private BigDecimal mapWrFloorForBand(MissionBand band) {
+        return switch (band) {
+            case easy -> new BigDecimal("0.80");
+            case medium -> new BigDecimal("0.86");
+            case hard -> new BigDecimal("0.90");
+            case extreme -> new BigDecimal("0.94");
+        };
+    }
+
     private BigDecimal blendSkillAndMapTarget(BigDecimal skillAnchored, BigDecimal mapTarget) {
         if (mapTarget == null)
             return skillAnchored;
@@ -855,12 +869,6 @@ public class MissionBuilderService {
         return mapWeighted.add(skillWeighted);
     }
 
-    /**
-     * Returns the AP at the user's "natural" leaderboard position on this map, shifted by band.
-     * Uses skill_level distribution on the map's leaderboard to estimate where the user fits,
-     * then picks a target rank above (harder) or below (easier) based on band.
-     * Returns null if the map has no scored players with skill data.
-     */
     private BigDecimal mapAwareTarget(java.util.UUID mapDifficultyId, java.util.UUID categoryId,
             double userSkill, MissionBand band) {
         List<Object[]> rows = scoreRepository.findLeaderboardApAndSkill(mapDifficultyId, categoryId);
