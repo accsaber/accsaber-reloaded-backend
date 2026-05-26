@@ -78,8 +78,8 @@ public class MissionTargetService {
         if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
             return targetRawAp;
         double factor = switch (band) {
-            case easy -> 0.96;
-            case medium -> 0.97;
+            case easy -> 0.965;
+            case medium -> 0.975;
             case hard -> 0.98;
             case extreme -> 1.005;
         };

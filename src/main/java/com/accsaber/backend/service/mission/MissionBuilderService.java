@@ -361,8 +361,7 @@ public class MissionBuilderService {
         if (qualifying < 2)
             return failBuild("too-few-qualifying-above-threshold");
         int desiredCount = pickCount(template, band, rng);
-        int maxFeasibleCount = (int) Math.floor(qualifying / 2.0);
-        int count = Math.min(desiredCount, Math.max(1, maxFeasibleCount));
+        int count = Math.min(desiredCount, (int) qualifying);
         if (count <= 0)
             return failBuild("count-clamp-zero");
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category), band, null);
