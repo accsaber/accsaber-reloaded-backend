@@ -303,7 +303,7 @@ public class MissionBuilderService {
                     : null;
             BigDecimal categorySkill = skillLevelFor(ctx, category);
             BigDecimal mapTarget = mapAwareTarget(pick.difficulty().getId(), category.getId(),
-                    categorySkill != null ? categorySkill.doubleValue() : 50.0, effectiveBand);
+                    categorySkill != null ? categorySkill.doubleValue() : 50.0, existingAp, effectiveBand);
             BigDecimal targetRawAp = blendSkillAndMapTarget(skillAnchored, mapTarget);
             if (liftedFloor != null)
                 targetRawAp = targetRawAp.max(liftedFloor);
@@ -356,7 +356,7 @@ public class MissionBuilderService {
                 : null;
         BigDecimal categorySkill = skillLevelFor(ctx, category);
         BigDecimal mapTarget = mapAwareTarget(pick.difficulty().getId(), category.getId(),
-                categorySkill != null ? categorySkill.doubleValue() : 50.0, band);
+                categorySkill != null ? categorySkill.doubleValue() : 50.0, existingAp, band);
         BigDecimal targetRawAp = blendSkillAndMapTarget(skillAnchored, mapTarget);
         if (liftedFloor != null)
             targetRawAp = targetRawAp.max(liftedFloor);
@@ -453,6 +453,17 @@ public class MissionBuilderService {
             MapPick candidate = sampleEligibleMap(category, threshold, bandMult, scoreCurve, rng);
             if (candidate == null)
                 break;
+            if (skill.getTopAp() != null && skill.getTopAp().signum() > 0) {
+                BigDecimal mapWr = cache.mapWrApByDifficulty().computeIfAbsent(candidate.difficulty().getId(),
+                        id -> {
+                            BigDecimal val = scoreRepository.findMaxApByMapDifficulty(id);
+                            return val != null ? val : BigDecimal.ZERO;
+                        });
+                if (mapWr.signum() > 0
+                        && mapWr.compareTo(skill.getTopAp().multiply(mapWrFloorForBand(band))) < 0) {
+                    continue;
+                }
+            }
             Optional<Score> myScore = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                     ctx.userId(), candidate.difficulty().getId());
             int baseline = myScore.map(Score::getScore).orElse(0);
@@ -473,12 +484,12 @@ public class MissionBuilderService {
                 };
                 BigDecimal skillAnchoredSnipe = threshold.multiply(snipeBandFraction);
                 BigDecimal mapTarget = mapAwareTarget(candidate.difficulty().getId(), category.getId(),
-                        userSkillVal, band);
+                        userSkillVal, null, band);
                 targetAp = blendSkillAndMapTarget(skillAnchoredSnipe, mapTarget);
                 targetAp = capExtremeAtTopAp(targetAp, band, skill);
                 BigDecimal candidateApSlack = switch (band) {
-                    case easy -> new BigDecimal("1.01");
-                    case medium -> new BigDecimal("1.02");
+                    case easy -> new BigDecimal("1.00");
+                    case medium -> new BigDecimal("1.01");
                     case hard -> new BigDecimal("1.03");
                     case extreme -> new BigDecimal("1.04");
                 };
@@ -837,7 +848,7 @@ public class MissionBuilderService {
             case easy -> 0.89 + skillAdj * 0.06;
             case medium -> 0.91 + skillAdj * 0.07;
             case hard -> 0.93 + skillAdj * 0.08;
-            case extreme -> 0.92 + skillAdj * 0.11;
+            case extreme -> 0.91 + skillAdj * 0.11;
         };
         return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
     }
@@ -848,7 +859,14 @@ public class MissionBuilderService {
         if (top.isEmpty())
             return 0;
         int max = top.get(0);
-        int effectiveTop = (top.size() >= 2 && max > top.get(1) * 1.5) ? top.get(1) : max;
+        int effectiveTop;
+        if (top.size() >= 4 && max > top.get(3) * 1.5) {
+            effectiveTop = top.get(3);
+        } else if (top.size() >= 2 && max > top.get(1) * 1.5) {
+            effectiveTop = top.get(1);
+        } else {
+            effectiveTop = max;
+        }
         return switch (band) {
             case easy -> top.get(Math.min(5, top.size() - 1));
             case medium -> top.get(Math.min(3, top.size() - 1));
@@ -877,17 +895,27 @@ public class MissionBuilderService {
     }
 
     private BigDecimal mapAwareTarget(java.util.UUID mapDifficultyId, java.util.UUID categoryId,
-            double userSkill, MissionBand band) {
+            double userSkill, BigDecimal userExistingAp, MissionBand band) {
         List<Object[]> rows = scoreRepository.findLeaderboardApAndSkill(mapDifficultyId, categoryId);
         if (rows.isEmpty())
             return null;
         int size = rows.size();
         int naturalIdx = size;
-        for (int i = 0; i < size; i++) {
-            BigDecimal candidateSkill = (BigDecimal) rows.get(i)[1];
-            if (candidateSkill.doubleValue() <= userSkill) {
-                naturalIdx = i;
-                break;
+        if (userExistingAp != null && userExistingAp.signum() > 0) {
+            for (int i = 0; i < size; i++) {
+                BigDecimal candidateAp = (BigDecimal) rows.get(i)[0];
+                if (candidateAp.compareTo(userExistingAp) <= 0) {
+                    naturalIdx = i;
+                    break;
+                }
+            }
+        } else {
+            for (int i = 0; i < size; i++) {
+                BigDecimal candidateSkill = (BigDecimal) rows.get(i)[1];
+                if (candidateSkill.doubleValue() <= userSkill) {
+                    naturalIdx = i;
+                    break;
+                }
             }
         }
         int rankShift = switch (band) {
