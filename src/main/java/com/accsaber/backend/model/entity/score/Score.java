@@ -67,6 +67,9 @@ public class Score {
     @Column(name = "bl_score_id")
     private Long blScoreId;
 
+    @Column(name = "ss_score_id")
+    private Long ssScoreId;
+
     @Column(name = "wall_hits")
     private Integer wallHits;
 

@@ -8,13 +8,7 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreSaberWebSocketMessage {
 
-    private String commandName;
-    private CommandData commandData;
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CommandData {
-        private ScoreSaberScoreResponse score;
-        private ScoreSaberLeaderboardResponse leaderboard;
-    }
+    private ScoreSaberScoreResponse score;
+    private ScoreSaberLeaderboardResponse leaderboard;
+    private ScoreSaberScoreStats scoreStats;
 }

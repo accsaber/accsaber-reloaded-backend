@@ -178,7 +178,7 @@ class ScoreIngestionServiceTest {
                                         .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
                         when(scoreService.submit(any())).thenReturn(buildScoreResponse());
 
-                        ingestionService.handleScoreSaberScore(ssScore, STEAM_ID, "ss_456");
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
 
                         verify(scoreService, never()).submit(any());
 
@@ -197,7 +197,7 @@ class ScoreIngestionServiceTest {
                                         difficulty.getId()))
                                         .thenReturn(Optional.empty());
 
-                        ingestionService.handleScoreSaberScore(ssScore, STEAM_ID, "ss_456");
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
 
                         BeatLeaderScoreResponse blScore = buildBlScore("bl_123", "");
                         when(mapDifficultyRepository.findByBlLeaderboardId("bl_123"))
@@ -217,7 +217,7 @@ class ScoreIngestionServiceTest {
                 void skipsScore_forUnrankedMap() {
                         ScoreSaberScoreResponse ssScore = buildSsScore("");
 
-                        ingestionService.handleScoreSaberScore(ssScore, STEAM_ID, "unranked_999");
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "unranked_999");
 
                         verify(scoreService, never()).submit(any());
                 }
@@ -226,7 +226,7 @@ class ScoreIngestionServiceTest {
                 void skipsScore_withBannedModifier() {
                         ScoreSaberScoreResponse ssScore = buildSsScore("NO");
 
-                        ingestionService.handleScoreSaberScore(ssScore, STEAM_ID, "ss_456");
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
 
                         verify(scoreService, never()).submit(any());
                 }
@@ -254,19 +254,19 @@ class ScoreIngestionServiceTest {
                 return bl;
         }
 
-        private ScoreSaberScoreResponse buildSsScore(String modifiers) {
+        private ScoreSaberScoreResponse buildSsScore(String modifier) {
                 ScoreSaberScoreResponse ss = new ScoreSaberScoreResponse();
                 ss.setId(789012L);
                 ss.setModifiedScore(940000);
-                ss.setBaseScore(890000);
+                ss.setUnmodifiedScore(890000);
                 ss.setRank(7);
                 ss.setMaxCombo(480);
                 ss.setBadCuts(4);
                 ss.setMissedNotes(3);
-                ss.setModifiers(modifiers);
-                ScoreSaberScoreResponse.LeaderboardPlayerInfo info = new ScoreSaberScoreResponse.LeaderboardPlayerInfo();
-                info.setId(String.valueOf(STEAM_ID));
-                ss.setLeaderboardPlayerInfo(info);
+                ss.setMods(modifier == null || modifier.isBlank() ? java.util.List.of() : java.util.List.of(modifier));
+                ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
+                player.setId(String.valueOf(STEAM_ID));
+                ss.setPlayer(player);
                 return ss;
         }
 

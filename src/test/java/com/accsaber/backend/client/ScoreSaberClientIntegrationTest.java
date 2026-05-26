@@ -45,7 +45,7 @@ class ScoreSaberClientIntegrationTest {
             assertThat(player.getId()).isEqualTo(KNOWN_PLAYER_ID);
             assertThat(player.getName()).isNotBlank();
             assertThat(player.getCountry()).isNotBlank();
-            assertThat(player.getProfilePicture()).isNotBlank();
+            assertThat(player.getAvatar()).isNotBlank();
         }
 
         @Test
@@ -58,7 +58,7 @@ class ScoreSaberClientIntegrationTest {
             assertThat(player.getName()).as("name usable as display name")
                     .isNotBlank()
                     .hasSizeLessThanOrEqualTo(255);
-            assertThat(player.getProfilePicture()).as("profilePicture usable as avatar URL")
+            assertThat(player.getAvatar()).as("avatar usable as avatar URL")
                     .startsWith("http");
             assertThat(player.getCountry()).as("country is a valid code")
                     .hasSizeBetween(2, 3)
@@ -81,10 +81,11 @@ class ScoreSaberClientIntegrationTest {
             assertThat(result).isPresent();
             ScoreSaberLeaderboardResponse lb = result.get();
             assertThat(lb.getId()).isEqualTo(Long.parseLong(SS_LEADERBOARD_ID));
-            assertThat(lb.getSongHash()).isEqualToIgnoringCase(EXPECTED_HASH);
-            assertThat(lb.getSongName()).isNotBlank();
-            assertThat(lb.getSongAuthorName()).isNotNull();
-            assertThat(lb.getLevelAuthorName()).isNotBlank();
+            assertThat(lb.getMap()).isNotNull();
+            assertThat(lb.getMap().getHash()).isEqualToIgnoringCase(EXPECTED_HASH);
+            assertThat(lb.getMap().getSongName()).isNotBlank();
+            assertThat(lb.getMap().getSongAuthorName()).isNotNull();
+            assertThat(lb.getMap().getLevelAuthorName()).isNotBlank();
             assertThat(lb.getMaxScore()).isGreaterThan(0);
         }
     }
@@ -97,40 +98,39 @@ class ScoreSaberClientIntegrationTest {
             ScoreSaberScoresPage page = client.getLeaderboardScores(SS_LEADERBOARD_ID, 1);
 
             assertThat(page).isNotNull();
-            assertThat(page.getScores()).isNotEmpty();
+            assertThat(page.getData()).isNotEmpty();
             assertThat(page.getMetadata()).isNotNull();
-            assertThat(page.getMetadata().getTotal()).isGreaterThan(0);
+            assertThat(page.getMetadata().getTotalItems()).isGreaterThan(0);
 
-            for (ScoreSaberScoreResponse score : page.getScores()) {
+            for (ScoreSaberScoreResponse score : page.getData()) {
                 assertThat(score.getId()).as("id").isGreaterThan(0);
-                assertThat(score.getBaseScore()).as("baseScore").isGreaterThan(0);
+                assertThat(score.getUnmodifiedScore()).as("unmodifiedScore").isGreaterThan(0);
                 assertThat(score.getModifiedScore()).as("modifiedScore").isGreaterThan(0);
                 assertThat(score.getRank()).as("rank").isGreaterThan(0);
                 assertThat(score.getMaxCombo()).as("maxCombo").isGreaterThan(0);
-                assertThat(score.getTimeSet()).as("timeSet").isNotBlank();
-                assertThat(score.getModifiers()).as("modifiers").isNotNull();
+                assertThat(score.getCreatedAt()).as("createdAt").isNotBlank();
+                assertThat(score.getMods()).as("mods").isNotNull();
                 assertThat(score.getBadCuts()).as("badCuts").isGreaterThanOrEqualTo(0);
                 assertThat(score.getMissedNotes()).as("missedNotes").isGreaterThanOrEqualTo(0);
 
-                assertThat(score.getLeaderboardPlayerInfo()).as("leaderboardPlayerInfo").isNotNull();
-                assertThat(score.getLeaderboardPlayerInfo().getId()).as("leaderboardPlayerInfo.id").isNotBlank();
-                assertThat(Long.parseLong(score.getLeaderboardPlayerInfo().getId()))
-                        .as("leaderboardPlayerInfo.id parseable as Steam ID")
+                assertThat(score.getPlayer()).as("player").isNotNull();
+                assertThat(score.getPlayer().getId()).as("player.id").isNotBlank();
+                assertThat(Long.parseLong(score.getPlayer().getId()))
+                        .as("player.id parseable as numeric")
                         .isGreaterThan(0);
             }
         }
     }
 
     @Nested
-    class GetRecentScores {
+    class GetLeaderboardScoresSortedByDate {
 
         @Test
         void returnsPageWithScores() {
-            long oneYearAgo = System.currentTimeMillis() / 1000 - 365L * 24 * 3600;
-            ScoreSaberScoresPage page = client.getRecentScores(SS_LEADERBOARD_ID, oneYearAgo);
+            ScoreSaberScoresPage page = client.getLeaderboardScoresSortedByDate(SS_LEADERBOARD_ID, 1);
 
             assertThat(page).isNotNull();
-            assertThat(page.getScores()).isNotNull().isNotEmpty();
+            assertThat(page.getData()).isNotNull().isNotEmpty();
         }
     }
 }

@@ -29,6 +29,7 @@ public class SubmitScoreRequest {
     private Integer rankWhenSet;
 
     private Long blScoreId;
+    private Long ssScoreId;
     private Integer maxCombo;
     private Integer badCuts;
     private Integer misses;

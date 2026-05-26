@@ -8,6 +8,7 @@ import org.java_websocket.handshake.ServerHandshake;
 
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberWebSocketMessage;
 import com.accsaber.backend.service.score.ScoreIngestionService;
+import com.accsaber.backend.util.ScoreSaberWebSocketMessageNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -51,18 +52,16 @@ public class ScoreSaberWebSocketListener extends WebSocketClient {
             return;
         }
         try {
-            ScoreSaberWebSocketMessage wsMessage = objectMapper.readValue(message, ScoreSaberWebSocketMessage.class);
-            if (!"score".equals(wsMessage.getCommandName()) || wsMessage.getCommandData() == null) {
+            ScoreSaberWebSocketMessage wsMessage = ScoreSaberWebSocketMessageNormalizer.normalize(message, objectMapper);
+            var scoreData = wsMessage.getScore();
+            var leaderboard = wsMessage.getLeaderboard();
+            if (scoreData == null || scoreData.getPlayer() == null || scoreData.getPlayer().getId() == null
+                    || leaderboard == null || leaderboard.getId() == null) {
                 return;
             }
-            var scoreData = wsMessage.getCommandData().getScore();
-            var leaderboard = wsMessage.getCommandData().getLeaderboard();
-            if (scoreData == null || scoreData.getLeaderboardPlayerInfo() == null || leaderboard == null) {
-                return;
-            }
-            Long userId = Long.parseLong(scoreData.getLeaderboardPlayerInfo().getId());
+            Long userId = Long.parseLong(scoreData.getPlayer().getId());
             String ssLeaderboardId = String.valueOf(leaderboard.getId());
-            scoreIngestionService.handleScoreSaberScore(scoreData, userId, ssLeaderboardId);
+            scoreIngestionService.handleScoreSaberScore(scoreData, wsMessage.getScoreStats(), userId, ssLeaderboardId);
         } catch (Exception e) {
             log.error("Error processing SS WebSocket message: {}", e.getMessage());
         }

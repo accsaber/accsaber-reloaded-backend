@@ -29,7 +29,7 @@ public class ScoreSaberClient {
     public Optional<ScoreSaberPlayerResponse> getPlayer(String steamId) {
         try {
             return Optional.ofNullable(webClient.get()
-                    .uri("/player/{id}/basic", steamId)
+                    .uri("/v2/players/{id}/basic", steamId)
                     .retrieve()
                     .bodyToMono(ScoreSaberPlayerResponse.class)
                     .retryWhen(rateLimitRetrySpec())
@@ -45,8 +45,24 @@ public class ScoreSaberClient {
     public ScoreSaberScoresPage getLeaderboardScores(String leaderboardId, int page) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/leaderboard/by-id/{id}/scores")
+                        .path("/v2/leaderboards/{id}/scores")
                         .queryParam("page", page)
+                        .queryParam("limit", 100)
+                        .build(leaderboardId))
+                .retrieve()
+                .bodyToMono(ScoreSaberScoresPage.class)
+                .retryWhen(rateLimitRetrySpec())
+                .block();
+    }
+
+    public ScoreSaberScoresPage getLeaderboardScoresSortedByDate(String leaderboardId, int page) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v2/leaderboards/{id}/scores")
+                        .queryParam("page", page)
+                        .queryParam("limit", 100)
+                        .queryParam("sort", "timeSet")
+                        .queryParam("sortDirection", "desc")
                         .build(leaderboardId))
                 .retrieve()
                 .bodyToMono(ScoreSaberScoresPage.class)
@@ -57,7 +73,7 @@ public class ScoreSaberClient {
     public Optional<ScoreSaberLeaderboardResponse> getLeaderboard(String leaderboardId) {
         try {
             return Optional.ofNullable(webClient.get()
-                    .uri("/leaderboard/by-id/{id}/info", leaderboardId)
+                    .uri("/v2/leaderboards/{id}", leaderboardId)
                     .retrieve()
                     .bodyToMono(ScoreSaberLeaderboardResponse.class)
                     .retryWhen(rateLimitRetrySpec())
@@ -67,23 +83,6 @@ public class ScoreSaberClient {
         } catch (Exception e) {
             log.error("Failed to fetch SS leaderboard {}: {}", leaderboardId, e.getMessage());
             return Optional.empty();
-        }
-    }
-
-    public ScoreSaberScoresPage getRecentScores(String leaderboardId, long afterTimestamp) {
-        try {
-            return webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/leaderboard/by-id/{id}/scores")
-                            .queryParam("withMetadata", true)
-                            .build(leaderboardId))
-                    .retrieve()
-                    .bodyToMono(ScoreSaberScoresPage.class)
-                    .retryWhen(rateLimitRetrySpec())
-                    .block();
-        } catch (Exception e) {
-            log.error("Failed to fetch SS recent scores for {}: {}", leaderboardId, e.getMessage());
-            return null;
         }
     }
 
