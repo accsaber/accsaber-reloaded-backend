@@ -93,7 +93,7 @@ public class ScoreImportService {
     private long gapFillPageDelayMs;
 
     @Value("${accsaber.backfill.scoresaber-enabled:true}")
-    private boolean scoreSaberBackfillEnabled;
+    private boolean scoreSaberBackfillEnabled = true;
 
     public void backfillDifficulty(MapDifficulty difficulty) {
         Set<Long> affectedUserIds = importDifficulty(difficulty);
