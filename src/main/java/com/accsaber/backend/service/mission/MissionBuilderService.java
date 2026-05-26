@@ -476,7 +476,13 @@ public class MissionBuilderService {
                         userSkillVal, band);
                 targetAp = blendSkillAndMapTarget(skillAnchoredSnipe, mapTarget);
                 targetAp = capExtremeAtTopAp(targetAp, band, skill);
-                apCap = null;
+                BigDecimal candidateApSlack = switch (band) {
+                    case easy -> new BigDecimal("1.01");
+                    case medium -> new BigDecimal("1.02");
+                    case hard -> new BigDecimal("1.03");
+                    case extreme -> new BigDecimal("1.04");
+                };
+                apCap = targetAp.multiply(candidateApSlack);
             }
             if (targetAp == null)
                 continue;
