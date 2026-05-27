@@ -133,6 +133,9 @@ accsaber:
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
     songsuggest-cron: "0 0 4 * * MON"
+    supporter-debit-cron: "0 30 4 * * *"
+  kofi:
+    verification-token: ${KOFI_VERIFICATION_TOKEN:}
   songsuggest:
     output-path: ${SONGSUGGEST_OUTPUT_PATH:data/songsuggest/leaderboard.json}
   criteria-checker:

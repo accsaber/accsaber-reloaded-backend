@@ -146,13 +146,13 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         JOIN FETCH s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryPaged(
                         @Param("categoryId") UUID categoryId,
@@ -166,14 +166,14 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryPagedWithSearch(
                         @Param("categoryId") UUID categoryId,
@@ -188,14 +188,14 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.country) = LOWER(:country)
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
                         WHERE s.category.id = :categoryId AND s.active = true AND u.active = true AND u.banned = false
                         AND LOWER(u.country) = LOWER(:country)
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryAndCountryPaged(
                         @Param("categoryId") UUID categoryId,
@@ -211,7 +211,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         AND LOWER(u.country) = LOWER(:country)
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
@@ -219,7 +219,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         AND LOWER(u.country) = LOWER(:country)
                         AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryAndCountryPagedWithSearch(
                         @Param("categoryId") UUID categoryId,
@@ -237,7 +237,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM UserCategoryStatistics s
                         JOIN s.user u
@@ -246,7 +246,7 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         AND (:includeInactive = true OR u.playerInactive = false)
-                        AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+                        AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
                         """)
         Page<UserCategoryStatistics> findActiveByCategoryPagedFilteredByUserIds(
                         @Param("categoryId") UUID categoryId,

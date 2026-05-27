@@ -39,6 +39,7 @@ BEATLEADER_OAUTH_REDIRECT_URI=http://localhost:8080/v1/auth/beatleader/callback
 STEAM_OPENID_REALM=http://localhost:8080
 STEAM_OPENID_RETURN_TO=http://localhost:8080/v1/auth/steam/callback
 OAUTH_ALLOWED_RETURN_ORIGINS=http://localhost:5173
+KOFI_VERIFICATION_TOKEN=
 ```
 
 ```bash
@@ -125,6 +126,7 @@ src/main/resources/
 | `STEAM_OPENID_REALM`      | OAuth    | Public backend origin used as the Steam OpenID realm |
 | `STEAM_OPENID_RETURN_TO`  | OAuth    | Backend callback URL for Steam (`{realm}/v1/auth/steam/callback`) |
 | `OAUTH_ALLOWED_RETURN_ORIGINS` | OAuth | Comma-separated frontend origins the OAuth flow may redirect back to |
+| `KOFI_VERIFICATION_TOKEN` | No   | Ko-fi webhook verification token (from `ko-fi.com/manage/webhooks`).|
 
 > **OAuth** vars are required to run the player/staff OAuth login flow. Leave blank to disable OAuth - username/password staff login still works.
 

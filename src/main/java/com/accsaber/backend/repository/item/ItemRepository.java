@@ -41,4 +41,6 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     List<Item> findByType_Key(String typeKey);
 
     List<Item> findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
+
+    Optional<Item> findByType_KeyAndNameAndActiveTrue(String typeKey, String name);
 }

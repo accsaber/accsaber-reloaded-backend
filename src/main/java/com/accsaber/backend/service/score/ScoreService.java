@@ -53,6 +53,8 @@ import com.accsaber.backend.service.stats.StatisticsService;
 import com.accsaber.backend.util.HmdMapper;
 import com.accsaber.backend.util.TimeRangeUtil;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -61,6 +63,9 @@ import lombok.RequiredArgsConstructor;
 public class ScoreService {
 
         private static final int ACCURACY_SCALE = 10;
+
+        @PersistenceContext
+        private EntityManager entityManager;
 
         private final ScoreRepository scoreRepository;
         private final ScoreModifierLinkRepository modifierLinkRepository;
@@ -84,6 +89,7 @@ public class ScoreService {
 
         @Transactional
         public ScoreResponse submit(SubmitScoreRequest request) {
+                acquireSubmitLock(request.getUserId(), request.getMapDifficultyId());
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
                 validateScoreBounds(request, difficulty);
                 User user = loadActiveUser(request.getUserId());
@@ -204,6 +210,7 @@ public class ScoreService {
         }
 
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
+                acquireSubmitLock(request.getUserId(), difficulty.getId());
                 validateScoreBounds(request, difficulty);
                 User user = loadUserForBackfill(request.getUserId());
 
@@ -657,6 +664,14 @@ public class ScoreService {
                 }
                 long prior = scoreRepository.countAttemptsByUserAndDifficulty(userId, mapDifficultyId);
                 request.setPlayCount((int) (prior + 1));
+        }
+
+        private void acquireSubmitLock(Long userId, UUID mapDifficultyId) {
+                String key = userId + ":" + mapDifficultyId;
+                entityManager
+                                .createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))")
+                                .setParameter(1, key)
+                                .getSingleResult();
         }
 
         private Optional<Score> findRecentMatchingPlay(Long userId, UUID mapDifficultyId, Integer scoreNoMods,
