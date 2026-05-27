@@ -53,8 +53,6 @@ import com.accsaber.backend.service.stats.StatisticsService;
 import com.accsaber.backend.util.HmdMapper;
 import com.accsaber.backend.util.TimeRangeUtil;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -63,9 +61,6 @@ import lombok.RequiredArgsConstructor;
 public class ScoreService {
 
         private static final int ACCURACY_SCALE = 10;
-
-        @PersistenceContext
-        private EntityManager entityManager;
 
         private final ScoreRepository scoreRepository;
         private final ScoreModifierLinkRepository modifierLinkRepository;
@@ -667,11 +662,7 @@ public class ScoreService {
         }
 
         private void acquireSubmitLock(Long userId, UUID mapDifficultyId) {
-                String key = userId + ":" + mapDifficultyId;
-                entityManager
-                                .createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))")
-                                .setParameter(1, key)
-                                .getSingleResult();
+                scoreRepository.acquireSubmitLock(userId + ":" + mapDifficultyId);
         }
 
         private Optional<Score> findRecentMatchingPlay(Long userId, UUID mapDifficultyId, Integer scoreNoMods,

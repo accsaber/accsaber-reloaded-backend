@@ -160,6 +160,18 @@ public class SupporterService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<String> findCurrentTierKey(Long userId) {
+        return supporterAccountRepository.findById(userId)
+                .map(SupporterAccount::getCurrentTier)
+                .map(SupporterTier::getTierKey);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isActiveSupporter(Long userId) {
+        return findCurrentTierKey(userId).isPresent();
+    }
+
+    @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<SupporterAccount> findCredits(
             String status, org.springframework.data.domain.Pageable pageable) {
         String normalized = status == null ? "all" : status.toLowerCase();

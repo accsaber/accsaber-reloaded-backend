@@ -17,6 +17,9 @@ import com.accsaber.backend.model.entity.score.Score;
 
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
+        @Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))", nativeQuery = true)
+        Object acquireSubmitLock(@Param("key") String key);
+
         Optional<Score> findByUser_IdAndMapDifficulty_IdAndActiveTrue(Long userId, UUID mapDifficultyId);
 
         @Query("""
