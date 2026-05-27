@@ -64,11 +64,16 @@ class UserServiceTest {
     @Mock
     private ItemService itemService;
 
+    @Mock
+    private com.accsaber.backend.service.supporter.SupporterService supporterService;
+
     @InjectMocks
     private UserService userService;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(supporterService.findCurrentTierKey(org.mockito.ArgumentMatchers.any(Long.class)))
+                .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(duplicateUserService.resolvePrimaryUserId(org.mockito.ArgumentMatchers.any(Long.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         org.mockito.Mockito.lenient().when(levelService.calculateLevel(any()))
