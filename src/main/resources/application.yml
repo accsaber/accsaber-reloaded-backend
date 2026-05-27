@@ -110,7 +110,7 @@ accsaber:
     startup-mode: gap-fill # full | gap-fill
     gap-fill-days: 2
     gap-fill-page-delay-ms: 125
-    scoresaber-enabled: false
+    scoresaber-enabled: true
   complexity-estimate:
     ap-target: ${COMPLEXITY_AP_TARGET}
     accuracy-shift: ${COMPLEXITY_ACCURACY_SHIFT}
