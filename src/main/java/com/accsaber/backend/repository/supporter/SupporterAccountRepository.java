@@ -1,6 +1,7 @@
 package com.accsaber.backend.repository.supporter;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -19,6 +20,10 @@ public interface SupporterAccountRepository extends JpaRepository<SupporterAccou
     List<SupporterAccount> findActiveTiersDueForDebit(@Param("cutoff") Instant cutoff);
 
     List<SupporterAccount> findByCurrentTierIsNotNull();
+
+    @Query("SELECT a FROM SupporterAccount a JOIN FETCH a.currentTier "
+            + "WHERE a.userId IN :userIds AND a.currentTier IS NOT NULL")
+    List<SupporterAccount> findActiveByUserIds(@Param("userIds") Collection<Long> userIds);
 
     @Query(value = "SELECT a FROM SupporterAccount a JOIN FETCH a.user u WHERE a.lifetimeSupportedCents > 0 "
             + "AND (:status = 'all' "

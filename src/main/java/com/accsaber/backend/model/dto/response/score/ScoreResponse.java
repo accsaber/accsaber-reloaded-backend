@@ -59,4 +59,7 @@ public class ScoreResponse {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private MyScoreSummary myScore;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String supporterTier;
 }

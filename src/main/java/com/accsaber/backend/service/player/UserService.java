@@ -63,6 +63,7 @@ public class UserService {
     private final UserRelationService userRelationService;
     private final UserSettingsService userSettingsService;
     private final ItemService itemService;
+    private final com.accsaber.backend.service.supporter.SupporterService supporterService;
 
     @Autowired
     @Lazy
@@ -281,6 +282,7 @@ public class UserService {
                 .lastActiveTime(latestScore.map(Score::getTimeSet).orElse(null))
                 .createdAt(user.getCreatedAt())
                 .relations(userRelationService.countsFor(user.getId(), isSelf, canSeeFollowing, canSeeRivals))
+                .supporterTier(supporterService.findCurrentTierKey(user.getId()).orElse(null))
                 .build();
     }
 

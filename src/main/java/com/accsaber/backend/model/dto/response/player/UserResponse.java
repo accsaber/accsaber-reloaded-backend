@@ -45,4 +45,7 @@ public class UserResponse {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     UserRelationCounts relations;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    String supporterTier;
 }

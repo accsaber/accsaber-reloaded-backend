@@ -172,6 +172,16 @@ public class SupporterService {
     }
 
     @Transactional(readOnly = true)
+    public java.util.Map<Long, String> findCurrentTiersByUserIds(java.util.Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) return java.util.Map.of();
+        java.util.Map<Long, String> result = new java.util.HashMap<>();
+        for (SupporterAccount a : supporterAccountRepository.findActiveByUserIds(userIds)) {
+            result.put(a.getUserId(), a.getCurrentTier().getTierKey());
+        }
+        return result;
+    }
+
+    @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<SupporterAccount> findCredits(
             String status, org.springframework.data.domain.Pageable pageable) {
         String normalized = status == null ? "all" : status.toLowerCase();
@@ -318,7 +328,7 @@ public class SupporterService {
                 continue;
             }
             itemService.awardSystem(userId, item.get().getId(), ItemSource.supporter_tier, tierKey,
-                    "Ko-fi supporter (" + tierKey + ")");
+                    "Supported the platform through Ko-fi.");
         }
     }
 

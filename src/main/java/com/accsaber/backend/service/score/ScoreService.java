@@ -81,6 +81,7 @@ public class ScoreService {
         private final LevelUpAwardService levelUpAwardService;
         private final ApplicationEventPublisher eventPublisher;
         private final TransactionTemplate transactionTemplate;
+        private final com.accsaber.backend.service.supporter.SupporterService supporterService;
 
         @Transactional
         public ScoreResponse submit(SubmitScoreRequest request) {
@@ -547,9 +548,14 @@ public class ScoreService {
                         scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
                                         mapDifficultyId, effective);
                 }
+                java.util.List<Long> userIds = scores.getContent().stream()
+                                .map(s -> s.getUser().getId())
+                                .toList();
+                java.util.Map<Long, String> tiers = supporterService.findCurrentTiersByUserIds(userIds);
                 return scores.map(s -> toResponse(s,
                                 computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                loadModifierIds(s.getId())));
+                                loadModifierIds(s.getId()))
+                                .toBuilder().supporterTier(tiers.get(s.getUser().getId())).build());
         }
 
         public ScoresAroundResponse findScoresAround(UUID mapDifficultyId, Long userId, int above, int below) {

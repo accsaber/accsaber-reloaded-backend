@@ -23,4 +23,5 @@ public class XpLeaderboardResponse {
     private Integer level;
     private boolean playerInactive;
     private Integer rankingLastWeek;
+    private String supporterTier;
 }
