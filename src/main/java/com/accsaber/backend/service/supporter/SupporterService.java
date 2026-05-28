@@ -154,6 +154,47 @@ public class SupporterService {
         claimByAdmin(kofiTransactionId, userId);
     }
 
+    @Transactional
+    public KofiEvent grantManually(Long userId, int amountCents, String tierName,
+            KofiEventType type, String fromName, String email, String note) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (resolveTierByName(tierName).isEmpty()) {
+            throw new IllegalArgumentException("Unknown supporter tier: " + tierName);
+        }
+
+        Instant now = Instant.now();
+        String txnId = "manual-" + UUID.randomUUID();
+
+        com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("manual", true);
+        payload.put("grantedAt", now.toString());
+        if (note != null && !note.isBlank()) payload.put("note", note);
+        if (fromName != null && !fromName.isBlank()) payload.put("from_name", fromName);
+
+        KofiEvent event = KofiEvent.builder()
+                .kofiTransactionId(txnId)
+                .type(type != null ? type : KofiEventType.donation)
+                .email(email)
+                .fromName(fromName)
+                .amountCents(amountCents)
+                .currency("USD")
+                .tierName(tierName)
+                .subscription(type == KofiEventType.subscription)
+                .firstSubscription(type == KofiEventType.subscription)
+                .payload(payload)
+                .claimedUser(user)
+                .claimedAt(now)
+                .claimSource(KofiClaimSource.admin_assign)
+                .build();
+        KofiEvent saved = kofiEventRepository.save(event);
+
+        applyEntitlement(userId, amountCents, tierName);
+        log.info("Manual supporter grant: user {} tier {} amount {}c (txn {})",
+                userId, tierName, amountCents, txnId);
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public SupporterAccount findAccount(Long userId) {
         return supporterAccountRepository.findById(userId).orElse(null);
