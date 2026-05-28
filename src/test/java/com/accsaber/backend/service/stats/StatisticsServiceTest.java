@@ -38,6 +38,7 @@ import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -63,6 +64,8 @@ class StatisticsServiceTest {
         private UserMilestoneLinkRepository userMilestoneLinkRepository;
         @Mock
         private UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
+        @Mock
+        private UserMissionRepository userMissionRepository;
         @Mock
         private DuplicateUserService duplicateUserService;
         @Mock
@@ -116,6 +119,8 @@ class StatisticsServiceTest {
                 lenient().when(userMilestoneLinkRepository.sumMilestoneXpGainedLast24h(any()))
                                 .thenReturn(BigDecimal.ZERO);
                 lenient().when(userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(any()))
+                                .thenReturn(BigDecimal.ZERO);
+                lenient().when(userMissionRepository.sumMissionXpGainedLast24h(any()))
                                 .thenReturn(BigDecimal.ZERO);
         }
 

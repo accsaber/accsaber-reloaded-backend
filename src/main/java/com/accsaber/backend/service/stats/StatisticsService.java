@@ -25,6 +25,7 @@ import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
@@ -52,6 +53,7 @@ public class StatisticsService {
     private final OverallStatisticsService overallStatisticsService;
     private final UserMilestoneLinkRepository userMilestoneLinkRepository;
     private final UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
+    private final UserMissionRepository userMissionRepository;
 
     private DuplicateUserService duplicateUserService;
 
@@ -138,6 +140,7 @@ public class StatisticsService {
                 .totalScoreXp(scoreRepository.sumXpGainedByUserId(resolved))
                 .totalMilestoneXp(userMilestoneLinkRepository.sumCompletedMilestoneXpByUserId(resolved))
                 .totalMilestoneSetBonusXp(userMilestoneSetBonusRepository.sumSetBonusXpByUserId(resolved))
+                .totalMissionXp(user.getMissionXp())
                 .categories(findCategoryStatsByUser(userId))
                 .build();
     }
@@ -179,9 +182,11 @@ public class StatisticsService {
         BigDecimal scoreXpDiff = scoreRepository.sumXpGainedByUserIdSince(resolved, since);
         BigDecimal milestoneXpDiff = userMilestoneLinkRepository.sumMilestoneXpGainedLast24h(resolved);
         BigDecimal milestoneSetBonusXpDiff = userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(resolved);
+        BigDecimal missionXpDiff = userMissionRepository.sumMissionXpGainedLast24h(resolved);
         boolean hasAnyXp = scoreXpDiff.compareTo(BigDecimal.ZERO) > 0
                 || milestoneXpDiff.compareTo(BigDecimal.ZERO) > 0
-                || milestoneSetBonusXpDiff.compareTo(BigDecimal.ZERO) > 0;
+                || milestoneSetBonusXpDiff.compareTo(BigDecimal.ZERO) > 0
+                || missionXpDiff.compareTo(BigDecimal.ZERO) > 0;
 
         Optional<UserCategoryStatistics> baseOpt = statisticsRepository
                 .findLatestBeforeLastDay(resolved, categoryCode);
@@ -194,6 +199,7 @@ public class StatisticsService {
                         .scoreXpDiff(scoreXpDiff)
                         .milestoneXpDiff(milestoneXpDiff)
                         .milestoneSetBonusXpDiff(milestoneSetBonusXpDiff)
+                        .missionXpDiff(missionXpDiff)
                         .from(since)
                         .to(Instant.now())
                         .build());
@@ -210,6 +216,7 @@ public class StatisticsService {
                 .scoreXpDiff(scoreXpDiff)
                 .milestoneXpDiff(milestoneXpDiff)
                 .milestoneSetBonusXpDiff(milestoneSetBonusXpDiff)
+                .missionXpDiff(missionXpDiff)
                 .averageAccDiff(diffNullable(latest.getAverageAcc(), base.getAverageAcc()))
                 .averageApDiff(diffNullable(latest.getAverageAp(), base.getAverageAp()))
                 .rankingDiff(diffNullableInt(latest.getRanking(), base.getRanking()))

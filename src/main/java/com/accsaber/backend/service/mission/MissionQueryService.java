@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.mission;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -20,11 +21,11 @@ public class MissionQueryService {
     private final UserMissionRepository userMissionRepository;
 
     public List<UserMission> listActive(Long userId) {
-        return userMissionRepository.findAllActiveByUser(userId);
+        return userMissionRepository.findCurrentByUser(userId, Instant.now());
     }
 
     public List<UserMission> listActiveByPool(Long userId, MissionPool pool) {
-        return userMissionRepository.findByUser_IdAndPoolAndStatus(userId, pool, MissionStatus.active);
+        return userMissionRepository.findCurrentByUserAndPool(userId, pool, Instant.now());
     }
 
     public List<UserMission> listCompleted(Long userId) {

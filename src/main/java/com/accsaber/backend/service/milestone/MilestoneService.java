@@ -294,20 +294,13 @@ public class MilestoneService {
         });
     }
 
+    @org.springframework.cache.annotation.Cacheable(
+            value = "statistics",
+            key = "'milestoneholders:' + #milestoneId + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
     public Page<MilestoneHolderResponse> findMilestoneHolders(UUID milestoneId, Pageable pageable) {
         milestoneRepository.findByIdAndActiveTrueAndStatusActive(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", milestoneId));
-        return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable)
-                .map(link -> {
-                    var user = link.getUser();
-                    return MilestoneHolderResponse.builder()
-                            .userId(user.getId())
-                            .name(user.getName())
-                            .avatarUrl(user.getAvatarUrl())
-                            .country(user.getCountry())
-                            .completedAt(link.getCompletedAt())
-                            .build();
-                });
+        return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable);
     }
 
     @Transactional
