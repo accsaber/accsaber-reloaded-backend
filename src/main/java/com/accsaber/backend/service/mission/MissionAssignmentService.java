@@ -27,7 +27,6 @@ import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.MissionBand;
 import com.accsaber.backend.model.entity.mission.MissionPool;
-import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.user.User;
@@ -113,10 +112,10 @@ public class MissionAssignmentService {
             try {
                 MissionPoolCache cache = loadPoolCache();
                 transactionTemplate.executeWithoutResult(s -> {
-                    if (!hasActive(userId, MissionPool.daily)) {
+                    if (!hasCurrentCycle(userId, MissionPool.daily)) {
                         assignForUser(userId, MissionPool.daily, cache, false);
                     }
-                    if (!hasActive(userId, MissionPool.weekly)) {
+                    if (!hasCurrentCycle(userId, MissionPool.weekly)) {
                         assignForUser(userId, MissionPool.weekly, cache, false);
                     }
                 });
@@ -128,14 +127,14 @@ public class MissionAssignmentService {
 
     @Transactional
     public void assignDailyIfMissing(Long userId) {
-        if (hasActive(userId, MissionPool.daily))
+        if (hasCurrentCycle(userId, MissionPool.daily))
             return;
         assignForUser(userId, MissionPool.daily, loadPoolCache(), false);
     }
 
     @Transactional
     public void assignWeeklyIfMissing(Long userId) {
-        if (hasActive(userId, MissionPool.weekly))
+        if (hasCurrentCycle(userId, MissionPool.weekly))
             return;
         assignForUser(userId, MissionPool.weekly, loadPoolCache(), false);
     }
@@ -146,8 +145,8 @@ public class MissionAssignmentService {
         return assignForUser(userId, pool, loadPoolCache(), true);
     }
 
-    private boolean hasActive(Long userId, MissionPool pool) {
-        return userMissionRepository.countByUser_IdAndPoolAndStatus(userId, pool, MissionStatus.active) > 0;
+    private boolean hasCurrentCycle(Long userId, MissionPool pool) {
+        return userMissionRepository.countByUser_IdAndPoolAndExpiresAtAfter(userId, pool, Instant.now()) > 0;
     }
 
     private MissionPoolCache loadPoolCache() {

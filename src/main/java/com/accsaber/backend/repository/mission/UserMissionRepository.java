@@ -31,6 +31,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
 
         long countByUser_IdAndPoolAndStatus(Long userId, MissionPool pool, MissionStatus status);
 
+        long countByUser_IdAndPoolAndExpiresAtAfter(Long userId, MissionPool pool, Instant now);
+
         @Query("""
                         SELECT m FROM UserMission m
                         WHERE m.user.id = :userId
