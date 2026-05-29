@@ -290,11 +290,19 @@ public class SupporterService {
             account.setBalanceCents(balance - cost);
             account.setLastDebitAt(Instant.now());
         } else {
-            log.info("Supporter account {} balance {}c < tier cost {}c, revoking tier {}",
-                    account.getUserId(), balance, cost, account.getCurrentTier().getTierKey());
-            account.setCurrentTier(null);
-            account.setTierStartedAt(null);
-            account.setLastDebitAt(null);
+            Optional<SupporterTier> downgrade = highestAffordableTier(balance);
+            if (downgrade.isPresent()) {
+                log.info("Supporter account {} balance {}c < tier cost {}c, downgrading {} -> {}",
+                        account.getUserId(), balance, cost,
+                        account.getCurrentTier().getTierKey(), downgrade.get().getTierKey());
+                startTier(account, downgrade.get(), balance);
+            } else {
+                log.info("Supporter account {} balance {}c < tier cost {}c, revoking tier {}",
+                        account.getUserId(), balance, cost, account.getCurrentTier().getTierKey());
+                account.setCurrentTier(null);
+                account.setTierStartedAt(null);
+                account.setLastDebitAt(null);
+            }
         }
         supporterAccountRepository.save(account);
     }
