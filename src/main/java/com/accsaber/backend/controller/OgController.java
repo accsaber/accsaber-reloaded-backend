@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.service.og.OgService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,8 +29,12 @@ public class OgController {
         return ResponseEntity.ok(ogService.buildPlayerOg(userId));
     }
 
-    @GetMapping(value = "/maps/{mapId}", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> mapOg(@PathVariable UUID mapId, @RequestParam(required = false) UUID difficultyId) {
-        return ResponseEntity.ok(ogService.buildMapOg(mapId, difficultyId));
+    @GetMapping(value = "/maps/{mapIdOrCode}", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> mapOg(
+            @PathVariable String mapIdOrCode,
+            @RequestParam(required = false) UUID difficultyId,
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false) String characteristic) {
+        return ResponseEntity.ok(ogService.buildMapOg(mapIdOrCode, difficultyId, difficulty, characteristic));
     }
 }
