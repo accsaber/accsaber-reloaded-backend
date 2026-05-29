@@ -8,21 +8,26 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import com.accsaber.backend.model.dto.response.mission.MissionCompletedResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
@@ -39,6 +44,8 @@ public class MissionProgressService {
     private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${accsaber.missions.enabled:false}")
     private boolean missionsEnabled;
@@ -218,6 +225,40 @@ public class MissionProgressService {
                 log.warn("Failed to award crate for mission {}: {}", mission.getId(), e.getMessage());
             }
         }
+
+        publishCompletionEvent(userId, mission);
+    }
+
+    private void publishCompletionEvent(Long userId, UserMission mission) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null)
+            return;
+
+        MissionCompletedResponse payload = MissionCompletedResponse.builder()
+                .userId(userId)
+                .userName(user.getName())
+                .userCountry(user.getCountry())
+                .userAvatarUrl(user.getAvatarUrl())
+                .completedAt(mission.getCompletedAt())
+                .missionId(mission.getId())
+                .templateId(mission.getTemplate() != null ? mission.getTemplate().getId() : null)
+                .templateCode(mission.getTemplate() != null ? mission.getTemplate().getCode() : null)
+                .templateName(mission.getTemplate() != null ? mission.getTemplate().getName() : null)
+                .templateDescription(mission.getTemplate() != null ? mission.getTemplate().getDescription() : null)
+                .type(mission.getTemplate() != null && mission.getTemplate().getType() != null
+                        ? mission.getTemplate().getType().name() : null)
+                .pool(mission.getPool() != null ? mission.getPool().name() : null)
+                .band(mission.getBand() != null ? mission.getBand().name() : null)
+                .categoryId(mission.getCategory() != null ? mission.getCategory().getId() : null)
+                .categoryCode(mission.getCategory() != null ? mission.getCategory().getCode() : null)
+                .targetMapDifficultyId(mission.getTargetMapDifficulty() != null
+                        ? mission.getTargetMapDifficulty().getId() : null)
+                .xpAwarded(mission.getXpReward() != null ? BigDecimal.valueOf(mission.getXpReward()) : null)
+                .itemAwardedId(mission.isItemAwarded() && mission.getItemReward() != null
+                        ? mission.getItemReward().getId() : null)
+                .build();
+
+        eventPublisher.publishEvent(new MissionCompletedEvent(payload));
     }
 
 }
