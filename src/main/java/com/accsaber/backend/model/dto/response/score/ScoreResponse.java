@@ -22,12 +22,14 @@ public class ScoreResponse {
     private String country;
     private UUID mapDifficultyId;
     private UUID mapId;
+    private String beatsaverCode;
     private String songHash;
     private String songName;
     private String songAuthor;
     private String mapAuthor;
     private String coverUrl;
     private Difficulty difficulty;
+    private String characteristic;
     private UUID categoryId;
     private Integer score;
     private Integer scoreNoMods;
