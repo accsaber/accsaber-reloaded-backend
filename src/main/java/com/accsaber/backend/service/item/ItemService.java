@@ -349,9 +349,13 @@ public class ItemService {
         if (item == null || item.isDeprecated())
             return;
 
-        if (!item.isStackable()
-                && userItemLinkRepository.existsByUser_IdAndItem_IdAndSourceAndSourceId(
-                        resolved, itemId, source, sourceId)) {
+        if (!item.isStackable()) {
+            if (userItemLinkRepository.existsByUser_IdAndItem_IdAndSourceAndSourceId(
+                    resolved, itemId, source, sourceId)) {
+                return;
+            }
+            insertLink(resolved, item, Set.of(loadModifier(ItemModifier.NORMAL)),
+                    null, 1L, source, sourceId, null, reason);
             return;
         }
 
