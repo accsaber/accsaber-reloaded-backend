@@ -95,7 +95,7 @@ public class UserMissionResponse {
         return ap == null ? null : ap.setScale(0, RoundingMode.HALF_UP);
     }
 
-    private static String renderDescription(UserMission m) {
+    public static String renderDescription(UserMission m) {
         String tpl = m.getTemplate().getDescription();
         if (tpl == null || tpl.isBlank())
             return tpl;

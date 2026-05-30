@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.websocket.server.ScoreFeedWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -30,8 +31,12 @@ public class ScoreBroadcastService {
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onScoreSubmitted(ScoreSubmittedEvent event) {
+        ScoreResponse score = event.score();
+        if (score == null || score.isPartial() || !score.isActive()) {
+            return;
+        }
         try {
-            String json = MAPPER.writeValueAsString(event.score());
+            String json = MAPPER.writeValueAsString(score);
             scoreFeedHandler.broadcast(json);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize score for broadcast: {}", e.getMessage());

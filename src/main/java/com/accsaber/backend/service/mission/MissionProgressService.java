@@ -16,6 +16,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.model.dto.response.mission.MissionCompletedResponse;
+import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
@@ -244,7 +245,8 @@ public class MissionProgressService {
                 .templateId(mission.getTemplate() != null ? mission.getTemplate().getId() : null)
                 .templateCode(mission.getTemplate() != null ? mission.getTemplate().getCode() : null)
                 .templateName(mission.getTemplate() != null ? mission.getTemplate().getName() : null)
-                .templateDescription(mission.getTemplate() != null ? mission.getTemplate().getDescription() : null)
+                .templateDescription(mission.getTemplate() != null
+                        ? UserMissionResponse.renderDescription(mission) : null)
                 .type(mission.getTemplate() != null && mission.getTemplate().getType() != null
                         ? mission.getTemplate().getType().name() : null)
                 .pool(mission.getPool() != null ? mission.getPool().name() : null)
