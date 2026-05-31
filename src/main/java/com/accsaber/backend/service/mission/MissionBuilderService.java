@@ -244,7 +244,7 @@ public class MissionBuilderService {
             targetRawAp = targetRawAp.max(skillAnchored.multiply(targetService.skillFloorFraction(effectiveBand)));
             if (liftedFloor != null)
                 targetRawAp = targetRawAp.max(liftedFloor);
-            targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
+            targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill, categorySkill);
             targetRawAp = targetService.capAtMapRealisticCeiling(targetRawAp, pick, scoreCurve, effectiveBand, cache,
                     categorySkill);
             targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache,
@@ -307,7 +307,7 @@ public class MissionBuilderService {
             computed = computed.max(skillAnchored.multiply(targetService.skillFloorFraction(band)));
             if (liftedFloor != null)
                 computed = computed.max(liftedFloor);
-            computed = targetService.capExtremeAtTopAp(computed, band, skill);
+            computed = targetService.capExtremeAtTopAp(computed, band, skill, categorySkill);
             computed = targetService.capAtMapRealisticCeiling(computed, candidate, scoreCurve, band, cache,
                     categorySkill);
             computed = targetService.applyLeaderboardDensityDampener(computed, band, candidate, cache, existingAp);
@@ -361,7 +361,12 @@ public class MissionBuilderService {
         };
         BigDecimal rawThreshold = anchor.multiply(thresholdShift).setScale(0, RoundingMode.HALF_UP);
         BigDecimal topAp = scores.get(0).getAp();
-        BigDecimal hardCap = topAp.multiply(new BigDecimal("0.97")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal categorySkill = skillService.skillLevelFor(ctx, category);
+        BigDecimal baseHardCap = topAp.multiply(new BigDecimal("0.97"));
+        BigDecimal hardCap = (band == MissionBand.extreme
+                ? baseHardCap
+                : targetService.applySkillAwareTopApNerf(baseHardCap, categorySkill))
+                .setScale(0, RoundingMode.HALF_UP);
         BigDecimal threshold = rawThreshold.compareTo(hardCap) > 0 ? hardCap : rawThreshold;
         long qualifying = scores.stream()
                 .filter(s -> s.getAp() != null && s.getAp().compareTo(threshold) >= 0)
@@ -372,7 +377,7 @@ public class MissionBuilderService {
         int count = Math.min(desiredCount, (int) qualifying);
         if (count <= 0)
             return failBuild("count-clamp-zero");
-        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category), band, null);
+        int xp = calibrationService.computeXpReward(template, categorySkill, band, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
                 .targetThresholdAp(threshold)
                 .targetCount(count)
@@ -446,13 +451,14 @@ public class MissionBuilderService {
     private SnipeTarget computeSnipeTarget(MapPick candidate, Curve scoreCurve, BigDecimal threshold,
             MissionBand band, UserCategorySkill skill, BigDecimal userCurrentAp, double userSkillVal,
             Category category, MissionPoolCache cache) {
+        BigDecimal skillLevel = BigDecimal.valueOf(userSkillVal);
         BigDecimal skillAnchored = threshold.multiply(targetService.snipeBandFraction(band));
         BigDecimal skillFloor = skillAnchored.multiply(targetService.skillFloorFraction(band));
         if (userCurrentAp != null && userCurrentAp.signum() > 0) {
             BigDecimal lifted = calibrationService.bandLiftedFloorAp(userCurrentAp, candidate.complexity(),
                     scoreCurve, band);
             BigDecimal capped = lifted.max(skillFloor);
-            capped = targetService.capExtremeAtTopAp(capped, band, skill);
+            capped = targetService.capExtremeAtTopAp(capped, band, skill, skillLevel);
             capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache, userCurrentAp);
             if (capped.compareTo(userCurrentAp) <= 0)
                 return null;
@@ -462,7 +468,7 @@ public class MissionBuilderService {
                 userSkillVal, null, band);
         BigDecimal target = targetService.blendSkillAndMapTarget(skillAnchored, mapTarget);
         target = target.max(skillFloor);
-        target = targetService.capExtremeAtTopAp(target, band, skill);
+        target = targetService.capExtremeAtTopAp(target, band, skill, skillLevel);
         target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache, null);
         if (target == null)
             return null;
@@ -472,7 +478,8 @@ public class MissionBuilderService {
             case hard -> new BigDecimal("1.03");
             case extreme -> new BigDecimal("1.04");
         };
-        return new SnipeTarget(target, target.multiply(slack));
+        BigDecimal apCap = targetService.capExtremeAtTopAp(target.multiply(slack), band, skill, skillLevel);
+        return new SnipeTarget(target, apCap);
     }
 
     private Score pickSnipeCandidate(MapPick pick, Long userId, int baseline, UUID categoryId,
@@ -539,15 +546,15 @@ public class MissionBuilderService {
         BigDecimal bandMult = calibrationService.bandMultiplier(template, effectiveBand);
         BigDecimal targetRawAp = chosen.getAp().multiply(bandMult).max(chosen.getAp().add(BigDecimal.ONE));
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
+        BigDecimal categorySkill = skillService.skillLevelFor(ctx, category);
         if (skill != null)
-            targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill);
+            targetRawAp = targetService.capExtremeAtTopAp(targetRawAp, effectiveBand, skill, categorySkill);
         MapPick pick = new MapPick(chosen.getMapDifficulty(), null, chosen.getMapDifficulty().getMaxScore());
         targetRawAp = targetService.capAtMapRealisticCeiling(targetRawAp, pick, category.getScoreCurve(),
-                effectiveBand, cache, skillService.skillLevelFor(ctx, category));
+                effectiveBand, cache, categorySkill);
         targetRawAp = targetService.applyLeaderboardDensityDampener(targetRawAp, effectiveBand, pick, cache,
                 chosen.getAp());
-        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
-                effectiveBand, null);
+        int xp = calibrationService.computeXpReward(template, categorySkill, effectiveBand, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
                 .targetMapDifficulty(chosen.getMapDifficulty())
                 .targetAp(targetRawAp)

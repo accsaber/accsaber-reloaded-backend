@@ -92,7 +92,8 @@ public class MissionTargetService {
         };
     }
 
-    public BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill) {
+    public BigDecimal capExtremeAtTopAp(BigDecimal targetRawAp, MissionBand band, UserCategorySkill skill,
+            BigDecimal skillLevel) {
         if (skill.getTopAp() == null || skill.getTopAp().signum() <= 0)
             return targetRawAp;
         double factor = switch (band) {
@@ -101,7 +102,21 @@ public class MissionTargetService {
             case hard -> 0.98;
             case extreme -> 1.005;
         };
-        return targetRawAp.min(skill.getTopAp().multiply(BigDecimal.valueOf(factor)));
+        BigDecimal baseCap = skill.getTopAp().multiply(BigDecimal.valueOf(factor));
+        BigDecimal effectiveCap = band == MissionBand.extreme ? baseCap : applySkillAwareTopApNerf(baseCap, skillLevel);
+        return targetRawAp.min(effectiveCap);
+    }
+
+    public BigDecimal applySkillAwareTopApNerf(BigDecimal baseCap, BigDecimal skillLevel) {
+        if (baseCap == null || baseCap.signum() <= 0)
+            return baseCap;
+        double skill = skillLevel != null ? Math.max(0.0, skillLevel.doubleValue()) : 50.0;
+        if (skill >= 70.0)
+            return baseCap;
+        double t = (70.0 - skill) / 70.0;
+        double smoothstep = t * t * (3.0 - 2.0 * t);
+        double adjustment = smoothstep * 0.07;
+        return baseCap.multiply(BigDecimal.valueOf(1.0 - adjustment));
     }
 
     public BigDecimal capAtMapRealisticCeiling(BigDecimal targetRawAp, MapPick pick, Curve scoreCurve,

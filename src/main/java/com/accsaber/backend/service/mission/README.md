@@ -45,7 +45,7 @@ Common stuff every build pulls from the context:
 - **XP_IN_WINDOW** - `rollingDailyXp * bandMultiplier`, floored at 100.
 - **ACC_ON_MAP / AP_ON_MAP** - full map-target pipeline (below). The acc variant converts to acc + score at the end; the AP variant uses the rawAp directly.
 - **PB_SPECIFIC_MAP** - same pipeline, plus a `pbFreshnessBoost` XP bonus if the existing PB is recent.
-- **PB_ABOVE_THRESHOLD** - percentile of the user's own scores (70/45/22/10 for easy/medium/hard/extreme) times a small shift (0.98/1.0/1.015/1.02), capped at 0.97 * topAp. Needs at least 2 qualifying scores or it fails.
+- **PB_ABOVE_THRESHOLD** - percentile of the user's own scores (70/45/22/10 for easy/medium/hard/extreme) times a small shift (0.98/1.0/1.015/1.02), capped at 0.97 * topAp (with the skill-aware nerf described below for easy/medium/hard). Needs at least 2 qualifying scores or it fails.
 - **SNIPE_PLAYER_ON_MAP** - two branches in `computeSnipeTarget` (has-score vs no-score). Candidate filter uses `snipeMaxSkillDistance` (5/8/12/18) to avoid asking you to snipe someone two tiers above.
 - **STREAK_ON_MAP** - `representativeUserStreak * streakTargetFor(band)`, clamped to the map's top streak (or a complexity-based fallback) and `userRepresentativeStreak + 2`. Min 2, max 3 (V62).
 - **STREAK_N_IN_CATEGORY** - same streak logic, plus a count. Extreme + top-tier (skill >= 90) gets `+1` on the streak.
@@ -70,7 +70,7 @@ This runs for ACC_ON_MAP, AP_ON_MAP, PB_SPECIFIC_MAP and (in a slightly differen
 | `target = blendSkillAndMapTarget` | 30% skill / 70% map | map weight dominates so weak maps don't get inflated targets |
 | `target = max(target, skillAnchored * skillFloorFraction(band))` | floor: don't go below skill anchor by too much | fractions 0.935 / 0.95 / 0.965 / 0.975 |
 | `target = max(target, bandLiftedFloorAp(existing, complexity, band))` | only if user has a score | ensures PB missions actually beat the existing PB |
-| `target = capExtremeAtTopAp(target, band, skill)` | hard ceiling vs topAp | factors 0.96 / 0.97 / 0.98 / 1.005 |
+| `target = capExtremeAtTopAp(target, band, skill, skillLevel)` | hard ceiling vs topAp | factors 0.96 / 0.97 / 0.98 / 1.005; for skill < 70 the easy/medium/hard factors get a smoothstep nerf (up to ~7% at skill 0) so a 46-skill player doesn't get told to score 98% of their topAp on a hard map. Extreme is exempt — it should stay the only band that stretches past topAp |
 | `target = capAtMapRealisticCeiling(...)` | skill-aware fraction of map WR | prevents "beat the WR" assignments |
 | `target = applyLeaderboardDensityDampener(...)` | drop if the top of the leaderboard is too dense | only fires on hard/extreme |
 | reject if `target <= existing` OR `target < minMeaningfulTarget` | sanity check | `minMeaningfulTarget` uses `0.70 * topAp` for hard/extreme - anything below that is busywork |
@@ -79,7 +79,7 @@ This runs for ACC_ON_MAP, AP_ON_MAP, PB_SPECIFIC_MAP and (in a slightly differen
 
 Has-score branch: target = `max(bandLiftedFloorAp(userCurrentAp), skillFloor)`, capped + dampened.
 
-No-score branch: blend skill-anchored (`threshold * snipeBandFraction`) with map target, cap. A small slack multiplier (1.0/1.01/1.03/1.04) is allowed on the candidate AP cap so we have a few candidates to pick from.
+No-score branch: blend skill-anchored (`threshold * snipeBandFraction`) with map target, cap. A small slack multiplier (1.0/1.01/1.03/1.04) is allowed on the candidate AP cap so we have a few candidates to pick from - but that inflated cap is then re-clamped by `capExtremeAtTopAp`, so for low-skill players where target already hits the ceiling, slack effectively turns off instead of letting a snipee 5% above their topAp sneak through.
 
 Both branches feed `pickSnipeCandidate`, which ranks viable candidates by closeness to the target AP and picks one of the top 3.
 
@@ -106,7 +106,7 @@ Both branches feed `pickSnipeCandidate`, which ranks viable candidates by closen
 - **`bandLiftedFloorAp` step + headroomFraction** - "improve PB by ~X% normalized" floor. Easy at 0.015 / 0.15 is already a real step; pushing it past 0.05 makes easy feel like hard.
 - **`skillFloorFraction` (0.935/0.95/0.965/0.975)** - floor for map-blended target vs skill-anchored. Lower = more lazy maps slip through, higher = pipeline rejects too many candidates.
 - **`snipeBandFraction` (0.93/0.95/0.97/0.985)** - mirrors `skillFloorFraction` by design. Keep them aligned.
-- **`capExtremeAtTopAp` factors (0.96/0.97/0.98/1.005)** - extreme is intentionally allowed slightly above topAp (1.005). Drop below 1.0 and extreme = "match your current best", which is what we have hard for.
+- **`capExtremeAtTopAp` factors (0.96/0.97/0.98/1.005)** - extreme is intentionally allowed slightly above topAp (1.005). Drop below 1.0 and extreme = "match your current best", which is what we have hard for. There's also a smoothstep skill-aware nerf on easy/medium/hard (`applySkillAwareTopApNerf`, max 7% at skill 0, smoothly tapering to 0 at skill 70) so lower-half players don't get hard missions asking for ~98% of their topAp. The smoothstep means there's no cliff at 70 - drift is tiny up to skill 60 and only really bites under 50. Extreme is exempt by design; if you want lower-skill extreme tuned, tune `EXTREME_BOOST` or the per-template multiplier instead.
 - **`mapWrFloorForBand` (0.80/0.86/0.90/0.94)** - rejects maps where the WR is too far below the user's topAp. Lower = more easy maps assigned to strong players.
 - **`minClimbFractionFor(band)` in snipe** - if you lower these, the "+2 AP snipe classified as extreme" bug comes back.
 - **`pickBand` distribution (30/40/25/5)** - daily band mix. Bumping extreme past 10% gets visibly frustrating in the feedback channel.
@@ -128,10 +128,10 @@ For a known player, dump:
 1. `skillLevel`, `topAp`, `rawApForOneGain` per category
 2. For each active mission: `band`, `targetAp` / `targetAcc`, `mapDifficulty.complexity`, map WR
 3. Check `targetAp / topAp` lands roughly in:
-   - easy: 0.85-0.96
-   - medium: 0.92-0.97
-   - hard: 0.95-0.98
-   - extreme: 0.97-1.005
+   - easy: 0.85-0.96 (skill <70 shaves a couple points off the top - sub-50 players closer to 0.83-0.93)
+   - medium: 0.92-0.97 (same nerf - sub-50 sits closer to 0.90-0.95)
+   - hard: 0.95-0.98 (same nerf - sub-50 sits closer to 0.93-0.96)
+   - extreme: 0.97-1.005 (exempt from the skill nerf, same at any skill)
 
 If extreme is consistently coming out below 0.95, the density dampener or `minMeaningfulTarget` is rejecting the strong candidates and falling back to a soft one - check the `LAST_FAIL_REASON` distribution before tweaking any constant
 
