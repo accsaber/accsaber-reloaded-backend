@@ -601,9 +601,13 @@ public class MissionBuilderService {
     }
 
     private int mapStreakReference(MapPick pick, int fallbackUserStreak) {
-        Integer mapTop = scoreRepository.findMaxStreak115ByMapDifficulty(pick.difficulty().getId());
-        if (mapTop != null && mapTop > 0)
-            return mapTop;
+        List<Integer> topStreaks = scoreRepository.findTopStreak115ValuesByMapDifficulty(
+                pick.difficulty().getId(), PageRequest.of(0, 5));
+        if (!topStreaks.isEmpty()) {
+            int max = topStreaks.get(0);
+            double avg = topStreaks.stream().mapToInt(Integer::intValue).average().orElse(max);
+            return Math.max(2, (int) Math.round(0.6 * avg + 0.4 * max));
+        }
         double complexity = pick.complexity() != null ? pick.complexity().doubleValue() : 7.0;
         double factor = complexity >= 10.0 ? 0.35
                 : complexity >= 8.0 ? 0.55
