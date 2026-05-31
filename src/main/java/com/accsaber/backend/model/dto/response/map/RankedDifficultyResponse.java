@@ -13,7 +13,10 @@ import lombok.Value;
 public class RankedDifficultyResponse {
     UUID id;
     String songHash;
+    String songName;
     Difficulty difficulty;
     BigDecimal complexity;
     String categoryCode;
+    String ssLeaderboardId;
+    String blLeaderboardId;
 }

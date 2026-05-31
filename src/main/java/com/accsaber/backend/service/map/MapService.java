@@ -316,9 +316,12 @@ public class MapService {
                 .map(row -> RankedDifficultyResponse.builder()
                         .id((UUID) row[0])
                         .songHash((String) row[1])
-                        .difficulty((Difficulty) row[2])
-                        .complexity((BigDecimal) row[3])
-                        .categoryCode((String) row[4])
+                        .songName((String) row[2])
+                        .difficulty((Difficulty) row[3])
+                        .complexity((BigDecimal) row[4])
+                        .categoryCode((String) row[5])
+                        .ssLeaderboardId((String) row[6])
+                        .blLeaderboardId((String) row[7])
                         .build())
                 .toList();
     }
