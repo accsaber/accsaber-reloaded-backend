@@ -95,6 +95,9 @@ public class MissionBuilderService {
                         || (t.getType() != MissionType.PLAY_N_MAPS && t.getType() != MissionType.XP_IN_WINDOW
                                 && t.getType() != MissionType.SCORES_N
                                 && t.getType() != MissionType.COMEBACK_PB))
+                .filter(t -> forcedBand != MissionBand.hard
+                        || (t.getType() != MissionType.PLAY_N_MAPS && t.getType() != MissionType.XP_IN_WINDOW
+                                && t.getType() != MissionType.SCORES_N))
                 .collect(Collectors.toCollection(ArrayList::new));
         if (shuffled.isEmpty())
             shuffled = new ArrayList<>(pool);
@@ -139,9 +142,11 @@ public class MissionBuilderService {
 
     private UserMission buildPlayNMaps(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        int count = pickCount(template, band, rng);
-        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category), band, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+        MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
+        int count = pickCount(template, effectiveBand, rng);
+        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
+                effectiveBand, null);
+        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
                 .targetCount(count)
                 .xpReward(xp)
                 .itemReward(rollItemReward(template, rng, cache))
@@ -150,13 +155,14 @@ public class MissionBuilderService {
 
     private UserMission buildXpInWindow(MissionAssignmentContext ctx, MissionTemplate template, Category category,
             Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        BigDecimal multiplier = calibrationService.bandMultiplier(template, band);
+        MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
+        BigDecimal multiplier = calibrationService.bandMultiplier(template, effectiveBand);
         BigDecimal rolling = ctx.rollingDailyXp() == null ? BigDecimal.valueOf(500) : ctx.rollingDailyXp();
         int targetXp = rolling.multiply(multiplier).max(BigDecimal.valueOf(100))
                 .setScale(0, RoundingMode.HALF_UP).intValue();
         int xp = Math.max(50, calibrationService.computeXpReward(template,
-                skillService.skillLevelFor(ctx, category), band, null));
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                skillService.skillLevelFor(ctx, category), effectiveBand, null));
+        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
                 .targetXp(targetXp)
                 .xpReward(xp)
                 .itemReward(rollItemReward(template, rng, cache))
@@ -510,9 +516,8 @@ public class MissionBuilderService {
         int min = template.getTargetCountMin() != null ? template.getTargetCountMin() : 1;
         int max = template.getTargetCountMax() != null ? template.getTargetCountMax() : 3;
         int count = min + rng.nextInt(Math.max(1, max - min + 1));
-        int baseXp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
+        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
                 effectiveBand, null);
-        int xp = (int) Math.round(baseXp * (0.5 + 0.5 * count));
         return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
                 .targetCount(count)
                 .xpReward(xp)
