@@ -47,7 +47,7 @@ Common stuff every build pulls from the context:
 - **PB_SPECIFIC_MAP** - same pipeline, plus a `pbFreshnessBoost` XP bonus if the existing PB is recent.
 - **PB_ABOVE_THRESHOLD** - percentile of the user's own scores (70/45/22/10 for easy/medium/hard/extreme) times a small shift (0.98/1.0/1.015/1.02), capped at 0.97 * topAp (with the skill-aware nerf described below for easy/medium/hard). Needs at least 2 qualifying scores or it fails.
 - **SNIPE_PLAYER_ON_MAP** - two branches in `computeSnipeTarget` (has-score vs no-score). Candidate filter uses `snipeMaxSkillDistance` (5/8/12/18) to avoid asking you to snipe someone two tiers above.
-- **STREAK_ON_MAP** - `representativeUserStreak * streakTargetFor(band)`, clamped to the map's top streak (or a complexity-based fallback) and `userRepresentativeStreak + 2`. Min 2, max 3 (V62).
+- **STREAK_ON_MAP** - `representativeUserStreak * streakTargetFor(band)`, clamped to the map's top streak (or a complexity-based fallback) and `userRepresentativeStreak + 2`. Hard floor of 3 on the final demand - the minimum 115 streak we'll ever ask for. Users whose representative streak is below 3 don't qualify for streak missions in the first place (`< 3` gate), so this floor never assigns an impossible target.
 - **STREAK_N_IN_CATEGORY** - same streak logic, plus a count. Extreme + top-tier (skill >= 90) gets `+1` on the streak.
 - **COMEBACK_PB** - random old score (>1y), band derived from `weightedAp / maxWeightedAp` (so a comeback for a tiny historical play isn't "extreme").
 - **SCORES_N** - always re-bands to easy or medium, XP scaled by `0.5 + 0.5 * count`.

@@ -571,7 +571,7 @@ public class MissionBuilderService {
             return failBuild("user-streak-too-low");
         BigDecimal skillLevel = skillService.skillLevelFor(ctx, category);
         boolean topTier = skillLevel != null && skillLevel.doubleValue() >= 90.0;
-        int targetStreak = Math.max(2, band == MissionBand.extreme && topTier ? reference + 1 : reference);
+        int targetStreak = Math.max(3, band == MissionBand.extreme && topTier ? reference + 1 : reference);
         int count = pickCount(template, band, rng);
         int xp = calibrationService.computeXpReward(template, skillLevel, band, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
@@ -601,7 +601,7 @@ public class MissionBuilderService {
         boolean topTier = skillLvl != null && skillLvl.doubleValue() >= 90.0;
         int targetStreak = streakTargetFor(band, reference, topTier);
         int userCap = userRepresentativeStreak + 2;
-        targetStreak = Math.max(2, Math.min(targetStreak, userCap));
+        targetStreak = Math.max(3, Math.min(targetStreak, userCap));
 
         int xp = calibrationService.computeXpReward(template, skillLvl, band, null);
         return baseBuilder(ctx, template, category, expiresAt, pool, band)
