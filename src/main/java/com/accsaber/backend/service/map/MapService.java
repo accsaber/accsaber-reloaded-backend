@@ -264,18 +264,27 @@ public class MapService {
     }
 
     public MapResponse findByBeatsaverCode(String beatsaverCode, Difficulty difficulty, String characteristic) {
-        Map map = mapRepository.findActiveByBeatsaverCodeLatestFirst(beatsaverCode, PageRequest.of(0, 1)).stream()
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Map", beatsaverCode));
+        String characteristicParam = characteristic == null || characteristic.isBlank() ? null : characteristic;
+        Map map = null;
+        if (difficulty != null || characteristicParam != null) {
+            map = mapRepository.findActiveByBeatsaverCodeMatchingDifficulty(
+                    beatsaverCode, difficulty, characteristicParam, PageRequest.of(0, 1))
+                    .stream().findFirst().orElse(null);
+        }
+        if (map == null) {
+            map = mapRepository.findActiveByBeatsaverCodeLatestFirst(beatsaverCode, PageRequest.of(0, 1)).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Map", beatsaverCode));
+        }
         List<MapDifficulty> difficulties = mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId());
         if (difficulty != null) {
             difficulties = difficulties.stream()
                     .filter(d -> d.getDifficulty() == difficulty)
                     .toList();
         }
-        if (characteristic != null && !characteristic.isBlank()) {
+        if (characteristicParam != null) {
             difficulties = difficulties.stream()
-                    .filter(d -> characteristic.equalsIgnoreCase(d.getCharacteristic()))
+                    .filter(d -> characteristicParam.equalsIgnoreCase(d.getCharacteristic()))
                     .toList();
         }
         return toMapResponse(map, enrichDifficulties(difficulties));
