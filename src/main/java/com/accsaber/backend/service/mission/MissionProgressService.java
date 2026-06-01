@@ -69,6 +69,8 @@ public class MissionProgressService {
 
         Instant now = Instant.now();
         for (UserMission mission : active) {
+            if (mission.getStatus() != MissionStatus.active)
+                continue;
             if (mission.getExpiresAt() != null && mission.getExpiresAt().isBefore(now))
                 continue;
             if (evaluate(mission, latestScore)) {
@@ -214,7 +216,9 @@ public class MissionProgressService {
         mission.setCompletedAt(latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
 
         if (mission.getXpReward() > 0) {
-            levelUpAwardService.addMissionXp(userId, BigDecimal.valueOf(mission.getXpReward()));
+            int xpReward = mission.getXpReward();
+            levelUpAwardService.addMissionXp(userId, BigDecimal.valueOf(xpReward));
+            creditXpToWindowMissions(userId, xpReward, latestScore);
         }
         if (mission.getItemReward() != null && !mission.isItemAwarded()) {
             try {
@@ -228,6 +232,24 @@ public class MissionProgressService {
         }
 
         publishCompletionEvent(userId, mission);
+    }
+
+    private void creditXpToWindowMissions(Long userId, int xpAmount, ScoreResponse latestScore) {
+        if (xpAmount <= 0)
+            return;
+        Instant now = Instant.now();
+        for (UserMission window : userMissionRepository.findAllActiveByUser(userId)) {
+            if (window.getStatus() != MissionStatus.active)
+                continue;
+            if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW)
+                continue;
+            if (window.getExpiresAt() != null && window.getExpiresAt().isBefore(now))
+                continue;
+            window.setProgressCount(window.getProgressCount() + xpAmount);
+            if (window.getTargetXp() != null && window.getProgressCount() >= window.getTargetXp()) {
+                completeMission(window, latestScore);
+            }
+        }
     }
 
     private void publishCompletionEvent(Long userId, UserMission mission) {
