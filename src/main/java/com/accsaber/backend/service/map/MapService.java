@@ -91,6 +91,27 @@ public class MapService {
                 .map(MapService::toPublicDifficultyResponse);
     }
 
+    public Page<PublicMapDifficultyResponse> findDifficultiesWithUserScoreAbovePublic(
+            Long userId, BigDecimal apMin, UUID categoryId, Pageable pageable) {
+        Pageable effective = resolveDifficultySort(pageable);
+        Page<MapDifficulty> difficulties = mapDifficultyRepository.findWithUserScoreAboveAp(
+                userId, apMin, categoryId, effective);
+
+        if (difficulties.isEmpty())
+            return difficulties.map(d -> toPublicDifficultyResponse(toDifficultyResponse(d, null, null, null)));
+
+        List<UUID> ids = difficulties.getContent().stream().map(MapDifficulty::getId).toList();
+        java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
+        java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
+        java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
+
+        return difficulties.map(d -> toPublicDifficultyResponse(toDifficultyResponse(d,
+                complexities.get(d.getId()), stats.get(d.getId()),
+                staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY))));
+    }
+
     public PublicMapResponse findByIdPublic(UUID mapId) {
         return toPublicMapResponse(findById(mapId));
     }
