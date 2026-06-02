@@ -215,15 +215,13 @@ public class UserController {
                 search, userId, pageable));
     }
 
-    @Operation(summary = "Get map difficulties where user has an active score above an AP threshold", description = "Paginated list of ranked difficulties on which the player has an active score with AP strictly greater than `apMin`. Optionally filter by category.")
+    @Operation(summary = "Get map difficulties where user has an active score at or above an AP threshold", description = "Flat list of difficulties on which the player has an active score with AP >= `apMin`. Optionally filter by category.")
     @GetMapping("/{userId}/maps-above-ap")
-    public ResponseEntity<Page<PublicMapDifficultyResponse>> getMapsAboveAp(
+    public ResponseEntity<List<PublicMapDifficultyResponse>> getMapsAboveAp(
             @PathVariable Long userId,
             @RequestParam BigDecimal apMin,
-            @RequestParam(required = false) UUID categoryId,
-            @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findDifficultiesWithUserScoreAbovePublic(userId, apMin, categoryId,
-                pageable));
+            @RequestParam(required = false) UUID categoryId) {
+        return ResponseEntity.ok(mapService.findDifficultiesWithUserScoreAbovePublic(userId, apMin, categoryId));
     }
 
     @Operation(summary = "Get user progress in a campaign")
