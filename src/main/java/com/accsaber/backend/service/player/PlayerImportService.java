@@ -48,7 +48,7 @@ public class PlayerImportService {
                                 .orElse("Unknown");
 
                 String avatarUrl = blProfile.map(BeatLeaderPlayerResponse::getAvatar)
-                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getProfilePicture))
+                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getAvatar))
                                 .orElse(null);
 
                 String country = blProfile.map(BeatLeaderPlayerResponse::getCountry)
@@ -83,7 +83,7 @@ public class PlayerImportService {
                                 : null;
 
                 String avatarUrl = blProfile.map(BeatLeaderPlayerResponse::getAvatar)
-                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getProfilePicture))
+                                .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getAvatar))
                                 .orElse(null);
 
                 boolean countryOverridden = userService.findOptionalByUserId(userId)

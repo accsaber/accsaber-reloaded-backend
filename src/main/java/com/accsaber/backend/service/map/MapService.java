@@ -91,6 +91,28 @@ public class MapService {
                 .map(MapService::toPublicDifficultyResponse);
     }
 
+    public List<PublicMapDifficultyResponse> findDifficultiesWithUserScoreAbovePublic(
+            Long userId, BigDecimal apMin, UUID categoryId) {
+        List<MapDifficulty> difficulties = mapDifficultyRepository.findWithUserScoreAboveAp(
+                userId, apMin, categoryId);
+
+        if (difficulties.isEmpty())
+            return List.of();
+
+        List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
+        java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
+        java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
+        java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
+
+        return difficulties.stream()
+                .map(d -> toPublicDifficultyResponse(toDifficultyResponse(d,
+                        complexities.get(d.getId()), stats.get(d.getId()),
+                        staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY))))
+                .toList();
+    }
+
     public PublicMapResponse findByIdPublic(UUID mapId) {
         return toPublicMapResponse(findById(mapId));
     }
@@ -99,8 +121,9 @@ public class MapService {
         return toPublicMapResponse(findBySongHash(songHash, difficulty));
     }
 
-    public PublicMapResponse findByBeatsaverCodePublic(String beatsaverCode, Difficulty difficulty) {
-        return toPublicMapResponse(findByBeatsaverCode(beatsaverCode, difficulty));
+    public PublicMapResponse findByBeatsaverCodePublic(String beatsaverCode, Difficulty difficulty,
+            String characteristic) {
+        return toPublicMapResponse(findByBeatsaverCode(beatsaverCode, difficulty, characteristic));
     }
 
     public List<PublicMapDifficultyResponse> findDifficultiesByMapIdPublic(UUID mapId) {
@@ -262,13 +285,28 @@ public class MapService {
         return toMapResponse(map, enrichDifficulties(difficulties));
     }
 
-    public MapResponse findByBeatsaverCode(String beatsaverCode, Difficulty difficulty) {
-        Map map = mapRepository.findByBeatsaverCodeAndActiveTrue(beatsaverCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Map", beatsaverCode));
+    public MapResponse findByBeatsaverCode(String beatsaverCode, Difficulty difficulty, String characteristic) {
+        String characteristicParam = characteristic == null || characteristic.isBlank() ? null : characteristic;
+        Map map = null;
+        if (difficulty != null || characteristicParam != null) {
+            map = mapRepository.findActiveByBeatsaverCodeMatchingDifficulty(
+                    beatsaverCode, difficulty, characteristicParam, PageRequest.of(0, 1))
+                    .stream().findFirst().orElse(null);
+        }
+        if (map == null) {
+            map = mapRepository.findActiveByBeatsaverCodeLatestFirst(beatsaverCode, PageRequest.of(0, 1)).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Map", beatsaverCode));
+        }
         List<MapDifficulty> difficulties = mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId());
         if (difficulty != null) {
             difficulties = difficulties.stream()
                     .filter(d -> d.getDifficulty() == difficulty)
+                    .toList();
+        }
+        if (characteristicParam != null) {
+            difficulties = difficulties.stream()
+                    .filter(d -> characteristicParam.equalsIgnoreCase(d.getCharacteristic()))
                     .toList();
         }
         return toMapResponse(map, enrichDifficulties(difficulties));
@@ -309,9 +347,12 @@ public class MapService {
                 .map(row -> RankedDifficultyResponse.builder()
                         .id((UUID) row[0])
                         .songHash((String) row[1])
-                        .difficulty((Difficulty) row[2])
-                        .complexity((BigDecimal) row[3])
-                        .categoryCode((String) row[4])
+                        .songName((String) row[2])
+                        .difficulty((Difficulty) row[3])
+                        .complexity((BigDecimal) row[4])
+                        .categoryCode((String) row[5])
+                        .ssLeaderboardId((String) row[6])
+                        .blLeaderboardId((String) row[7])
                         .build())
                 .toList();
     }

@@ -29,6 +29,7 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.supporter.SupporterService;
 
 @ExtendWith(MockitoExtension.class)
 class ProfileCustomizationServiceTest {
@@ -52,6 +53,9 @@ class ProfileCustomizationServiceTest {
 
     @Mock
     private BioSanitizer bioSanitizer;
+
+    @Mock
+    private SupporterService supporterService;
 
     @InjectMocks
     private ProfileCustomizationService service;
@@ -107,7 +111,7 @@ class ProfileCustomizationServiceTest {
         @Test
         void sanitizesAndPersists() {
             when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(bioSanitizer.sanitize("<p>hi</p>")).thenReturn("<p>hi</p>");
+            when(bioSanitizer.sanitize("<p>hi</p>", 4000)).thenReturn("<p>hi</p>");
 
             service.updateBio(USER_ID, "<p>hi</p>");
 

@@ -27,4 +27,5 @@ public class LeaderboardResponse {
     private UUID topPlayId;
     private boolean playerInactive;
     private Integer rankingLastWeek;
+    private String supporterTier;
 }

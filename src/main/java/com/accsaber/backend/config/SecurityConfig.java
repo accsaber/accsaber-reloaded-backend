@@ -70,6 +70,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/calculate/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/og/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/webhooks/kofi").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/supporters/credits").permitAll()
                 .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/v1/ranking/**").authenticated()
                 .anyRequest().authenticated()

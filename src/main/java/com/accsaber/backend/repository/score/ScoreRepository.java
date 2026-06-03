@@ -17,6 +17,9 @@ import com.accsaber.backend.model.entity.score.Score;
 
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
+        @Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))", nativeQuery = true)
+        Object acquireSubmitLock(@Param("key") String key);
+
         Optional<Score> findByUser_IdAndMapDifficulty_IdAndActiveTrue(Long userId, UUID mapDifficultyId);
 
         @Query("""
@@ -80,6 +83,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND u.active = true AND u.banned = false
                         """)
         java.math.BigDecimal findMaxApInCategory(@Param("categoryId") UUID categoryId);
+
+        @Query("""
+                        SELECT MAX(s.weightedAp) FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.category.id = :categoryId
+                          AND s.active = true
+                        """)
+        java.math.BigDecimal findMaxWeightedApByUserAndCategory(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId);
 
         @Query("""
                         SELECT s FROM Score s
@@ -230,6 +243,114 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId);
 
         @Query("""
+                        SELECT MAX(s.ap) FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                        """)
+        java.math.BigDecimal findMaxApByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.mapDifficulty d
+                        JOIN FETCH d.map
+                        JOIN FETCH d.category
+                        WHERE s.user.id = :userId
+                          AND d.category.id = :categoryId
+                          AND s.active = true
+                          AND s.timeSet IS NOT NULL
+                          AND s.timeSet < :before
+                        ORDER BY s.timeSet ASC
+                        """)
+        List<Score> findActiveByUserAndCategoryOlderThan(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("before") Instant before);
+
+        @Query("""
+                        SELECT s.streak115 FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.category.id = :categoryId
+                          AND s.active = true
+                          AND s.streak115 IS NOT NULL
+                        ORDER BY s.streak115 DESC
+                        """)
+        List<Integer> findTopStreak115ValuesByUserAndCategory(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") java.util.UUID categoryId,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.user.id <> :excludeUserId
+                          AND s.score > :minScore
+                          AND s.ap IS NOT NULL
+                        ORDER BY ABS(s.ap - :targetAp) ASC
+                        """)
+        List<Score> findSnipeCandidatesNearTargetAp(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("excludeUserId") Long excludeUserId,
+                        @Param("minScore") Integer minScore,
+                        @Param("targetAp") java.math.BigDecimal targetAp,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT s, ucs.skillLevel FROM Score s
+                        JOIN FETCH s.user u
+                        JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
+                          ON ucs.user.id = u.id AND ucs.category.id = :categoryId
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.user.id <> :excludeUserId
+                          AND s.score > :minScore
+                          AND s.ap IS NOT NULL
+                          AND ucs.skillLevel IS NOT NULL
+                        ORDER BY s.ap ASC
+                        """)
+        List<Object[]> findSnipeCandidatesAboveBaselineWithSkill(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("excludeUserId") Long excludeUserId,
+                        @Param("minScore") Integer minScore,
+                        @Param("categoryId") UUID categoryId,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT s.ap, ucs.skillLevel FROM Score s
+                        JOIN s.user u
+                        JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
+                          ON ucs.user.id = u.id AND ucs.category.id = :categoryId
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.ap IS NOT NULL
+                          AND ucs.skillLevel IS NOT NULL
+                        ORDER BY s.ap DESC
+                        """)
+        List<Object[]> findLeaderboardApAndSkill(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("categoryId") UUID categoryId);
+
+
+        @Query("""
+                        SELECT s.streak115 FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.active = true
+                          AND s.streak115 IS NOT NULL
+                          AND u.active = true AND u.banned = false
+                        ORDER BY s.streak115 DESC
+                        """)
+        List<Integer> findTopStreak115ValuesByMapDifficulty(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
                         SELECT s FROM Score s
                         JOIN FETCH s.user
                         JOIN FETCH s.mapDifficulty d
@@ -247,6 +368,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         HAVING COUNT(s) >= :minScores
                         """)
         List<Long> findUserIdsWithAtLeastActiveScores(@Param("minScores") long minScores);
+
+        @Query("""
+                        SELECT s.user.id FROM Score s
+                        JOIN s.user u
+                        WHERE s.active = true AND u.active = true AND u.banned = false
+                          AND u.playerInactive = false
+                        GROUP BY s.user.id
+                        HAVING COUNT(s) >= :minScores
+                        """)
+        List<Long> findActivePlayerIdsWithAtLeastActiveScores(@Param("minScores") long minScores);
 
         @Query("""
                         SELECT s FROM Score s

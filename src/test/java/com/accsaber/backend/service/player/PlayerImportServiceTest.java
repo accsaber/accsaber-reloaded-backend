@@ -76,7 +76,7 @@ class PlayerImportServiceTest {
             ScoreSaberPlayerResponse ssPlayer = new ScoreSaberPlayerResponse();
             ssPlayer.setId(String.valueOf(STEAM_ID));
             ssPlayer.setName("SSPlayer");
-            ssPlayer.setProfilePicture("https://ss.com/avatar.png");
+            ssPlayer.setAvatar("https://ss.com/avatar.png");
             ssPlayer.setCountry("US");
             when(scoreSaberClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.of(ssPlayer));
 
@@ -104,7 +104,7 @@ class PlayerImportServiceTest {
 
             ScoreSaberPlayerResponse ssPlayer = new ScoreSaberPlayerResponse();
             ssPlayer.setName("SSOnly");
-            ssPlayer.setProfilePicture("https://ss.com/avatar.png");
+            ssPlayer.setAvatar("https://ss.com/avatar.png");
             ssPlayer.setCountry("JP");
             when(scoreSaberClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.of(ssPlayer));
 
@@ -155,7 +155,7 @@ class PlayerImportServiceTest {
         void updatesProfile_withMergedData() {
             ScoreSaberPlayerResponse ssPlayer = new ScoreSaberPlayerResponse();
             ssPlayer.setName("UpdatedName");
-            ssPlayer.setProfilePicture("https://ss.com/new.png");
+            ssPlayer.setAvatar("https://ss.com/new.png");
             ssPlayer.setCountry("CA");
             when(scoreSaberClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.of(ssPlayer));
             when(beatLeaderClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.empty());

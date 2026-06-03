@@ -36,6 +36,7 @@ class ScoreBroadcastServiceTest {
                                 .ap(new BigDecimal("500.000000"))
                                 .weightedAp(new BigDecimal("500.000000"))
                                 .modifierIds(Collections.emptyList())
+                                .active(true)
                                 .build();
         }
 
@@ -50,5 +51,23 @@ class ScoreBroadcastServiceTest {
                         assertThat(json).contains("\"score\":950000");
                         return true;
                 }));
+        }
+
+        @Test
+        void onScoreSubmitted_skipsPartialScores() {
+                ScoreResponse score = buildScoreResponse().toBuilder().partial(true).build();
+
+                scoreBroadcastService.onScoreSubmitted(new ScoreSubmittedEvent(score));
+
+                org.mockito.Mockito.verifyNoInteractions(scoreFeedHandler);
+        }
+
+        @Test
+        void onScoreSubmitted_skipsInactiveScores() {
+                ScoreResponse score = buildScoreResponse().toBuilder().active(false).build();
+
+                scoreBroadcastService.onScoreSubmitted(new ScoreSubmittedEvent(score));
+
+                org.mockito.Mockito.verifyNoInteractions(scoreFeedHandler);
         }
 }

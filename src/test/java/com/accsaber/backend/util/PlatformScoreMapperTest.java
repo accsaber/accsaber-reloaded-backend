@@ -145,7 +145,7 @@ class PlatformScoreMapperTest {
 
         @Test
         void returnsFalse_forNull() {
-            assertThat(PlatformScoreMapper.hasBannedModifier(null)).isFalse();
+            assertThat(PlatformScoreMapper.hasBannedModifier((String) null)).isFalse();
         }
 
         @Test
@@ -180,16 +180,18 @@ class PlatformScoreMapperTest {
         void mapsFieldsAndLeavesBlExclusiveFieldsNull() {
             ScoreSaberScoreResponse ss = buildScoreSaberScore();
 
-            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
+            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, null, MAP_DIFF_ID, USER_ID,
+                    MODIFIER_MAP);
 
             assertThat(result.getUserId()).isEqualTo(USER_ID);
             assertThat(result.getMapDifficultyId()).isEqualTo(MAP_DIFF_ID);
-            assertThat(result.getScore()).isEqualTo(890000);
+            assertThat(result.getScore()).isEqualTo(940000);
             assertThat(result.getScoreNoMods()).isEqualTo(890000);
             assertThat(result.getRank()).isEqualTo(7);
             assertThat(result.getMaxCombo()).isEqualTo(480);
             assertThat(result.getBadCuts()).isEqualTo(4);
             assertThat(result.getMisses()).isEqualTo(3);
+            assertThat(result.getSsScoreId()).isEqualTo(789012L);
             assertThat(result.getBlScoreId()).isNull();
             assertThat(result.getWallHits()).isNull();
             assertThat(result.getBombHits()).isNull();
@@ -201,11 +203,27 @@ class PlatformScoreMapperTest {
         }
 
         @Test
+        void populatesStreak115AndBombsFromStats() {
+            ScoreSaberScoreResponse ss = buildScoreSaberScore();
+            com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats stats = new com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats();
+            stats.setMax115Streak(742);
+            stats.setLeftBombs(2);
+            stats.setRightBombs(3);
+
+            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, stats, MAP_DIFF_ID, USER_ID,
+                    MODIFIER_MAP);
+
+            assertThat(result.getStreak115()).isEqualTo(742);
+            assertThat(result.getBombHits()).isEqualTo(5);
+        }
+
+        @Test
         void resolvesModifiers() {
             ScoreSaberScoreResponse ss = buildScoreSaberScore();
-            ss.setModifiers("NF");
+            ss.setMods(java.util.List.of("NF"));
 
-            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
+            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, null, MAP_DIFF_ID, USER_ID,
+                    MODIFIER_MAP);
 
             assertThat(result.getModifierIds()).containsExactly(NF_ID);
         }
@@ -239,17 +257,19 @@ class PlatformScoreMapperTest {
         ScoreSaberScoreResponse ss = new ScoreSaberScoreResponse();
         ss.setId(789012L);
         ss.setModifiedScore(940000);
-        ss.setBaseScore(890000);
+        ss.setUnmodifiedScore(890000);
         ss.setRank(7);
         ss.setMaxCombo(480);
         ss.setBadCuts(4);
         ss.setMissedNotes(3);
-        ss.setDeviceHmd("Valve Index");
-        ss.setModifiers("");
-        ss.setTimeSet("2024-01-01T00:00:00Z");
-        ScoreSaberScoreResponse.LeaderboardPlayerInfo info = new ScoreSaberScoreResponse.LeaderboardPlayerInfo();
-        info.setId(String.valueOf(USER_ID));
-        ss.setLeaderboardPlayerInfo(info);
+        ScoreSaberScoreResponse.Device device = new ScoreSaberScoreResponse.Device();
+        device.setHmd("Valve Index");
+        ss.setDevice(device);
+        ss.setMods(java.util.List.of());
+        ss.setCreatedAt("2024-01-01T00:00:00Z");
+        ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
+        player.setId(String.valueOf(USER_ID));
+        ss.setPlayer(player);
         return ss;
     }
 }

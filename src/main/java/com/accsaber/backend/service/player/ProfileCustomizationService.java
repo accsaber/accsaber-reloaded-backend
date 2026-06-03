@@ -18,6 +18,7 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.supporter.SupporterService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +27,10 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ProfileCustomizationService {
 
-    public static final int MAX_PINNED_SCORES = 3;
+    public static final int BASIC_MAX_PINNED_SCORES = 3;
+    public static final int SUPPORTER_MAX_PINNED_SCORES = 6;
+    public static final int BASIC_MAX_BIO_LENGTH = 4000;
+    public static final int SUPPORTER_MAX_BIO_LENGTH = 8000;
     public static final int MAX_NAME_LENGTH = 32;
     public static final int MAX_PIN_COMMENT_LENGTH = 280;
 
@@ -36,6 +40,7 @@ public class ProfileCustomizationService {
     private final UserService userService;
     private final UserSettingsService userSettingsService;
     private final BioSanitizer bioSanitizer;
+    private final SupporterService supporterService;
 
     @Transactional
     public void updateName(Long userId, String newName) {
@@ -51,16 +56,17 @@ public class ProfileCustomizationService {
     @Transactional
     public void updateBio(Long userId, String rawHtml) {
         User user = requireUser(userId);
-        user.setBio(bioSanitizer.sanitize(rawHtml));
+        user.setBio(bioSanitizer.sanitize(rawHtml, bioMaxFor(userId)));
         userRepository.save(user);
     }
 
     @Transactional
     public void updatePinnedScores(Long userId, List<PinnedScoreEntry> entries) {
         List<PinnedScoreEntry> normalized = entries == null ? List.of() : entries;
-        if (normalized.size() > MAX_PINNED_SCORES) {
+        int pinnedMax = pinnedMaxFor(userId);
+        if (normalized.size() > pinnedMax) {
             throw new ValidationException("pinnedScores",
-                    "may contain at most " + MAX_PINNED_SCORES + " entries");
+                    "may contain at most " + pinnedMax + " entries");
         }
         Set<UUID> uniqueScoreIds = new HashSet<>();
         Set<Integer> uniqueOrders = new HashSet<>();
@@ -132,5 +138,17 @@ public class ProfileCustomizationService {
             throw new ValidationException("name",
                     "must be at most " + MAX_NAME_LENGTH + " characters");
         }
+    }
+
+    private int pinnedMaxFor(Long userId) {
+        return supporterService.isActiveSupporter(userId)
+                ? SUPPORTER_MAX_PINNED_SCORES
+                : BASIC_MAX_PINNED_SCORES;
+    }
+
+    private int bioMaxFor(Long userId) {
+        return supporterService.isActiveSupporter(userId)
+                ? SUPPORTER_MAX_BIO_LENGTH
+                : BASIC_MAX_BIO_LENGTH;
     }
 }

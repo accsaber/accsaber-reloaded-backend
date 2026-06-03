@@ -375,7 +375,7 @@ class ScoreImportServiceTest {
                         when(playerImportService.ensurePlayerExists(STEAM_ID))
                                         .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
 
-                        ScoreSaberScoresPage ssPage = buildSsPage(buildSsScore(""));
+                        ScoreSaberScoresPage ssPage = buildSsPage(buildSsScore(java.util.List.of()));
                         when(scoreSaberClient.getLeaderboardScores("ss_456", 1)).thenReturn(ssPage);
 
                         scoreImportService.backfillDifficulty(difficulty);
@@ -443,28 +443,31 @@ class ScoreImportServiceTest {
                 return bl;
         }
 
-        private ScoreSaberScoreResponse buildSsScore(String modifiers) {
+        private ScoreSaberScoreResponse buildSsScore(java.util.List<String> mods) {
                 ScoreSaberScoreResponse ss = new ScoreSaberScoreResponse();
                 ss.setId(789012L);
                 ss.setModifiedScore(940000);
-                ss.setBaseScore(890000);
+                ss.setUnmodifiedScore(890000);
                 ss.setRank(7);
                 ss.setMaxCombo(480);
                 ss.setBadCuts(4);
                 ss.setMissedNotes(3);
-                ss.setDeviceHmd("Valve Index");
-                ss.setModifiers(modifiers);
-                ScoreSaberScoreResponse.LeaderboardPlayerInfo info = new ScoreSaberScoreResponse.LeaderboardPlayerInfo();
-                info.setId(String.valueOf(STEAM_ID));
-                ss.setLeaderboardPlayerInfo(info);
+                ScoreSaberScoreResponse.Device device = new ScoreSaberScoreResponse.Device();
+                device.setHmd("Valve Index");
+                ss.setDevice(device);
+                ss.setMods(mods);
+                ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
+                player.setId(String.valueOf(STEAM_ID));
+                ss.setPlayer(player);
                 return ss;
         }
 
         private ScoreSaberScoresPage buildSsPage(ScoreSaberScoreResponse... scores) {
                 ScoreSaberScoresPage page = new ScoreSaberScoresPage();
-                page.setScores(List.of(scores));
+                page.setData(List.of(scores));
                 ScoreSaberScoresPage.Metadata meta = new ScoreSaberScoresPage.Metadata();
-                meta.setTotal(scores.length);
+                meta.setTotalItems(scores.length);
+                meta.setTotalPages(1);
                 meta.setPage(1);
                 meta.setItemsPerPage(12);
                 page.setMetadata(meta);

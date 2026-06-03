@@ -13,6 +13,7 @@ public enum UserSettingKey {
 
     APPEARANCE_THEME("appearance.theme", String.class, "system", false),
     APPEARANCE_COLOR_SCHEME("appearance.colorScheme", String.class, "default", false),
+    APPEARANCE_PRIMARY_REPLAY_SERVICE("appearance.primaryReplayService", String.class, "beatleader", false),
 
     SYNC_NAME("sync.name", Boolean.class, true, false),
 

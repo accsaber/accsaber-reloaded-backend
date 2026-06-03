@@ -28,7 +28,7 @@ public class OpenApiConfig {
                                                                 REST API for the AccSaber Reloaded platform - an accuracy-based \
                                                                 leaderboard system for Beat Saber.
                                                                 """)
-                                                .version("ALPHA-4.5.0")
+                                                .version("ALPHA-6.0.0")
                                                 .contact(new Contact()
                                                                 .name("AccSaber Reloaded")
                                                                 .url(baseUrl)))
@@ -61,6 +61,12 @@ public class OpenApiConfig {
                                                                 .description("Scoring curves - point-lookup and formula curves used for AP and weight calculations"),
                                                 new Tag().name("Discord Links")
                                                                 .description("Discord-to-player account linking and lookup"),
+                                                new Tag().name("Supporters")
+                                                                .description("Public supporter state per user (tier, balance, lifetime) and the credits roll listing all Ko-fi supporters past and present"),
+                                                new Tag().name("Ko-fi Webhook")
+                                                                .description("Receiver for Ko-fi webhook events (donations, subscriptions). Gated by the verification token on the payload, not by JWT"),
+                                                new Tag().name("Missions")
+                                                                .description("Per-player daily and weekly missions - skill-calibrated targets with XP and crate rewards. Rotates at 4AM server time (daily) and Monday 4AM (weekly)"),
                                                 new Tag().name("Site Statistics")
                                                                 .description("Site-wide statistics, leaderboards (streaks, AP, retries, improvements, milestones), and chart data (time series, distributions)"),
                                                 new Tag().name("Calculate")
@@ -89,13 +95,18 @@ public class OpenApiConfig {
                                                                 .description("Detect, link, and merge duplicate user accounts across platforms (Admin role)"),
                                                 new Tag().name("Admin Curves")
                                                                 .description("Create and update scoring curves (Admin role)"),
+                                                new Tag().name("Admin Missions")
+                                                                .description("Manage mission templates - CRUD on the template pool that feeds daily/weekly assignments, plus per-user regeneration (Admin role)"),
                                                 new Tag().name("Admin WebSocket")
                                                                 .description("Monitor and reconnect BeatLeader/ScoreSaber WebSocket feeds (Admin role)"),
 
                                                 new Tag().name("Staff Auth")
                                                                 .description("Staff login, token refresh, and logout"),
                                                 new Tag().name("Staff Users")
-                                                                .description("Staff account management - profiles, roles, status, and OAuth links (Admin role)")))
+                                                                .description("Staff account management - profiles, roles, status, and OAuth links (Admin role)"),
+
+                                                new Tag().name("Supporters (Service)")
+                                                                .description("Bot-facing supporter claim endpoints - role-event correlation and admin `/assign` fallback (Service token)")))
                                 .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
                                 .schemaRequirement("Bearer Token", new SecurityScheme()
                                                 .type(SecurityScheme.Type.HTTP)

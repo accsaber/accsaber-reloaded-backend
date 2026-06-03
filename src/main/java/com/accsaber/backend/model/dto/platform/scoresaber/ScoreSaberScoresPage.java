@@ -10,14 +10,15 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreSaberScoresPage {
 
-    private List<ScoreSaberScoreResponse> scores;
+    private List<ScoreSaberScoreResponse> data;
     private Metadata metadata;
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Metadata {
-        private Integer total;
         private Integer page;
         private Integer itemsPerPage;
+        private Integer totalItems;
+        private Integer totalPages;
     }
 }

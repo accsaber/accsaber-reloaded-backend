@@ -31,6 +31,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.oauth.BeatLeaderOauthClient.BeatLeaderIdentity;
 import com.accsaber.backend.service.oauth.DiscordOauthClient.DiscordIdentity;
 import com.accsaber.backend.service.oauth.OauthStateService.PendingLinkClaims;
+import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.staff.JwtService;
 
@@ -59,6 +60,7 @@ public class OauthService {
     private final SteamOpenIdClient steamClient;
     private final OauthStateService stateService;
     private final JwtService jwtService;
+    private final MissionAssignmentService missionAssignmentService;
 
     @Value("${accsaber.jwt.player-refresh-token-ttl}")
     private long playerRefreshTokenTtl;
@@ -247,7 +249,10 @@ public class OauthService {
                 .refreshTokenExpiresAt(now.plusSeconds(playerRefreshTokenTtl))
                 .lastUsedAt(now)
                 .build();
-        return buildAuthResponse(oauthSessionRepository.save(session));
+        OauthSession saved = oauthSessionRepository.save(session);
+        Long userId = anchor.getUser().getId();
+        missionAssignmentService.assignOnLoginAsync(userId);
+        return buildAuthResponse(saved);
     }
 
     private PlayerAuthResponse rotateSession(OauthSession session) {

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -122,15 +123,16 @@ public class ScoreIngestionService {
         }
     }
 
-    public void handleScoreSaberScore(ScoreSaberScoreResponse ssScore, Long userId, String ssLeaderboardId) {
+    public void handleScoreSaberScore(ScoreSaberScoreResponse ssScore, ScoreSaberScoreStats scoreStats,
+            Long userId, String ssLeaderboardId) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
         if (!rankedSsIds.contains(ssLeaderboardId)) {
             return;
         }
 
         try {
-            if (PlatformScoreMapper.hasBannedModifier(ssScore.getModifiers())) {
-                log.debug("Skipping SS score on {} - banned modifier(s): {}", ssLeaderboardId, ssScore.getModifiers());
+            if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods())) {
+                log.debug("Skipping SS score on {} - banned modifier(s): {}", ssLeaderboardId, ssScore.getMods());
                 return;
             }
 
@@ -148,7 +150,8 @@ public class ScoreIngestionService {
                     pendingSsScores.remove(playKey);
                     playerImportService.ensurePlayerExists(resolvedUserId);
                     SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(
-                            ssScore, difficulty.getId(), resolvedUserId, modifierCacheService.getModifierCodeToId());
+                            ssScore, scoreStats, difficulty.getId(), resolvedUserId,
+                            modifierCacheService.getModifierCodeToId());
                     metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
                     metricsService.getSsScoresIngested().increment();
                     log.info("Ingested SS score for player {} on difficulty {}", resolvedUserId, difficulty.getId());

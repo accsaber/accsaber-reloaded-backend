@@ -82,9 +82,11 @@ public class ScoreService {
         private final LevelUpAwardService levelUpAwardService;
         private final ApplicationEventPublisher eventPublisher;
         private final TransactionTemplate transactionTemplate;
+        private final com.accsaber.backend.service.supporter.SupporterService supporterService;
 
         @Transactional
         public ScoreResponse submit(SubmitScoreRequest request) {
+                acquireSubmitLock(request.getUserId(), request.getMapDifficultyId());
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
                 validateScoreBounds(request, difficulty);
                 User user = loadActiveUser(request.getUserId());
@@ -205,6 +207,7 @@ public class ScoreService {
         }
 
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
+                acquireSubmitLock(request.getUserId(), difficulty.getId());
                 validateScoreBounds(request, difficulty);
                 User user = loadUserForBackfill(request.getUserId());
 
@@ -556,9 +559,14 @@ public class ScoreService {
                         scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
                                         mapDifficultyId, effective);
                 }
+                java.util.List<Long> userIds = scores.getContent().stream()
+                                .map(s -> s.getUser().getId())
+                                .toList();
+                java.util.Map<Long, String> tiers = supporterService.findCurrentTiersByUserIds(userIds);
                 return scores.map(s -> toResponse(s,
                                 computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                loadModifierIds(s.getId())));
+                                loadModifierIds(s.getId()))
+                                .toBuilder().supporterTier(tiers.get(s.getUser().getId())).build());
         }
 
         public ScoresAroundResponse findScoresAround(UUID mapDifficultyId, Long userId, int above, int below) {
@@ -668,6 +676,10 @@ public class ScoreService {
                 }
                 long prior = scoreRepository.countAttemptsByUserAndDifficulty(userId, mapDifficultyId);
                 request.setPlayCount((int) (prior + 1));
+        }
+
+        private void acquireSubmitLock(Long userId, UUID mapDifficultyId) {
+                scoreRepository.acquireSubmitLock(userId + ":" + mapDifficultyId);
         }
 
         private Optional<Score> findRecentMatchingPlay(Long userId, UUID mapDifficultyId, Integer scoreNoMods,
@@ -842,12 +854,14 @@ public class ScoreService {
                                 .country(user.getCountry())
                                 .mapDifficultyId(diff.getId())
                                 .mapId(map.getId())
+                                .beatsaverCode(map.getBeatsaverCode())
                                 .songHash(map.getSongHash())
                                 .songName(map.getSongName())
                                 .songAuthor(map.getSongAuthor())
                                 .mapAuthor(map.getMapAuthor())
                                 .coverUrl(map.getCoverUrl())
                                 .difficulty(diff.getDifficulty())
+                                .characteristic(diff.getCharacteristic())
                                 .categoryId(diff.getCategory().getId())
                                 .score(s.getScore())
                                 .scoreNoMods(s.getScoreNoMods())
@@ -878,6 +892,7 @@ public class ScoreService {
                                                 : BigDecimal.ZERO)
                                 .active(s.isActive())
                                 .partial(s.isPartial())
+                                .supersedesReason(s.getSupersedesReason())
                                 .modifierIds(modifierIds)
                                 .createdAt(s.getCreatedAt())
                                 .build();

@@ -100,8 +100,9 @@ public class RankingMapController {
     @GetMapping("/by-code/{beatsaverCode}")
     public ResponseEntity<MapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,
-            @RequestParam(required = false) Difficulty difficulty) {
-        return ResponseEntity.ok(mapService.findByBeatsaverCode(beatsaverCode, difficulty));
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false) String characteristic) {
+        return ResponseEntity.ok(mapService.findByBeatsaverCode(beatsaverCode, difficulty, characteristic));
     }
 
     @Operation(summary = "List difficulties for a map (staff)")

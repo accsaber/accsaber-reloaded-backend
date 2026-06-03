@@ -20,10 +20,12 @@ import com.accsaber.backend.model.dto.response.player.XpLeaderboardResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserXpRankingHistoryRepository;
 import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.service.supporter.SupporterService;
 import com.accsaber.backend.util.HmdMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -37,7 +39,9 @@ public class LeaderboardService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final UserXpRankingHistoryRepository xpRankingHistoryRepository;
+    private final UserCategoryRankingHistoryRepository categoryRankingHistoryRepository;
     private final LevelService levelService;
+    private final SupporterService supporterService;
 
     @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
     public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, String hmd, boolean includeInactive,
@@ -138,13 +142,16 @@ public class LeaderboardService {
                 .toList();
         Map<Long, Integer> lastWeekRankings = Map.of();
         if (!userIds.isEmpty()) {
-            lastWeekRankings = statisticsRepository.findRankingsOneWeekAgo(categoryId, userIds).stream()
+            lastWeekRankings = categoryRankingHistoryRepository.findRankingsOneWeekAgo(categoryId, userIds).stream()
                     .collect(Collectors.toMap(
                             row -> ((Number) row[0]).longValue(),
                             row -> row[1] != null ? ((Number) row[1]).intValue() : null));
         }
+        Map<Long, String> supporterTiers = supporterService.findCurrentTiersByUserIds(userIds);
         Map<Long, Integer> finalRankings = lastWeekRankings;
-        return page.map(stats -> toResponse(stats, finalRankings.get(stats.getUser().getId())));
+        return page.map(stats -> toResponse(stats,
+                finalRankings.get(stats.getUser().getId()),
+                supporterTiers.get(stats.getUser().getId())));
     }
 
     private Page<XpLeaderboardResponse> enrichXpWithLastWeekRanking(Page<User> page) {
@@ -158,11 +165,14 @@ public class LeaderboardService {
                             row -> ((Number) row[0]).longValue(),
                             row -> row[1] != null ? ((Number) row[1]).intValue() : null));
         }
+        Map<Long, String> supporterTiers = supporterService.findCurrentTiersByUserIds(userIds);
         Map<Long, Integer> finalRankings = lastWeekRankings;
-        return page.map(user -> toXpResponse(user, finalRankings.get(user.getId())));
+        return page.map(user -> toXpResponse(user,
+                finalRankings.get(user.getId()),
+                supporterTiers.get(user.getId())));
     }
 
-    private XpLeaderboardResponse toXpResponse(User user, Integer rankingLastWeek) {
+    private XpLeaderboardResponse toXpResponse(User user, Integer rankingLastWeek, String supporterTier) {
         return XpLeaderboardResponse.builder()
                 .ranking(user.getXpRanking())
                 .countryRanking(user.getXpCountryRanking())
@@ -174,10 +184,11 @@ public class LeaderboardService {
                 .totalXp(user.getTotalXp())
                 .level(levelService.calculateLevel(user.getTotalXp()).getLevel())
                 .rankingLastWeek(rankingLastWeek)
+                .supporterTier(supporterTier)
                 .build();
     }
 
-    private LeaderboardResponse toResponse(UserCategoryStatistics stats, Integer rankingLastWeek) {
+    private LeaderboardResponse toResponse(UserCategoryStatistics stats, Integer rankingLastWeek, String supporterTier) {
         return LeaderboardResponse.builder()
                 .ranking(stats.getRanking())
                 .countryRanking(stats.getCountryRanking())
@@ -192,6 +203,7 @@ public class LeaderboardService {
                 .rankedPlays(stats.getRankedPlays())
                 .topPlayId(stats.getTopPlay() != null ? stats.getTopPlay().getId() : null)
                 .rankingLastWeek(rankingLastWeek)
+                .supporterTier(supporterTier)
                 .build();
     }
 

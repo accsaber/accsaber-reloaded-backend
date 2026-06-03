@@ -33,6 +33,14 @@ public class LevelUpAwardService {
     }
 
     @Transactional
+    public void addMissionXp(Long userId, BigDecimal delta) {
+        if (delta == null || delta.signum() <= 0)
+            return;
+        userRepository.addMissionXp(userId, delta);
+        addXp(userId, delta);
+    }
+
+    @Transactional
     public void processLevelUps(Long userId, BigDecimal oldXp, BigDecimal xpDelta) {
         if (xpDelta == null || xpDelta.signum() <= 0)
             return;

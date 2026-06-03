@@ -92,6 +92,9 @@ public class ScoreImportService {
     @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
     private long gapFillPageDelayMs;
 
+    @Value("${accsaber.backfill.scoresaber-enabled:true}")
+    private boolean scoreSaberBackfillEnabled = true;
+
     public void backfillDifficulty(MapDifficulty difficulty) {
         Set<Long> affectedUserIds = importDifficulty(difficulty);
         if (affectedUserIds == null) {
@@ -118,7 +121,7 @@ public class ScoreImportService {
             affectedUserIds.addAll(blUsers);
         }
 
-        if (difficulty.getSsLeaderboardId() != null) {
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
             Set<Long> ssUsers = backfillFromScoreSaber(difficulty, complexity, modifiers);
             ssImported = ssUsers.size();
             affectedUserIds.addAll(ssUsers);
@@ -455,7 +458,75 @@ public class ScoreImportService {
             affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
         }
 
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+            affectedUserIds.addAll(gapFillFromScoreSaber(difficulty, complexity, modifiers, since));
+        }
+
         return affectedUserIds;
+    }
+
+    private Set<Long> gapFillFromScoreSaber(MapDifficulty difficulty, BigDecimal complexity,
+            Map<String, UUID> modifiers, Instant since) {
+        Set<Long> affected = new HashSet<>();
+        int page = 1;
+        int pageSize = 100;
+        long sinceEpoch = since.getEpochSecond();
+
+        while (true) {
+            ScoreSaberScoresPage scoresPage;
+            try {
+                scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(
+                        difficulty.getSsLeaderboardId(), page);
+            } catch (Exception e) {
+                log.error("SS gap-fill failed on page {} for difficulty {}: {}",
+                        page, difficulty.getId(), e.getMessage());
+                break;
+            }
+
+            if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
+                break;
+
+            List<ScoreSaberScoreResponse> recent = new ArrayList<>();
+            boolean reachedThreshold = false;
+            for (ScoreSaberScoreResponse score : scoresPage.getData()) {
+                if (score.getCreatedAt() == null)
+                    continue;
+                long ts;
+                try {
+                    ts = Instant.parse(score.getCreatedAt()).getEpochSecond();
+                } catch (Exception e) {
+                    log.warn("Could not parse SS createdAt '{}', skipping", score.getCreatedAt());
+                    continue;
+                }
+                if (ts <= sinceEpoch) {
+                    reachedThreshold = true;
+                    break;
+                }
+                recent.add(score);
+            }
+
+            recent.stream()
+                    .map(s -> CompletableFuture.supplyAsync(
+                            () -> importScoreSaberScore(s, difficulty, complexity, modifiers, true),
+                            backfillExecutor))
+                    .toList()
+                    .stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .forEach(affected::add);
+
+            if (reachedThreshold || scoresPage.getData().size() < pageSize)
+                break;
+            page++;
+
+            try {
+                Thread.sleep(gapFillPageDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return affected;
     }
 
     private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
@@ -518,22 +589,38 @@ public class ScoreImportService {
             }
         }
 
-        if (difficulty.getSsLeaderboardId() != null) {
-            ScoreSaberScoresPage page = scoreSaberClient.getRecentScores(
-                    difficulty.getSsLeaderboardId(), sinceEpoch);
-            if (page != null && page.getScores() != null) {
-                for (ScoreSaberScoreResponse ssScore : page.getScores()) {
+        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+            int page = 1;
+            outer: while (true) {
+                ScoreSaberScoresPage scoresPage;
+                try {
+                    scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(
+                            difficulty.getSsLeaderboardId(), page);
+                } catch (Exception e) {
+                    log.error("SS gap-fill failed on page {} for difficulty {}: {}",
+                            page, difficulty.getId(), e.getMessage());
+                    break;
+                }
+                if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
+                    break;
+                for (ScoreSaberScoreResponse ssScore : scoresPage.getData()) {
+                    if (ssScore.getCreatedAt() == null)
+                        continue;
+                    long ts;
                     try {
-                        if (ssScore.getTimeSet() == null)
-                            continue;
-                        if (Instant.parse(ssScore.getTimeSet()).getEpochSecond() <= sinceEpoch)
-                            continue;
+                        ts = Instant.parse(ssScore.getCreatedAt()).getEpochSecond();
                     } catch (Exception e) {
-                        log.warn("Could not parse SS score timeSet '{}', including it in gap fill anyway",
-                                ssScore.getTimeSet());
+                        log.warn("Could not parse SS createdAt '{}', skipping", ssScore.getCreatedAt());
+                        continue;
+                    }
+                    if (ts <= sinceEpoch) {
+                        break outer;
                     }
                     importScoreSaberScore(ssScore, difficulty, modifiers);
                 }
+                if (scoresPage.getData().size() < 100)
+                    break;
+                page++;
             }
         }
     }
@@ -733,8 +820,6 @@ public class ScoreImportService {
         return affected;
     }
 
-    private static final long SS_PAGE_DELAY_MS = 100;
-
     private Set<Long> backfillFromScoreSaber(MapDifficulty difficulty, BigDecimal complexity,
             Map<String, UUID> modifiers) {
         Set<Long> affected = new HashSet<>();
@@ -752,18 +837,15 @@ public class ScoreImportService {
                 throw new RuntimeException("SS backfill aborted on page " + page, e);
             }
 
-            if (scoresPage == null || scoresPage.getScores() == null || scoresPage.getScores().isEmpty())
+            if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
                 break;
 
             if (totalPages == Integer.MAX_VALUE && scoresPage.getMetadata() != null
-                    && scoresPage.getMetadata().getTotal() != null
-                    && scoresPage.getMetadata().getItemsPerPage() != null
-                    && scoresPage.getMetadata().getItemsPerPage() > 0) {
-                totalPages = (int) Math.ceil((double) scoresPage.getMetadata().getTotal()
-                        / scoresPage.getMetadata().getItemsPerPage());
+                    && scoresPage.getMetadata().getTotalPages() != null) {
+                totalPages = scoresPage.getMetadata().getTotalPages();
             }
 
-            scoresPage.getScores().stream()
+            scoresPage.getData().stream()
                     .map(ssScore -> CompletableFuture.supplyAsync(
                             () -> importScoreSaberScore(ssScore, difficulty, complexity, modifiers, true),
                             backfillExecutor))
@@ -774,13 +856,6 @@ public class ScoreImportService {
                     .forEach(affected::add);
 
             page++;
-
-            try {
-                Thread.sleep(SS_PAGE_DELAY_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
         }
         return affected;
     }
@@ -887,18 +962,20 @@ public class ScoreImportService {
     private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
             BigDecimal complexity, Map<String, UUID> modifiers, boolean forBackfill) {
         try {
-            if (PlatformScoreMapper.hasBannedModifier(ssScore.getModifiers()))
+            if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods()))
+                return null;
+            if (ssScore.getPlayer() == null || ssScore.getPlayer().getId() == null)
                 return null;
             Long userId = duplicateUserService.resolvePrimaryUserId(
-                    Long.parseLong(ssScore.getLeaderboardPlayerInfo().getId()));
+                    Long.parseLong(ssScore.getPlayer().getId()));
             Optional<Score> existingScore = scoreRepository
                     .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
             if (existingScore.isPresent()
-                    && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getBaseScore())) {
+                    && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getUnmodifiedScore())) {
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
-            SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, difficulty.getId(), userId,
+            SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, null, difficulty.getId(), userId,
                     modifiers);
             if (forBackfill) {
                 scoreService.submitForBackfill(request, difficulty, complexity);

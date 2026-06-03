@@ -22,12 +22,14 @@ public class ScoreResponse {
     private String country;
     private UUID mapDifficultyId;
     private UUID mapId;
+    private String beatsaverCode;
     private String songHash;
     private String songName;
     private String songAuthor;
     private String mapAuthor;
     private String coverUrl;
     private Difficulty difficulty;
+    private String characteristic;
     private UUID categoryId;
     private Integer score;
     private Integer scoreNoMods;
@@ -53,9 +55,13 @@ public class ScoreResponse {
     private BigDecimal bonusXp;
     private boolean active;
     private boolean partial;
+    private String supersedesReason;
     private List<UUID> modifierIds;
     private Instant createdAt;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private MyScoreSummary myScore;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String supporterTier;
 }

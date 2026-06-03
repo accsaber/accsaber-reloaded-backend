@@ -13,7 +13,6 @@ import com.accsaber.backend.exception.ValidationException;
 @Component
 public class BioSanitizer {
 
-    public static final int MAX_RAW_LENGTH = 4000;
     public static final int MAX_LINKS = 5;
 
     private static final Pattern ANCHOR_OPEN = Pattern.compile("<a\\b", Pattern.CASE_INSENSITIVE);
@@ -36,12 +35,12 @@ public class BioSanitizer {
             .allowStyling(TEXT_ALIGN_ONLY)
             .toFactory();
 
-    public String sanitize(String html) {
+    public String sanitize(String html, int maxLength) {
         if (html == null) {
             return "";
         }
-        if (html.length() > MAX_RAW_LENGTH) {
-            throw new ValidationException("bio", "must not exceed " + MAX_RAW_LENGTH + " characters");
+        if (html.length() > maxLength) {
+            throw new ValidationException("bio", "must not exceed " + maxLength + " characters");
         }
         String sanitized = POLICY.sanitize(html);
         long linkCount = ANCHOR_OPEN.matcher(sanitized).results().count();

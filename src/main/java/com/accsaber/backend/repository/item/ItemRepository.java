@@ -33,9 +33,14 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     @Query("SELECT i FROM Item i WHERE i.id = :id")
     Optional<Item> findByIdForUpdate(@Param("id") UUID id);
 
+
     List<Item> findByUnlockLevelAndActiveTrue(Integer unlockLevel);
 
     List<Item> findByWelcomeGrantTrueAndActiveTrueAndDeprecatedFalse();
 
     List<Item> findByType_Key(String typeKey);
+
+    List<Item> findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
+
+    Optional<Item> findByType_KeyAndNameAndActiveTrue(String typeKey, String name);
 }

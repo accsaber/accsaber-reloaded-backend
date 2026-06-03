@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 
@@ -18,7 +19,34 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
 
         Optional<Map> findBySongHashAndActiveTrue(String songHash);
 
-        Optional<Map> findByBeatsaverCodeAndActiveTrue(String beatsaverCode);
+        @Query("""
+                        SELECT m FROM Map m
+                        WHERE m.active = true
+                        AND m.beatsaverCode = :beatsaverCode
+                        ORDER BY m.createdAt DESC
+                        """)
+        java.util.List<Map> findActiveByBeatsaverCodeLatestFirst(
+                        @Param("beatsaverCode") String beatsaverCode,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT m FROM Map m
+                        WHERE m.active = true
+                        AND m.beatsaverCode = :beatsaverCode
+                        AND EXISTS (
+                            SELECT 1 FROM MapDifficulty d
+                            WHERE d.map = m AND d.active = true
+                            AND (:difficulty IS NULL OR d.difficulty = :difficulty)
+                            AND (CAST(:characteristic AS string) IS NULL
+                                 OR LOWER(d.characteristic) = LOWER(CAST(:characteristic AS string)))
+                        )
+                        ORDER BY m.createdAt DESC
+                        """)
+        java.util.List<Map> findActiveByBeatsaverCodeMatchingDifficulty(
+                        @Param("beatsaverCode") String beatsaverCode,
+                        @Param("difficulty") Difficulty difficulty,
+                        @Param("characteristic") String characteristic,
+                        Pageable pageable);
 
         @Query(value = """
                         SELECT m FROM Map m

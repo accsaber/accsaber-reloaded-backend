@@ -68,6 +68,8 @@ springdoc:
     path: /v1/api-docs
 
 accsaber:
+  missions:
+    enabled: true
   voting:
     qualify-threshold: 3
     reweight-threshold: 3
@@ -108,6 +110,7 @@ accsaber:
     startup-mode: gap-fill # full | gap-fill
     gap-fill-days: 2
     gap-fill-page-delay-ms: 125
+    scoresaber-enabled: false
   complexity-estimate:
     ap-target: ${COMPLEXITY_AP_TARGET}
     accuracy-shift: ${COMPLEXITY_ACCURACY_SHIFT}
@@ -130,6 +133,9 @@ accsaber:
   scheduler:
     player-refresh-cron: "0 0 4 * * *"
     songsuggest-cron: "0 0 4 * * MON"
+    supporter-debit-cron: "0 30 4 * * *"
+  kofi:
+    verification-token: ${KOFI_VERIFICATION_TOKEN:}
   songsuggest:
     output-path: ${SONGSUGGEST_OUTPUT_PATH:data/songsuggest/leaderboard.json}
   criteria-checker:

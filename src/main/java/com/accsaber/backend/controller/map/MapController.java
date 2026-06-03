@@ -98,12 +98,13 @@ public class MapController {
         return ResponseEntity.ok(mapService.findBySongHashPublic(songHash, difficulty));
     }
 
-    @Operation(summary = "Get map by BeatSaver code", description = "Returns a map by its BeatSaver code with active difficulties, optionally filtered by difficulty level (EASY, NORMAL, HARD, EXPERT, EXPERT_PLUS)")
+    @Operation(summary = "Get map by BeatSaver code", description = "Returns a map by its BeatSaver code with active difficulties, optionally filtered by difficulty level (EASY, NORMAL, HARD, EXPERT, EXPERT_PLUS) and characteristic (Standard, OneSaber, NoArrows, 90Degree, 360Degree, Lightshow, Lawless — case-insensitive)")
     @GetMapping("/by-code/{beatsaverCode}")
     public ResponseEntity<PublicMapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,
-            @RequestParam(required = false) Difficulty difficulty) {
-        return ResponseEntity.ok(mapService.findByBeatsaverCodePublic(beatsaverCode, difficulty));
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false) String characteristic) {
+        return ResponseEntity.ok(mapService.findByBeatsaverCodePublic(beatsaverCode, difficulty, characteristic));
     }
 
     @Operation(summary = "List difficulties for a map")

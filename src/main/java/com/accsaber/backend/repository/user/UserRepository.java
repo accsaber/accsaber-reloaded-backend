@@ -28,7 +28,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND (:includeInactive = true OR u.playerInactive = false)
-            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboard(@Param("includeInactive") boolean includeInactive,
@@ -39,7 +39,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
             AND (:includeInactive = true OR u.playerInactive = false)
-            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboardWithSearch(@Param("search") String search,
@@ -51,7 +51,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND LOWER(u.country) = LOWER(:country)
             AND (:includeInactive = true OR u.playerInactive = false)
-            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboardByCountry(@Param("country") String country,
@@ -64,7 +64,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             AND LOWER(u.country) = LOWER(:country)
             AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))
             AND (:includeInactive = true OR u.playerInactive = false)
-            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            AND (:hmd IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = :hmd AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboardByCountryWithSearch(@Param("country") String country,
@@ -78,7 +78,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
             AND (CAST(:search AS string) IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (:includeInactive = true OR u.playerInactive = false)
-            AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND sc.timeSet = (SELECT MAX(sc2.timeSet) FROM Score sc2 WHERE sc2.user = u AND sc2.active = true)))
+            AND (CAST(:hmd AS string) IS NULL OR EXISTS (SELECT 1 FROM Score sc WHERE sc.user = u AND sc.active = true AND sc.hmd = CAST(:hmd AS string) AND NOT EXISTS (SELECT 1 FROM Score sc3 WHERE sc3.user = u AND sc3.active = true AND sc3.timeSet > sc.timeSet)))
             ORDER BY u.totalXp DESC
             """)
     Page<User> findXpLeaderboardFilteredByUserIds(
@@ -94,6 +94,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.totalXp = u.totalXp + :xp WHERE u.id = :id")
     void addXp(@Param("id") Long id, @Param("xp") BigDecimal xp);
 
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.missionXp = u.missionXp + :xp WHERE u.id = :id")
+    void addMissionXp(@Param("id") Long id, @Param("xp") BigDecimal xp);
+
     @Query("SELECT u.totalXp FROM User u WHERE u.id = :id")
     java.util.Optional<BigDecimal> findTotalXpById(@Param("id") Long id);
 
@@ -105,7 +110,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 + COALESCE(mx.milestone_xp, 0)
                 + COALESCE(bx.bonus_xp, 0)
                 + COALESCE(cx.campaign_map_xp, 0)
-                + COALESCE(cmx.campaign_milestone_xp, 0),
+                + COALESCE(cmx.campaign_milestone_xp, 0)
+                + COALESCE(u.mission_xp, 0),
             updated_at = NOW()
             FROM (
                 SELECT user_id, SUM(xp_gained) AS score_xp FROM scores GROUP BY user_id

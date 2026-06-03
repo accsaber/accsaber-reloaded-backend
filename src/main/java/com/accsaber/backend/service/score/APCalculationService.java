@@ -111,6 +111,40 @@ public class APCalculationService {
         return (1 + Math.exp(-k * x0)) / (1 + Math.exp(k * (position - x0)));
     }
 
+    public BigDecimal inverseInterpolate(Curve curve, BigDecimal normalizedAP) {
+        if (curve.getType() != CurveType.POINT_LOOKUP) {
+            throw new IllegalArgumentException(
+                    "Cannot inverse-interpolate a FORMULA type curve");
+        }
+
+        TreeMap<BigDecimal, BigDecimal> points = getOrLoadPoints(curve.getId());
+        if (points.isEmpty()) {
+            throw new IllegalStateException(
+                    "No curve points loaded for curve: " + curve.getId());
+        }
+
+        BigDecimal prevX = null;
+        BigDecimal prevY = null;
+        for (Map.Entry<BigDecimal, BigDecimal> e : points.entrySet()) {
+            BigDecimal x = e.getKey();
+            BigDecimal y = e.getValue();
+            if (normalizedAP.compareTo(y) <= 0) {
+                if (prevX == null) {
+                    return x;
+                }
+                BigDecimal dy = y.subtract(prevY);
+                if (dy.signum() == 0) {
+                    return x;
+                }
+                BigDecimal frac = normalizedAP.subtract(prevY).divide(dy, MATH_CONTEXT);
+                return prevX.add(x.subtract(prevX).multiply(frac, MATH_CONTEXT));
+            }
+            prevX = x;
+            prevY = y;
+        }
+        return prevX != null ? prevX : BigDecimal.ZERO;
+    }
+
     public BigDecimal interpolate(Curve curve, BigDecimal accuracy) {
         if (curve.getType() != CurveType.POINT_LOOKUP) {
             throw new IllegalArgumentException(

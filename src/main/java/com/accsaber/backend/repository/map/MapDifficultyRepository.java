@@ -151,7 +151,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("statuses") List<MapDifficultyStatus> statuses);
 
         @Query("""
-                        SELECT d.id, d.map.songHash, d.difficulty, c.complexity, d.category.code
+                        SELECT d.id, d.map.songHash, d.map.songName, d.difficulty, c.complexity, d.category.code, d.ssLeaderboardId, d.blLeaderboardId
                         FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         WHERE d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
@@ -159,6 +159,23 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         ORDER BY d.map.songHash, d.difficulty
                         """)
         List<Object[]> findAllRankedWithComplexity();
+
+        @Query("""
+                        SELECT d, c.complexity FROM MapDifficulty d
+                        JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
+                        JOIN FETCH d.map
+                        JOIN FETCH d.category cat
+                        LEFT JOIN FETCH cat.scoreCurve
+                        WHERE d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
+                          AND d.active = true
+                          AND (:categoryId IS NULL OR cat.id = :categoryId)
+                          AND c.complexity BETWEEN :minComplexity AND :maxComplexity
+                        ORDER BY d.id
+                        """)
+        List<Object[]> findRankedWithComplexityInRange(
+                        @Param("categoryId") UUID categoryId,
+                        @Param("minComplexity") BigDecimal minComplexity,
+                        @Param("maxComplexity") BigDecimal maxComplexity);
 
         @Query(value = """
                         SELECT d FROM MapDifficulty d
@@ -232,4 +249,19 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("excludeUserId") Long excludeUserId,
                         @Param("search") String search,
                         Pageable pageable);
+
+        @Query("""
+                        SELECT d FROM MapDifficulty d
+                        JOIN FETCH d.map
+                        WHERE d.active = true
+                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND EXISTS (
+                                SELECT 1 FROM Score s
+                                WHERE s.mapDifficulty = d AND s.user.id = :userId AND s.active = true
+                                AND s.ap >= :apMin)
+                        """)
+        List<MapDifficulty> findWithUserScoreAboveAp(
+                        @Param("userId") Long userId,
+                        @Param("apMin") BigDecimal apMin,
+                        @Param("categoryId") UUID categoryId);
 }

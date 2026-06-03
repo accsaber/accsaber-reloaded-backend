@@ -44,6 +44,8 @@ import com.accsaber.backend.service.player.UserSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -62,6 +64,8 @@ public class ItemService {
     private final ItemModifierRepository itemModifierRepository;
     private final UserItemLinkCounterRepository counterRepository;
     private final ModifierResolver modifierResolver;
+    @PersistenceContext
+    private EntityManager entityManager;
     private final ItemValueValidator itemValueValidator;
 
     public List<Item> findAllVisible() {
@@ -345,9 +349,13 @@ public class ItemService {
         if (item == null || item.isDeprecated())
             return;
 
-        if (!item.isStackable()
-                && userItemLinkRepository.existsByUser_IdAndItem_IdAndSourceAndSourceId(
-                        resolved, itemId, source, sourceId)) {
+        if (!item.isStackable()) {
+            if (userItemLinkRepository.existsByUser_IdAndItem_IdAndSourceAndSourceId(
+                    resolved, itemId, source, sourceId)) {
+                return;
+            }
+            insertLink(resolved, item, Set.of(loadModifier(ItemModifier.NORMAL)),
+                    null, 1L, source, sourceId, null, reason);
             return;
         }
 
@@ -503,12 +511,14 @@ public class ItemService {
     }
 
     private long issueSerial(UUID itemId) {
-        Item locked = itemRepository.findByIdForUpdate(itemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Item", itemId));
-        long issued = locked.getNextSerial();
-        locked.setNextSerial(issued + 1);
-        itemRepository.save(locked);
-        return issued;
+        Object result = entityManager.createNativeQuery(
+                "UPDATE items SET next_serial = next_serial + 1 WHERE id = :id RETURNING next_serial - 1")
+                .setParameter("id", itemId)
+                .getSingleResult();
+        if (result == null) {
+            throw new ResourceNotFoundException("Item", itemId);
+        }
+        return ((Number) result).longValue();
     }
 
     private ItemModifier loadModifier(String key) {

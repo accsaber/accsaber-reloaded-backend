@@ -7,5 +7,6 @@ public enum ItemSource {
     level,
     trade,
     manual,
-    crate_drop
+    crate_drop,
+    supporter_tier
 }

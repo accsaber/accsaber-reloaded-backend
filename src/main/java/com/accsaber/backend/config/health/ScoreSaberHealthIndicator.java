@@ -24,7 +24,7 @@ public class ScoreSaberHealthIndicator extends AbstractHealthIndicator {
         long start = System.currentTimeMillis();
         try {
             webClient.get()
-                    .uri("/")
+                    .uri("/v2/health")
                     .retrieve()
                     .toBodilessEntity()
                     .block(TIMEOUT);

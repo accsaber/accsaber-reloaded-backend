@@ -34,7 +34,6 @@ import com.accsaber.backend.service.score.SubmitRateLimitService;
 class SubmitControllerTest {
 
     private static final Long USER_ID = 76561198000000123L;
-    private static final String VALID_BUILD = "accsaber-plugin/0.1.0";
 
     @Mock
     private ScoreService scoreService;
@@ -66,24 +65,8 @@ class SubmitControllerTest {
 
     @Test
     void rejectsWhenPrincipalIsNull() {
-        assertThatThrownBy(() -> controller.submit(baseRequest(), VALID_BUILD, null))
+        assertThatThrownBy(() -> controller.submit(baseRequest(), null))
                 .isInstanceOf(UnauthorizedException.class);
-        verify(scoreService, never()).submit(any());
-    }
-
-    @Test
-    void rejectsWhenPluginBuildHeaderMissing() {
-        assertThatThrownBy(() -> controller.submit(baseRequest(), null, principal))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("X-Plugin-Build");
-        verify(scoreService, never()).submit(any());
-    }
-
-    @Test
-    void rejectsWhenPluginBuildHeaderBlank() {
-        assertThatThrownBy(() -> controller.submit(baseRequest(), "   ", principal))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("X-Plugin-Build");
         verify(scoreService, never()).submit(any());
     }
 
@@ -91,7 +74,7 @@ class SubmitControllerTest {
     void rejectsWhenModifierIsBanned() {
         PluginSubmitRequest r = baseRequest();
         r.setModifierCodes(List.of("NF", "NO"));
-        assertThatThrownBy(() -> controller.submit(r, VALID_BUILD, principal))
+        assertThatThrownBy(() -> controller.submit(r, principal))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Banned modifier");
         verify(scoreService, never()).submit(any());
@@ -102,9 +85,9 @@ class SubmitControllerTest {
         PluginSubmitRequest r = baseRequest();
         when(scoreService.submit(any())).thenReturn(ScoreResponse.builder().build());
 
-        controller.submit(r, VALID_BUILD, principal);
+        controller.submit(r, principal);
 
-        assertThatThrownBy(() -> controller.submit(r, VALID_BUILD, principal))
+        assertThatThrownBy(() -> controller.submit(r, principal))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("nonce");
     }
@@ -113,10 +96,10 @@ class SubmitControllerTest {
     void rejectsSecondSubmissionWithinRateLimitWindow() {
         when(scoreService.submit(any())).thenReturn(ScoreResponse.builder().build());
 
-        controller.submit(baseRequest(), VALID_BUILD, principal);
+        controller.submit(baseRequest(), principal);
 
         PluginSubmitRequest second = baseRequest();
-        assertThatThrownBy(() -> controller.submit(second, VALID_BUILD, principal))
+        assertThatThrownBy(() -> controller.submit(second, principal))
                 .isInstanceOf(TooManyRequestsException.class)
                 .hasMessageContaining("60s");
     }
@@ -130,7 +113,7 @@ class SubmitControllerTest {
             return ScoreResponse.builder().build();
         });
 
-        var response = controller.submit(r, VALID_BUILD, principal);
+        var response = controller.submit(r, principal);
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     }
 }

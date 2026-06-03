@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -79,14 +78,14 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         WHERE uml.user.id = :userId AND uml.completed = true
                         """)
         java.math.BigDecimal sumCompletedMilestoneXpByUserId(@Param("userId") Long userId);
-        @EntityGraph(attributePaths = {"user"})
         @Query(value = """
-                        SELECT uml FROM UserMilestoneLink uml
+                        SELECT new com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse(
+                                u.id, u.name, u.avatarUrl, u.country, uml.completedAt)
+                        FROM UserMilestoneLink uml
                         JOIN uml.user u
                         WHERE uml.milestone.id = :milestoneId
                         AND uml.completed = true
                         AND u.active = true AND u.banned = false
-                        ORDER BY uml.completedAt DESC
                         """,
                         countQuery = """
                         SELECT COUNT(uml) FROM UserMilestoneLink uml
@@ -95,7 +94,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         AND uml.completed = true
                         AND u.active = true AND u.banned = false
                         """)
-        Page<UserMilestoneLink> findCompletedUsersByMilestoneId(
+        Page<com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse> findCompletedUsersByMilestoneId(
                         @Param("milestoneId") UUID milestoneId,
                         Pageable pageable);
 }

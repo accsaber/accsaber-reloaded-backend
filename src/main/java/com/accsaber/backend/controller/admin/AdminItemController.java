@@ -65,7 +65,7 @@ public class AdminItemController {
         return ResponseEntity.ok(items.stream().map(ItemMapper::toItemResponse).toList());
     }
 
-    @Operation(summary = "Get an item by id (admin — includes drafts and deactivated items)")
+    @Operation(summary = "Get an item by id (admin - includes drafts and deactivated items)")
     @GetMapping("/items/{id}")
     public ResponseEntity<ItemResponse> getItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.findByIdForStaff(id)));

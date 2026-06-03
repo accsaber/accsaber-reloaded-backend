@@ -91,6 +91,10 @@ public class Item {
     @Builder.Default
     private boolean welcomeGrant = false;
 
+    @Column(name = "mission_poolable", nullable = false)
+    @Builder.Default
+    private boolean missionPoolable = false;
+
     private BigDecimal worth;
 
     private String requirement;

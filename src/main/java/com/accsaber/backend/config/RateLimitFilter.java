@@ -1,6 +1,7 @@
 package com.accsaber.backend.config;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,6 +28,12 @@ import jakarta.servlet.http.HttpServletResponse;
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    private static final Map<String, Integer> SENSITIVE_PATH_CAPACITY = Map.of(
+            "/v1/staff/auth/login", 10,
+            "/v1/staff/auth/refresh", 30,
+            "/v1/auth/refresh", 30,
+            "/v1/auth/ingame", 20);
+
     private final ConcurrentHashMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
     private final int capacity;
     private final Set<String> trustedIps;
@@ -49,7 +56,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String key = request.getRemoteAddr();
+        String key = resolveClientIp(request);
         AtomicInteger counter = counters.computeIfAbsent(key, k -> new AtomicInteger(0));
         int count = counter.incrementAndGet();
 
@@ -62,6 +69,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        Integer sensitiveCap = SENSITIVE_PATH_CAPACITY.get(request.getRequestURI());
+        if (sensitiveCap != null) {
+            String sensitiveKey = key + "|" + request.getRequestURI();
+            AtomicInteger sensitiveCounter = counters.computeIfAbsent(sensitiveKey, k -> new AtomicInteger(0));
+            if (sensitiveCounter.incrementAndGet() > sensitiveCap) {
+                exceptionResolver.resolveException(request, response, null,
+                        new TooManyRequestsException("Rate limit exceeded. Try again later."));
+                return;
+            }
+        }
+
         filterChain.doFilter(request, response);
     }
 
@@ -71,7 +89,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (!path.startsWith("/v1/")) {
             return true;
         }
-        if (!trustedIps.isEmpty() && trustedIps.contains(request.getRemoteAddr())) {
+        if (!trustedIps.isEmpty() && trustedIps.contains(resolveClientIp(request))) {
             return true;
         }
         return false;
@@ -80,5 +98,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Scheduled(fixedRateString = "${accsaber.rate-limit.window-seconds:60}000")
     public void resetCounters() {
         counters.clear();
+    }
+
+    private static String resolveClientIp(HttpServletRequest request) {
+        String cf = request.getHeader("CF-Connecting-IP");
+        if (cf != null && !cf.isBlank()) {
+            return cf.trim();
+        }
+        return request.getRemoteAddr();
     }
 }
