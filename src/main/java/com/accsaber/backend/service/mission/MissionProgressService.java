@@ -172,10 +172,7 @@ public class MissionProgressService {
     private boolean evalPbSpecificMap(UserMission mission, ScoreResponse score) {
         if (!matchesTargetMap(mission, score))
             return false;
-        if (!score.isActive())
-            return false;
-        return score.getAp() != null && mission.getTargetAp() != null
-                && score.getAp().compareTo(mission.getTargetAp()) >= 0;
+        return score.isActive();
     }
 
     private boolean evalPbAboveThreshold(UserMission mission, ScoreResponse score) {
