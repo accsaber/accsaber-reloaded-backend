@@ -109,8 +109,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 COALESCE(sx.score_xp, 0)
                 + COALESCE(mx.milestone_xp, 0)
                 + COALESCE(bx.bonus_xp, 0)
-                + COALESCE(cx.campaign_map_xp, 0)
-                + COALESCE(cmx.campaign_milestone_xp, 0)
+                + COALESCE(cx.campaign_difficulty_xp, 0)
+                + COALESCE(cmx.campaign_completion_xp, 0)
                 + COALESCE(u.mission_xp, 0),
             updated_at = NOW()
             FROM (
@@ -128,21 +128,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 GROUP BY umsb.user_id
             ) bx ON bx.user_id = COALESCE(sx.user_id, mx.user_id)
             FULL OUTER JOIN (
-                SELECT ucs.user_id, SUM(cm.xp) AS campaign_map_xp
+                SELECT ucs.user_id, SUM(cd.xp) AS campaign_difficulty_xp
                 FROM user_campaign_scores ucs
-                JOIN campaign_maps cm ON ucs.campaign_map_id = cm.id
+                JOIN campaign_difficulties cd ON ucs.campaign_difficulty_id = cd.id
                 JOIN campaigns c ON ucs.campaign_id = c.id
-                WHERE ucs.active = true AND c.verified = true AND cm.active = true
+                WHERE ucs.active = true AND c.status = 'curated' AND cd.active = true
                 GROUP BY ucs.user_id
             ) cx ON cx.user_id = COALESCE(sx.user_id, mx.user_id, bx.user_id)
             FULL OUTER JOIN (
-                SELECT ucs.user_id, SUM(cmil.xp) AS campaign_milestone_xp
-                FROM user_campaign_scores ucs
-                JOIN campaign_maps cm ON ucs.campaign_map_id = cm.id
-                JOIN campaign_milestones cmil ON cm.milestone_for_id = cmil.id
-                JOIN campaigns c ON ucs.campaign_id = c.id
-                WHERE ucs.active = true AND c.verified = true AND cm.active = true AND cmil.active = true
-                GROUP BY ucs.user_id
+                SELECT uc.user_id, SUM(c.completion_xp) AS campaign_completion_xp
+                FROM user_campaigns uc
+                JOIN campaigns c ON uc.campaign_id = c.id
+                WHERE uc.active = true AND uc.status = 'completed' AND c.status = 'curated'
+                GROUP BY uc.user_id
             ) cmx ON cmx.user_id = COALESCE(sx.user_id, mx.user_id, bx.user_id, cx.user_id)
             WHERE u.id = COALESCE(sx.user_id, mx.user_id, bx.user_id, cx.user_id, cmx.user_id)
             AND u.active = true

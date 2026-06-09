@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.accsaber.backend.model.entity.user.User;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -22,29 +24,44 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "campaign_map_paths")
+@Table(name = "user_campaigns")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CampaignMapPath {
+public class UserCampaign {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "campaign_map_id", nullable = false)
-    private CampaignMap campaignMap;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "comes_from_campaign_map_id", nullable = false)
-    private CampaignMap comesFromCampaignMap;
+    @JoinColumn(name = "campaign_id", nullable = false)
+    private Campaign campaign;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private UserCampaignStatus status = UserCampaignStatus.IN_PROGRESS;
+
+    @Column(name = "started_at", nullable = false)
+    @Builder.Default
+    private Instant startedAt = Instant.now();
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
 
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    @Column(name = "completion_rewards_paid", nullable = false)
+    @Builder.Default
+    private boolean completionRewardsPaid = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

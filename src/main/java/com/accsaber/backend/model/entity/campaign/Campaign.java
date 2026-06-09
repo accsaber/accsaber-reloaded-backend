@@ -1,5 +1,6 @@
 package com.accsaber.backend.model.entity.campaign;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
@@ -40,19 +42,65 @@ public class Campaign {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", nullable = false)
+    @JoinColumn(name = "creator_id")
     private User creator;
+
+    @Column(name = "creator_alias")
+    private String creatorAlias;
 
     @Column(nullable = false)
     private String name;
 
-    private String description;
+    @Column(nullable = false, unique = true)
+    private String slug;
 
-    private String difficulty;
+    private String summary;
+
+    private String description;
 
     @Column(nullable = false)
     @Builder.Default
-    private boolean verified = false;
+    private CampaignStatus status = CampaignStatus.DRAFT;
+
+    @Column(name = "seeking_curation", nullable = false)
+    @Builder.Default
+    private boolean seekingCuration = false;
+
+    @Column(name = "progression_agnostic", nullable = false)
+    @Builder.Default
+    private boolean progressionAgnostic = false;
+
+    @Column(name = "completion_mode", nullable = false)
+    @Builder.Default
+    private CampaignCompletionMode completionMode = CampaignCompletionMode.TERMINAL;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean legacy = false;
+
+    @Column(name = "completion_xp", nullable = false, precision = 20, scale = 6)
+    @Builder.Default
+    private BigDecimal completionXp = BigDecimal.ZERO;
+
+    @Column(name = "curator_notes")
+    private String curatorNotes;
+
+    @Column(name = "playlist_export_enabled", nullable = false)
+    @Builder.Default
+    private boolean playlistExportEnabled = false;
+
+    @Column(name = "background_url")
+    private String backgroundUrl;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
+
+    @Column(name = "curated_at")
+    private Instant curatedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "curated_by")
+    private StaffUser curatedBy;
 
     @Column(nullable = false)
     @Builder.Default
@@ -60,7 +108,7 @@ public class Campaign {
 
     @OneToMany(mappedBy = "campaign", fetch = FetchType.LAZY)
     @Builder.Default
-    private List<CampaignMap> campaignMaps = new ArrayList<>();
+    private List<CampaignDifficulty> campaignDifficulties = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

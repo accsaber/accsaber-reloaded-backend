@@ -11,6 +11,7 @@ public enum StaffRole {
     RANKING("ranking"),
     RANKING_HEAD("ranking_head"),
     DEVELOPER("developer"),
+    CAMPAIGN_CURATOR("campaign_curator"),
     ADMIN("admin");
 
     private final String value;

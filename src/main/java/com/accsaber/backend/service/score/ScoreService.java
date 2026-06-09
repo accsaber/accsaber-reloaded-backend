@@ -36,16 +36,17 @@ import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.ModifierRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.campaign.CampaignEvaluationService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
-import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserRelationService;
@@ -80,6 +81,7 @@ public class ScoreService {
         private final UserRelationService userRelationService;
         private final com.accsaber.backend.service.skill.SkillService skillService;
         private final LevelUpAwardService levelUpAwardService;
+        private final CampaignEvaluationService campaignEvaluationService;
         private final ApplicationEventPublisher eventPublisher;
         private final TransactionTemplate transactionTemplate;
         private final com.accsaber.backend.service.supporter.SupporterService supporterService;
@@ -133,6 +135,7 @@ public class ScoreService {
                                         || !evaluation.completedSets().isEmpty()) {
                                 awardMilestoneXp(user.getId(), evaluation);
                         }
+                        campaignEvaluationService.evaluateAfterScore(user.getId(), history);
 
                         ScoreResponse worseResponse = toResponse(history,
                                         computeAccuracy(history.getScore(), difficulty.getMaxScore()),
@@ -184,6 +187,7 @@ public class ScoreService {
                                                         || !evaluation.completedSets().isEmpty()) {
                                                 awardMilestoneXp(userId, evaluation);
                                         }
+                                        campaignEvaluationService.evaluateAfterScore(userId, freshScore);
                                 }
                                 eventPublisher.publishEvent(new ScoreSubmittedEvent(response));
                         });

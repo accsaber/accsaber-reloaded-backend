@@ -4,6 +4,8 @@ public enum ItemSource {
     milestone,
     milestone_set,
     campaign_milestone,
+    campaign_difficulty,
+    campaign_completion,
     level,
     trade,
     manual,

@@ -3,9 +3,11 @@ package com.accsaber.backend.service.campaign;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -20,31 +22,38 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.request.campaign.AddCampaignMapRequest;
+import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
-import com.accsaber.backend.model.dto.response.campaign.CampaignDetailResponse;
-import com.accsaber.backend.model.dto.response.campaign.CampaignMapResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
+import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.Campaign;
-import com.accsaber.backend.model.entity.campaign.CampaignMap;
-import com.accsaber.backend.model.entity.campaign.CampaignMapPath;
+import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
+import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
+import com.accsaber.backend.model.entity.campaign.CampaignStatus;
+import com.accsaber.backend.model.entity.campaign.UserCampaign;
+import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.staff.StaffRole;
+import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.campaign.CampaignMapPathRepository;
-import com.accsaber.backend.repository.campaign.CampaignMapRepository;
+import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyPathRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.repository.campaign.CampaignTagLinkRepository;
+import com.accsaber.backend.repository.campaign.CampaignTagRepository;
+import com.accsaber.backend.repository.campaign.UserCampaignRepository;
+import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -56,9 +65,21 @@ class CampaignServiceTest {
         @Mock
         private CampaignRepository campaignRepository;
         @Mock
-        private CampaignMapRepository campaignMapRepository;
+        private CampaignDifficultyRepository campaignDifficultyRepository;
         @Mock
-        private CampaignMapPathRepository campaignMapPathRepository;
+        private CampaignDifficultyPathRepository campaignDifficultyPathRepository;
+        @Mock
+        private CampaignDifficultyItemRepository campaignDifficultyItemRepository;
+        @Mock
+        private CampaignCompletionItemRepository campaignCompletionItemRepository;
+        @Mock
+        private CampaignTagRepository campaignTagRepository;
+        @Mock
+        private CampaignTagLinkRepository campaignTagLinkRepository;
+        @Mock
+        private UserCampaignRepository userCampaignRepository;
+        @Mock
+        private UserCampaignScoreRepository userCampaignScoreRepository;
         @Mock
         private ScoreRepository scoreRepository;
         @Mock
@@ -66,7 +87,11 @@ class CampaignServiceTest {
         @Mock
         private MapDifficultyRepository mapDifficultyRepository;
         @Mock
+        private CategoryRepository categoryRepository;
+        @Mock
         private DuplicateUserService duplicateUserService;
+        @Mock
+        private CampaignEvaluationService campaignEvaluationService;
 
         @InjectMocks
         private CampaignService campaignService;
@@ -78,9 +103,9 @@ class CampaignServiceTest {
 
         @BeforeEach
         void setUp() {
-                org.mockito.Mockito.lenient().when(duplicateUserService.resolvePrimaryUserId(any(Long.class)))
+                lenient().when(duplicateUserService.resolvePrimaryUserId(any(Long.class)))
                                 .thenAnswer(inv -> inv.getArgument(0));
-                creator = User.builder().id(12345L).name("TestPlayer").build();
+                creator = User.builder().id(12345L).name("TestPlayer").active(true).build();
                 map = com.accsaber.backend.model.entity.map.Map.builder()
                                 .id(UUID.randomUUID())
                                 .songName("Test Song")
@@ -100,472 +125,60 @@ class CampaignServiceTest {
                                 .id(UUID.randomUUID())
                                 .creator(creator)
                                 .name("Test Campaign")
-                                .description("A test campaign")
-                                .difficulty("Hard")
-                                .verified(false)
+                                .slug("test-campaign")
+                                .status(CampaignStatus.DRAFT)
+                                .completionXp(BigDecimal.ZERO)
                                 .active(true)
-                                .campaignMaps(List.of())
+                                .campaignDifficulties(List.of())
                                 .build();
-        }
-
-        private final Pageable defaultPageable = PageRequest.of(0, 20, Sort.by("name"));
-
-        @Nested
-        class FindAllActiveCampaigns {
-
-                @Test
-                void returnsAllActiveCampaigns() {
-                        when(campaignRepository.findByActiveTrue(defaultPageable))
-                                        .thenReturn(new PageImpl<>(List.of(campaign), defaultPageable, 1));
-
-                        Page<CampaignResponse> result = campaignService.findAllActiveCampaigns(defaultPageable);
-
-                        assertThat(result.getContent()).hasSize(1);
-                        assertThat(result.getContent().get(0).getName()).isEqualTo("Test Campaign");
-                        assertThat(result.getContent().get(0).getCreatorName()).isEqualTo("TestPlayer");
-                }
-
-                @Test
-                void returnsEmptyPageWhenNoCampaigns() {
-                        when(campaignRepository.findByActiveTrue(defaultPageable))
-                                        .thenReturn(new PageImpl<>(List.of(), defaultPageable, 0));
-
-                        Page<CampaignResponse> result = campaignService.findAllActiveCampaigns(defaultPageable);
-
-                        assertThat(result.getContent()).isEmpty();
-                }
-        }
-
-        @Nested
-        class FindCampaignById {
-
-                @Test
-                void returnsCampaignWithMaps() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.95"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-
-                        CampaignDetailResponse result = campaignService.findCampaignById(campaign.getId());
-
-                        assertThat(result.getName()).isEqualTo("Test Campaign");
-                        assertThat(result.getMaps()).hasSize(1);
-                        assertThat(result.getMaps().get(0).getSongName()).isEqualTo("Test Song");
-                        assertThat(result.getMaps().get(0).getPrerequisiteMapIds()).isEmpty();
-                }
-
-                @Test
-                void throwsWhenCampaignNotFound() {
-                        UUID id = UUID.randomUUID();
-                        when(campaignRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> campaignService.findCampaignById(id))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
-        class GetUserProgress {
-
-                @Test
-                void computesProgressWithCompletedMap() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        Score score = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(creator)
-                                        .mapDifficulty(mapDifficulty)
-                                        .score(950000) // 0.95 accuracy > 0.90 requirement
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getTotalMaps()).isEqualTo(1);
-                        assertThat(result.getCompletedMaps()).isEqualTo(1);
-                        assertThat(result.getMaps().get(0).isCompleted()).isTrue();
-                        assertThat(result.getMaps().get(0).isUnlocked()).isTrue();
-                        assertThat(result.getMaps().get(0).getUserAccuracy())
-                                        .isEqualByComparingTo(new BigDecimal("0.95"));
-                }
-
-                @Test
-                void computesProgressWithIncompleteMap() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.98"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        Score score = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(creator)
-                                        .mapDifficulty(mapDifficulty)
-                                        .score(950000) // 0.95 accuracy < 0.98 requirement
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getCompletedMaps()).isEqualTo(0);
-                        assertThat(result.getMaps().get(0).isCompleted()).isFalse();
-                }
-
-                @Test
-                void handlesNoScoreForMap() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of());
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getCompletedMaps()).isEqualTo(0);
-                        assertThat(result.getMaps().get(0).getUserAccuracy()).isNull();
-                        assertThat(result.getMaps().get(0).getUserScore()).isNull();
-                        assertThat(result.getMaps().get(0).isCompleted()).isFalse();
-                }
-
-                @Test
-                void handlesNullMaxScore() {
-                        MapDifficulty mdNoMax = MapDifficulty.builder()
-                                        .id(UUID.randomUUID())
-                                        .map(map)
-                                        .difficulty(Difficulty.EXPERT_PLUS)
-                                        .characteristic("Standard")
-                                        .maxScore(null)
-                                        .build();
-
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mdNoMax)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        Score score = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(creator)
-                                        .mapDifficulty(mdNoMax)
-                                        .score(950000)
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getMaps().get(0).getUserAccuracy()).isNull();
-                        assertThat(result.getMaps().get(0).isCompleted()).isFalse();
-                }
-
-                @Test
-                void handlesZeroMaxScore() {
-                        MapDifficulty mdZero = MapDifficulty.builder()
-                                        .id(UUID.randomUUID())
-                                        .map(map)
-                                        .difficulty(Difficulty.EXPERT_PLUS)
-                                        .characteristic("Standard")
-                                        .maxScore(0)
-                                        .build();
-
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mdZero)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        Score score = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(creator)
-                                        .mapDifficulty(mdZero)
-                                        .score(950000)
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(cm));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getMaps().get(0).getUserAccuracy()).isNull();
-                        assertThat(result.getMaps().get(0).isCompleted()).isFalse();
-                }
-
-                @Test
-                void prerequisiteUnlockLogic() {
-                        CampaignMap mapA = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        MapDifficulty mdB = MapDifficulty.builder()
-                                        .id(UUID.randomUUID())
-                                        .map(map)
-                                        .difficulty(Difficulty.EXPERT_PLUS)
-                                        .characteristic("Standard")
-                                        .maxScore(1000000)
-                                        .build();
-
-                        CampaignMap mapB = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mdB)
-                                        .accuracyRequirement(new BigDecimal("0.95"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        CampaignMapPath path = CampaignMapPath.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaignMap(mapB)
-                                        .comesFromCampaignMap(mapA)
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(mapA, mapB));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(path));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of());
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getMaps().get(0).isUnlocked()).isTrue();
-                        assertThat(result.getMaps().get(1).isUnlocked()).isFalse();
-                }
-
-                @Test
-                void prerequisiteUnlocksWhenCompleted() {
-                        CampaignMap mapA = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        MapDifficulty mdB = MapDifficulty.builder()
-                                        .id(UUID.randomUUID())
-                                        .map(map)
-                                        .difficulty(Difficulty.EXPERT_PLUS)
-                                        .characteristic("Standard")
-                                        .maxScore(1000000)
-                                        .build();
-
-                        CampaignMap mapB = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mdB)
-                                        .accuracyRequirement(new BigDecimal("0.95"))
-                                        .xp(BigDecimal.TEN)
-                                        .build();
-
-                        CampaignMapPath path = CampaignMapPath.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaignMap(mapB)
-                                        .comesFromCampaignMap(mapA)
-                                        .build();
-
-                        Score scoreA = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(creator)
-                                        .mapDifficulty(mapDifficulty)
-                                        .score(950000) // 0.95 >= 0.90
-                                        .build();
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignMapRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(mapA, mapB));
-                        when(campaignMapPathRepository.findByCampaignMap_Campaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(path));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(scoreA));
-
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
-                                        campaign.getId());
-
-                        assertThat(result.getMaps().get(0).isUnlocked()).isTrue();
-                        assertThat(result.getMaps().get(0).isCompleted()).isTrue();
-                        assertThat(result.getMaps().get(1).isUnlocked()).isTrue();
-                        assertThat(result.getMaps().get(1).isCompleted()).isFalse();
-                }
         }
 
         @Nested
         class CreateCampaign {
 
                 @Test
-                void createsAndReturnsCampaign() {
+                void createsDraftCampaign() {
                         CreateCampaignRequest request = new CreateCampaignRequest();
                         request.setCreatorId(creator.getId());
                         request.setName("New Campaign");
-                        request.setDescription("Desc");
-                        request.setDifficulty("Medium");
 
-                        when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
+                        when(userRepository.findByIdAndActiveTrue(creator.getId())).thenReturn(Optional.of(creator));
+                        when(campaignRepository.existsBySlug(anyString())).thenReturn(false);
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> {
                                 Campaign c = inv.getArgument(0);
                                 c.setId(UUID.randomUUID());
-                                c.setCampaignMaps(List.of());
+                                c.setCampaignDifficulties(List.of());
                                 return c;
                         });
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
                         CampaignResponse result = campaignService.createCampaign(request);
 
                         assertThat(result.getName()).isEqualTo("New Campaign");
-                        assertThat(result.getCreatorId()).isEqualTo(creator.getId());
-                        verify(campaignRepository).save(any(Campaign.class));
+                        assertThat(result.getSlug()).isEqualTo("new-campaign");
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.DRAFT);
                 }
 
                 @Test
-                void throwsWhenCreatorNotFound() {
+                void rejectsTakenSlug() {
                         CreateCampaignRequest request = new CreateCampaignRequest();
-                        request.setCreatorId(99999L);
-                        request.setName("Campaign");
+                        request.setCreatorId(creator.getId());
+                        request.setName("Taken");
+                        request.setSlug("taken");
 
-                        when(userRepository.findById(99999L)).thenReturn(Optional.empty());
+                        when(userRepository.findByIdAndActiveTrue(creator.getId())).thenReturn(Optional.of(creator));
+                        when(campaignRepository.existsBySlug("taken")).thenReturn(true);
 
                         assertThatThrownBy(() -> campaignService.createCampaign(request))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
-        class AddCampaignMap {
-
-                @Test
-                void addsCampaignMapWithoutPrerequisites() {
-                        AddCampaignMapRequest request = new AddCampaignMapRequest();
-                        request.setMapDifficultyId(mapDifficulty.getId());
-                        request.setAccuracyRequirement(new BigDecimal("0.95"));
-                        request.setXp(new BigDecimal("100"));
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
-                                        .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignMapRepository.save(any(CampaignMap.class))).thenAnswer(inv -> {
-                                CampaignMap cm = inv.getArgument(0);
-                                cm.setId(UUID.randomUUID());
-                                return cm;
-                        });
-
-                        CampaignMapResponse result = campaignService.addCampaignMap(campaign.getId(), request);
-
-                        assertThat(result.getSongName()).isEqualTo("Test Song");
-                        assertThat(result.getAccuracyRequirement()).isEqualByComparingTo(new BigDecimal("0.95"));
-                        assertThat(result.getPrerequisiteMapIds()).isEmpty();
+                                        .isInstanceOf(ValidationException.class);
                 }
 
                 @Test
-                void throwsWhenPrerequisiteBelongsToDifferentCampaign() {
-                        UUID prereqId = UUID.randomUUID();
-                        Campaign otherCampaign = Campaign.builder().id(UUID.randomUUID()).build();
-                        CampaignMap prereqFromOtherCampaign = CampaignMap.builder()
-                                        .id(prereqId)
-                                        .campaign(otherCampaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .active(true)
-                                        .build();
+                void requiresCreatorIdOrAlias() {
+                        CreateCampaignRequest request = new CreateCampaignRequest();
+                        request.setName("Anon");
 
-                        AddCampaignMapRequest request = new AddCampaignMapRequest();
-                        request.setMapDifficultyId(mapDifficulty.getId());
-                        request.setAccuracyRequirement(new BigDecimal("0.95"));
-                        request.setPrerequisiteCampaignMapIds(List.of(prereqId));
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
-                                        .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignMapRepository.save(any(CampaignMap.class))).thenAnswer(inv -> {
-                                CampaignMap cm = inv.getArgument(0);
-                                cm.setId(UUID.randomUUID());
-                                return cm;
-                        });
-                        when(campaignMapRepository.findByIdAndActiveTrue(prereqId))
-                                        .thenReturn(Optional.of(prereqFromOtherCampaign));
-
-                        assertThatThrownBy(() -> campaignService.addCampaignMap(campaign.getId(), request))
+                        assertThatThrownBy(() -> campaignService.createCampaign(request))
                                         .isInstanceOf(ValidationException.class);
                 }
         }
@@ -574,24 +187,356 @@ class CampaignServiceTest {
         class UpdateCampaign {
 
                 @Test
-                void updatesOnlyProvidedFields() {
+                void updatesNameInDraft() {
                         UpdateCampaignRequest request = new UpdateCampaignRequest();
-                        request.setName("Updated Name");
-                        request.setVerified(true);
+                        request.setName("Renamed");
 
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
-                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> {
-                                Campaign c = inv.getArgument(0);
-                                c.setCampaignMaps(List.of());
-                                return c;
-                        });
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
                         CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
 
-                        assertThat(result.getName()).isEqualTo("Updated Name");
-                        assertThat(result.isVerified()).isTrue();
-                        assertThat(result.getDescription()).isEqualTo("A test campaign");
+                        assertThat(result.getName()).isEqualTo("Renamed");
+                }
+
+                @Test
+                void rejectsUpdateWhenPublished() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        UpdateCampaignRequest request = new UpdateCampaignRequest();
+                        request.setName("Locked");
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.updateCampaign(campaign.getId(), request))
+                                        .isInstanceOf(ValidationException.class);
+                }
+        }
+
+        @Nested
+        class Publish {
+
+                @Test
+                void publishesWhenSingleSink() {
+                        CampaignDifficulty a = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty b = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(a, b));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(
+                                                        com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
+                                                                        .builder()
+                                                                        .id(UUID.randomUUID()).campaignDifficulty(b)
+                                                                        .comesFromCampaignDifficulty(a).active(true)
+                                                                        .build()));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.publish(campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                }
+
+                @Test
+                void rejectsWhenMultipleSinks() {
+                        CampaignDifficulty a = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty b = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(a, b));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of());
+
+                        assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+                }
+        }
+
+        @Nested
+        class MarkCurated {
+
+                @Test
+                void rejectsNonCurator() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        StaffUser nonCurator = StaffUser.builder().id(UUID.randomUUID()).role(StaffRole.RANKING)
+                                        .build();
+
+                        assertThatThrownBy(() -> campaignService.markCurated(campaign.getId(), nonCurator))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void promotesPublishedCampaignToCurated() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        StaffUser curator = StaffUser.builder().id(UUID.randomUUID()).role(StaffRole.CAMPAIGN_CURATOR)
+                                        .build();
+                        CampaignDifficulty single = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(single));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of());
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.markCurated(campaign.getId(), curator);
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.CURATED);
+                }
+        }
+
+        @Nested
+        class AddDifficulty {
+
+                @Test
+                void rejectsPositionCollision() {
+                        AddCampaignDifficultyRequest request = new AddCampaignDifficultyRequest();
+                        request.setMapDifficultyId(mapDifficulty.getId());
+                        request.setRequirementType(CampaignRequirementType.ACC);
+                        request.setRequirementValue(new BigDecimal("0.95"));
+                        request.setPositionX(0);
+                        request.setPositionY(0);
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
+                                        .thenReturn(Optional.of(mapDifficulty));
+                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
+                                        campaign.getId(), 0, 0)).thenReturn(true);
+
+                        assertThatThrownBy(() -> campaignService.addDifficulty(campaign.getId(), request))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void addsDifficultyAtFreePosition() {
+                        AddCampaignDifficultyRequest request = new AddCampaignDifficultyRequest();
+                        request.setMapDifficultyId(mapDifficulty.getId());
+                        request.setRequirementType(CampaignRequirementType.ACC);
+                        request.setRequirementValue(new BigDecimal("0.95"));
+                        request.setPositionX(2);
+                        request.setPositionY(1);
+                        request.setXp(new BigDecimal("100"));
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
+                                        .thenReturn(Optional.of(mapDifficulty));
+                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
+                                        campaign.getId(), 2, 1)).thenReturn(false);
+                        when(campaignDifficultyRepository
+                                        .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
+                                                        mapDifficulty.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(campaignDifficultyRepository.save(any(CampaignDifficulty.class))).thenAnswer(inv -> {
+                                CampaignDifficulty d = inv.getArgument(0);
+                                d.setId(UUID.randomUUID());
+                                return d;
+                        });
+
+                        CampaignDifficultyResponse result = campaignService.addDifficulty(campaign.getId(), request);
+
+                        assertThat(result.getPositionX()).isEqualTo(2);
+                        assertThat(result.getPositionY()).isEqualTo(1);
+                        assertThat(result.getXp()).isEqualByComparingTo(new BigDecimal("100"));
+                }
+        }
+
+        @Nested
+        class StartCampaign {
+
+                @Test
+                void rejectsDraftCampaign() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.startCampaign(creator.getId(), campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void createsNewUserCampaign() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(userRepository.findByIdAndActiveTrue(creator.getId())).thenReturn(Optional.of(creator));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(creator.getId(),
+                                        campaign.getId()))
+                                        .thenReturn(Optional.empty());
+                        when(userCampaignRepository.save(any(UserCampaign.class))).thenAnswer(inv -> {
+                                UserCampaign uc = inv.getArgument(0);
+                                uc.setId(UUID.randomUUID());
+                                return uc;
+                        });
+
+                        UserCampaignResponse result = campaignService.startCampaign(creator.getId(), campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
+                        assertThat(result.getCampaignId()).isEqualTo(campaign.getId());
+                }
+        }
+
+        @Nested
+        class GetUserProgress {
+
+                @Test
+                void computesAccProgressForSingleDifficulty() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        CampaignDifficulty d = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        Score score = Score.builder()
+                                        .id(UUID.randomUUID()).user(creator).mapDifficulty(mapDifficulty)
+                                        .score(950000).scoreNoMods(950000).build();
+                        com.accsaber.backend.model.entity.campaign.UserCampaign uc = com.accsaber.backend.model.entity.campaign.UserCampaign
+                                        .builder().id(UUID.randomUUID()).user(creator).campaign(campaign)
+                                        .status(com.accsaber.backend.model.entity.campaign.UserCampaignStatus.IN_PROGRESS)
+                                        .startedAt(java.time.Instant.now()).active(true).build();
+                        com.accsaber.backend.model.entity.campaign.UserCampaignScore ucs = com.accsaber.backend.model.entity.campaign.UserCampaignScore
+                                        .builder().id(UUID.randomUUID()).user(creator).campaign(campaign)
+                                        .campaignDifficulty(d).score(score).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of(uc));
+                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of(ucs));
+                        when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
+                                        .thenReturn(List.of(d));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
+                                        .thenReturn(List.of());
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyList()))
+                                        .thenReturn(List.of(score));
+
+                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                                        campaign.getId());
+
+                        assertThat(result.getTotalDifficulties()).isEqualTo(1);
+                        assertThat(result.getCompletedDifficulties()).isEqualTo(1);
+                        assertThat(result.getDifficulties().get(0).isCompleted()).isTrue();
+                        assertThat(result.getDifficulties().get(0).getUserValue())
+                                        .isEqualByComparingTo(new BigDecimal("0.95"));
+                }
+
+                @Test
+                void showsZeroProgressWhenNotStarted() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        CampaignDifficulty d = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        Score score = Score.builder()
+                                        .id(UUID.randomUUID()).user(creator).mapDifficulty(mapDifficulty)
+                                        .score(950000).scoreNoMods(950000).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of());
+                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of());
+                        when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
+                                        .thenReturn(List.of(d));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
+                                        .thenReturn(List.of());
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyList()))
+                                        .thenReturn(List.of(score));
+
+                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                                        campaign.getId());
+
+                        assertThat(result.getCompletedDifficulties()).isEqualTo(0);
+                        assertThat(result.getDifficulties().get(0).isCompleted()).isFalse();
+                        assertThat(result.getDifficulties().get(0).getUserValue())
+                                        .isEqualByComparingTo(new BigDecimal("0.95"));
+                }
+
+                @Test
+                void respectsProgressionAgnostic() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        campaign.setProgressionAgnostic(true);
+                        CampaignDifficulty a = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty b = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of());
+                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyCollection()))
+                                        .thenReturn(List.of());
+                        when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
+                                        .thenReturn(List.of(a, b));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
+                                        .thenReturn(List.of(
+                                                        com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
+                                                                        .builder()
+                                                                        .id(UUID.randomUUID()).campaignDifficulty(b)
+                                                                        .comesFromCampaignDifficulty(a).active(true)
+                                                                        .build()));
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
+                                        anyList()))
+                                        .thenReturn(List.of());
+
+                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                                        campaign.getId());
+
+                        assertThat(result.getDifficulties().get(0).isUnlocked()).isTrue();
+                        assertThat(result.getDifficulties().get(1).isUnlocked()).isTrue();
                 }
         }
 
@@ -599,7 +544,7 @@ class CampaignServiceTest {
         class DeactivateCampaign {
 
                 @Test
-                void deactivatesCampaign() {
+                void deactivates() {
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
                         when(campaignRepository.save(any(Campaign.class))).thenReturn(campaign);
@@ -607,54 +552,14 @@ class CampaignServiceTest {
                         campaignService.deactivateCampaign(campaign.getId());
 
                         assertThat(campaign.isActive()).isFalse();
-                        verify(campaignRepository).save(campaign);
                 }
 
                 @Test
-                void throwsWhenCampaignNotFound() {
+                void throwsWhenMissing() {
                         UUID id = UUID.randomUUID();
                         when(campaignRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
 
                         assertThatThrownBy(() -> campaignService.deactivateCampaign(id))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
-        class RemoveCampaignMap {
-
-                @Test
-                void deactivatesCampaignMap() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(campaign)
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .active(true)
-                                        .build();
-
-                        when(campaignMapRepository.findByIdAndActiveTrue(cm.getId())).thenReturn(Optional.of(cm));
-                        when(campaignMapRepository.save(any(CampaignMap.class))).thenReturn(cm);
-
-                        campaignService.removeCampaignMap(campaign.getId(), cm.getId());
-
-                        assertThat(cm.isActive()).isFalse();
-                        verify(campaignMapRepository).save(cm);
-                }
-
-                @Test
-                void throwsWhenMapBelongsToDifferentCampaign() {
-                        CampaignMap cm = CampaignMap.builder()
-                                        .id(UUID.randomUUID())
-                                        .campaign(Campaign.builder().id(UUID.randomUUID()).build())
-                                        .mapDifficulty(mapDifficulty)
-                                        .accuracyRequirement(new BigDecimal("0.90"))
-                                        .active(true)
-                                        .build();
-
-                        when(campaignMapRepository.findByIdAndActiveTrue(cm.getId())).thenReturn(Optional.of(cm));
-
-                        assertThatThrownBy(() -> campaignService.removeCampaignMap(campaign.getId(), cm.getId()))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
         }

@@ -1,12 +1,11 @@
 package com.accsaber.backend.controller.admin;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,14 +13,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.model.dto.request.campaign.AddCampaignMapRequest;
-import com.accsaber.backend.model.dto.request.campaign.CreateCampaignMilestoneRequest;
+import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
-import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignMilestoneRequest;
+import com.accsaber.backend.model.dto.request.campaign.CreateCampaignTagRequest;
+import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
-import com.accsaber.backend.model.dto.response.campaign.CampaignMapResponse;
-import com.accsaber.backend.model.dto.response.campaign.CampaignMilestoneResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
+import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.campaign.CampaignService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/v1/admin/campaigns")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
 @RequiredArgsConstructor
 @Tag(name = "Admin Campaigns")
 public class AdminCampaignController {
@@ -52,57 +52,66 @@ public class AdminCampaignController {
         return ResponseEntity.ok(campaignService.updateCampaign(campaignId, request));
     }
 
+    @Operation(summary = "Publish a campaign")
+    @PatchMapping("/{campaignId}/publish")
+    public ResponseEntity<CampaignResponse> publish(@PathVariable UUID campaignId) {
+        return ResponseEntity.ok(campaignService.publish(campaignId));
+    }
+
+    @Operation(summary = "Move a published campaign back into editing")
+    @PatchMapping("/{campaignId}/edit")
+    public ResponseEntity<CampaignResponse> startEditing(@PathVariable UUID campaignId) {
+        return ResponseEntity.ok(campaignService.startEditing(campaignId));
+    }
+
+    @Operation(summary = "Mark a campaign as curated")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
+    @PatchMapping("/{campaignId}/curate")
+    public ResponseEntity<CampaignResponse> markCurated(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal StaffUserDetails principal) {
+        return ResponseEntity.ok(campaignService.markCurated(campaignId, principal.getStaffUser()));
+    }
+
     @Operation(summary = "Deactivate a campaign")
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{campaignId}/deactivate")
     public ResponseEntity<Void> deactivateCampaign(@PathVariable UUID campaignId) {
         campaignService.deactivateCampaign(campaignId);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Add a map to a campaign")
-    @PostMapping("/{campaignId}/maps")
-    public ResponseEntity<CampaignMapResponse> addCampaignMap(
+    @Operation(summary = "Add a difficulty to a campaign")
+    @PostMapping("/{campaignId}/difficulties")
+    public ResponseEntity<CampaignDifficultyResponse> addDifficulty(
             @PathVariable UUID campaignId,
-            @Valid @RequestBody AddCampaignMapRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.addCampaignMap(campaignId, request));
+            @Valid @RequestBody AddCampaignDifficultyRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.addDifficulty(campaignId, request));
     }
 
-    @Operation(summary = "Remove a map from a campaign")
-    @PatchMapping("/{campaignId}/maps/{campaignMapId}/deactivate")
-    public ResponseEntity<Void> removeCampaignMap(
+    @Operation(summary = "Update a campaign difficulty")
+    @PatchMapping("/difficulties/{campaignDifficultyId}")
+    public ResponseEntity<CampaignDifficultyResponse> updateDifficulty(
+            @PathVariable UUID campaignDifficultyId,
+            @Valid @RequestBody UpdateCampaignDifficultyRequest request) {
+        return ResponseEntity.ok(campaignService.updateDifficulty(campaignDifficultyId, request));
+    }
+
+    @Operation(summary = "Remove a difficulty from a campaign")
+    @PatchMapping("/{campaignId}/difficulties/{campaignDifficultyId}/deactivate")
+    public ResponseEntity<Void> removeDifficulty(
             @PathVariable UUID campaignId,
-            @PathVariable UUID campaignMapId) {
-        campaignService.removeCampaignMap(campaignId, campaignMapId);
+            @PathVariable UUID campaignDifficultyId) {
+        campaignService.removeDifficulty(campaignId, campaignDifficultyId);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List campaign milestones")
-    @GetMapping("/{campaignId}/milestones")
-    public ResponseEntity<List<CampaignMilestoneResponse>> listMilestones(@PathVariable UUID campaignId) {
-        return ResponseEntity.ok(campaignService.findActiveMilestonesByCampaign(campaignId));
-    }
-
-    @Operation(summary = "Create a campaign milestone")
-    @PostMapping("/{campaignId}/milestones")
-    public ResponseEntity<CampaignMilestoneResponse> createMilestone(
-            @PathVariable UUID campaignId,
-            @Valid @RequestBody CreateCampaignMilestoneRequest request) {
+    @Operation(summary = "Create a campaign tag")
+    @PostMapping("/tags")
+    public ResponseEntity<CampaignTagResponse> createTag(
+            @Valid @RequestBody CreateCampaignTagRequest request,
+            @AuthenticationPrincipal StaffUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(campaignService.createMilestone(campaignId, request));
-    }
-
-    @Operation(summary = "Update a campaign milestone")
-    @PatchMapping("/milestones/{milestoneId}")
-    public ResponseEntity<CampaignMilestoneResponse> updateMilestone(
-            @PathVariable UUID milestoneId,
-            @Valid @RequestBody UpdateCampaignMilestoneRequest request) {
-        return ResponseEntity.ok(campaignService.updateMilestone(milestoneId, request));
-    }
-
-    @Operation(summary = "Deactivate a campaign milestone")
-    @PatchMapping("/milestones/{milestoneId}/deactivate")
-    public ResponseEntity<Void> deactivateMilestone(@PathVariable UUID milestoneId) {
-        campaignService.deactivateMilestone(milestoneId);
-        return ResponseEntity.noContent().build();
+                .body(campaignService.createTag(request, principal != null ? principal.getStaffUser() : null));
     }
 }

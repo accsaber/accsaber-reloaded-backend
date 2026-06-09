@@ -92,6 +92,8 @@ class ScoreServiceTest {
         @Mock
         private com.accsaber.backend.service.item.LevelUpAwardService levelUpAwardService;
         @Mock
+        private com.accsaber.backend.service.campaign.CampaignEvaluationService campaignEvaluationService;
+        @Mock
         private ApplicationEventPublisher eventPublisher;
         @Mock
         private TransactionTemplate transactionTemplate;

@@ -1,13 +1,12 @@
 package com.accsaber.backend.model.entity.campaign;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.Category;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,37 +24,31 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "campaign_milestones")
+@Table(name = "campaign_tags")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CampaignMilestone {
+public class CampaignTag {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "campaign_id", nullable = false)
-    private Campaign campaign;
+    @Column(nullable = false)
+    private CampaignTagKind kind;
 
     @Column(nullable = false)
-    private String title;
-
-    private String description;
-
-    @Column(name = "avatar_url")
-    private String avatarUrl;
-
-    @Column(nullable = false, precision = 20, scale = 6)
-    @Builder.Default
-    private BigDecimal xp = BigDecimal.ZERO;
+    private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "awards_item_id")
-    private Item awardsItem;
+    @JoinColumn(name = "category_id")
+    private Category category;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean system = false;
 
     @Column(nullable = false)
     @Builder.Default
