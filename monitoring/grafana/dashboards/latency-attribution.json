@@ -1,0 +1,136 @@
+{
+  "title": "AccSaber - Latency Attribution (Where Is The Time?)",
+  "uid": "latency-attribution",
+  "tags": ["latency", "diagnostic"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "row",
+      "title": "End-to-End Probe Latency",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Probe duration by target (the smoking gun)",
+      "description": "Three synthetic probes every 15s. Internal = JVM only. api/frontend = JVM + Cloudflare + network. Any gap between internal and the CF lines is non-backend latency.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "probe_duration_seconds{target_kind=\"internal\"}", "legendFormat": "internal (JVM only)" },
+        { "expr": "probe_duration_seconds{target_kind=\"api_via_cf\"}", "legendFormat": "api.accsaberreloaded.com (CF + JVM)" },
+        { "expr": "probe_duration_seconds{target_kind=\"frontend_zone_via_cf\"}", "legendFormat": "accsaberreloaded.com (CF + JVM)" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "showPoints": "auto" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["min", "max", "mean", "lastNotNull"] } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cloudflare overhead (probe - JVM time)",
+      "description": "Subtraction: how much each request spent outside the JVM, broken down by zone. If this graph spikes during slow windows, slowness lives at CF or in the network path.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 11 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "probe_duration_seconds{target_kind=\"api_via_cf\"} - on() probe_duration_seconds{target_kind=\"internal\"}",
+          "legendFormat": "api zone overhead"
+        },
+        {
+          "expr": "probe_duration_seconds{target_kind=\"frontend_zone_via_cf\"} - on() probe_duration_seconds{target_kind=\"internal\"}",
+          "legendFormat": "frontend zone overhead"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "type": "row",
+      "title": "TCP / TLS / HTTP phase breakdown",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Phase durations: api.accsaberreloaded.com",
+      "description": "Where time is spent per request: DNS → connect → TLS → request → response. Big TLS spikes = handshake renegotiation. Big connect spikes = network/CF backbone issue.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "probe_http_duration_seconds{target_kind=\"api_via_cf\",phase=\"resolve\"}", "legendFormat": "DNS" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"api_via_cf\",phase=\"connect\"}", "legendFormat": "Connect" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"api_via_cf\",phase=\"tls\"}", "legendFormat": "TLS" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"api_via_cf\",phase=\"processing\"}", "legendFormat": "Processing (TTFB)" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"api_via_cf\",phase=\"transfer\"}", "legendFormat": "Transfer" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Phase durations: accsaberreloaded.com",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "probe_http_duration_seconds{target_kind=\"frontend_zone_via_cf\",phase=\"resolve\"}", "legendFormat": "DNS" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"frontend_zone_via_cf\",phase=\"connect\"}", "legendFormat": "Connect" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"frontend_zone_via_cf\",phase=\"tls\"}", "legendFormat": "TLS" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"frontend_zone_via_cf\",phase=\"processing\"}", "legendFormat": "Processing (TTFB)" },
+        { "expr": "probe_http_duration_seconds{target_kind=\"frontend_zone_via_cf\",phase=\"transfer\"}", "legendFormat": "Transfer" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "type": "row",
+      "title": "Backend Latency (JVM-side ground truth)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Backend HTTP request latency p50/p95/p99",
+      "description": "Pure JVM-side time measured by Micrometer. Use to compare against the probe lines above.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "type": "stat",
+      "title": "Probe success rate (last 5 min)",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 39 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "avg by (target_kind) (avg_over_time(probe_success[5m]))", "legendFormat": "{{target_kind}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "type": "stat",
+      "title": "Probe SSL cert days until expiry",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 39 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "(probe_ssl_earliest_cert_expiry - time()) / 86400", "legendFormat": "{{target_kind}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "d" } }
+    },
+    {
+      "type": "stat",
+      "title": "Probe HTTP version negotiated",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 39 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "probe_http_version{target_kind=\"api_via_cf\"}", "legendFormat": "api zone" },
+        { "expr": "probe_http_version{target_kind=\"frontend_zone_via_cf\"}", "legendFormat": "frontend zone" }
+      ]
+    }
+  ]
+}

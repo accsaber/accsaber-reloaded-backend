@@ -118,10 +118,25 @@ services:
     container_name: accsaber-prometheus
     volumes:
       - prometheus-data:/prometheus
+    depends_on:
+      - blackbox-exporter
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy || exit 1"]
       interval: 15s
       timeout: 10s
+      retries: 3
+    networks:
+      - accsaber-network
+
+  blackbox-exporter:
+    build:
+      context: .
+      dockerfile: monitoring/Dockerfile.blackbox
+    container_name: accsaber-blackbox-exporter
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 5s
       retries: 3
     networks:
       - accsaber-network

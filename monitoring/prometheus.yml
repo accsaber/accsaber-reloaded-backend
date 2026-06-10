@@ -7,3 +7,41 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['backend:8080']
+
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx_plain]
+    static_configs:
+      - targets:
+          - http://backend:8080/v1/health/ping
+        labels:
+          target_kind: internal
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'blackbox-https'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://api.accsaberreloaded.com/v1/health/ping
+        labels:
+          target_kind: api_via_cf
+      - targets:
+          - https://accsaberreloaded.com/v1/health/ping
+        labels:
+          target_kind: frontend_zone_via_cf
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
