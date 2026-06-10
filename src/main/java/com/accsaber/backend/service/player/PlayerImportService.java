@@ -15,6 +15,7 @@ import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerRespon
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.service.media.CdnSyncService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class PlayerImportService {
         private final ScoreSaberClient scoreSaberClient;
         private final UserService userService;
         private final UserSettingsService userSettingsService;
+        private final CdnSyncService cdnSyncService;
 
         public User ensurePlayerExists(Long userId) {
                 Optional<User> existing = userService.findOptionalByUserId(userId);
@@ -57,12 +59,17 @@ public class PlayerImportService {
                                 .orElse(null);
 
                 log.info("Creating new user {} ({})", name, userId);
+                User created;
                 try {
-                        return userService.createUser(userId, name, avatarUrl, country);
+                        created = userService.createUser(userId, name, avatarUrl, country);
                 } catch (ConflictException e) {
-                        return userService.findOptionalByUserId(userId)
+                        created = userService.findOptionalByUserId(userId)
                                         .orElseThrow(() -> new ResourceNotFoundException("User", userId));
                 }
+                if (avatarUrl != null) {
+                        cdnSyncService.mirrorUserAvatarIfChanged(userId, avatarUrl);
+                }
+                return created;
         }
 
         public void refreshPlayerProfile(Long userId) {
@@ -104,7 +111,10 @@ public class PlayerImportService {
                                 .orElse(true);
                 boolean ssInactive = ssProfile.map(ScoreSaberPlayerResponse::isInactive).orElse(true);
                 boolean playerInactive = blInactive && ssInactive;
-                userService.updateProfile(userId, name, avatarUrl, country, playerInactive);
+                userService.updateProfile(userId, name, null, country, playerInactive);
+                if (avatarUrl != null) {
+                        cdnSyncService.mirrorUserAvatarIfChanged(userId, avatarUrl);
+                }
                 log.debug("Refreshed profile for player {}", userId);
         }
 }

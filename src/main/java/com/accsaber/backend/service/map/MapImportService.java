@@ -30,6 +30,7 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
+import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.APCalculationService;
 
@@ -51,6 +52,7 @@ public class MapImportService {
     private final APCalculationService apCalculationService;
     private final AutoCriteriaService autoCriteriaService;
     private final PlaylistService playlistService;
+    private final CdnSyncService cdnSyncService;
 
     private static final String COMPLEXITY_CURVE_NAME = "AI Complexity Curve";
 
@@ -158,6 +160,7 @@ public class MapImportService {
         }
 
         scheduleAutoCriteriaCheck(response.getId());
+        scheduleMapCoverMirror(response.getMapId());
 
         return response;
     }
@@ -266,8 +269,23 @@ public class MapImportService {
 
         playlistService.evictAllUnrankedPlaylists();
         scheduleAutoCriteriaCheck(difficultyId);
+        scheduleMapCoverMirror(difficulty.getMap().getId());
 
         return mapService.getDifficultyResponse(difficultyId);
+    }
+
+    private void scheduleMapCoverMirror(UUID mapId) {
+        if (mapId == null) return;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    cdnSyncService.mirrorMapCoverAsync(mapId);
+                }
+            });
+        } else {
+            cdnSyncService.mirrorMapCoverAsync(mapId);
+        }
     }
 
     private void scheduleAutoCriteriaCheck(UUID difficultyId) {

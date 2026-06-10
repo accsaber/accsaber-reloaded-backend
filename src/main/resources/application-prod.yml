@@ -31,3 +31,8 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+
+accsaber:
+  cdn:
+    storage-path: ${CDN_STORAGE_PATH:/var/cdn}
+    base-url: ${CDN_BASE_URL:https://cdn.accsaberreloaded.com}

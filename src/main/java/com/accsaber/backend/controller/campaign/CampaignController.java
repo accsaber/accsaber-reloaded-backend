@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,7 +19,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
@@ -36,6 +39,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -48,7 +52,10 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Campaigns")
 public class CampaignController {
 
+    private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
+
     private final CampaignService campaignService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "List active campaigns")
     @GetMapping
@@ -251,5 +258,28 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(campaignService.removeCompletionItemAsPlayer(
                 principal.getUserId(), campaignId, itemId));
+    }
+
+    @Operation(summary = "Upload (or replace) the background image for a campaign the authenticated player owns")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping(value = "/{campaignId}/background", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignResponse> uploadMyCampaignBackground(
+            @PathVariable UUID campaignId,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(
+                campaignService.setBackgroundUrlAsPlayer(principal.getUserId(), campaignId, url));
+    }
+
+    @Operation(summary = "Remove the background image for a campaign the authenticated player owns")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{campaignId}/background")
+    public ResponseEntity<CampaignResponse> deleteMyCampaignBackground(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        CampaignResponse result = campaignService.setBackgroundUrlAsPlayer(principal.getUserId(), campaignId, null);
+        mediaProcessingService.deleteIfExists(CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(result);
     }
 }

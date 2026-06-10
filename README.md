@@ -40,6 +40,11 @@ STEAM_OPENID_REALM=http://localhost:8080
 STEAM_OPENID_RETURN_TO=http://localhost:8080/v1/auth/steam/callback
 OAUTH_ALLOWED_RETURN_ORIGINS=http://localhost:5173
 KOFI_VERIFICATION_TOKEN=
+
+# CDN (image uploads for items/campaigns)
+CDN_STORAGE_PATH=./data/cdn
+CDN_BASE_URL=http://localhost:8080/cdn
+CDN_VIPS_BINARY=vips
 ```
 
 ```bash
@@ -127,6 +132,9 @@ src/main/resources/
 | `STEAM_OPENID_RETURN_TO`  | OAuth    | Backend callback URL for Steam (`{realm}/v1/auth/steam/callback`) |
 | `OAUTH_ALLOWED_RETURN_ORIGINS` | OAuth | Comma-separated frontend origins the OAuth flow may redirect back to |
 | `KOFI_VERIFICATION_TOKEN` | No   | Ko-fi webhook verification token (from `ko-fi.com/manage/webhooks`).|
+| `CDN_STORAGE_PATH`        | No   | Where encoded AVIFs are written. Defaults to `./data/cdn` locally, `/var/cdn` in prod. |
+| `CDN_BASE_URL`            | No   | Public URL prefix returned in `iconUrl`/`backgroundUrl`. |
+| `CDN_VIPS_BINARY`         | No   | Path to the `vips` CLI. Override if not on `$PATH`. |
 
 > **OAuth** vars are required to run the player/staff OAuth login flow. Leave blank to disable OAuth - username/password staff login still works.
 

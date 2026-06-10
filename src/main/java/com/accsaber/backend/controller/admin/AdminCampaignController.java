@@ -3,15 +3,19 @@ package com.accsaber.backend.controller.admin;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
@@ -23,6 +27,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,7 +41,10 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin Campaigns")
 public class AdminCampaignController {
 
+    private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
+
     private final CampaignService campaignService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "Create a campaign")
     @PostMapping
@@ -113,5 +121,21 @@ public class AdminCampaignController {
             @AuthenticationPrincipal StaffUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(campaignService.createTag(request, principal != null ? principal.getStaffUser() : null));
+    }
+
+    @Operation(summary = "Upload (or replace) the background image for a campaign")
+    @PostMapping(value = "/{campaignId}/background", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignResponse> uploadBackground(
+            @PathVariable UUID campaignId,
+            @RequestPart("file") MultipartFile file) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(campaignService.setBackgroundUrl(campaignId, url));
+    }
+
+    @Operation(summary = "Remove the background image for a campaign")
+    @DeleteMapping("/{campaignId}/background")
+    public ResponseEntity<CampaignResponse> deleteBackground(@PathVariable UUID campaignId) {
+        mediaProcessingService.deleteIfExists(CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(campaignService.setBackgroundUrl(campaignId, null));
     }
 }

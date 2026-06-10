@@ -24,6 +24,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.service.media.CdnSyncService;
 
 @ExtendWith(MockitoExtension.class)
 class PlayerImportServiceTest {
@@ -41,6 +42,9 @@ class PlayerImportServiceTest {
 
     @Mock
     private UserSettingsService userSettingsService;
+
+    @Mock
+    private CdnSyncService cdnSyncService;
 
     @InjectMocks
     private PlayerImportService playerImportService;
@@ -162,7 +166,8 @@ class PlayerImportServiceTest {
 
             playerImportService.refreshPlayerProfile(STEAM_ID);
 
-            verify(userService).updateProfile(STEAM_ID, "UpdatedName", "https://ss.com/new.png", "CA", false);
+            verify(userService).updateProfile(STEAM_ID, "UpdatedName", null, "CA", false);
+            verify(cdnSyncService).mirrorUserAvatarIfChanged(STEAM_ID, "https://ss.com/new.png");
         }
 
         @Test

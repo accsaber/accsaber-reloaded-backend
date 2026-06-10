@@ -301,6 +301,14 @@ public class ItemService {
     }
 
     @Transactional
+    public Item setIconUrl(UUID id, String iconUrl) {
+        Item item = itemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Item", id));
+        item.setIconUrl(iconUrl);
+        return itemRepository.save(item);
+    }
+
+    @Transactional
     public void deactivate(UUID id) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));

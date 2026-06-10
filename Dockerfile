@@ -16,6 +16,8 @@ RUN mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
 FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
+RUN apk add --no-cache vips-tools libheif aom-libs
+
 COPY --from=build /app/target/dependency/BOOT-INF/lib /app/lib
 COPY --from=build /app/target/dependency/META-INF /app/META-INF
 COPY --from=build /app/target/dependency/BOOT-INF/classes /app

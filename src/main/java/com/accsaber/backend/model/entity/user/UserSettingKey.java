@@ -16,6 +16,7 @@ public enum UserSettingKey {
     APPEARANCE_PRIMARY_REPLAY_SERVICE("appearance.primaryReplayService", String.class, "beatleader", false),
 
     SYNC_NAME("sync.name", Boolean.class, true, false),
+    SYNC_AVATAR("sync.avatar", Boolean.class, true, false),
 
     EQUIPPED_TITLE("equipped.title", UUID.class, null, true),
     EQUIPPED_PROFILE_BORDER_SHAPE("equipped.profileBorderShape", UUID.class, null, true),

@@ -34,6 +34,9 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(name = "last_synced_avatar_url")
+    private String lastSyncedAvatarUrl;
+
     private String country;
 
     @Column(name = "country_override", nullable = false)

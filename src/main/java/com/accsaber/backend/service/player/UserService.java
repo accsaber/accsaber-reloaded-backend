@@ -128,6 +128,23 @@ public class UserService {
     }
 
     @Transactional
+    public void setAvatarFromPlatformSync(Long userId, String cdnUrl, String upstreamUrl) {
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        user.setAvatarUrl(cdnUrl);
+        user.setLastSyncedAvatarUrl(upstreamUrl);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void setUserUploadedAvatar(Long userId, String cdnUrl) {
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        user.setAvatarUrl(cdnUrl);
+        userRepository.save(user);
+    }
+
+    @Transactional
     public User overrideCountry(Long userId, String country) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));

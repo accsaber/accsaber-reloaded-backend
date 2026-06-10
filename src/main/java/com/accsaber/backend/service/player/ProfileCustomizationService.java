@@ -18,7 +18,10 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.supporter.SupporterService;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +44,7 @@ public class ProfileCustomizationService {
     private final UserSettingsService userSettingsService;
     private final BioSanitizer bioSanitizer;
     private final SupporterService supporterService;
+    private final CdnSyncService cdnSyncService;
 
     @Transactional
     public void updateName(Long userId, String newName) {
@@ -51,6 +55,12 @@ public class ProfileCustomizationService {
         }
         userService.updateProfile(userId, newName, null, null, null);
         userSettingsService.set(userId, UserSettingKey.SYNC_NAME, false);
+    }
+
+    @Transactional
+    public String updateAvatar(Long userId, MultipartFile file) {
+        requireUser(userId);
+        return cdnSyncService.storeUserUploadedAvatar(userId, file);
     }
 
     @Transactional

@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -15,7 +16,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.model.dto.request.item.AwardItemRequest;
 import com.accsaber.backend.model.dto.request.item.CreateItemRequest;
@@ -30,6 +33,7 @@ import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
+import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,8 +47,11 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin Items")
 public class AdminItemController {
 
+    private static final String ITEM_ICON_SUBDIR = "items";
+
     private final ItemService itemService;
     private final ItemTypeService itemTypeService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "List item types (admin)")
     @GetMapping("/item-types")
@@ -162,5 +169,22 @@ public class AdminItemController {
     public ResponseEntity<Void> revokeAward(@PathVariable UUID linkId) {
         itemService.revokeAward(linkId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Upload (or replace) the icon image for an item")
+    @PostMapping(value = "/items/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ItemResponse> uploadIcon(@PathVariable UUID id,
+            @RequestPart("file") MultipartFile file) {
+        itemService.findByIdForStaff(id);
+        String url = mediaProcessingService.storeImage(file, ITEM_ICON_SUBDIR, id.toString());
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setIconUrl(id, url)));
+    }
+
+    @Operation(summary = "Remove the icon image for an item")
+    @DeleteMapping("/items/{id}/icon")
+    public ResponseEntity<ItemResponse> deleteIcon(@PathVariable UUID id) {
+        itemService.findByIdForStaff(id);
+        mediaProcessingService.deleteIfExists(ITEM_ICON_SUBDIR, id.toString());
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setIconUrl(id, null)));
     }
 }

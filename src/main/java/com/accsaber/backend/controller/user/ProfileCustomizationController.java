@@ -1,11 +1,15 @@
 package com.accsaber.backend.controller.user;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.user.ProfileUpdateRequest;
@@ -40,6 +44,15 @@ public class ProfileCustomizationController {
             profileService.updatePinnedScores(userId, request.getPinnedScores());
         }
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Upload (or replace) the authenticated player's avatar", description = "Uploading an avatar automatically disables platform avatar sync (re-enable via sync.avatar setting).")
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> uploadAvatar(
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        Long userId = requirePrincipal(principal).getUserId();
+        return ResponseEntity.ok(profileService.updateAvatar(userId, file));
     }
 
     private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {

@@ -41,6 +41,12 @@ spring:
       include-message: always
       include-binding-errors: always
 
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 server:
   port: 8080
   forward-headers-strategy: framework
@@ -134,6 +140,16 @@ accsaber:
     player-refresh-cron: "0 0 4 * * *"
     songsuggest-cron: "0 0 4 * * MON"
     supporter-debit-cron: "0 30 4 * * *"
+  cdn:
+    storage-path: ${CDN_STORAGE_PATH:./data/cdn}
+    base-url: ${CDN_BASE_URL:http://localhost:8080/cdn}
+    vips-binary: ${CDN_VIPS_BINARY:vips}
+    backfill-delay-ms: ${CDN_BACKFILL_DELAY_MS:100}
+    max-upload-bytes: ${CDN_MAX_UPLOAD_BYTES:10485760}
+    avif-quality: ${CDN_AVIF_QUALITY:60}
+    avif-effort: ${CDN_AVIF_EFFORT:4}
+    max-dimension: ${CDN_MAX_DIMENSION:1024}
+    encode-timeout-ms: ${CDN_ENCODE_TIMEOUT_MS:30000}
   kofi:
     verification-token: ${KOFI_VERIFICATION_TOKEN:}
   songsuggest:

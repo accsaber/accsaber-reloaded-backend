@@ -273,6 +273,20 @@ public class CampaignService {
     }
 
     @Transactional
+    public CampaignResponse setBackgroundUrl(UUID campaignId, String backgroundUrl) {
+        Campaign campaign = loadActiveCampaign(campaignId);
+        campaign.setBackgroundUrl(backgroundUrl);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
+    public CampaignResponse setBackgroundUrlAsPlayer(Long playerId, UUID campaignId, String backgroundUrl) {
+        Campaign campaign = ownedDraftCampaign(playerId, campaignId);
+        campaign.setBackgroundUrl(backgroundUrl);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
     public CampaignResponse createCampaignAsPlayer(Long playerId, CreateCampaignRequest request) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(playerId);
         request.setCreatorId(resolvedUserId);

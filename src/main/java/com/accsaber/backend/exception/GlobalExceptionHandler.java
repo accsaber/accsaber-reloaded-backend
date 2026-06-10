@@ -13,9 +13,13 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.accsaber.backend.model.dto.response.ErrorResponse;
@@ -191,6 +195,79 @@ public class GlobalExceptionHandler {
                                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
                                 .code("INVALID_PARAMETER")
                                 .message(ex.getMostSpecificCause().getMessage())
+                                .path(request.getRequestURI())
+                                .correlationId(MDC.get("correlationId"))
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        @ExceptionHandler(MaxUploadSizeExceededException.class)
+        public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+                        MaxUploadSizeExceededException ex, HttpServletRequest request) {
+                log.warn("Upload exceeded max size on {}: {}", request.getRequestURI(), ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.CONTENT_TOO_LARGE.value())
+                                .error(HttpStatus.CONTENT_TOO_LARGE.getReasonPhrase())
+                                .code("UPLOAD_TOO_LARGE")
+                                .message("Uploaded file exceeds the maximum allowed size")
+                                .path(request.getRequestURI())
+                                .correlationId(MDC.get("correlationId"))
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(response);
+        }
+
+        @ExceptionHandler(MissingServletRequestPartException.class)
+        public ResponseEntity<ErrorResponse> handleMissingPart(
+                        MissingServletRequestPartException ex, HttpServletRequest request) {
+                log.warn("Missing multipart part '{}' on {}", ex.getRequestPartName(), request.getRequestURI());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                                .code("MISSING_MULTIPART_PART")
+                                .message(String.format("Required multipart part '%s' is missing",
+                                                ex.getRequestPartName()))
+                                .path(request.getRequestURI())
+                                .correlationId(MDC.get("correlationId"))
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ErrorResponse> handleMissingParameter(
+                        MissingServletRequestParameterException ex, HttpServletRequest request) {
+                log.warn("Missing required parameter '{}' on {}", ex.getParameterName(), request.getRequestURI());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                                .code("MISSING_PARAMETER")
+                                .message(String.format("Required parameter '%s' is missing", ex.getParameterName()))
+                                .path(request.getRequestURI())
+                                .correlationId(MDC.get("correlationId"))
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        @ExceptionHandler(MultipartException.class)
+        public ResponseEntity<ErrorResponse> handleMultipart(
+                        MultipartException ex, HttpServletRequest request) {
+                log.warn("Malformed multipart request on {}: {}", request.getRequestURI(), ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(Instant.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                                .code("MALFORMED_MULTIPART")
+                                .message("Multipart request could not be parsed")
                                 .path(request.getRequestURI())
                                 .correlationId(MDC.get("correlationId"))
                                 .build();
