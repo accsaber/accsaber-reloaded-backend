@@ -85,11 +85,12 @@ services:
       - accsaber-network
 
   cdn:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cdn
     container_name: accsaber-cdn
     volumes:
       - cdn-data:/usr/share/nginx/html:ro
-      - ./docker/cdn-nginx.conf:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
       interval: 15s
