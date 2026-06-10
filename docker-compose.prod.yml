@@ -143,17 +143,6 @@ services:
     networks:
       - accsaber-network
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: accsaber-cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - accsaber-network
-
   grafana:
     build:
       context: .
