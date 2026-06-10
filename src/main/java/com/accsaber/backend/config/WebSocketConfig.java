@@ -16,17 +16,17 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final ScoreFeedWebSocketHandler scoreFeedHandler;
-    private final MilestoneFeedWebSocketHandler milestoneFeedHandler;
-    private final MissionFeedWebSocketHandler missionFeedHandler;
+        private final ScoreFeedWebSocketHandler scoreFeedHandler;
+        private final MilestoneFeedWebSocketHandler milestoneFeedHandler;
+        private final MissionFeedWebSocketHandler missionFeedHandler;
 
-    @Override
-    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(scoreFeedHandler, "/ws/scores")
-                .setAllowedOrigins("*");
-        registry.addHandler(milestoneFeedHandler, "/ws/milestones")
-                .setAllowedOrigins("*");
-        registry.addHandler(missionFeedHandler, "/ws/missions")
-                .setAllowedOrigins("*");
-    }
+        @Override
+        public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+                registry.addHandler(scoreFeedHandler, "/ws/scores")
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(milestoneFeedHandler, "/ws/milestones")
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(missionFeedHandler, "/ws/missions")
+                                .setAllowedOriginPatterns("*");
+        }
 }
