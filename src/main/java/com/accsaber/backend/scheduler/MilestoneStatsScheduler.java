@@ -15,7 +15,7 @@ public class MilestoneStatsScheduler {
 
     private final MilestoneService milestoneService;
 
-    @Scheduled(fixedRate = 300_000)
+    @Scheduled(fixedDelay = 900_000, initialDelay = 60_000)
     public void refreshMilestoneCompletionStats() {
         log.debug("Refreshing milestone completion stats materialized view");
         try {
