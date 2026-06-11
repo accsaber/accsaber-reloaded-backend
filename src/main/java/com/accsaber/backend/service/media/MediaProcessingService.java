@@ -75,7 +75,11 @@ public class MediaProcessingService {
     }
 
     public void deleteIfExists(String subdir, String key) {
-        Path target = targetPath(subdir, key);
+        deletePathIfExists(targetPath(subdir, key));
+        deletePathIfExists(pngTargetPath(subdir, key));
+    }
+
+    private void deletePathIfExists(Path target) {
         try {
             Files.deleteIfExists(target);
         } catch (IOException e) {
@@ -85,26 +89,33 @@ public class MediaProcessingService {
 
     private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator) {
         Path baseDir = baseDir(subdir);
-        Path target = baseDir.resolve(key + ".avif");
+        Path avifTarget = baseDir.resolve(key + ".avif");
+        Path pngTarget = baseDir.resolve(key + ".png");
         Path tempInput = null;
-        Path tempOutput = null;
+        Path tempAvif = null;
+        Path tempPng = null;
         try {
             Files.createDirectories(baseDir);
             tempInput = Files.createTempFile("cdn-in-", inputSuffix);
-            tempOutput = Files.createTempFile("cdn-out-", ".avif");
+            tempAvif = Files.createTempFile("cdn-out-", ".avif");
+            tempPng = Files.createTempFile("cdn-out-", ".png");
             populator.populate(tempInput);
 
-            runVips(tempInput, tempOutput);
-            atomicMove(tempOutput, target);
-            makeWorldReadable(target);
+            runVipsAvif(tempInput, tempAvif);
+            runVipsPng(tempInput, tempPng);
+            atomicMove(tempAvif, avifTarget);
+            atomicMove(tempPng, pngTarget);
+            makeWorldReadable(avifTarget);
+            makeWorldReadable(pngTarget);
         } catch (IOException e) {
             log.error("CDN store I/O failure for {}/{}", subdir, key, e);
             throw new MediaProcessingException("Failed to store image");
         } finally {
             deleteQuietly(tempInput);
-            deleteQuietly(tempOutput);
+            deleteQuietly(tempAvif);
+            deleteQuietly(tempPng);
         }
-        return cdn.getBaseUrl() + "/" + subdir + "/" + key + ".avif?v=" + Instant.now().getEpochSecond();
+        return cdn.getBaseUrl() + "/" + subdir + "/" + key + ".png?v=" + Instant.now().getEpochSecond();
     }
 
     private void atomicMove(Path from, Path to) throws IOException {
@@ -122,6 +133,41 @@ public class MediaProcessingService {
         } catch (UnsupportedOperationException | IOException e) {
             log.debug("could not set POSIX perms on {}: {}", file, e.getMessage());
         }
+    }
+
+    public int generateMissingPngVariants() {
+        Path root = Paths.get(cdn.getStoragePath()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(root)) {
+            log.warn("CDN storage path is not a directory: {}", root);
+            return 0;
+        }
+        int[] generated = {0};
+        int[] failed = {0};
+        try (var stream = Files.walk(root)) {
+            stream.filter(p -> p.toString().endsWith(".avif")).forEach(avif -> {
+                String avifPath = avif.toString();
+                Path png = Paths.get(avifPath.substring(0, avifPath.length() - 5) + ".png");
+                if (Files.exists(png)) return;
+                try {
+                    Path tempPng = Files.createTempFile("cdn-out-", ".png");
+                    try {
+                        runVipsPng(avif, tempPng);
+                        atomicMove(tempPng, png);
+                        makeWorldReadable(png);
+                        generated[0]++;
+                    } finally {
+                        deleteQuietly(tempPng);
+                    }
+                } catch (IOException | MediaProcessingException e) {
+                    failed[0]++;
+                    log.warn("PNG transcode failed for {}: {}", avif, e.getMessage());
+                }
+            });
+        } catch (IOException e) {
+            log.error("PNG variant walk failed at {}", root, e);
+        }
+        log.info("CDN PNG variants: generated={}, failed={}", generated[0], failed[0]);
+        return generated[0];
     }
 
     public int repairAllPermissions() {
@@ -161,6 +207,10 @@ public class MediaProcessingService {
         return baseDir(subdir).resolve(key + ".avif");
     }
 
+    private Path pngTargetPath(String subdir, String key) {
+        return baseDir(subdir).resolve(key + ".png");
+    }
+
     private void downloadTo(String sourceUrl, Path target) throws IOException {
         byte[] body;
         try {
@@ -189,9 +239,17 @@ public class MediaProcessingService {
         Files.write(target, body);
     }
 
-    private void runVips(Path input, Path output) {
+    private void runVipsAvif(Path input, Path output) {
         String outputArg = output + "[Q=" + cdn.getAvifQuality()
                 + ",compression=av1,effort=" + cdn.getAvifEffort() + "]";
+        runVips(input, outputArg);
+    }
+
+    private void runVipsPng(Path input, Path output) {
+        runVips(input, output.toString());
+    }
+
+    private void runVips(Path input, String outputArg) {
         ProcessBuilder pb = new ProcessBuilder(
                 cdn.getVipsBinary(),
                 "thumbnail",
@@ -212,7 +270,7 @@ public class MediaProcessingService {
             int exit = proc.exitValue();
             if (exit != 0) {
                 log.error("vips exited with {} encoding {} -> {}: {}",
-                        exit, input, output, new String(stdoutBytes));
+                        exit, input, outputArg, new String(stdoutBytes));
                 throw new MediaProcessingException("Image could not be encoded");
             }
         } catch (IOException e) {

@@ -43,4 +43,10 @@ public class AdminCdnController {
     public ResponseEntity<Integer> repairPermissions() {
         return ResponseEntity.ok(mediaProcessingService.repairAllPermissions());
     }
+
+    @Operation(summary = "Generate .png siblings for every existing .avif that doesn't have one (for in-game / plugin consumers)")
+    @PostMapping("/generate-png-variants")
+    public ResponseEntity<Integer> generatePngVariants() {
+        return ResponseEntity.ok(mediaProcessingService.generateMissingPngVariants());
+    }
 }
