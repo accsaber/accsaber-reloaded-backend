@@ -10,9 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.config.CdnProperties;
+import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.UserService;
@@ -28,11 +32,16 @@ public class CdnSyncService {
 
     private static final String MAP_COVER_SUBDIR = "covers";
     private static final String USER_AVATAR_SUBDIR = "avatars";
+    private static final String CAMPAIGN_BG_SUBDIR = "campaigns";
+    private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
+    private static final String ITEM_ICON_SUBDIR = "items";
     private static final String BL_AVATAR_SENTINEL = "steamavatar.png";
 
     private final MediaProcessingService mediaProcessingService;
     private final MapRepository mapRepository;
     private final UserRepository userRepository;
+    private final CampaignRepository campaignRepository;
+    private final ItemRepository itemRepository;
     private final UserService userService;
     private final UserSettingsService userSettingsService;
     private final CdnProperties cdn;
@@ -142,6 +151,121 @@ public class CdnSyncService {
             throttle();
         }
         log.info("CDN backfill: avatars done ({} processed, {} skipped)", done, skipped);
+    }
+
+    @Async("backfillExecutor")
+    public void regenerateAllStaticVariants(boolean skipAvatars) {
+        log.info("CDN regen: starting static-variant regeneration (skipAvatars={})", skipAvatars);
+        int avatars = skipAvatars ? 0 : regenerateAvatarsStaticVariants();
+        int covers = regenerateCoversStaticVariants();
+        int campaignBgs = regenerateCampaignBackgroundsStaticVariants();
+        int campaignIcons = regenerateCampaignIconsStaticVariants();
+        int items = regenerateItemIconsStaticVariants();
+        log.info("CDN regen: complete (avatars={}, covers={}, campaignBgs={}, campaignIcons={}, items={})",
+                avatars, covers, campaignBgs, campaignIcons, items);
+    }
+
+    private int regenerateAvatarsStaticVariants() {
+        int updated = 0;
+        for (User user : userRepository.findByActiveTrue()) {
+            String key = String.valueOf(user.getId());
+            if (!mediaProcessingService.avifExists(USER_AVATAR_SUBDIR, key)) continue;
+            try {
+                String newUrl = mediaProcessingService.regenerateStaticVariant(USER_AVATAR_SUBDIR, key);
+                if (newUrl != null && !newUrl.equals(user.getAvatarUrl())) {
+                    userService.setAvatarFromPlatformSync(user.getId(), newUrl, user.getLastSyncedAvatarUrl());
+                    updated++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("avatar regen failed for {}: {}", user.getId(), e.getMessage());
+            }
+            throttle();
+        }
+        return updated;
+    }
+
+    @Transactional
+    public int regenerateCoversStaticVariants() {
+        int updated = 0;
+        for (Map map : mapRepository.findByActiveTrue()) {
+            String key = map.getId().toString();
+            if (!mediaProcessingService.avifExists(MAP_COVER_SUBDIR, key)) continue;
+            try {
+                String newUrl = mediaProcessingService.regenerateStaticVariant(MAP_COVER_SUBDIR, key);
+                if (newUrl != null && !newUrl.equals(map.getCoverUrl())) {
+                    map.setCoverUrl(newUrl);
+                    mapRepository.save(map);
+                    updated++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("cover regen failed for {}: {}", map.getId(), e.getMessage());
+            }
+            throttle();
+        }
+        return updated;
+    }
+
+    @Transactional
+    public int regenerateCampaignBackgroundsStaticVariants() {
+        int updated = 0;
+        for (Campaign c : campaignRepository.findByActiveTrue()) {
+            String key = c.getId().toString();
+            if (c.getBackgroundUrl() == null || !mediaProcessingService.avifExists(CAMPAIGN_BG_SUBDIR, key)) continue;
+            try {
+                String newUrl = mediaProcessingService.regenerateStaticVariant(CAMPAIGN_BG_SUBDIR, key);
+                if (newUrl != null && !newUrl.equals(c.getBackgroundUrl())) {
+                    c.setBackgroundUrl(newUrl);
+                    campaignRepository.save(c);
+                    updated++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("campaign-bg regen failed for {}: {}", c.getId(), e.getMessage());
+            }
+            throttle();
+        }
+        return updated;
+    }
+
+    @Transactional
+    public int regenerateCampaignIconsStaticVariants() {
+        int updated = 0;
+        for (Campaign c : campaignRepository.findByActiveTrue()) {
+            String key = c.getId().toString();
+            if (c.getIconUrl() == null || !mediaProcessingService.avifExists(CAMPAIGN_ICON_SUBDIR, key)) continue;
+            try {
+                String newUrl = mediaProcessingService.regenerateStaticVariant(CAMPAIGN_ICON_SUBDIR, key);
+                if (newUrl != null && !newUrl.equals(c.getIconUrl())) {
+                    c.setIconUrl(newUrl);
+                    campaignRepository.save(c);
+                    updated++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("campaign-icon regen failed for {}: {}", c.getId(), e.getMessage());
+            }
+            throttle();
+        }
+        return updated;
+    }
+
+    @Transactional
+    public int regenerateItemIconsStaticVariants() {
+        int updated = 0;
+        for (Item item : itemRepository.findByActiveTrue()) {
+            String key = item.getId().toString();
+            if (item.getIconUrl() == null || !mediaProcessingService.avifExists(ITEM_ICON_SUBDIR, key)) continue;
+            try {
+                String newUrl = mediaProcessingService.regenerateStaticVariant(ITEM_ICON_SUBDIR, key);
+                if (newUrl != null && !newUrl.equals(item.getIconUrl())) {
+                    item.setIconUrl(newUrl);
+                    itemRepository.save(item);
+                    updated++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("item-icon regen failed for {}: {}", item.getId(), e.getMessage());
+            }
+            throttle();
+        }
+        return updated;
     }
 
     private boolean isCdnUrl(String url) {

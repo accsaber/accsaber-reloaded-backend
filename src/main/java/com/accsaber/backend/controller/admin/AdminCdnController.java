@@ -44,9 +44,11 @@ public class AdminCdnController {
         return ResponseEntity.ok(mediaProcessingService.repairAllPermissions());
     }
 
-    @Operation(summary = "Generate .png siblings for every existing .avif that doesn't have one (for in-game / plugin consumers)")
-    @PostMapping("/generate-png-variants")
-    public ResponseEntity<Integer> generatePngVariants() {
-        return ResponseEntity.ok(mediaProcessingService.generateMissingPngVariants());
+    @Operation(summary = "Regenerate the static (.png/.gif) sibling for every .avif on disk and sync entity URLs accordingly. Pass skipAvatars=true if you've already run the avatar backfill.")
+    @PostMapping("/regenerate-static-variants")
+    public ResponseEntity<Void> regenerateStaticVariants(
+            @RequestParam(defaultValue = "false") boolean skipAvatars) {
+        cdnSyncService.regenerateAllStaticVariants(skipAvatars);
+        return ResponseEntity.accepted().build();
     }
 }
