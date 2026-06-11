@@ -60,12 +60,16 @@ public class CdnSyncService {
     }
 
     public void mirrorUserAvatarIfChanged(Long userId, String upstreamUrl) {
+        mirrorUserAvatar(userId, upstreamUrl, false);
+    }
+
+    public void mirrorUserAvatar(Long userId, String upstreamUrl, boolean forceRetry) {
         if (upstreamUrl == null || upstreamUrl.isBlank()) return;
         boolean syncEnabled = userSettingsService.get(userId, UserSettingKey.SYNC_AVATAR, Boolean.class);
         if (!syncEnabled) return;
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) return;
-        if (Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
+        if (!forceRetry && Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
             return;
         }
         if (upstreamUrl.endsWith(BL_AVATAR_SENTINEL)) {
@@ -133,7 +137,7 @@ public class CdnSyncService {
                 skipped++;
                 continue;
             }
-            mirrorUserAvatarIfChanged(user.getId(), upstream);
+            mirrorUserAvatar(user.getId(), upstream, force);
             done++;
             throttle();
         }
