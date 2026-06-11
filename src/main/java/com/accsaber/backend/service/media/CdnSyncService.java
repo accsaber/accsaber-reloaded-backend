@@ -53,8 +53,8 @@ public class CdnSyncService {
     private final CdnProperties cdn;
 
     @Autowired
-    @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    @Qualifier("cdnBackfillExecutor")
+    private Executor cdnBackfillExecutor;
 
     @Transactional
     public void mirrorMapCover(UUID mapId) {
@@ -73,7 +73,7 @@ public class CdnSyncService {
         }
     }
 
-    @Async("backfillExecutor")
+    @Async("cdnBackfillExecutor")
     public void mirrorMapCoverAsync(UUID mapId) {
         mirrorMapCover(mapId);
     }
@@ -113,7 +113,7 @@ public class CdnSyncService {
         return cdnUrl;
     }
 
-    @Async("backfillExecutor")
+    @Async("cdnBackfillExecutor")
     public void backfillAllMapCovers(boolean force) {
         List<Map> maps = mapRepository.findByActiveTrue();
         log.info("CDN backfill: starting cover backfill for {} maps (force={})", maps.size(), force);
@@ -131,7 +131,7 @@ public class CdnSyncService {
         log.info("CDN backfill: covers done ({} processed, {} skipped)", done.get(), skipped.get());
     }
 
-    @Async("backfillExecutor")
+    @Async("cdnBackfillExecutor")
     public void backfillAllUserAvatars(boolean force) {
         List<User> users = userRepository.findByActiveTrue();
         log.info("CDN backfill: starting avatar backfill for {} users (force={})", users.size(), force);
@@ -170,12 +170,12 @@ public class CdnSyncService {
                         log.warn("backfill task failed: {}", e.getMessage());
                     }
                     throttle();
-                }, backfillExecutor))
+                }, cdnBackfillExecutor))
                 .toList()
                 .forEach(CompletableFuture::join);
     }
 
-    @Async("backfillExecutor")
+    @Async("cdnBackfillExecutor")
     public void regenerateAllStaticVariants(boolean skipAvatars) {
         log.info("CDN regen: starting static-variant regeneration (skipAvatars={})", skipAvatars);
         int avatars = skipAvatars ? 0 : regenerateAvatarsStaticVariants();

@@ -54,6 +54,18 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "cdnBackfillExecutor")
+    public Executor cdnBackfillExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(6);
+        executor.setMaxPoolSize(6);
+        executor.setQueueCapacity(Integer.MAX_VALUE);
+        executor.setThreadNamePrefix("accsaber-cdn-backfill-");
+        executor.setTaskDecorator(mdcTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "ingestionScheduler")
     public ScheduledExecutorService ingestionScheduler() {
         return Executors.newScheduledThreadPool(2, r -> {

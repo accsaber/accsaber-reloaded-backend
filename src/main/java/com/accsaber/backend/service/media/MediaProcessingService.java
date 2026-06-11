@@ -110,7 +110,7 @@ public class MediaProcessingService {
             tempAvif = Files.createTempFile("cdn-out-", ".avif");
             tempStatic = Files.createTempFile("cdn-out-", staticExt);
 
-            runVipsAvif(tempInput, tempAvif);
+            runVipsAvif(tempInput, tempAvif, animated);
             if (animated) {
                 runVips(tempInput + "[n=-1]", tempStatic.toString());
             } else {
@@ -276,15 +276,18 @@ public class MediaProcessingService {
         Files.write(target, body);
     }
 
-    private void runVipsAvif(Path input, Path output) {
+    private void runVipsAvif(Path input, Path output, boolean animated) {
         String outputArg = output + "[Q=" + cdn.getAvifQuality()
                 + ",compression=av1,effort=" + cdn.getAvifEffort() + "]";
-        try {
-            runVips(input + "[n=-1]", outputArg);
-        } catch (MediaProcessingException e) {
-            log.info("animated AVIF encode failed for {}, retrying single-frame", input);
-            runVips(input.toString(), outputArg);
+        if (animated) {
+            try {
+                runVips(input + "[n=-1]", outputArg);
+                return;
+            } catch (MediaProcessingException e) {
+                log.info("animated AVIF encode failed for {}, retrying single-frame", input);
+            }
         }
+        runVips(input.toString(), outputArg);
     }
 
     private void runVipsPng(Path input, Path output) {
