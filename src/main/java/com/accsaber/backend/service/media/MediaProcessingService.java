@@ -138,9 +138,10 @@ public class MediaProcessingService {
 
     private int sourcePageCount(Path input) {
         try {
-            Process proc = new ProcessBuilder(cdn.getVipsBinary(), "getfield", input.toString(), "n-pages")
-                    .redirectErrorStream(true)
-                    .start();
+            ProcessBuilder pb = new ProcessBuilder(cdn.getVipsBinary(), "getfield", input.toString(), "n-pages");
+            pb.environment().put("VIPS_CONCURRENCY", "1");
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
             byte[] out = proc.getInputStream().readAllBytes();
             if (!proc.waitFor(5, TimeUnit.SECONDS)) {
                 proc.destroyForcibly();
@@ -301,6 +302,7 @@ public class MediaProcessingService {
                 inputArg,
                 outputArg,
                 String.valueOf(cdn.getMaxDimension()));
+        pb.environment().put("VIPS_CONCURRENCY", "1");
         pb.redirectErrorStream(true);
         Process proc = null;
         try {
