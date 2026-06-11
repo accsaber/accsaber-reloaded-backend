@@ -3,6 +3,12 @@ package com.accsaber.backend.service.media;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -45,6 +51,10 @@ public class CdnSyncService {
     private final UserService userService;
     private final UserSettingsService userSettingsService;
     private final CdnProperties cdn;
+
+    @Autowired
+    @Qualifier("backfillExecutor")
+    private Executor backfillExecutor;
 
     @Transactional
     public void mirrorMapCover(UUID mapId) {
@@ -107,50 +117,62 @@ public class CdnSyncService {
     public void backfillAllMapCovers(boolean force) {
         List<Map> maps = mapRepository.findByActiveTrue();
         log.info("CDN backfill: starting cover backfill for {} maps (force={})", maps.size(), force);
-        int done = 0;
-        int skipped = 0;
-        for (Map map : maps) {
+        AtomicInteger done = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        runParallel(maps, map -> {
             if (!force && mediaProcessingService.fileExists(MAP_COVER_SUBDIR, map.getId().toString())
                     && isCdnUrl(map.getCoverUrl())) {
-                skipped++;
-                continue;
+                skipped.incrementAndGet();
+                return;
             }
             mirrorMapCover(map.getId());
-            done++;
-            throttle();
-        }
-        log.info("CDN backfill: covers done ({} processed, {} skipped)", done, skipped);
+            done.incrementAndGet();
+        });
+        log.info("CDN backfill: covers done ({} processed, {} skipped)", done.get(), skipped.get());
     }
 
     @Async("backfillExecutor")
     public void backfillAllUserAvatars(boolean force) {
         List<User> users = userRepository.findByActiveTrue();
         log.info("CDN backfill: starting avatar backfill for {} users (force={})", users.size(), force);
-        int done = 0;
-        int skipped = 0;
-        for (User user : users) {
+        AtomicInteger done = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        runParallel(users, user -> {
             boolean syncEnabled = userSettingsService.get(user.getId(), UserSettingKey.SYNC_AVATAR, Boolean.class);
             if (!syncEnabled) {
-                skipped++;
-                continue;
+                skipped.incrementAndGet();
+                return;
             }
             String upstream = user.getLastSyncedAvatarUrl() != null
                     ? user.getLastSyncedAvatarUrl()
                     : user.getAvatarUrl();
             if (upstream == null || upstream.isBlank() || isCdnUrl(upstream)) {
-                skipped++;
-                continue;
+                skipped.incrementAndGet();
+                return;
             }
             if (!force && mediaProcessingService.fileExists(USER_AVATAR_SUBDIR, String.valueOf(user.getId()))
                     && isCdnUrl(user.getAvatarUrl())) {
-                skipped++;
-                continue;
+                skipped.incrementAndGet();
+                return;
             }
             mirrorUserAvatar(user.getId(), upstream, force);
-            done++;
-            throttle();
-        }
-        log.info("CDN backfill: avatars done ({} processed, {} skipped)", done, skipped);
+            done.incrementAndGet();
+        });
+        log.info("CDN backfill: avatars done ({} processed, {} skipped)", done.get(), skipped.get());
+    }
+
+    private <T> void runParallel(List<T> items, java.util.function.Consumer<T> action) {
+        items.stream()
+                .map(item -> CompletableFuture.runAsync(() -> {
+                    try {
+                        action.accept(item);
+                    } catch (RuntimeException e) {
+                        log.warn("backfill task failed: {}", e.getMessage());
+                    }
+                    throttle();
+                }, backfillExecutor))
+                .toList()
+                .forEach(CompletableFuture::join);
     }
 
     @Async("backfillExecutor")

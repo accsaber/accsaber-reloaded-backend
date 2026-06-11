@@ -13,7 +13,7 @@ public class CdnProperties {
     private String storagePath = "./data/cdn";
     private String baseUrl = "http://localhost:8080/cdn";
     private String vipsBinary = "vips";
-    private long backfillDelayMs = 100L;
+    private long backfillDelayMs = 0L;
     private long maxUploadBytes = 10L * 1024L * 1024L;
     private int avifQuality = 60;
     private int avifEffort = 4;

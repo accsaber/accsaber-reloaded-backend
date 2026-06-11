@@ -255,6 +255,10 @@ public class MediaProcessingService {
                     .block(Duration.ofMillis(cdn.getEncodeTimeoutMs()));
         } catch (WebClientResponseException e) {
             int code = e.getStatusCode().value();
+            if (code == 429) {
+                throw new MediaProcessingException(
+                        "Upstream rate-limited (429): " + sourceUrl, e);
+            }
             if (code >= 400 && code < 500) {
                 throw new MediaUnavailableException(
                         "Upstream returned " + code + ": " + sourceUrl, e);
