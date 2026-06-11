@@ -32,6 +32,7 @@ public class CampaignDetailResponse {
     private String curatorNotes;
     private boolean playlistExportEnabled;
     private String backgroundUrl;
+    private String iconUrl;
     private Instant submittedAt;
     private Instant curatedAt;
     private Instant createdAt;

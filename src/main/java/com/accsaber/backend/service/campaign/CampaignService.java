@@ -162,6 +162,7 @@ public class CampaignService {
                         : CampaignCompletionMode.TERMINAL)
                 .playlistExportEnabled(Boolean.TRUE.equals(request.getPlaylistExportEnabled()))
                 .backgroundUrl(request.getBackgroundUrl())
+                .iconUrl(request.getIconUrl())
                 .build();
 
         campaign = campaignRepository.save(campaign);
@@ -201,6 +202,9 @@ public class CampaignService {
         }
         if (request.getBackgroundUrl() != null) {
             campaign.setBackgroundUrl(request.getBackgroundUrl());
+        }
+        if (request.getIconUrl() != null) {
+            campaign.setIconUrl(request.getIconUrl());
         }
         if (request.getCompletionXp() != null) {
             if (request.getCompletionXp().signum() < 0) {
@@ -283,6 +287,20 @@ public class CampaignService {
     public CampaignResponse setBackgroundUrlAsPlayer(Long playerId, UUID campaignId, String backgroundUrl) {
         Campaign campaign = ownedDraftCampaign(playerId, campaignId);
         campaign.setBackgroundUrl(backgroundUrl);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
+    public CampaignResponse setIconUrl(UUID campaignId, String iconUrl) {
+        Campaign campaign = loadActiveCampaign(campaignId);
+        campaign.setIconUrl(iconUrl);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
+    public CampaignResponse setIconUrlAsPlayer(Long playerId, UUID campaignId, String iconUrl) {
+        Campaign campaign = ownedDraftCampaign(playerId, campaignId);
+        campaign.setIconUrl(iconUrl);
         return toCampaignResponse(campaignRepository.save(campaign));
     }
 
@@ -1016,6 +1034,7 @@ public class CampaignService {
                 .curatorNotes(campaign.getCuratorNotes())
                 .playlistExportEnabled(campaign.isPlaylistExportEnabled())
                 .backgroundUrl(campaign.getBackgroundUrl())
+                .iconUrl(campaign.getIconUrl())
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
                 .createdAt(campaign.getCreatedAt())
@@ -1076,6 +1095,7 @@ public class CampaignService {
                 .completionXp(campaign.getCompletionXp())
                 .playlistExportEnabled(campaign.isPlaylistExportEnabled())
                 .backgroundUrl(campaign.getBackgroundUrl())
+                .iconUrl(campaign.getIconUrl())
                 .difficultyCount(difficultyCount)
                 .tags(tags)
                 .submittedAt(campaign.getSubmittedAt())

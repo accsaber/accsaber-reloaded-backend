@@ -32,5 +32,7 @@ public class CreateCampaignRequest {
 
     private String backgroundUrl;
 
+    private String iconUrl;
+
     private List<UUID> tagIds;
 }

@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
@@ -14,7 +16,11 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import jakarta.annotation.PostConstruct;
 
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ValidationException;
@@ -27,11 +33,22 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MediaProcessingService {
 
-    private static final Set<String> ALLOWED_MIME = Set.of(
+    public static final Set<String> ALLOWED_MIME = Set.of(
             "image/png", "image/jpeg", "image/jpg", "image/webp", "image/avif", "image/gif");
 
     private final CdnProperties cdn;
-    private final WebClient downloadClient = WebClient.builder().build();
+    private WebClient downloadClient;
+
+    @PostConstruct
+    void initDownloadClient() {
+        int bufferBytes = (int) Math.min(cdn.getMaxUploadBytes(), Integer.MAX_VALUE);
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(bufferBytes))
+                .build();
+        this.downloadClient = WebClient.builder()
+                .exchangeStrategies(strategies)
+                .build();
+    }
 
     public String storeImage(MultipartFile file, String subdir, String key) {
         validate(file);
@@ -79,6 +96,7 @@ public class MediaProcessingService {
 
             runVips(tempInput, tempOutput);
             atomicMove(tempOutput, target);
+            makeWorldReadable(target);
         } catch (IOException e) {
             log.error("CDN store I/O failure for {}/{}", subdir, key, e);
             throw new MediaProcessingException("Failed to store image");
@@ -95,6 +113,44 @@ public class MediaProcessingService {
         } catch (IOException atomicFailure) {
             Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+    private void makeWorldReadable(Path file) {
+        try {
+            Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rw-r--r--");
+            Files.setPosixFilePermissions(file, perms);
+        } catch (UnsupportedOperationException | IOException e) {
+            log.debug("could not set POSIX perms on {}: {}", file, e.getMessage());
+        }
+    }
+
+    public int repairAllPermissions() {
+        Path root = Paths.get(cdn.getStoragePath()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(root)) {
+            log.warn("CDN storage path is not a directory: {}", root);
+            return 0;
+        }
+        Set<PosixFilePermission> filePerms = PosixFilePermissions.fromString("rw-r--r--");
+        Set<PosixFilePermission> dirPerms = PosixFilePermissions.fromString("rwxr-xr-x");
+        int[] repaired = {0};
+        try (var stream = Files.walk(root)) {
+            stream.forEach(p -> {
+                try {
+                    Set<PosixFilePermission> current = Files.getPosixFilePermissions(p);
+                    Set<PosixFilePermission> wanted = Files.isDirectory(p) ? dirPerms : filePerms;
+                    if (!current.equals(wanted)) {
+                        Files.setPosixFilePermissions(p, wanted);
+                        repaired[0]++;
+                    }
+                } catch (UnsupportedOperationException | IOException e) {
+                    log.debug("could not repair perms on {}: {}", p, e.getMessage());
+                }
+            });
+        } catch (IOException e) {
+            log.error("CDN permission repair failed walking {}", root, e);
+        }
+        log.info("CDN permission repair: {} entries updated under {}", repaired[0], root);
+        return repaired[0];
     }
 
     private Path baseDir(String subdir) {
@@ -114,11 +170,18 @@ public class MediaProcessingService {
                     .retrieve()
                     .bodyToMono(byte[].class)
                     .block(Duration.ofMillis(cdn.getEncodeTimeoutMs()));
+        } catch (WebClientResponseException e) {
+            int code = e.getStatusCode().value();
+            if (code >= 400 && code < 500) {
+                throw new MediaUnavailableException(
+                        "Upstream returned " + code + ": " + sourceUrl, e);
+            }
+            throw new MediaProcessingException("Failed to download remote image: " + sourceUrl, e);
         } catch (RuntimeException e) {
             throw new MediaProcessingException("Failed to download remote image: " + sourceUrl, e);
         }
         if (body == null || body.length == 0) {
-            throw new MediaProcessingException("Remote image is empty: " + sourceUrl);
+            throw new MediaUnavailableException("Remote image is empty: " + sourceUrl);
         }
         if (body.length > cdn.getMaxUploadBytes()) {
             throw new MediaProcessingException("Remote image exceeds max upload size");

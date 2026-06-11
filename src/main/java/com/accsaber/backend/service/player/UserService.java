@@ -137,6 +137,15 @@ public class UserService {
     }
 
     @Transactional
+    public void markAvatarSyncAttempted(Long userId, String upstreamUrl) {
+        User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
+        if (user == null)
+            return;
+        user.setLastSyncedAvatarUrl(upstreamUrl);
+        userRepository.save(user);
+    }
+
+    @Transactional
     public void setUserUploadedAvatar(Long userId, String cdnUrl) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));

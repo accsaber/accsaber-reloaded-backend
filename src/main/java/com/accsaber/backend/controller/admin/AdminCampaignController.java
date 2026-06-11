@@ -42,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminCampaignController {
 
     private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
+    private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
 
     private final CampaignService campaignService;
     private final MediaProcessingService mediaProcessingService;
@@ -137,5 +138,21 @@ public class AdminCampaignController {
     public ResponseEntity<CampaignResponse> deleteBackground(@PathVariable UUID campaignId) {
         mediaProcessingService.deleteIfExists(CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
         return ResponseEntity.ok(campaignService.setBackgroundUrl(campaignId, null));
+    }
+
+    @Operation(summary = "Upload (or replace) the icon image for a campaign")
+    @PostMapping(value = "/{campaignId}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignResponse> uploadIcon(
+            @PathVariable UUID campaignId,
+            @RequestPart("file") MultipartFile file) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(campaignService.setIconUrl(campaignId, url));
+    }
+
+    @Operation(summary = "Remove the icon image for a campaign")
+    @DeleteMapping("/{campaignId}/icon")
+    public ResponseEntity<CampaignResponse> deleteIcon(@PathVariable UUID campaignId) {
+        mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(campaignService.setIconUrl(campaignId, null));
     }
 }

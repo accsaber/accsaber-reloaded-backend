@@ -53,6 +53,7 @@ import lombok.RequiredArgsConstructor;
 public class CampaignController {
 
     private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
+    private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
 
     private final CampaignService campaignService;
     private final MediaProcessingService mediaProcessingService;
@@ -280,6 +281,29 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         CampaignResponse result = campaignService.setBackgroundUrlAsPlayer(principal.getUserId(), campaignId, null);
         mediaProcessingService.deleteIfExists(CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(summary = "Upload (or replace) the icon image for a campaign the authenticated player owns")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping(value = "/{campaignId}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignResponse> uploadMyCampaignIcon(
+            @PathVariable UUID campaignId,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(
+                campaignService.setIconUrlAsPlayer(principal.getUserId(), campaignId, url));
+    }
+
+    @Operation(summary = "Remove the icon image for a campaign the authenticated player owns")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{campaignId}/icon")
+    public ResponseEntity<CampaignResponse> deleteMyCampaignIcon(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        CampaignResponse result = campaignService.setIconUrlAsPlayer(principal.getUserId(), campaignId, null);
+        mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
         return ResponseEntity.ok(result);
     }
 }

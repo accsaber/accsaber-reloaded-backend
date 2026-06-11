@@ -28,6 +28,7 @@ public class CdnSyncService {
 
     private static final String MAP_COVER_SUBDIR = "covers";
     private static final String USER_AVATAR_SUBDIR = "avatars";
+    private static final String BL_AVATAR_SENTINEL = "steamavatar.png";
 
     private final MediaProcessingService mediaProcessingService;
     private final MapRepository mapRepository;
@@ -46,6 +47,8 @@ public class CdnSyncService {
             String cdnUrl = mediaProcessingService.storeFromUrl(upstream, MAP_COVER_SUBDIR, mapId.toString());
             map.setCoverUrl(cdnUrl);
             mapRepository.save(map);
+        } catch (MediaUnavailableException e) {
+            log.info("Skipping unavailable cover for map {} ({})", mapId, upstream);
         } catch (RuntimeException e) {
             log.warn("Failed to mirror cover for map {} ({}): {}", mapId, upstream, e.getMessage());
         }
@@ -62,14 +65,19 @@ public class CdnSyncService {
         if (!syncEnabled) return;
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) return;
-        if (Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())
-                && isCdnUrl(user.getAvatarUrl())
-                && mediaProcessingService.fileExists(USER_AVATAR_SUBDIR, String.valueOf(userId))) {
+        if (Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
+            return;
+        }
+        if (upstreamUrl.endsWith(BL_AVATAR_SENTINEL)) {
+            userService.markAvatarSyncAttempted(userId, upstreamUrl);
             return;
         }
         try {
             String cdnUrl = mediaProcessingService.storeFromUrl(upstreamUrl, USER_AVATAR_SUBDIR, String.valueOf(userId));
             userService.setAvatarFromPlatformSync(userId, cdnUrl, upstreamUrl);
+        } catch (MediaUnavailableException e) {
+            log.info("Skipping unavailable avatar for user {} ({})", userId, upstreamUrl);
+            userService.markAvatarSyncAttempted(userId, upstreamUrl);
         } catch (RuntimeException e) {
             log.warn("Failed to mirror avatar for user {} ({}): {}", userId, upstreamUrl, e.getMessage());
         }

@@ -97,6 +97,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/calculate/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/og/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/cdn/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/cdn/limits").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/webhooks/kofi").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/supporters/credits").permitAll()

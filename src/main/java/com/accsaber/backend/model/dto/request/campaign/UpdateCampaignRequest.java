@@ -22,5 +22,6 @@ public class UpdateCampaignRequest {
     private String creatorAlias;
     private Boolean seekingCuration;
     private String backgroundUrl;
+    private String iconUrl;
     private List<UUID> tagIds;
 }

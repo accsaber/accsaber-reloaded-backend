@@ -74,15 +74,8 @@ class PlayerImportServiceTest {
         }
 
         @Test
-        void createsUser_withBlNameAndAvatar() {
+        void createsUser_withBlNameAndAvatar_skipsScoreSaberWhenBlPresent() {
             when(userService.findOptionalByUserId(STEAM_ID)).thenReturn(Optional.empty());
-
-            ScoreSaberPlayerResponse ssPlayer = new ScoreSaberPlayerResponse();
-            ssPlayer.setId(String.valueOf(STEAM_ID));
-            ssPlayer.setName("SSPlayer");
-            ssPlayer.setAvatar("https://ss.com/avatar.png");
-            ssPlayer.setCountry("US");
-            when(scoreSaberClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.of(ssPlayer));
 
             BeatLeaderPlayerResponse blPlayer = new BeatLeaderPlayerResponse();
             blPlayer.setId(String.valueOf(STEAM_ID));
@@ -99,6 +92,7 @@ class PlayerImportServiceTest {
 
             assertThat(result).isSameAs(created);
             verify(userService).createUser(STEAM_ID, "BLPlayer", "https://bl.com/avatar.png", "DE");
+            verifyNoInteractions(scoreSaberClient);
         }
 
         @Test

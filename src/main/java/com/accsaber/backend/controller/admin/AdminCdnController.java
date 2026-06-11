@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.service.media.CdnSyncService;
+import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminCdnController {
 
     private final CdnSyncService cdnSyncService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "Backfill all active map covers into the CDN")
     @PostMapping("/backfill/maps")
@@ -34,5 +36,11 @@ public class AdminCdnController {
     public ResponseEntity<Void> backfillAvatars(@RequestParam(defaultValue = "false") boolean force) {
         cdnSyncService.backfillAllUserAvatars(force);
         return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "chmod every file under the CDN storage path to rw-r--r-- (and dirs to rwxr-xr-x)")
+    @PostMapping("/repair-permissions")
+    public ResponseEntity<Integer> repairPermissions() {
+        return ResponseEntity.ok(mediaProcessingService.repairAllPermissions());
     }
 }

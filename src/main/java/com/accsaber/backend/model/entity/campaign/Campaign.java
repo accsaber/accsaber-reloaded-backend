@@ -92,6 +92,9 @@ public class Campaign {
     @Column(name = "background_url")
     private String backgroundUrl;
 
+    @Column(name = "icon_url")
+    private String iconUrl;
+
     @Column(name = "submitted_at")
     private Instant submittedAt;
 

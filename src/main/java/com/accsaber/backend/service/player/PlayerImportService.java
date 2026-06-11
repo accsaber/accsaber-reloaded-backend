@@ -3,7 +3,6 @@ package com.accsaber.backend.service.player;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 import org.springframework.stereotype.Service;
 
@@ -38,12 +37,10 @@ public class PlayerImportService {
                 }
 
                 String userIdStr = String.valueOf(userId);
-                CompletableFuture<Optional<BeatLeaderPlayerResponse>> blFuture = CompletableFuture
-                                .supplyAsync(() -> beatLeaderClient.getPlayer(userIdStr));
-                CompletableFuture<Optional<ScoreSaberPlayerResponse>> ssFuture = CompletableFuture
-                                .supplyAsync(() -> scoreSaberClient.getPlayer(userIdStr));
-                Optional<BeatLeaderPlayerResponse> blProfile = blFuture.join();
-                Optional<ScoreSaberPlayerResponse> ssProfile = ssFuture.join();
+                Optional<BeatLeaderPlayerResponse> blProfile = beatLeaderClient.getPlayer(userIdStr);
+                Optional<ScoreSaberPlayerResponse> ssProfile = blProfile.isPresent()
+                                ? Optional.empty()
+                                : scoreSaberClient.getPlayer(userIdStr);
 
                 String name = blProfile.map(BeatLeaderPlayerResponse::getName)
                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getName))
@@ -74,10 +71,12 @@ public class PlayerImportService {
 
         public void refreshPlayerProfile(Long userId) {
                 String userIdStr = String.valueOf(userId);
-                Optional<ScoreSaberPlayerResponse> ssProfile = scoreSaberClient.getPlayer(userIdStr);
                 Optional<BeatLeaderPlayerResponse> blProfile = beatLeaderClient.getPlayer(userIdStr);
+                Optional<ScoreSaberPlayerResponse> ssProfile = blProfile.isPresent()
+                                ? Optional.empty()
+                                : scoreSaberClient.getPlayer(userIdStr);
 
-                if (ssProfile.isEmpty() && blProfile.isEmpty()) {
+                if (blProfile.isEmpty() && ssProfile.isEmpty()) {
                         log.warn("Both platforms returned 404 for player {}", userId);
                         return;
                 }
@@ -103,14 +102,14 @@ public class PlayerImportService {
                                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getCountry))
                                                 .orElse(null);
 
-                boolean blInactive = blProfile
-                                .map(BeatLeaderPlayerResponse::getScoreStats)
-                                .map(BeatLeaderPlayerResponse.ScoreStats::getLastScoreTime)
-                                .map(epoch -> Instant.ofEpochSecond(epoch)
-                                                .isBefore(Instant.now().minus(Duration.ofDays(90))))
-                                .orElse(true);
-                boolean ssInactive = ssProfile.map(ScoreSaberPlayerResponse::isInactive).orElse(true);
-                boolean playerInactive = blInactive && ssInactive;
+                boolean playerInactive = blProfile.isPresent()
+                                ? blProfile
+                                                .map(BeatLeaderPlayerResponse::getScoreStats)
+                                                .map(BeatLeaderPlayerResponse.ScoreStats::getLastScoreTime)
+                                                .map(epoch -> Instant.ofEpochSecond(epoch)
+                                                                .isBefore(Instant.now().minus(Duration.ofDays(90))))
+                                                .orElse(true)
+                                : ssProfile.map(ScoreSaberPlayerResponse::isInactive).orElse(true);
                 userService.updateProfile(userId, name, null, country, playerInactive);
                 if (avatarUrl != null) {
                         cdnSyncService.mirrorUserAvatarIfChanged(userId, avatarUrl);

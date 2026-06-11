@@ -31,6 +31,7 @@ public class CampaignResponse {
     private BigDecimal completionXp;
     private boolean playlistExportEnabled;
     private String backgroundUrl;
+    private String iconUrl;
     private int difficultyCount;
     private List<CampaignTagResponse> tags;
     private Instant submittedAt;
