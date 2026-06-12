@@ -146,12 +146,12 @@ public class CdnSyncService {
         AtomicInteger done = new AtomicInteger();
         AtomicInteger skipped = new AtomicInteger();
         runParallel(maps, map -> {
-            if (!force && mediaProcessingService.fileExists(MAP_COVER_SUBDIR, map.getId().toString())
-                    && isCdnUrl(map.getCoverUrl())) {
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(MAP_COVER_SUBDIR, map.getId().toString());
+            if (!force && fileGood && isCdnUrl(map.getCoverUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorMapCover(map.getId(), force);
+            mirrorMapCover(map.getId(), force || !fileGood);
             done.incrementAndGet();
         });
         log.info("CDN backfill: covers done ({} processed, {} skipped)", done.get(), skipped.get());
@@ -176,12 +176,12 @@ public class CdnSyncService {
                 skipped.incrementAndGet();
                 return;
             }
-            if (!force && mediaProcessingService.fileExists(USER_AVATAR_SUBDIR, String.valueOf(user.getId()))
-                    && isCdnUrl(user.getAvatarUrl())) {
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(USER_AVATAR_SUBDIR, String.valueOf(user.getId()));
+            if (!force && fileGood && isCdnUrl(user.getAvatarUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorUserAvatar(user.getId(), upstream, force);
+            mirrorUserAvatar(user.getId(), upstream, force || !fileGood);
             done.incrementAndGet();
         });
         log.info("CDN backfill: avatars done ({} processed, {} skipped)", done.get(), skipped.get());

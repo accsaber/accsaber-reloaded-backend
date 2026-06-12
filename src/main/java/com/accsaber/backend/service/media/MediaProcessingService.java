@@ -76,6 +76,15 @@ public class MediaProcessingService {
         return Files.exists(targetPath(subdir, key));
     }
 
+    public boolean fileExistsAndNonEmpty(String subdir, String key) {
+        Path p = targetPath(subdir, key);
+        try {
+            return Files.exists(p) && Files.size(p) > 0;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     public void deleteIfExists(String subdir, String key) {
         deletePathIfExists(targetPath(subdir, key));
     }
