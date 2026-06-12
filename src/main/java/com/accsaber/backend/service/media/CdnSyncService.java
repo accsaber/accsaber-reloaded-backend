@@ -2,22 +2,26 @@ package com.accsaber.backend.service.media;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.client.BeatLeaderClient;
+import com.accsaber.backend.client.ScoreSaberClient;
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
+import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
@@ -26,8 +30,6 @@ import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.UserService;
 import com.accsaber.backend.service.player.UserSettingsService;
-
-import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,24 +50,21 @@ public class CdnSyncService {
     private final UserService userService;
     private final UserSettingsService userSettingsService;
     private final BeatLeaderClient beatLeaderClient;
+    private final ScoreSaberClient scoreSaberClient;
     private final CdnProperties cdn;
 
     @Autowired
     @Qualifier("cdnBackfillExecutor")
     private Executor cdnBackfillExecutor;
 
-    @Transactional
-    public void mirrorMapCover(UUID mapId) {
-        mirrorMapCover(mapId, false);
-    }
 
     @Transactional
-    public void mirrorMapCover(UUID mapId, boolean forceRefetch) {
+    public void mirrorMapCover(UUID mapId, boolean force) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
         if (map == null) return;
         String upstream = map.getCoverUrl();
         boolean stale = upstream == null || upstream.isBlank() || isCdnUrl(upstream);
-        if (stale && !forceRefetch) return;
+        if (stale && !force) return;
         if (stale) {
             upstream = fetchCoverUrlFromBeatLeader(map);
             if (upstream == null) return;
@@ -82,6 +81,11 @@ public class CdnSyncService {
         }
     }
 
+    @Async("cdnBackfillExecutor")
+    public void mirrorMapCoverAsync(UUID mapId) {
+        mirrorMapCover(mapId, false);
+    }
+
     private String fetchCoverUrlFromBeatLeader(Map map) {
         List<String> leaderboardIds = mapDifficultyRepository.findBlLeaderboardIdsByMapId(map.getId());
         if (leaderboardIds.isEmpty()) {
@@ -94,7 +98,7 @@ public class CdnSyncService {
             log.warn("BeatLeader returned no leaderboard/song for id {} (map {})", leaderboardId, map.getId());
             return null;
         }
-        var song = lb.get().getSong();
+        BeatLeaderLeaderboardResponse.Song song = lb.get().getSong();
         String coverURL = song.getFullCoverImage();
         if (coverURL == null || coverURL.isBlank()) {
             coverURL = song.getCoverImage();
@@ -106,22 +110,18 @@ public class CdnSyncService {
         return coverURL;
     }
 
-    @Async("cdnBackfillExecutor")
-    public void mirrorMapCoverAsync(UUID mapId) {
-        mirrorMapCover(mapId);
-    }
 
     public void mirrorUserAvatarIfChanged(Long userId, String upstreamUrl) {
         mirrorUserAvatar(userId, upstreamUrl, false);
     }
 
-    public void mirrorUserAvatar(Long userId, String upstreamUrl, boolean forceRetry) {
+    public void mirrorUserAvatar(Long userId, String upstreamUrl, boolean force) {
         if (upstreamUrl == null || upstreamUrl.isBlank()) return;
         boolean syncEnabled = userSettingsService.get(userId, UserSettingKey.SYNC_AVATAR, Boolean.class);
         if (!syncEnabled) return;
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) return;
-        if (!forceRetry && Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
+        if (!force && Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
             return;
         }
         if (upstreamUrl.endsWith(BL_AVATAR_SENTINEL)) {
@@ -148,6 +148,19 @@ public class CdnSyncService {
         return cdnUrl;
     }
 
+    private String fetchFreshAvatarUrl(Long userId) {
+        String userIdStr = String.valueOf(userId);
+        return beatLeaderClient.getPlayer(userIdStr)
+                .map(BeatLeaderPlayerResponse::getAvatar)
+                .filter(s -> s != null && !s.isBlank())
+                .or(() -> scoreSaberClient.getPlayer(userIdStr)
+                        .map(ScoreSaberPlayerResponse::getAvatar)
+                        .filter(s -> s != null && !s.isBlank()))
+                .orElse(null);
+    }
+
+    // --- Backfill loops ---
+
     @Async("cdnBackfillExecutor")
     public void backfillAllMapCovers(boolean force) {
         List<Map> maps = mapRepository.findByActiveTrue();
@@ -155,7 +168,8 @@ public class CdnSyncService {
         AtomicInteger done = new AtomicInteger();
         AtomicInteger skipped = new AtomicInteger();
         runParallel(maps, map -> {
-            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(MAP_COVER_SUBDIR, map.getId().toString(), MediaFormat.WEBP);
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
+                    MAP_COVER_SUBDIR, map.getId().toString(), MediaFormat.WEBP);
             if (!force && fileGood && isCdnUrl(map.getCoverUrl())) {
                 skipped.incrementAndGet();
                 return;
@@ -178,25 +192,26 @@ public class CdnSyncService {
                 skipped.incrementAndGet();
                 return;
             }
-            String upstream = user.getLastSyncedAvatarUrl() != null
-                    ? user.getLastSyncedAvatarUrl()
-                    : user.getAvatarUrl();
-            if (upstream == null || upstream.isBlank() || isCdnUrl(upstream)) {
-                skipped.incrementAndGet();
-                return;
-            }
-            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(USER_AVATAR_SUBDIR, String.valueOf(user.getId()), MediaFormat.AVIF);
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
+                    USER_AVATAR_SUBDIR, String.valueOf(user.getId()), MediaFormat.AVIF);
             if (!force && fileGood && isCdnUrl(user.getCdnAvatarUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorUserAvatar(user.getId(), upstream, force || !fileGood);
+            String upstream = fetchFreshAvatarUrl(user.getId());
+            if (upstream == null) {
+                skipped.incrementAndGet();
+                return;
+            }
+            mirrorUserAvatar(user.getId(), upstream, true);
             done.incrementAndGet();
         });
         log.info("CDN backfill: avatars done ({} processed, {} skipped)", done.get(), skipped.get());
     }
 
-    private <T> void runParallel(List<T> items, java.util.function.Consumer<T> action) {
+    // --- Internals ---
+
+    private <T> void runParallel(List<T> items, Consumer<T> action) {
         items.stream()
                 .map(item -> CompletableFuture.runAsync(() -> {
                     try {

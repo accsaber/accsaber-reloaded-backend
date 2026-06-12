@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
@@ -78,14 +79,10 @@ public class MediaProcessingService {
                 format);
     }
 
-    public boolean fileExists(String subdir, String key, MediaFormat format) {
-        return Files.exists(baseDir(subdir).resolve(key + format.extension));
-    }
-
     public boolean fileExistsAndNonEmpty(String subdir, String key, MediaFormat format) {
-        Path p = baseDir(subdir).resolve(key + format.extension);
         try {
-            return Files.exists(p) && Files.size(p) > 0;
+            return Files.readAttributes(baseDir(subdir).resolve(key + format.extension),
+                    BasicFileAttributes.class).size() > 0;
         } catch (IOException e) {
             return false;
         }
