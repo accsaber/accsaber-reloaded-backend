@@ -673,35 +673,20 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         WHERE s.streak115 IS NOT NULL
                         AND (s.active = true OR s.supersedesReason = 'Score improved')
                         AND u.active = true AND u.banned = false
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.streak115 IS NOT NULL
-                        AND (s.active = true OR s.supersedesReason = 'Score improved')
-                        AND u.active = true AND u.banned = false
-                        """)
-        Page<Score> findTopStreaks(Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.map m
-                        JOIN FETCH d.category c
-                        WHERE s.streak115 IS NOT NULL
-                        AND (s.active = true OR s.supersedesReason = 'Score improved')
-                        AND d.category.id = :categoryId
-                        AND u.active = true AND u.banned = false
+                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         JOIN s.mapDifficulty d
                         WHERE s.streak115 IS NOT NULL
                         AND (s.active = true OR s.supersedesReason = 'Score improved')
-                        AND d.category.id = :categoryId
                         AND u.active = true AND u.banned = false
+                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """)
-        Page<Score> findTopStreaksByCategory(@Param("categoryId") UUID categoryId, Pageable pageable);
+        Page<Score> findTopStreaks(@Param("categoryId") UUID categoryId, @Param("country") String country,
+                        Pageable pageable);
 
         @Query(value = """
                         SELECT s FROM Score s
@@ -711,32 +696,19 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         JOIN FETCH d.category c
                         WHERE s.active = true
                         AND u.active = true AND u.banned = false
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.active = true
-                        AND u.active = true AND u.banned = false
-                        """)
-        Page<Score> findTopByAp(Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.map m
-                        JOIN FETCH d.category c
-                        WHERE s.active = true
-                        AND d.category.id = :categoryId
-                        AND u.active = true AND u.banned = false
+                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         JOIN s.mapDifficulty d
                         WHERE s.active = true
-                        AND d.category.id = :categoryId
                         AND u.active = true AND u.banned = false
+                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """)
-        Page<Score> findTopByApAndCategory(@Param("categoryId") UUID categoryId, Pageable pageable);
+        Page<Score> findTopByAp(@Param("categoryId") UUID categoryId, @Param("country") String country,
+                        Pageable pageable);
 
         @Query(value = """
                         SELECT s_b, s_a

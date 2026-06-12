@@ -34,108 +34,121 @@ public class SiteStatisticsController {
 
     private final SiteStatisticsService siteStatisticsService;
 
-    @Operation(summary = "Top 115 streaks", description = "Scores ranked by highest 115 note streak. Optional category filter.")
+    @Operation(summary = "Top 115 streaks", description = "Scores ranked by highest 115 note streak. Optional category and country filters.")
     @GetMapping("/leaderboards/streaks")
     public ResponseEntity<Page<ScoreResponse>> getTopStreaks(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getTopStreaks(categoryId, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getTopStreaks(categoryId, country, pageable));
     }
 
-    @Operation(summary = "Top scores by AP", description = "Scores ranked by highest AP. Optional category filter.")
+    @Operation(summary = "Top scores by AP", description = "Scores ranked by highest AP. Optional category and country filters.")
     @GetMapping("/leaderboards/max-ap")
     public ResponseEntity<Page<ScoreResponse>> getTopByAp(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getTopByAp(categoryId, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getTopByAp(categoryId, country, pageable));
     }
 
-    @Operation(summary = "Maps with highest average weighted AP", description = "Map difficulties ranked by average weighted AP across all scores. Optional category filter and minimum score threshold.")
+    @Operation(summary = "Maps with highest average weighted AP", description = "Map difficulties ranked by average weighted AP across all scores. Optional category and country filters and minimum score threshold.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<Page<MapAvgApResponse>> getHighestAvgAp(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @RequestParam(defaultValue = "5") int minScores,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getHighestAvgAp(categoryId, minScores, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getHighestAvgAp(categoryId, country, minScores, pageable));
     }
 
-    @Operation(summary = "Most retried maps", description = "Map difficulties ranked by number of superseded scores (improvements). Optional category filter.")
+    @Operation(summary = "Most retried maps", description = "Map difficulties ranked by number of superseded scores (improvements). Optional category and country filters.")
     @GetMapping("/leaderboards/most-retried")
     public ResponseEntity<Page<MapRetryResponse>> getMostRetriedMaps(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostRetriedMaps(categoryId, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getMostRetriedMaps(categoryId, country, pageable));
     }
 
-    @Operation(summary = "Users with most improvements", description = "Users ranked by total number of superseded scores across all maps. Optional category filter.")
+    @Operation(summary = "Users with most improvements", description = "Users ranked by total number of superseded scores across all maps. Optional category and country filters.")
     @GetMapping("/leaderboards/most-improvements")
     public ResponseEntity<Page<UserImprovementsResponse>> getMostImprovements(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostImprovements(categoryId, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getMostImprovements(categoryId, country, pageable));
     }
 
-    @Operation(summary = "Users with most improvements on a single map", description = "Users ranked by most superseded scores on any single map difficulty. Optional category filter.")
+    @Operation(summary = "Users with most improvements on a single map", description = "Users ranked by most superseded scores on any single map difficulty. Optional category and country filters.")
     @GetMapping("/leaderboards/most-map-improvements")
     public ResponseEntity<Page<UserMapImprovementsResponse>> getMostMapImprovements(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostMapImprovements(categoryId, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getMostMapImprovements(categoryId, country, pageable));
     }
 
-    @Operation(summary = "Milestone collectors", description = "Users ranked by number of completed milestones.")
+    @Operation(summary = "Milestone collectors", description = "Users ranked by number of completed milestones. Optional country filter.")
     @GetMapping("/leaderboards/milestone-collectors")
     public ResponseEntity<Page<MilestoneCollectorResponse>> getMilestoneCollectors(
+            @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMilestoneCollectors(pageable));
+        return ResponseEntity.ok(siteStatisticsService.getMilestoneCollectors(country, pageable));
     }
 
     @Operation(summary = "New players per day", description = "Count of new player registrations over a time range. "
-            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly.")
+            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly. Optional country filter.")
     @GetMapping("/charts/new-players-per-day")
     public ResponseEntity<List<TimeSeriesPointResponse>> getNewPlayersPerDay(
             @RequestParam(defaultValue = "30") int amount,
-            @RequestParam(defaultValue = "d") String unit) {
-        return ResponseEntity.ok(siteStatisticsService.getNewPlayersPerDay(amount, unit));
+            @RequestParam(defaultValue = "d") String unit,
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getNewPlayersPerDay(amount, unit, country));
     }
 
     @Operation(summary = "Scores per day", description = "Count of score submissions over a time range. "
-            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly.")
+            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly. Optional country filter.")
     @GetMapping("/charts/scores-per-day")
     public ResponseEntity<List<TimeSeriesPointResponse>> getScoresPerDay(
             @RequestParam(defaultValue = "30") int amount,
-            @RequestParam(defaultValue = "d") String unit) {
-        return ResponseEntity.ok(siteStatisticsService.getScoresPerDay(amount, unit));
+            @RequestParam(defaultValue = "d") String unit,
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getScoresPerDay(amount, unit, country));
     }
 
     @Operation(summary = "Cumulative active accounts", description = "Running total of active accounts over a time range. "
-            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly.")
+            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly. Optional country filter.")
     @GetMapping("/charts/cumulative-accounts")
     public ResponseEntity<List<TimeSeriesPointResponse>> getCumulativeAccounts(
             @RequestParam(defaultValue = "30") int amount,
-            @RequestParam(defaultValue = "d") String unit) {
-        return ResponseEntity.ok(siteStatisticsService.getCumulativeAccounts(amount, unit));
+            @RequestParam(defaultValue = "d") String unit,
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getCumulativeAccounts(amount, unit, country));
     }
 
     @Operation(summary = "Cumulative tracked scores", description = "Running total of tracked scores over a time range. "
-            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly.")
+            + "Units: h (hours), d (days), w (weeks), mo (months). Ranges over 65 days are downsampled to weekly. Optional country filter.")
     @GetMapping("/charts/cumulative-scores")
     public ResponseEntity<List<TimeSeriesPointResponse>> getCumulativeScores(
             @RequestParam(defaultValue = "30") int amount,
-            @RequestParam(defaultValue = "d") String unit) {
-        return ResponseEntity.ok(siteStatisticsService.getCumulativeScores(amount, unit));
+            @RequestParam(defaultValue = "d") String unit,
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getCumulativeScores(amount, unit, country));
     }
 
-    @Operation(summary = "Scores per category", description = "Distribution of active scores across categories.")
+    @Operation(summary = "Scores per category", description = "Distribution of active scores across categories. Optional country filter.")
     @GetMapping("/charts/scores-per-category")
-    public ResponseEntity<List<DistributionEntryResponse>> getScoresPerCategory() {
-        return ResponseEntity.ok(siteStatisticsService.getScoresPerCategory());
+    public ResponseEntity<List<DistributionEntryResponse>> getScoresPerCategory(
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getScoresPerCategory(country));
     }
 
-    @Operation(summary = "Players by HMD", description = "Distribution of players by headset model (from most recent score).")
+    @Operation(summary = "Players by HMD", description = "Distribution of players by headset model (from most recent score). Optional country filter.")
     @GetMapping("/charts/players-by-hmd")
-    public ResponseEntity<List<DistributionEntryResponse>> getPlayersByHmd() {
-        return ResponseEntity.ok(siteStatisticsService.getPlayersByHmd());
+    public ResponseEntity<List<DistributionEntryResponse>> getPlayersByHmd(
+            @RequestParam(required = false) String country) {
+        return ResponseEntity.ok(siteStatisticsService.getPlayersByHmd(country));
     }
 
     @Operation(summary = "Players per country", description = "Distribution of active players by country.")
