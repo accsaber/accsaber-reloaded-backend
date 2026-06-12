@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.client.BeatLeaderClient;
@@ -58,7 +57,6 @@ public class CdnSyncService {
     private Executor cdnBackfillExecutor;
 
 
-    @Transactional
     public void mirrorMapCover(UUID mapId, boolean force) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
         if (map == null) return;
