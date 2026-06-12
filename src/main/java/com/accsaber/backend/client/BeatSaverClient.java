@@ -62,8 +62,21 @@ public class BeatSaverClient {
     }
 
     private Retry retrySpec() {
-        return Retry.backoff(properties.getBeatsaver().getMaxRetries(), Duration.ofSeconds(1))
-                .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound));
+        return Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))
+                .maxBackoff(Duration.ofSeconds(60))
+                .jitter(0.3)
+                .filter(throwable -> {
+                    if (throwable instanceof WebClientResponseException.NotFound) return false;
+                    if (throwable instanceof WebClientResponseException wce) {
+                        int code = wce.getStatusCode().value();
+                        if (code == 429) {
+                            log.warn("BeatSaver 429 rate limited, backing off and retrying");
+                            return true;
+                        }
+                        if (code >= 400 && code < 500) return false;
+                    }
+                    return true;
+                });
     }
 
     private Duration timeout() {
