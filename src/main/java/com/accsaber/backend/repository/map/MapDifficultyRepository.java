@@ -105,6 +105,13 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("status") MapDifficultyStatus status);
 
         @Query("""
+                        SELECT d.blLeaderboardId FROM MapDifficulty d
+                        WHERE d.map.id = :mapId AND d.active = true AND d.blLeaderboardId IS NOT NULL
+                        ORDER BY d.blLeaderboardId ASC
+                        """)
+        List<String> findBlLeaderboardIdsByMapId(@Param("mapId") UUID mapId);
+
+        @Query("""
                         SELECT d FROM MapDifficulty d
                         WHERE d.map.id IN :mapIds AND d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)

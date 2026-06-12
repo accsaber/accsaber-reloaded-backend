@@ -29,7 +29,7 @@ public class CdnLimitsController {
     public ResponseEntity<CdnLimitsResponse> getLimits() {
         return ResponseEntity.ok(CdnLimitsResponse.builder()
                 .maxUploadBytes(cdn.getMaxUploadBytes())
-                .maxDimension(cdn.getMaxDimension())
+                .uploadMaxDimension(cdn.getUploadMaxDimension())
                 .allowedMimeTypes(MediaProcessingService.ALLOWED_MIME.stream().sorted().toList())
                 .build());
     }
@@ -38,7 +38,7 @@ public class CdnLimitsController {
     @Builder
     public static class CdnLimitsResponse {
         private long maxUploadBytes;
-        private int maxDimension;
+        private int uploadMaxDimension;
         private List<String> allowedMimeTypes;
     }
 }

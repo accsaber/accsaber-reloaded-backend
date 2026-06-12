@@ -24,6 +24,8 @@ public class BeatLeaderLeaderboardResponse {
         private String subName;
         private String author;
         private String mapper;
+        private String coverImage;
+        private String fullCoverImage;
     }
 
     @Data

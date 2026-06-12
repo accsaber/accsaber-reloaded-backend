@@ -34,6 +34,9 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(name = "cdn_avatar_url")
+    private String cdnAvatarUrl;
+
     @Column(name = "last_synced_avatar_url")
     private String lastSyncedAvatarUrl;
 

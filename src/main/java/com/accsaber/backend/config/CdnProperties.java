@@ -17,7 +17,10 @@ public class CdnProperties {
     private long maxUploadBytes = 10L * 1024L * 1024L;
     private int webpQuality = 80;
     private int webpEffort = 4;
-    private int maxDimension = 512;
+    private int avifQuality = 60;
+    private int avifEffort = 4;
+    private int avatarMaxDimension = 256;
+    private int coverMaxDimension = 1024;
     private int uploadMaxDimension = 4096;
     private long encodeTimeoutMs = 30_000L;
 }

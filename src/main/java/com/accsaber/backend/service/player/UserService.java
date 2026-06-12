@@ -131,7 +131,8 @@ public class UserService {
     public void setAvatarFromPlatformSync(Long userId, String cdnUrl, String upstreamUrl) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        user.setAvatarUrl(cdnUrl);
+        user.setAvatarUrl(upstreamUrl);
+        user.setCdnAvatarUrl(cdnUrl);
         user.setLastSyncedAvatarUrl(upstreamUrl);
         userRepository.save(user);
     }
@@ -149,7 +150,7 @@ public class UserService {
     public void setUserUploadedAvatar(Long userId, String cdnUrl) {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        user.setAvatarUrl(cdnUrl);
+        user.setCdnAvatarUrl(cdnUrl);
         userRepository.save(user);
     }
 
@@ -291,6 +292,7 @@ public class UserService {
                 .ssId(secondaryId)
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
+                .cdnAvatarUrl(user.getCdnAvatarUrl())
                 .country(user.getCountry())
                 .bio(user.getBio())
                 .xpRanking(user.getXpRanking())

@@ -51,16 +51,21 @@ public class MediaProcessingService {
     }
 
     public String storeImage(MultipartFile file, String subdir, String key) {
+        return storeImage(file, subdir, key, MediaFormat.WEBP);
+    }
+
+    public String storeImage(MultipartFile file, String subdir, String key, MediaFormat format) {
         validate(file);
         return encodeAndPublish(
                 subdir,
                 key,
                 suffixFor(file),
                 tempInput -> file.transferTo(tempInput.toFile()),
-                cdn.getUploadMaxDimension());
+                cdn.getUploadMaxDimension(),
+                format);
     }
 
-    public String storeFromUrl(String sourceUrl, String subdir, String key) {
+    public String storeFromUrl(String sourceUrl, String subdir, String key, MediaFormat format, int maxDim) {
         if (sourceUrl == null || sourceUrl.isBlank()) {
             throw new MediaProcessingException("Source URL is required");
         }
@@ -69,15 +74,16 @@ public class MediaProcessingService {
                 key,
                 suffixFromUrl(sourceUrl),
                 tempInput -> downloadTo(sourceUrl, tempInput),
-                cdn.getMaxDimension());
+                maxDim,
+                format);
     }
 
-    public boolean fileExists(String subdir, String key) {
-        return Files.exists(targetPath(subdir, key));
+    public boolean fileExists(String subdir, String key, MediaFormat format) {
+        return Files.exists(baseDir(subdir).resolve(key + format.extension));
     }
 
-    public boolean fileExistsAndNonEmpty(String subdir, String key) {
-        Path p = targetPath(subdir, key);
+    public boolean fileExistsAndNonEmpty(String subdir, String key, MediaFormat format) {
+        Path p = baseDir(subdir).resolve(key + format.extension);
         try {
             return Files.exists(p) && Files.size(p) > 0;
         } catch (IOException e) {
@@ -86,7 +92,8 @@ public class MediaProcessingService {
     }
 
     public void deleteIfExists(String subdir, String key) {
-        deletePathIfExists(targetPath(subdir, key));
+        deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.WEBP.extension));
+        deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.AVIF.extension));
     }
 
     private void deletePathIfExists(Path target) {
@@ -97,19 +104,24 @@ public class MediaProcessingService {
         }
     }
 
-    private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator, int maxDim) {
+    private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator,
+            int maxDim, MediaFormat format) {
         Path baseDir = baseDir(subdir);
-        Path target = baseDir.resolve(key + ".webp");
+        Path target = baseDir.resolve(key + format.extension);
         Path tempInput = null;
         Path tempOutput = null;
         try {
             Files.createDirectories(baseDir);
             tempInput = Files.createTempFile("cdn-in-", inputSuffix);
-            tempOutput = Files.createTempFile("cdn-out-", ".webp");
+            tempOutput = Files.createTempFile("cdn-out-", format.extension);
             populator.populate(tempInput);
 
             boolean animated = sourcePageCount(tempInput) > 1;
-            runVipsWebp(tempInput, tempOutput, animated, maxDim);
+            if (format == MediaFormat.AVIF) {
+                runVipsAvif(tempInput, tempOutput, animated, maxDim);
+            } else {
+                runVipsWebp(tempInput, tempOutput, animated, maxDim);
+            }
             atomicMove(tempOutput, target);
             makeWorldReadable(target);
         } catch (IOException e) {
@@ -119,7 +131,7 @@ public class MediaProcessingService {
             deleteQuietly(tempInput);
             deleteQuietly(tempOutput);
         }
-        return cdn.getBaseUrl() + "/" + subdir + "/" + key + ".webp?v=" + Instant.now().getEpochSecond();
+        return cdn.getBaseUrl() + "/" + subdir + "/" + key + format.extension + "?v=" + Instant.now().getEpochSecond();
     }
 
     private int sourcePageCount(Path input) {
@@ -191,10 +203,6 @@ public class MediaProcessingService {
         return Paths.get(cdn.getStoragePath(), subdir).toAbsolutePath().normalize();
     }
 
-    private Path targetPath(String subdir, String key) {
-        return baseDir(subdir).resolve(key + ".webp");
-    }
-
     private void downloadTo(String sourceUrl, Path target) throws IOException {
         byte[] body;
         try {
@@ -230,12 +238,22 @@ public class MediaProcessingService {
     private void runVipsWebp(Path input, Path output, boolean animated, int maxDim) {
         String outputArg = output + "[Q=" + cdn.getWebpQuality()
                 + ",effort=" + cdn.getWebpEffort() + "]";
+        encodeWithFallback(input, outputArg, animated, maxDim, "WebP");
+    }
+
+    private void runVipsAvif(Path input, Path output, boolean animated, int maxDim) {
+        String outputArg = output + "[Q=" + cdn.getAvifQuality()
+                + ",compression=av1,effort=" + cdn.getAvifEffort() + "]";
+        encodeWithFallback(input, outputArg, animated, maxDim, "AVIF");
+    }
+
+    private void encodeWithFallback(Path input, String outputArg, boolean animated, int maxDim, String label) {
         if (animated) {
             try {
                 runVips(input + "[n=-1]", outputArg, maxDim);
                 return;
             } catch (MediaProcessingException e) {
-                log.info("animated WebP encode failed for {}, retrying single-frame", input);
+                log.info("animated {} encode failed for {}, retrying single-frame", label, input);
             }
         }
         runVips(input.toString(), outputArg, maxDim);

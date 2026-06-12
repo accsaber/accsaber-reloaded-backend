@@ -148,7 +148,10 @@ accsaber:
     max-upload-bytes: ${CDN_MAX_UPLOAD_BYTES:10485760}
     webp-quality: ${CDN_WEBP_QUALITY:80}
     webp-effort: ${CDN_WEBP_EFFORT:4}
-    max-dimension: ${CDN_MAX_DIMENSION:512}
+    avif-quality: ${CDN_AVIF_QUALITY:60}
+    avif-effort: ${CDN_AVIF_EFFORT:4}
+    avatar-max-dimension: ${CDN_AVATAR_MAX_DIMENSION:256}
+    cover-max-dimension: ${CDN_COVER_MAX_DIMENSION:1024}
     upload-max-dimension: ${CDN_UPLOAD_MAX_DIMENSION:4096}
     encode-timeout-ms: ${CDN_ENCODE_TIMEOUT_MS:30000}
   kofi:

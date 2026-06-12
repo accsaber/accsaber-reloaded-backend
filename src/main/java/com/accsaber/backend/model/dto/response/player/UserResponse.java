@@ -24,6 +24,7 @@ public class UserResponse {
 
     String name;
     String avatarUrl;
+    String cdnAvatarUrl;
     String country;
     String bio;
     BigDecimal totalXp;

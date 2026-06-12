@@ -15,12 +15,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.accsaber.backend.client.BeatSaverClient;
+import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.config.CdnProperties;
-import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
+import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.UserService;
@@ -42,10 +43,11 @@ public class CdnSyncService {
 
     private final MediaProcessingService mediaProcessingService;
     private final MapRepository mapRepository;
+    private final MapDifficultyRepository mapDifficultyRepository;
     private final UserRepository userRepository;
     private final UserService userService;
     private final UserSettingsService userSettingsService;
-    private final BeatSaverClient beatSaverClient;
+    private final BeatLeaderClient beatLeaderClient;
     private final CdnProperties cdn;
 
     @Autowired
@@ -65,11 +67,12 @@ public class CdnSyncService {
         boolean stale = upstream == null || upstream.isBlank() || isCdnUrl(upstream);
         if (stale && !forceRefetch) return;
         if (stale) {
-            upstream = fetchCoverUrlFromBeatSaver(map);
+            upstream = fetchCoverUrlFromBeatLeader(map);
             if (upstream == null) return;
         }
         try {
-            String cdnUrl = mediaProcessingService.storeFromUrl(upstream, MAP_COVER_SUBDIR, mapId.toString());
+            String cdnUrl = mediaProcessingService.storeFromUrl(upstream, MAP_COVER_SUBDIR, mapId.toString(),
+                    MediaFormat.WEBP, cdn.getCoverMaxDimension());
             map.setCoverUrl(cdnUrl);
             mapRepository.save(map);
         } catch (MediaUnavailableException e) {
@@ -79,21 +82,25 @@ public class CdnSyncService {
         }
     }
 
-    private String fetchCoverUrlFromBeatSaver(Map map) {
-        String hash = map.getSongHash();
-        if (hash == null || hash.isBlank()) {
-            log.warn("Cannot refetch cover for map {} — no songHash", map.getId());
+    private String fetchCoverUrlFromBeatLeader(Map map) {
+        List<String> leaderboardIds = mapDifficultyRepository.findBlLeaderboardIdsByMapId(map.getId());
+        if (leaderboardIds.isEmpty()) {
+            log.warn("Cannot fetch cover for map {} — no BL leaderboard id on any difficulty", map.getId());
             return null;
         }
-        Optional<BeatSaverMapResponse> bsMap = beatSaverClient.getMapByHash(hash);
-        if (bsMap.isEmpty() || bsMap.get().getVersions() == null || bsMap.get().getVersions().isEmpty()) {
-            log.warn("BeatSaver returned no map / no versions for hash {} (map {})", hash, map.getId());
+        String leaderboardId = leaderboardIds.get(0);
+        Optional<BeatLeaderLeaderboardResponse> lb = beatLeaderClient.getLeaderboard(leaderboardId);
+        if (lb.isEmpty() || lb.get().getSong() == null) {
+            log.warn("BeatLeader returned no leaderboard/song for id {} (map {})", leaderboardId, map.getId());
             return null;
         }
-        var versions = bsMap.get().getVersions();
-        String coverURL = versions.get(versions.size() - 1).getCoverURL();
+        var song = lb.get().getSong();
+        String coverURL = song.getFullCoverImage();
         if (coverURL == null || coverURL.isBlank()) {
-            log.warn("BeatSaver map {} has no coverURL on its latest version", hash);
+            coverURL = song.getCoverImage();
+        }
+        if (coverURL == null || coverURL.isBlank()) {
+            log.warn("BeatLeader leaderboard {} song has no cover (map {})", leaderboardId, map.getId());
             return null;
         }
         return coverURL;
@@ -122,7 +129,8 @@ public class CdnSyncService {
             return;
         }
         try {
-            String cdnUrl = mediaProcessingService.storeFromUrl(upstreamUrl, USER_AVATAR_SUBDIR, String.valueOf(userId));
+            String cdnUrl = mediaProcessingService.storeFromUrl(upstreamUrl, USER_AVATAR_SUBDIR,
+                    String.valueOf(userId), MediaFormat.AVIF, cdn.getAvatarMaxDimension());
             userService.setAvatarFromPlatformSync(userId, cdnUrl, upstreamUrl);
         } catch (MediaUnavailableException e) {
             log.info("Skipping unavailable avatar for user {} ({})", userId, upstreamUrl);
@@ -133,7 +141,8 @@ public class CdnSyncService {
     }
 
     public String storeUserUploadedAvatar(Long userId, MultipartFile file) {
-        String cdnUrl = mediaProcessingService.storeImage(file, USER_AVATAR_SUBDIR, String.valueOf(userId));
+        String cdnUrl = mediaProcessingService.storeImage(file, USER_AVATAR_SUBDIR,
+                String.valueOf(userId), MediaFormat.AVIF);
         userService.setUserUploadedAvatar(userId, cdnUrl);
         userSettingsService.set(userId, UserSettingKey.SYNC_AVATAR, false);
         return cdnUrl;
@@ -146,7 +155,7 @@ public class CdnSyncService {
         AtomicInteger done = new AtomicInteger();
         AtomicInteger skipped = new AtomicInteger();
         runParallel(maps, map -> {
-            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(MAP_COVER_SUBDIR, map.getId().toString());
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(MAP_COVER_SUBDIR, map.getId().toString(), MediaFormat.WEBP);
             if (!force && fileGood && isCdnUrl(map.getCoverUrl())) {
                 skipped.incrementAndGet();
                 return;
@@ -176,8 +185,8 @@ public class CdnSyncService {
                 skipped.incrementAndGet();
                 return;
             }
-            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(USER_AVATAR_SUBDIR, String.valueOf(user.getId()));
-            if (!force && fileGood && isCdnUrl(user.getAvatarUrl())) {
+            boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(USER_AVATAR_SUBDIR, String.valueOf(user.getId()), MediaFormat.AVIF);
+            if (!force && fileGood && isCdnUrl(user.getCdnAvatarUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
