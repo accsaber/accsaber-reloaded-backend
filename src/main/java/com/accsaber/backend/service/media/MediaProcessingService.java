@@ -56,7 +56,8 @@ public class MediaProcessingService {
                 subdir,
                 key,
                 suffixFor(file),
-                tempInput -> file.transferTo(tempInput.toFile()));
+                tempInput -> file.transferTo(tempInput.toFile()),
+                cdn.getUploadMaxDimension());
     }
 
     public String storeFromUrl(String sourceUrl, String subdir, String key) {
@@ -67,7 +68,8 @@ public class MediaProcessingService {
                 subdir,
                 key,
                 suffixFromUrl(sourceUrl),
-                tempInput -> downloadTo(sourceUrl, tempInput));
+                tempInput -> downloadTo(sourceUrl, tempInput),
+                cdn.getMaxDimension());
     }
 
     public boolean fileExists(String subdir, String key) {
@@ -76,12 +78,6 @@ public class MediaProcessingService {
 
     public void deleteIfExists(String subdir, String key) {
         deletePathIfExists(targetPath(subdir, key));
-        deletePathIfExists(pngTargetPath(subdir, key));
-        deletePathIfExists(gifTargetPath(subdir, key));
-    }
-
-    public boolean avifExists(String subdir, String key) {
-        return Files.exists(targetPath(subdir, key));
     }
 
     private void deletePathIfExists(Path target) {
@@ -92,48 +88,29 @@ public class MediaProcessingService {
         }
     }
 
-    private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator) {
+    private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator, int maxDim) {
         Path baseDir = baseDir(subdir);
-        Path avifTarget = baseDir.resolve(key + ".avif");
+        Path target = baseDir.resolve(key + ".webp");
         Path tempInput = null;
-        Path tempAvif = null;
-        Path tempStatic = null;
-        String staticExt;
+        Path tempOutput = null;
         try {
             Files.createDirectories(baseDir);
             tempInput = Files.createTempFile("cdn-in-", inputSuffix);
+            tempOutput = Files.createTempFile("cdn-out-", ".webp");
             populator.populate(tempInput);
 
             boolean animated = sourcePageCount(tempInput) > 1;
-            staticExt = animated ? ".gif" : ".png";
-
-            tempAvif = Files.createTempFile("cdn-out-", ".avif");
-            tempStatic = Files.createTempFile("cdn-out-", staticExt);
-
-            runVipsAvif(tempInput, tempAvif, animated);
-            if (animated) {
-                runVips(tempInput + "[n=-1]", tempStatic.toString());
-            } else {
-                runVipsPng(tempInput, tempStatic);
-            }
-
-            Path staticTarget = baseDir.resolve(key + staticExt);
-            atomicMove(tempAvif, avifTarget);
-            atomicMove(tempStatic, staticTarget);
-            makeWorldReadable(avifTarget);
-            makeWorldReadable(staticTarget);
-
-            Path otherStatic = baseDir.resolve(key + (animated ? ".png" : ".gif"));
-            deletePathIfExists(otherStatic);
+            runVipsWebp(tempInput, tempOutput, animated, maxDim);
+            atomicMove(tempOutput, target);
+            makeWorldReadable(target);
         } catch (IOException e) {
             log.error("CDN store I/O failure for {}/{}", subdir, key, e);
             throw new MediaProcessingException("Failed to store image");
         } finally {
             deleteQuietly(tempInput);
-            deleteQuietly(tempAvif);
-            deleteQuietly(tempStatic);
+            deleteQuietly(tempOutput);
         }
-        return cdn.getBaseUrl() + "/" + subdir + "/" + key + staticExt + "?v=" + Instant.now().getEpochSecond();
+        return cdn.getBaseUrl() + "/" + subdir + "/" + key + ".webp?v=" + Instant.now().getEpochSecond();
     }
 
     private int sourcePageCount(Path input) {
@@ -153,34 +130,6 @@ public class MediaProcessingService {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return 1;
         }
-    }
-
-    public String regenerateStaticVariant(String subdir, String key) {
-        Path avif = targetPath(subdir, key);
-        if (!Files.exists(avif)) return null;
-        boolean animated = sourcePageCount(avif) > 1;
-        String ext = animated ? ".gif" : ".png";
-        Path baseDir = baseDir(subdir);
-        Path target = baseDir.resolve(key + ext);
-        Path other = baseDir.resolve(key + (animated ? ".png" : ".gif"));
-        Path tempOutput = null;
-        try {
-            tempOutput = Files.createTempFile("cdn-out-", ext);
-            if (animated) {
-                runVips(avif + "[n=-1]", tempOutput.toString());
-            } else {
-                runVipsPng(avif, tempOutput);
-            }
-            atomicMove(tempOutput, target);
-            makeWorldReadable(target);
-            deletePathIfExists(other);
-        } catch (IOException e) {
-            log.error("static-variant regen I/O failure for {}/{}", subdir, key, e);
-            throw new MediaProcessingException("Failed to regenerate static variant");
-        } finally {
-            deleteQuietly(tempOutput);
-        }
-        return cdn.getBaseUrl() + "/" + subdir + "/" + key + ext + "?v=" + Instant.now().getEpochSecond();
     }
 
     private void atomicMove(Path from, Path to) throws IOException {
@@ -234,15 +183,7 @@ public class MediaProcessingService {
     }
 
     private Path targetPath(String subdir, String key) {
-        return baseDir(subdir).resolve(key + ".avif");
-    }
-
-    private Path pngTargetPath(String subdir, String key) {
-        return baseDir(subdir).resolve(key + ".png");
-    }
-
-    private Path gifTargetPath(String subdir, String key) {
-        return baseDir(subdir).resolve(key + ".gif");
+        return baseDir(subdir).resolve(key + ".webp");
     }
 
     private void downloadTo(String sourceUrl, Path target) throws IOException {
@@ -277,31 +218,28 @@ public class MediaProcessingService {
         Files.write(target, body);
     }
 
-    private void runVipsAvif(Path input, Path output, boolean animated) {
-        String outputArg = output + "[Q=" + cdn.getAvifQuality()
-                + ",compression=av1,effort=" + cdn.getAvifEffort() + "]";
+    private void runVipsWebp(Path input, Path output, boolean animated, int maxDim) {
+        String outputArg = output + "[Q=" + cdn.getWebpQuality()
+                + ",effort=" + cdn.getWebpEffort() + "]";
         if (animated) {
             try {
-                runVips(input + "[n=-1]", outputArg);
+                runVips(input + "[n=-1]", outputArg, maxDim);
                 return;
             } catch (MediaProcessingException e) {
-                log.info("animated AVIF encode failed for {}, retrying single-frame", input);
+                log.info("animated WebP encode failed for {}, retrying single-frame", input);
             }
         }
-        runVips(input.toString(), outputArg);
+        runVips(input.toString(), outputArg, maxDim);
     }
 
-    private void runVipsPng(Path input, Path output) {
-        runVips(input.toString(), output.toString());
-    }
-
-    private void runVips(String inputArg, String outputArg) {
+    private void runVips(String inputArg, String outputArg, int maxDim) {
         ProcessBuilder pb = new ProcessBuilder(
                 cdn.getVipsBinary(),
                 "thumbnail",
                 inputArg,
                 outputArg,
-                String.valueOf(cdn.getMaxDimension()));
+                String.valueOf(maxDim),
+                "--size=down");
         pb.environment().put("VIPS_CONCURRENCY", "1");
         pb.redirectErrorStream(true);
         Process proc = null;
@@ -311,7 +249,7 @@ public class MediaProcessingService {
             if (!proc.waitFor(cdn.getEncodeTimeoutMs(), TimeUnit.MILLISECONDS)) {
                 proc.destroyForcibly();
                 log.error("vips encode timed out after {}ms (input={}, max-dim={})",
-                        cdn.getEncodeTimeoutMs(), inputArg, cdn.getMaxDimension());
+                        cdn.getEncodeTimeoutMs(), inputArg, maxDim);
                 throw new MediaProcessingException("Image encoding timed out");
             }
             int exit = proc.exitValue();

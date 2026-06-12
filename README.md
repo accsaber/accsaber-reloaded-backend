@@ -132,9 +132,16 @@ src/main/resources/
 | `STEAM_OPENID_RETURN_TO`  | OAuth    | Backend callback URL for Steam (`{realm}/v1/auth/steam/callback`) |
 | `OAUTH_ALLOWED_RETURN_ORIGINS` | OAuth | Comma-separated frontend origins the OAuth flow may redirect back to |
 | `KOFI_VERIFICATION_TOKEN` | No   | Ko-fi webhook verification token (from `ko-fi.com/manage/webhooks`).|
-| `CDN_STORAGE_PATH`        | No   | Where encoded AVIFs are written. Defaults to `./data/cdn` locally, `/var/cdn` in prod. |
-| `CDN_BASE_URL`            | No   | Public URL prefix returned in `iconUrl`/`backgroundUrl`. |
+| `CDN_STORAGE_PATH`        | No   | Where encoded WebP files are written. Defaults to `./data/cdn` locally, `/var/cdn` in prod. |
+| `CDN_BASE_URL`            | No   | Public URL prefix returned in `avatarUrl`/`coverUrl`/`iconUrl`/`backgroundUrl`. |
 | `CDN_VIPS_BINARY`         | No   | Path to the `vips` CLI. Override if not on `$PATH`. |
+| `CDN_WEBP_QUALITY`        | No   | WebP encode quality (0-100). Default 80. |
+| `CDN_WEBP_EFFORT`         | No   | WebP encode effort (0-6, higher = smaller file, slower). Default 4. |
+| `CDN_MAX_DIMENSION`       | No   | Pixel cap for **mirrored** content (avatars, map covers). Default 512. |
+| `CDN_UPLOAD_MAX_DIMENSION`| No   | Pixel cap for **uploaded** content (campaign bg/icon, item icon, user-uploaded avatar). Default 4096. Effectively unconstrained; admin/user controls dimension. |
+| `CDN_MAX_UPLOAD_BYTES`    | No   | Hard ceiling on uploaded file size in bytes. Default 10485760 (10 MB). |
+| `CDN_BACKFILL_DELAY_MS`   | No   | Throttle between tasks in the avatar/cover backfill loop. Default 0 (no throttle). Set higher to gentle the system or upstream APIs. |
+| `CDN_ENCODE_TIMEOUT_MS`   | No   | Per-encode timeout for the vips subprocess. Default 30000 (30s). |
 
 > **OAuth** vars are required to run the player/staff OAuth login flow. Leave blank to disable OAuth - username/password staff login still works.
 

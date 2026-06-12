@@ -146,9 +146,10 @@ accsaber:
     vips-binary: ${CDN_VIPS_BINARY:vips}
     backfill-delay-ms: ${CDN_BACKFILL_DELAY_MS:100}
     max-upload-bytes: ${CDN_MAX_UPLOAD_BYTES:10485760}
-    avif-quality: ${CDN_AVIF_QUALITY:60}
-    avif-effort: ${CDN_AVIF_EFFORT:4}
-    max-dimension: ${CDN_MAX_DIMENSION:1024}
+    webp-quality: ${CDN_WEBP_QUALITY:80}
+    webp-effort: ${CDN_WEBP_EFFORT:4}
+    max-dimension: ${CDN_MAX_DIMENSION:512}
+    upload-max-dimension: ${CDN_UPLOAD_MAX_DIMENSION:4096}
     encode-timeout-ms: ${CDN_ENCODE_TIMEOUT_MS:30000}
   kofi:
     verification-token: ${KOFI_VERIFICATION_TOKEN:}

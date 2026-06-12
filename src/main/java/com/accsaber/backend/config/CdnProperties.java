@@ -15,8 +15,9 @@ public class CdnProperties {
     private String vipsBinary = "vips";
     private long backfillDelayMs = 0L;
     private long maxUploadBytes = 10L * 1024L * 1024L;
-    private int avifQuality = 60;
-    private int avifEffort = 4;
-    private int maxDimension = 1024;
+    private int webpQuality = 80;
+    private int webpEffort = 4;
+    private int maxDimension = 512;
+    private int uploadMaxDimension = 4096;
     private long encodeTimeoutMs = 30_000L;
 }
