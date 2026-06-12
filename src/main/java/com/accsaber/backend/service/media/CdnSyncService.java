@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.accsaber.backend.client.BeatSaverClient;
 import com.accsaber.backend.config.CdnProperties;
+import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
@@ -23,6 +25,8 @@ import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.UserService;
 import com.accsaber.backend.service.player.UserSettingsService;
+
+import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +45,7 @@ public class CdnSyncService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final UserSettingsService userSettingsService;
+    private final BeatSaverClient beatSaverClient;
     private final CdnProperties cdn;
 
     @Autowired
@@ -49,10 +54,20 @@ public class CdnSyncService {
 
     @Transactional
     public void mirrorMapCover(UUID mapId) {
+        mirrorMapCover(mapId, false);
+    }
+
+    @Transactional
+    public void mirrorMapCover(UUID mapId, boolean forceRefetch) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
         if (map == null) return;
         String upstream = map.getCoverUrl();
-        if (upstream == null || upstream.isBlank() || isCdnUrl(upstream)) return;
+        boolean stale = upstream == null || upstream.isBlank() || isCdnUrl(upstream);
+        if (stale && !forceRefetch) return;
+        if (stale) {
+            upstream = fetchCoverUrlFromBeatSaver(map);
+            if (upstream == null) return;
+        }
         try {
             String cdnUrl = mediaProcessingService.storeFromUrl(upstream, MAP_COVER_SUBDIR, mapId.toString());
             map.setCoverUrl(cdnUrl);
@@ -62,6 +77,26 @@ public class CdnSyncService {
         } catch (RuntimeException e) {
             log.warn("Failed to mirror cover for map {} ({}): {}", mapId, upstream, e.getMessage());
         }
+    }
+
+    private String fetchCoverUrlFromBeatSaver(Map map) {
+        String hash = map.getSongHash();
+        if (hash == null || hash.isBlank()) {
+            log.warn("Cannot refetch cover for map {} — no songHash", map.getId());
+            return null;
+        }
+        Optional<BeatSaverMapResponse> bsMap = beatSaverClient.getMapByHash(hash);
+        if (bsMap.isEmpty() || bsMap.get().getVersions() == null || bsMap.get().getVersions().isEmpty()) {
+            log.warn("BeatSaver returned no map / no versions for hash {} (map {})", hash, map.getId());
+            return null;
+        }
+        var versions = bsMap.get().getVersions();
+        String coverURL = versions.get(versions.size() - 1).getCoverURL();
+        if (coverURL == null || coverURL.isBlank()) {
+            log.warn("BeatSaver map {} has no coverURL on its latest version", hash);
+            return null;
+        }
+        return coverURL;
     }
 
     @Async("cdnBackfillExecutor")
@@ -116,7 +151,7 @@ public class CdnSyncService {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorMapCover(map.getId());
+            mirrorMapCover(map.getId(), force);
             done.incrementAndGet();
         });
         log.info("CDN backfill: covers done ({} processed, {} skipped)", done.get(), skipped.get());
