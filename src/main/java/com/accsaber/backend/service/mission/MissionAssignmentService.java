@@ -141,8 +141,21 @@ public class MissionAssignmentService {
 
     @Transactional
     public List<UserMission> regenerateForUser(Long userId, MissionPool pool) {
-        userMissionRepository.deleteActiveForUser(userId);
-        return assignForUser(userId, pool, loadPoolCache(), true);
+        MissionPoolCache cache = loadPoolCache();
+        if (pool == null) {
+            userMissionRepository.deleteActiveForUserAndPool(userId, MissionPool.daily);
+            userMissionRepository.deleteActiveForUserAndPool(userId, MissionPool.weekly);
+            List<UserMission> all = new ArrayList<>();
+            all.addAll(assignForUser(userId, MissionPool.daily, cache, true));
+            all.addAll(assignForUser(userId, MissionPool.weekly, cache, true));
+            return all;
+        }
+        userMissionRepository.deleteActiveForUserAndPool(userId, pool);
+        return assignForUser(userId, pool, cache, true);
+    }
+
+    public void rolloutPool(MissionPool pool, boolean freshSeed) {
+        purgeAndRollPool(pool, freshSeed);
     }
 
     private boolean hasCurrentCycle(Long userId, MissionPool pool) {

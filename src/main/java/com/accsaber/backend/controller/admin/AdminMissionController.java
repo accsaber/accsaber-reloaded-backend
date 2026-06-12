@@ -68,10 +68,11 @@ public class AdminMissionController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Regenerate today's missions for a user")
+    @Operation(summary = "Regenerate missions for a user",
+            description = "Pool optional. Omit to regenerate both daily and weekly; specify to refresh only that pool.")
     @PostMapping("/users/{userId}/regenerate")
     public ResponseEntity<List<UserMissionResponse>> regenerate(@PathVariable Long userId,
-            @RequestParam(defaultValue = "daily") MissionPool pool) {
+            @RequestParam(required = false) MissionPool pool) {
         return ResponseEntity.ok(
                 assignmentService.regenerateForUser(userId, pool).stream()
                         .map(UserMissionResponse::from).toList());
@@ -95,11 +96,15 @@ public class AdminMissionController {
                         .map(UserMissionResponse::from).toList());
     }
 
-    @Operation(summary = "Force a fresh daily + weekly rollout for ALL eligible users",
-            description = "Async. Purges active+expired for both pools, then re-rolls per user with fresh random seeds.")
+    @Operation(summary = "Force a fresh mission rollout for ALL eligible users",
+            description = "Async. Pool optional: omit to roll both daily and weekly, or specify to roll only that pool. Purges active+expired for the targeted pool(s), then re-rolls per user with fresh random seeds.")
     @PostMapping("/rollout")
-    public ResponseEntity<Void> rolloutAll() {
-        assignmentService.rolloutAllUsers(true);
+    public ResponseEntity<Void> rolloutAll(@RequestParam(required = false) MissionPool pool) {
+        if (pool == null) {
+            assignmentService.rolloutAllUsers(true);
+        } else {
+            assignmentService.rolloutPool(pool, true);
+        }
         return ResponseEntity.accepted().build();
     }
 }
