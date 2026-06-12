@@ -70,7 +70,7 @@ public class SiteStatisticsService {
         @Cacheable(value = "statistics", key = "'highavgweightedap:' + #categoryId + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<MapAvgApResponse> getHighestAvgAp(UUID categoryId, int minScores, Pageable pageable) {
                 String sql = """
-                                SELECT d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url,
+                                SELECT d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                                         d.difficulty, c.id AS cat_id, c.name AS cat_name,
                                         AVG(s.weighted_ap) AS avg_weighted_ap, COUNT(*) AS score_count,
                                         MAX(s.time_set) AS latest_time_set,
@@ -86,7 +86,7 @@ public class SiteStatisticsService {
                 if (categoryId != null) {
                         sql += " AND d.category_id = :categoryId";
                 }
-                sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url," +
+                sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                                 " d.difficulty, c.id, c.name HAVING COUNT(*) >= :minScores" +
                                 " ORDER BY avg_weighted_ap DESC, score_count DESC, m.song_name ASC";
 
@@ -102,24 +102,25 @@ public class SiteStatisticsService {
                                 .songAuthor((String) row[3])
                                 .mapAuthor((String) row[4])
                                 .coverUrl((String) row[5])
-                                .difficulty(Difficulty.fromDbValue((String) row[6]))
-                                .categoryId((UUID) row[7])
-                                .categoryName((String) row[8])
-                                .averageWeightedAp((BigDecimal) row[9])
-                                .scoreCount(((Number) row[10]).longValue())
-                                .latestScoreTimeSet(row[11] != null ? (Instant) row[11] : null)
-                                .latestScoreId(row[12] != null ? (UUID) row[12] : null)
+                                .cdnCoverUrl((String) row[6])
+                                .difficulty(Difficulty.fromDbValue((String) row[7]))
+                                .categoryId((UUID) row[8])
+                                .categoryName((String) row[9])
+                                .averageWeightedAp((BigDecimal) row[10])
+                                .scoreCount(((Number) row[11]).longValue())
+                                .latestScoreTimeSet(row[12] != null ? (Instant) row[12] : null)
+                                .latestScoreId(row[13] != null ? (UUID) row[13] : null)
                                 .build());
         }
 
         @Cacheable(value = "statistics", key = "'mostretried:' + #categoryId + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<MapRetryResponse> getMostRetriedMaps(UUID categoryId, Pageable pageable) {
                 String sql = """
-                                SELECT d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url,
+                                SELECT d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                                         d.difficulty, c.id AS cat_id, c.name AS cat_name,
                                         COUNT(*) AS superseded_count,
                                         MAX(s.time_set) AS latest_time_set,
-                                        (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id 
+                                        (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id
                                         AND s2.active = true ORDER BY s2.time_set DESC NULLS LAST LIMIT 1) AS latest_score_id
                                 FROM scores s
                                 JOIN map_difficulties d ON d.id = s.map_difficulty_id
@@ -131,7 +132,7 @@ public class SiteStatisticsService {
                 if (categoryId != null) {
                         sql += " AND d.category_id = :categoryId";
                 }
-                sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url," +
+                sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                                 " d.difficulty, c.id, c.name ORDER BY superseded_count DESC, m.song_name ASC";
 
                 Map<String, Object> params = categoryId != null ? Map.of("categoryId", categoryId) : Map.of();
@@ -143,12 +144,13 @@ public class SiteStatisticsService {
                                 .songAuthor((String) row[3])
                                 .mapAuthor((String) row[4])
                                 .coverUrl((String) row[5])
-                                .difficulty(Difficulty.fromDbValue((String) row[6]))
-                                .categoryId((UUID) row[7])
-                                .categoryName((String) row[8])
-                                .supersededCount(((Number) row[9]).longValue())
-                                .latestScoreTimeSet(row[10] != null ? (Instant) row[10] : null)
-                                .latestScoreId(row[11] != null ? (UUID) row[11] : null)
+                                .cdnCoverUrl((String) row[6])
+                                .difficulty(Difficulty.fromDbValue((String) row[7]))
+                                .categoryId((UUID) row[8])
+                                .categoryName((String) row[9])
+                                .supersededCount(((Number) row[10]).longValue())
+                                .latestScoreTimeSet(row[11] != null ? (Instant) row[11] : null)
+                                .latestScoreId(row[12] != null ? (UUID) row[12] : null)
                                 .build());
         }
 
@@ -188,25 +190,25 @@ public class SiteStatisticsService {
         public Page<UserMapImprovementsResponse> getMostMapImprovements(UUID categoryId, Pageable pageable) {
                 String sql = """
                                 SELECT u.id, u.name, u.avatar_url, u.country,
-                                        d.id AS diff_id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url,
+                                        d.id AS diff_id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                                         d.difficulty, c.id AS cat_id, c.name AS cat_name,
                                         COUNT(*) AS improvement_count,
                                         MAX(s.time_set) AS latest_time_set,
-                                        (SELECT s2.id FROM scores s2 WHERE s2.user_id = u.id AND s2.map_difficulty_id = d.id 
+                                        (SELECT s2.id FROM scores s2 WHERE s2.user_id = u.id AND s2.map_difficulty_id = d.id
                                                 AND s2.active = true LIMIT 1) AS latest_score_id
                                 FROM scores s
                                 JOIN users u ON u.id = s.user_id
                                 JOIN map_difficulties d ON d.id = s.map_difficulty_id
                                 JOIN maps m ON m.id = d.map_id
                                 JOIN categories c ON c.id = d.category_id
-                                WHERE s.active = false AND s.supersedes_reason = 'Score improved' 
+                                WHERE s.active = false AND s.supersedes_reason = 'Score improved'
                                         AND u.active = true AND u.banned = false
                                 """;
                 if (categoryId != null) {
                         sql += " AND d.category_id = :categoryId";
                 }
                 sql += " GROUP BY u.id, u.name, u.avatar_url, u.country," +
-                                " d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url," +
+                                " d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                                 " d.difficulty, c.id, c.name ORDER BY improvement_count DESC, u.name ASC, m.song_name ASC";
 
                 Map<String, Object> params = categoryId != null ? Map.of("categoryId", categoryId) : Map.of();
@@ -222,12 +224,13 @@ public class SiteStatisticsService {
                                 .songAuthor((String) row[7])
                                 .mapAuthor((String) row[8])
                                 .coverUrl((String) row[9])
-                                .difficulty(Difficulty.fromDbValue((String) row[10]))
-                                .categoryId((UUID) row[11])
-                                .categoryName((String) row[12])
-                                .improvementCount(((Number) row[13]).longValue())
-                                .latestScoreTimeSet(row[14] != null ? ((Instant) row[14]) : null)
-                                .latestScoreId(row[15] != null ? (UUID) row[15] : null)
+                                .cdnCoverUrl((String) row[10])
+                                .difficulty(Difficulty.fromDbValue((String) row[11]))
+                                .categoryId((UUID) row[12])
+                                .categoryName((String) row[13])
+                                .improvementCount(((Number) row[14]).longValue())
+                                .latestScoreTimeSet(row[15] != null ? ((Instant) row[15]) : null)
+                                .latestScoreId(row[16] != null ? (UUID) row[16] : null)
                                 .build());
         }
 

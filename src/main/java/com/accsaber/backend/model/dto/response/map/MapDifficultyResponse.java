@@ -24,6 +24,7 @@ public class MapDifficultyResponse {
     String songAuthor;
     String mapAuthor;
     String coverUrl;
+    String cdnCoverUrl;
     String beatsaverCode;
     UUID categoryId;
     UUID previousVersionId;

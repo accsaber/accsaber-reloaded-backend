@@ -97,7 +97,7 @@ public class OgService {
 
         String canonical = map.getBeatsaverCode() != null ? map.getBeatsaverCode() : map.getId().toString();
         String url = BASE_URL + "/maps/" + canonical;
-        String image = map.getCoverUrl();
+        String image = map.getCdnCoverUrl() != null ? map.getCdnCoverUrl() : map.getCoverUrl();
 
         MapDifficulty diff = resolveDifficulty(map, legacyDifficultyId, difficulty, characteristic);
 

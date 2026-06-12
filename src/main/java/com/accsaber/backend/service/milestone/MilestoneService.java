@@ -796,6 +796,7 @@ public class MilestoneService {
                     com.accsaber.backend.model.entity.map.Map map = md.getMap();
                     if (map != null) {
                         builder.coverUrl(map.getCoverUrl())
+                                .cdnCoverUrl(map.getCdnCoverUrl())
                                 .songName(map.getSongName())
                                 .songAuthor(map.getSongAuthor())
                                 .mapAuthor(map.getMapAuthor());

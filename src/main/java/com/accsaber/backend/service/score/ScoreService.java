@@ -864,6 +864,7 @@ public class ScoreService {
                                 .songAuthor(map.getSongAuthor())
                                 .mapAuthor(map.getMapAuthor())
                                 .coverUrl(map.getCoverUrl())
+                                .cdnCoverUrl(map.getCdnCoverUrl())
                                 .difficulty(diff.getDifficulty())
                                 .characteristic(diff.getCharacteristic())
                                 .categoryId(diff.getCategory().getId())

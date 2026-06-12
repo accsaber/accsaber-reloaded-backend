@@ -22,6 +22,7 @@ public class UserMapImprovementsResponse {
     private String songAuthor;
     private String mapAuthor;
     private String coverUrl;
+    private String cdnCoverUrl;
     private Difficulty difficulty;
     private UUID categoryId;
     private String categoryName;

@@ -20,6 +20,7 @@ public class CampaignDifficultyResponse {
     private String songAuthor;
     private String mapAuthor;
     private String coverUrl;
+    private String cdnCoverUrl;
     private String difficulty;
     private String characteristic;
     private CampaignRequirementType requirementType;

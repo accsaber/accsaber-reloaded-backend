@@ -19,6 +19,7 @@ public class PublicMapResponse {
     String mapAuthor;
     String beatsaverCode;
     String coverUrl;
+    String cdnCoverUrl;
     List<PublicMapDifficultyResponse> difficulties;
     Instant createdAt;
 }

@@ -1115,6 +1115,7 @@ public class CampaignService {
                 .songAuthor(md.getMap().getSongAuthor())
                 .mapAuthor(md.getMap().getMapAuthor())
                 .coverUrl(md.getMap().getCoverUrl())
+                .cdnCoverUrl(md.getMap().getCdnCoverUrl())
                 .difficulty(md.getDifficulty().name())
                 .characteristic(md.getCharacteristic())
                 .requirementType(difficulty.getRequirementType())

@@ -36,6 +36,7 @@ public class MilestoneCompletionResponse {
     private Integer score;
     private Integer maxScore;
     private String coverUrl;
+    private String cdnCoverUrl;
     private String difficulty;
     private String songName;
     private String songAuthor;

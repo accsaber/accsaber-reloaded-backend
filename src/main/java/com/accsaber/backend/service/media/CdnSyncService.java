@@ -57,34 +57,40 @@ public class CdnSyncService {
     private Executor cdnBackfillExecutor;
 
 
-    public void mirrorMapCover(UUID mapId, boolean force) {
+    public void mirrorMapCover(UUID mapId) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
         if (map == null) return;
-        String upstream = map.getCoverUrl();
-        boolean stale = upstream == null || upstream.isBlank() || isCdnUrl(upstream);
-        if (stale && !force) return;
-        if (stale) {
-            upstream = fetchCoverUrlFromBeatLeader(map);
-            if (upstream == null) return;
+        BeatLeaderLeaderboardResponse.Song song = fetchSongFromBeatLeader(map);
+        if (song == null) return;
+
+        String beatSaverUrl = blankToNull(song.getCoverImage());
+        String mirrorSource = blankToNull(song.getFullCoverImage());
+        if (mirrorSource == null) mirrorSource = beatSaverUrl;
+        if (beatSaverUrl == null) beatSaverUrl = mirrorSource;
+        if (mirrorSource == null) {
+            log.warn("BeatLeader leaderboard for map {} has no cover URL", mapId);
+            return;
         }
+
         try {
-            String cdnUrl = mediaProcessingService.storeFromUrl(upstream, MAP_COVER_SUBDIR, mapId.toString(),
+            String cdnUrl = mediaProcessingService.storeFromUrl(mirrorSource, MAP_COVER_SUBDIR, mapId.toString(),
                     MediaFormat.WEBP, cdn.getCoverMaxDimension());
-            map.setCoverUrl(cdnUrl);
+            map.setCoverUrl(beatSaverUrl);
+            map.setCdnCoverUrl(cdnUrl);
             mapRepository.save(map);
         } catch (MediaUnavailableException e) {
-            log.info("Skipping unavailable cover for map {} ({})", mapId, upstream);
+            log.info("Skipping unavailable cover for map {} ({})", mapId, mirrorSource);
         } catch (RuntimeException e) {
-            log.warn("Failed to mirror cover for map {} ({}): {}", mapId, upstream, e.getMessage());
+            log.warn("Failed to mirror cover for map {} ({}): {}", mapId, mirrorSource, e.getMessage());
         }
     }
 
     @Async("cdnBackfillExecutor")
     public void mirrorMapCoverAsync(UUID mapId) {
-        mirrorMapCover(mapId, false);
+        mirrorMapCover(mapId);
     }
 
-    private String fetchCoverUrlFromBeatLeader(Map map) {
+    private BeatLeaderLeaderboardResponse.Song fetchSongFromBeatLeader(Map map) {
         List<String> leaderboardIds = mapDifficultyRepository.findBlLeaderboardIdsByMapId(map.getId());
         if (leaderboardIds.isEmpty()) {
             log.warn("Cannot fetch cover for map {} — no BL leaderboard id on any difficulty", map.getId());
@@ -96,16 +102,11 @@ public class CdnSyncService {
             log.warn("BeatLeader returned no leaderboard/song for id {} (map {})", leaderboardId, map.getId());
             return null;
         }
-        BeatLeaderLeaderboardResponse.Song song = lb.get().getSong();
-        String coverURL = song.getFullCoverImage();
-        if (coverURL == null || coverURL.isBlank()) {
-            coverURL = song.getCoverImage();
-        }
-        if (coverURL == null || coverURL.isBlank()) {
-            log.warn("BeatLeader leaderboard {} song has no cover (map {})", leaderboardId, map.getId());
-            return null;
-        }
-        return coverURL;
+        return lb.get().getSong();
+    }
+
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
 
@@ -168,11 +169,11 @@ public class CdnSyncService {
         runParallel(maps, map -> {
             boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
                     MAP_COVER_SUBDIR, map.getId().toString(), MediaFormat.WEBP);
-            if (!force && fileGood && isCdnUrl(map.getCoverUrl())) {
+            if (!force && fileGood && isCdnUrl(map.getCdnCoverUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorMapCover(map.getId(), force || !fileGood);
+            mirrorMapCover(map.getId());
             done.incrementAndGet();
         });
         log.info("CDN backfill: covers done ({} processed, {} skipped)", done.get(), skipped.get());

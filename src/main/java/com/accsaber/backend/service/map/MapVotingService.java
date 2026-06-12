@@ -325,6 +325,7 @@ public class MapVotingService {
                 .songAuthor(map.getSongAuthor())
                 .mapAuthor(map.getMapAuthor())
                 .coverUrl(map.getCoverUrl())
+                .cdnCoverUrl(map.getCdnCoverUrl())
                 .staffId(v.getStaffId())
                 .staffUsername(info != null ? info.username() : null)
                 .staffAvatarUrl(info != null ? info.avatarUrl() : null)

@@ -20,6 +20,7 @@ public class VoteResponse {
     String songAuthor;
     String mapAuthor;
     String coverUrl;
+    String cdnCoverUrl;
     UUID staffId;
     String staffUsername;
     String staffAvatarUrl;

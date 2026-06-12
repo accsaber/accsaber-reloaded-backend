@@ -55,6 +55,9 @@ public class Map {
     @Column(name = "cover_url")
     private String coverUrl;
 
+    @Column(name = "cdn_cover_url")
+    private String cdnCoverUrl;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
