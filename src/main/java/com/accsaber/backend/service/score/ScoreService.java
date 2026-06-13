@@ -27,6 +27,7 @@ import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.dto.response.score.MyScoreSummary;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
+import com.accsaber.backend.model.dto.response.score.UserScoreSummaryResponse;
 import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -440,6 +441,30 @@ public class ScoreService {
 
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
                                 loadModifierIds(s.getId())));
+        }
+
+        public List<UserScoreSummaryResponse> findAllSummariesByUser(Long userId) {
+                Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+                return scoreRepository.findActiveScoreSummariesByUser(resolvedUserId).stream()
+                                .map(row -> {
+                                        Integer score = (Integer) row[5];
+                                        Integer maxScore = (Integer) row[6];
+                                        return UserScoreSummaryResponse.builder()
+                                                        .mapDifficultyId((UUID) row[0])
+                                                        .songHash((String) row[1])
+                                                        .ssLeaderboardId((String) row[2])
+                                                        .blLeaderboardId((String) row[3])
+                                                        .ap((BigDecimal) row[4])
+                                                        .accuracy(computeAccuracy(score, maxScore))
+                                                        .score(score)
+                                                        .maxScore(maxScore)
+                                                        .rank((Integer) row[7])
+                                                        .blScoreId((Long) row[8])
+                                                        .ssScoreId((Long) row[9])
+                                                        .timeSet((Instant) row[10])
+                                                        .build();
+                                })
+                                .toList();
         }
 
         public Page<ScoreResponse> findByUserRelations(Long viewerUserId, UserRelationType type, UUID categoryId,

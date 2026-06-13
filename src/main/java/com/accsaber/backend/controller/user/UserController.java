@@ -31,6 +31,7 @@ import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.dto.response.score.UserScoreSummaryResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.campaign.CampaignService;
@@ -170,6 +171,12 @@ public class UserController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(scoreService.findByUser(userId, categoryId, search, pageable));
+    }
+
+    @Operation(summary = "Get all user scores (minimal)", description = "Flat, unpaginated list of all of a player's active scores with minimal fields (mapDifficultyId, songHash, ssLeaderboardId, blLeaderboardId, ap, accuracy, score, maxScore, rank, blScoreId, ssScoreId, timeSet), ordered by AP descending. Intended for the plugin.")
+    @GetMapping("/{userId}/scores/all")
+    public ResponseEntity<List<UserScoreSummaryResponse>> getAllUserScores(@PathVariable Long userId) {
+        return ResponseEntity.ok(scoreService.findAllSummariesByUser(userId));
     }
 
     @Operation(summary = "Get user milestone progress")
