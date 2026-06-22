@@ -138,6 +138,25 @@ public class MapService {
         return toPublicDifficultyResponse(getDifficultyResponse(difficultyId));
     }
 
+    public java.util.Map<UUID, PublicMapDifficultyResponse> getDifficultyResponsesPublic(
+            java.util.Collection<UUID> difficultyIds) {
+        if (difficultyIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        List<UUID> ids = difficultyIds.stream().distinct().toList();
+        List<MapDifficulty> difficulties = mapDifficultyRepository.findAllByIdInAndActiveTrueWithMapAndCategory(ids);
+        java.util.Map<UUID, BigDecimal> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
+        java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
+        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
+        java.util.Map<UUID, PublicMapDifficultyResponse> result = new java.util.HashMap<>();
+        for (MapDifficulty d : difficulties) {
+            MapDifficultyResponse full = toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
+                    staffInfo.get(d.getLastUpdatedBy()));
+            result.put(d.getId(), toPublicDifficultyResponse(full));
+        }
+        return result;
+    }
+
     public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = resolveMapSort(pageable);

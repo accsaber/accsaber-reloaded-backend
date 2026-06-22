@@ -439,8 +439,10 @@ public class ScoreService {
                         scores = scoreRepository.findActiveByUser(resolvedUserId, effective);
                 }
 
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.getContent().stream().map(Score::getId).toList());
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
-                                loadModifierIds(s.getId())));
+                                modifierIds.getOrDefault(s.getId(), List.of())));
         }
 
         public List<UserScoreSummaryResponse> findAllSummariesByUser(Long userId) {
@@ -517,10 +519,12 @@ public class ScoreService {
                                                                 java.util.function.Function.identity(),
                                                                 (a, b) -> a));
 
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.getContent().stream().map(Score::getId).toList());
                 return scores.map(s -> {
                         Integer maxScore = s.getMapDifficulty().getMaxScore();
                         ScoreResponse base = toResponse(s, computeAccuracy(s.getScore(), maxScore),
-                                        loadModifierIds(s.getId()));
+                                        modifierIds.getOrDefault(s.getId(), List.of()));
                         Score mine = myByDifficulty.get(s.getMapDifficulty().getId());
                         if (mine == null) {
                                 return base;
@@ -546,9 +550,11 @@ public class ScoreService {
                         throw new ValidationException("Map difficulty has no valid max score configured");
                 }
                 Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.ASC, "rank"));
-                return scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficultyId, effective)
-                                .map(s -> toResponse(s, computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                                loadModifierIds(s.getId())));
+                Page<Score> scores = scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficultyId, effective);
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.getContent().stream().map(Score::getId).toList());
+                return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), difficulty.getMaxScore()),
+                                modifierIds.getOrDefault(s.getId(), List.of())));
         }
 
         public Page<ScoreResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, String country,
@@ -592,9 +598,11 @@ public class ScoreService {
                                 .map(s -> s.getUser().getId())
                                 .toList();
                 java.util.Map<Long, String> tiers = supporterService.findCurrentTiersByUserIds(userIds);
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.getContent().stream().map(Score::getId).toList());
                 return scores.map(s -> toResponse(s,
                                 computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                loadModifierIds(s.getId()))
+                                modifierIds.getOrDefault(s.getId(), List.of()))
                                 .toBuilder().supporterTier(tiers.get(s.getUser().getId())).build());
         }
 
@@ -634,16 +642,18 @@ public class ScoreService {
                 }
 
                 Integer maxScore = difficulty.getMaxScore();
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.stream().map(Score::getId).toList());
                 List<ScoreResponse> aboveScores = scores.subList(0, playerIndex).stream()
                                 .map(s -> toResponse(s, computeAccuracy(s.getScore(), maxScore),
-                                                loadModifierIds(s.getId())))
+                                                modifierIds.getOrDefault(s.getId(), List.of())))
                                 .toList();
                 ScoreResponse player = toResponse(scores.get(playerIndex),
                                 computeAccuracy(scores.get(playerIndex).getScore(), maxScore),
-                                loadModifierIds(scores.get(playerIndex).getId()));
+                                modifierIds.getOrDefault(scores.get(playerIndex).getId(), List.of()));
                 List<ScoreResponse> belowScores = scores.subList(playerIndex + 1, scores.size()).stream()
                                 .map(s -> toResponse(s, computeAccuracy(s.getScore(), maxScore),
-                                                loadModifierIds(s.getId())))
+                                                modifierIds.getOrDefault(s.getId(), List.of())))
                                 .toList();
 
                 return ScoresAroundResponse.builder()
@@ -658,11 +668,13 @@ public class ScoreService {
                 Instant since = TimeRangeUtil.computeSince(amount, unit);
                 List<Score> scores = scoreRepository.findHistoric(resolvedUserId, mapDifficultyId, since);
 
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.stream().map(Score::getId).toList());
                 return scores.stream()
                                 .map(s -> toResponse(s,
                                                 computeAccuracy(s.getScore(),
                                                                 s.getMapDifficulty().getMaxScore()),
-                                                loadModifierIds(s.getId())))
+                                                modifierIds.getOrDefault(s.getId(), List.of())))
                                 .toList();
         }
 
@@ -838,6 +850,18 @@ public class ScoreService {
                                 .toList();
         }
 
+        private java.util.Map<UUID, List<UUID>> loadModifierIdsBatch(java.util.Collection<UUID> scoreIds) {
+                if (scoreIds.isEmpty()) {
+                        return java.util.Map.of();
+                }
+                return modifierLinkRepository.findByScore_IdIn(scoreIds).stream()
+                                .collect(java.util.stream.Collectors.groupingBy(
+                                                l -> l.getScore().getId(),
+                                                java.util.stream.Collectors.mapping(
+                                                                l -> l.getModifier().getId(),
+                                                                java.util.stream.Collectors.toList())));
+        }
+
         private static final String ACCURACY_SORT_EXPRESSION = "CAST(s.score AS double) / s.mapDifficulty.maxScore";
 
         private Pageable resolveSort(Pageable pageable, Sort defaultSort) {
@@ -869,6 +893,18 @@ public class ScoreService {
                 BigDecimal accuracy = computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore());
                 List<UUID> modifierIds = loadModifierIds(s.getId());
                 return toResponse(s, accuracy, modifierIds);
+        }
+
+        public java.util.Map<UUID, ScoreResponse> mapToResponsesByScoreId(java.util.Collection<Score> scores) {
+                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
+                                scores.stream().map(Score::getId).toList());
+                java.util.Map<UUID, ScoreResponse> responses = new java.util.HashMap<>();
+                for (Score s : scores) {
+                        responses.put(s.getId(), toResponse(s,
+                                        computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
+                                        modifierIds.getOrDefault(s.getId(), List.of())));
+                }
+                return responses;
         }
 
         private ScoreResponse toResponse(Score s, BigDecimal accuracy, List<UUID> modifierIds) {

@@ -70,7 +70,7 @@ public class BatchService {
         } else {
             batches = batchRepository.findAll(effective);
         }
-        return batches.map(b -> toResponse(b, loadDifficulties(b.getId())));
+        return toResponsesWithDifficulties(batches);
     }
 
     public Page<BatchResponse> findByStatus(BatchStatus status, String search, Pageable pageable) {
@@ -87,7 +87,7 @@ public class BatchService {
         } else {
             batches = batchRepository.findByStatus(status, effective);
         }
-        return batches.map(b -> toResponse(b, loadDifficulties(b.getId())));
+        return toResponsesWithDifficulties(batches);
     }
 
     public BatchResponse findById(UUID id) {
@@ -294,6 +294,27 @@ public class BatchService {
 
     private List<MapDifficultyResponse> loadDifficulties(UUID batchId) {
         return enrich(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batchId));
+    }
+
+    private Page<BatchResponse> toResponsesWithDifficulties(Page<Batch> batches) {
+        java.util.Map<UUID, List<MapDifficulty>> byBatch = new java.util.HashMap<>();
+        List<UUID> allDifficultyIds = new java.util.ArrayList<>();
+        for (Batch b : batches.getContent()) {
+            List<MapDifficulty> diffs = mapDifficultyRepository.findByBatch_IdAndActiveTrue(b.getId());
+            byBatch.put(b.getId(), diffs);
+            for (MapDifficulty d : diffs) {
+                allDifficultyIds.add(d.getId());
+            }
+        }
+        Map<UUID, BigDecimal> complexities = allDifficultyIds.isEmpty()
+                ? Map.of()
+                : complexityService.findActiveComplexitiesForDifficulties(allDifficultyIds);
+        Map<UUID, MapDifficultyStatisticsResponse> stats = allDifficultyIds.isEmpty()
+                ? Map.of()
+                : statisticsService.findActiveForDifficulties(allDifficultyIds);
+        return batches.map(b -> toResponse(b, byBatch.get(b.getId()).stream()
+                .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId())))
+                .toList()));
     }
 
     private List<MapDifficultyResponse> enrich(List<MapDifficulty> difficulties) {

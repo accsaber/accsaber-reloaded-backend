@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.score;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,4 +11,6 @@ import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 public interface ScoreModifierLinkRepository extends JpaRepository<ScoreModifierLink, UUID> {
 
     List<ScoreModifierLink> findByScore_Id(UUID scoreId);
+
+    List<ScoreModifierLink> findByScore_IdIn(Collection<UUID> scoreIds);
 }

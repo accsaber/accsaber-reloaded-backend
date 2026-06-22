@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.snipe;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -9,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.SnipeComparisonResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.score.Score;
@@ -41,18 +44,48 @@ public class SnipeService {
         requireUser(sniperId);
         requireUser(targetId);
         CategoryFilter filter = resolveCategoryFilter(categoryCode);
-        return scoreRepository
-                .findClosestSnipePairs(sniperId, targetId, filter.categoryId(), filter.overallOnly(), pageable)
-                .map(this::toComparison);
+        Page<Object[]> pairs = scoreRepository
+                .findClosestSnipePairs(sniperId, targetId, filter.categoryId(), filter.overallOnly(), pageable);
+
+        List<Object[]> rows = pairs.getContent();
+        List<UUID> difficultyIds = rows.stream()
+                .map(r -> ((Score) r[0]).getMapDifficulty().getId())
+                .distinct()
+                .toList();
+        java.util.Map<UUID, PublicMapDifficultyResponse> difficulties = mapService
+                .getDifficultyResponsesPublic(difficultyIds);
+        List<Score> scores = new java.util.ArrayList<>(rows.size() * 2);
+        for (Object[] r : rows) {
+            scores.add((Score) r[0]);
+            scores.add((Score) r[1]);
+        }
+        java.util.Map<UUID, ScoreResponse> scoreResponses = scoreService.mapToResponsesByScoreId(scores);
+
+        return pairs.map(r -> toComparison(r, difficulties, scoreResponses));
     }
 
-    private SnipeComparisonResponse toComparison(Object[] row) {
+    private SnipeComparisonResponse toComparison(Object[] row,
+            java.util.Map<UUID, PublicMapDifficultyResponse> difficulties,
+            java.util.Map<UUID, ScoreResponse> scoreResponses) {
         Score targetScore = (Score) row[0];
         Score sniperScore = (Score) row[1];
+        UUID difficultyId = targetScore.getMapDifficulty().getId();
+        PublicMapDifficultyResponse difficulty = difficulties.get(difficultyId);
+        if (difficulty == null) {
+            difficulty = mapService.getDifficultyResponsePublic(difficultyId);
+        }
+        ScoreResponse sniperResponse = scoreResponses.get(sniperScore.getId());
+        if (sniperResponse == null) {
+            sniperResponse = scoreService.mapToResponse(sniperScore);
+        }
+        ScoreResponse targetResponse = scoreResponses.get(targetScore.getId());
+        if (targetResponse == null) {
+            targetResponse = scoreService.mapToResponse(targetScore);
+        }
         return SnipeComparisonResponse.builder()
-                .mapDifficulty(mapService.getDifficultyResponsePublic(targetScore.getMapDifficulty().getId()))
-                .sniperScore(scoreService.mapToResponse(sniperScore))
-                .targetScore(scoreService.mapToResponse(targetScore))
+                .mapDifficulty(difficulty)
+                .sniperScore(sniperResponse)
+                .targetScore(targetResponse)
                 .scoreDelta(targetScore.getScore() - sniperScore.getScore())
                 .build();
     }

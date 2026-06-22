@@ -2,6 +2,7 @@ package com.accsaber.backend.service.infra;
 
 import java.util.List;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ public class ModifierService {
 
     private final ModifierRepository modifierRepository;
 
+    @Cacheable("modifiers")
     public List<ModifierResponse> findAllActive() {
         return modifierRepository.findByActiveTrue().stream()
                 .map(ModifierService::toResponse)

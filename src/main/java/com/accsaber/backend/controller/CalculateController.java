@@ -3,7 +3,6 @@ package com.accsaber.backend.controller;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,7 +14,6 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.dto.response.APCalculationResponse;
 import com.accsaber.backend.model.entity.Category;
-import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.score.APCalculationService;
@@ -68,12 +66,7 @@ public class CalculateController {
         }
 
         private int findPosition(BigDecimal rawAP, Long userId, Category category) {
-                List<Score> scores = scoreRepository.findActiveByUserAndCategoryOrderByApDesc(userId, category.getId());
-                for (int i = 0; i < scores.size(); i++) {
-                        if (rawAP.compareTo(scores.get(i).getAp()) > 0) {
-                                return i;
-                        }
-                }
-                return scores.size();
+                return (int) scoreRepository.countActiveByUserAndCategoryWithApAtLeast(
+                                userId, category.getId(), rawAP);
         }
 }

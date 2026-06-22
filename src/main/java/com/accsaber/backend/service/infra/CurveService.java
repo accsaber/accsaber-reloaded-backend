@@ -3,6 +3,9 @@ package com.accsaber.backend.service.infra;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,18 +29,23 @@ public class CurveService {
     private final CurveRepository curveRepository;
     private final CurvePointRepository curvePointRepository;
 
+    @Cacheable("curves")
     public List<CurveResponse> findAllActive() {
         return curveRepository.findByActiveTrue().stream()
                 .map(this::toResponseWithPoints)
                 .toList();
     }
 
+    @Cacheable("curves")
     public CurveResponse findById(UUID id) {
         Curve curve = curveRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Curve", id));
         return toResponseWithPoints(curve);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "curves", allEntries = true),
+            @CacheEvict(value = "categories", allEntries = true) })
     @Transactional
     public CurveResponse createCurve(CreateCurveRequest request) {
         Curve curve = Curve.builder()
@@ -56,6 +64,9 @@ public class CurveService {
         return toResponse(curveRepository.save(curve));
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "curves", allEntries = true),
+            @CacheEvict(value = "categories", allEntries = true) })
     @Transactional
     public CurveResponse updateCurve(UUID id, UpdateCurveRequest request) {
         Curve curve = curveRepository.findByIdAndActiveTrue(id)

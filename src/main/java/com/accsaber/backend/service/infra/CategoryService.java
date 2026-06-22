@@ -3,6 +3,7 @@ package com.accsaber.backend.service.infra;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,12 +21,14 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
 
+    @Cacheable("categories")
     public List<CategoryResponse> findAllActive() {
         return categoryRepository.findByActiveTrue().stream()
                 .map(this::toResponse)
                 .toList();
     }
 
+    @Cacheable("categories")
     public CategoryResponse findById(UUID id) {
         Category category = categoryRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", id));
