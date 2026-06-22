@@ -192,7 +192,7 @@ public class CdnSyncService {
                 return;
             }
             boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
-                    USER_AVATAR_SUBDIR, String.valueOf(user.getId()), MediaFormat.AVIF);
+                    USER_AVATAR_SUBDIR, String.valueOf(user.getId()));
             if (!force && fileGood && isCdnUrl(user.getCdnAvatarUrl())) {
                 skipped.incrementAndGet();
                 return;

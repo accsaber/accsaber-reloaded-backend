@@ -88,6 +88,11 @@ public class MediaProcessingService {
         }
     }
 
+    public boolean fileExistsAndNonEmpty(String subdir, String key) {
+        return fileExistsAndNonEmpty(subdir, key, MediaFormat.AVIF)
+                || fileExistsAndNonEmpty(subdir, key, MediaFormat.WEBP);
+    }
+
     public void deleteIfExists(String subdir, String key) {
         deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.WEBP.extension));
         deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.AVIF.extension));
@@ -102,18 +107,22 @@ public class MediaProcessingService {
     }
 
     private String encodeAndPublish(String subdir, String key, String inputSuffix, InputPopulator populator,
-            int maxDim, MediaFormat format) {
+            int maxDim, MediaFormat requestedFormat) {
         Path baseDir = baseDir(subdir);
-        Path target = baseDir.resolve(key + format.extension);
         Path tempInput = null;
         Path tempOutput = null;
         try {
             Files.createDirectories(baseDir);
             tempInput = Files.createTempFile("cdn-in-", inputSuffix);
-            tempOutput = Files.createTempFile("cdn-out-", format.extension);
             populator.populate(tempInput);
 
             boolean animated = sourcePageCount(tempInput) > 1;
+            MediaFormat format = (animated && requestedFormat == MediaFormat.AVIF)
+                    ? MediaFormat.WEBP
+                    : requestedFormat;
+            Path target = baseDir.resolve(key + format.extension);
+            tempOutput = Files.createTempFile("cdn-out-", format.extension);
+
             if (format == MediaFormat.AVIF) {
                 runVipsAvif(tempInput, tempOutput, animated, maxDim);
             } else {
@@ -121,6 +130,8 @@ public class MediaProcessingService {
             }
             atomicMove(tempOutput, target);
             makeWorldReadable(target);
+            return cdn.getBaseUrl() + "/" + subdir + "/" + key + format.extension
+                    + "?v=" + Instant.now().getEpochSecond();
         } catch (IOException e) {
             log.error("CDN store I/O failure for {}/{}", subdir, key, e);
             throw new MediaProcessingException("Failed to store image");
@@ -128,7 +139,6 @@ public class MediaProcessingService {
             deleteQuietly(tempInput);
             deleteQuietly(tempOutput);
         }
-        return cdn.getBaseUrl() + "/" + subdir + "/" + key + format.extension + "?v=" + Instant.now().getEpochSecond();
     }
 
     private int sourcePageCount(Path input) {
