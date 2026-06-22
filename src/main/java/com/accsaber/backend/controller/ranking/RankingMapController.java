@@ -63,11 +63,11 @@ public class RankingMapController {
         return ResponseEntity.ok(mapImportService.estimateForRankedDifficulty(songHash, difficulty, characteristic));
     }
 
-    @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and all vote breakdowns")
+    @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and all vote breakdowns. The status filter accepts multiple values (e.g. status=QUEUE,QUALIFIED).")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<MapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) MapDifficultyStatus status,
+            @RequestParam(required = false) List<MapDifficultyStatus> status,
             @RequestParam(required = false) BigDecimal complexityMin,
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,

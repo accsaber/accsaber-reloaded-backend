@@ -2,6 +2,7 @@ package com.accsaber.backend.service.map;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -87,7 +88,8 @@ public class MapService {
 
     public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId, MapDifficultyStatus status,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId, Pageable pageable) {
-        return findDifficulties(categoryId, status, complexityMin, complexityMax, search, excludeUserId, pageable)
+        Collection<MapDifficultyStatus> statuses = status == null ? null : List.of(status);
+        return findDifficulties(categoryId, statuses, complexityMin, complexityMax, search, excludeUserId, pageable)
                 .map(MapService::toPublicDifficultyResponse);
     }
 
@@ -234,16 +236,17 @@ public class MapService {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
     }
 
-    public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, MapDifficultyStatus status,
+    public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, Collection<MapDifficultyStatus> statuses,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId,
             Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
+        Collection<MapDifficultyStatus> statusFilter = statuses == null || statuses.isEmpty() ? null : statuses;
         Pageable effective = resolveDifficultySort(pageable);
         Page<MapDifficulty> difficulties = hasSearch
                 ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
-                        categoryId, status, complexityMin, complexityMax, excludeUserId, search.trim(), effective)
+                        categoryId, statusFilter, complexityMin, complexityMax, excludeUserId, search.trim(), effective)
                 : mapDifficultyRepository.findWithComplexityFilters(
-                        categoryId, status, complexityMin, complexityMax, excludeUserId, effective);
+                        categoryId, statusFilter, complexityMin, complexityMax, excludeUserId, effective);
 
         if (difficulties.isEmpty())
             return difficulties.map(d -> toDifficultyResponse(d, null, null, null));

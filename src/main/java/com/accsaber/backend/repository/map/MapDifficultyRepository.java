@@ -1,6 +1,7 @@
 package com.accsaber.backend.repository.map;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -97,7 +98,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         WHERE d.map.id = :mapId AND d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         """)
         List<MapDifficulty> findByMapIdWithFilters(
                         @Param("mapId") UUID mapId,
@@ -115,7 +116,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         WHERE d.map.id IN :mapIds AND d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         """)
         List<MapDifficulty> findByMapIdsWithFilters(
                         @Param("mapIds") List<UUID> mapIds,
@@ -190,7 +191,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
                         AND (:excludeUserId IS NULL OR NOT EXISTS (
@@ -202,7 +203,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
                         AND (:excludeUserId IS NULL OR NOT EXISTS (
@@ -211,7 +212,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         Page<MapDifficulty> findWithComplexityFilters(
                         @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status,
+                        @Param("statuses") Collection<MapDifficultyStatus> statuses,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,
                         @Param("excludeUserId") Long excludeUserId,
@@ -223,7 +224,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
                         AND (:excludeUserId IS NULL OR NOT EXISTS (
@@ -238,7 +239,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
                         AND (:excludeUserId IS NULL OR NOT EXISTS (
@@ -250,7 +251,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         Page<MapDifficulty> findWithComplexityFiltersWithSearch(
                         @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status,
+                        @Param("statuses") Collection<MapDifficultyStatus> statuses,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,
                         @Param("excludeUserId") Long excludeUserId,

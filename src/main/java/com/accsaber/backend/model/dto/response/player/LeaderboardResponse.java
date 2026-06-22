@@ -20,6 +20,7 @@ public class LeaderboardResponse {
     private String userName;
     private String country;
     private String avatarUrl;
+    private String cdnAvatarUrl;
     private BigDecimal ap;
     private BigDecimal averageAcc;
     private BigDecimal averageAp;

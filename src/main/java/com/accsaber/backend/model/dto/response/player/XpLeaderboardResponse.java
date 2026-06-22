@@ -19,6 +19,7 @@ public class XpLeaderboardResponse {
     private String userName;
     private String country;
     private String avatarUrl;
+    private String cdnAvatarUrl;
     private BigDecimal totalXp;
     private Integer level;
     private boolean playerInactive;
