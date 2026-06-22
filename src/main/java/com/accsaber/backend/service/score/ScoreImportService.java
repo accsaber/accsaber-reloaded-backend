@@ -24,6 +24,7 @@ import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.ScoreSaberClient;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.entity.Modifier;
@@ -1016,10 +1017,12 @@ public class ScoreImportService {
                     .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
             if (existingScore.isPresent()
                     && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getUnmodifiedScore())) {
+                enrichExistingScoreSaberScore(existingScore.get(), ssScore, difficulty.getId(), userId, modifiers);
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
-            SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, null, difficulty.getId(), userId,
+            ScoreSaberScoreStats stats = fetchScoreSaberStats(ssScore);
+            SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, difficulty.getId(), userId,
                     modifiers);
             if (forBackfill) {
                 scoreService.submitForBackfill(request, difficulty, complexity);
@@ -1031,6 +1034,29 @@ public class ScoreImportService {
             log.error("Failed to import SS score {} for difficulty {}: {}",
                     ssScore.getId(), difficulty.getId(), e.getMessage());
             return null;
+        }
+    }
+
+    private ScoreSaberScoreStats fetchScoreSaberStats(ScoreSaberScoreResponse ssScore) {
+        return ssScore.getId() != null
+                ? scoreSaberClient.getScoreStats(ssScore.getId()).orElse(null)
+                : null;
+    }
+
+    private void enrichExistingScoreSaberScore(Score score, ScoreSaberScoreResponse ssScore, UUID mapDifficultyId,
+            Long userId, Map<String, UUID> modifiers) {
+        if (score.getStreak115() != null) {
+            return;
+        }
+        ScoreSaberScoreStats stats = fetchScoreSaberStats(ssScore);
+        if (stats == null) {
+            return;
+        }
+        SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, mapDifficultyId, userId,
+                modifiers);
+        if (ScorePayloadFields.mergeNullOnly(score, request)) {
+            scoreRepository.save(score);
+            log.debug("Enriched existing SS score {} with ScoreSaber stats", score.getId());
         }
     }
 }

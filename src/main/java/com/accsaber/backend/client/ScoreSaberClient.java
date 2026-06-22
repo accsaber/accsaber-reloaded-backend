@@ -13,6 +13,7 @@ import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberLeaderboardR
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerScoresPage;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +66,22 @@ public class ScoreSaberClient {
         } catch (Exception e) {
             log.error("Failed to fetch SS player score for player={} leaderboard={}: {}",
                     playerId, leaderboardId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<ScoreSaberScoreStats> getScoreStats(Long scoreId) {
+        try {
+            return Optional.ofNullable(webClient.get()
+                    .uri("/v2/scores/{id}/stats", scoreId)
+                    .retrieve()
+                    .bodyToMono(ScoreSaberScoreStats.class)
+                    .retryWhen(rateLimitRetrySpec())
+                    .block());
+        } catch (WebClientResponseException.NotFound e) {
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("Failed to fetch SS score stats for score {}: {}", scoreId, e.getMessage());
             return Optional.empty();
         }
     }
