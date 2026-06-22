@@ -488,7 +488,7 @@ class ScoreServiceTest {
                                         org.mockito.ArgumentMatchers.eq(rankedDifficulty.getId()),
                                         any(Instant.class)))
                                         .thenReturn(List.of(s1, s2));
-                        when(modifierLinkRepository.findByScore_Id(any()))
+                        when(modifierLinkRepository.findByScore_IdIn(any()))
                                         .thenReturn(Collections.emptyList());
 
                         List<ScoreResponse> result = scoreService.findHistoric(
