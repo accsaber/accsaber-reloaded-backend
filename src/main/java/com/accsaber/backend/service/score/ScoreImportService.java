@@ -237,14 +237,15 @@ public class ScoreImportService {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED).stream()
-                .filter(d -> d.getBlLeaderboardId() != null)
+                .filter(d -> d.getBlLeaderboardId() != null
+                        || (scoreSaberBackfillEnabled && d.getSsLeaderboardId() != null))
                 .toList();
         if (ranked.isEmpty()) {
-            log.info("No ranked BL difficulties for user {} backfill", resolvedUserId);
+            log.info("No ranked difficulties for user {} backfill", resolvedUserId);
             return;
         }
 
-        log.info("Starting user backfill for {} across {} ranked BL difficulties", resolvedUserId, ranked.size());
+        log.info("Starting user backfill for {} across {} ranked difficulties", resolvedUserId, ranked.size());
         long start = System.currentTimeMillis();
 
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
@@ -255,7 +256,12 @@ public class ScoreImportService {
                 .map(difficulty -> Thread.startVirtualThread(() -> {
                     semaphore.acquireUninterruptibly();
                     try {
-                        if (reconcileUserScoreForDifficulty(resolvedUserId, difficulty, modifiers)) {
+                        boolean changed = difficulty.getBlLeaderboardId() != null
+                                && reconcileUserScoreForDifficulty(resolvedUserId, difficulty, modifiers);
+                        if (!changed && scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+                            changed = reconcileUserScoreFromScoreSaber(resolvedUserId, difficulty, modifiers);
+                        }
+                        if (changed) {
                             affectedDifficulties.add(difficulty);
                         }
                     } catch (Exception e) {
@@ -347,6 +353,40 @@ public class ScoreImportService {
         }
 
         Long affected = importBeatLeaderScore(blScore, difficulty, complexity, modifiers, true);
+        return affected != null;
+    }
+
+    private boolean reconcileUserScoreFromScoreSaber(Long userId, MapDifficulty difficulty,
+            Map<String, UUID> modifiers) {
+        Optional<ScoreSaberScoreResponse> ssOpt = scoreSaberClient.getPlayerScoreOnLeaderboard(
+                String.valueOf(userId), difficulty.getSsLeaderboardId());
+        if (ssOpt.isEmpty())
+            return false;
+        ScoreSaberScoreResponse ssScore = ssOpt.get();
+        if (ssScore.getUnmodifiedScore() == null)
+            return false;
+        if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods()))
+            return false;
+
+        Optional<Score> existing = scoreRepository
+                .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
+        if (existing.isPresent() && existing.get().getScoreNoMods() > ssScore.getUnmodifiedScore()) {
+            return false;
+        }
+
+        BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
+        if (complexity == null) {
+            log.warn("No active complexity for difficulty {} - skipping SS user backfill entry", difficulty.getId());
+            return false;
+        }
+
+        if (ssScore.getPlayer() == null || ssScore.getPlayer().getId() == null) {
+            ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
+            player.setId(String.valueOf(userId));
+            ssScore.setPlayer(player);
+        }
+
+        Long affected = importScoreSaberScore(ssScore, difficulty, complexity, modifiers, true);
         return affected != null;
     }
 

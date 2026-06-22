@@ -11,6 +11,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerScoresPage;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,31 @@ public class ScoreSaberClient {
             return Optional.empty();
         } catch (Exception e) {
             log.error("Failed to fetch ScoreSaber player {}: {}", steamId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<ScoreSaberScoreResponse> getPlayerScoreOnLeaderboard(String playerId, String leaderboardId) {
+        try {
+            ScoreSaberPlayerScoresPage page = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/players/{id}/scores")
+                            .queryParam("leaderboardId", leaderboardId)
+                            .queryParam("limit", 1)
+                            .build(playerId))
+                    .retrieve()
+                    .bodyToMono(ScoreSaberPlayerScoresPage.class)
+                    .retryWhen(rateLimitRetrySpec())
+                    .block();
+            if (page == null || page.getData() == null || page.getData().isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(page.getData().get(0).getScore());
+        } catch (WebClientResponseException.NotFound e) {
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("Failed to fetch SS player score for player={} leaderboard={}: {}",
+                    playerId, leaderboardId, e.getMessage());
             return Optional.empty();
         }
     }
