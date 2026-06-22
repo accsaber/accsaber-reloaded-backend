@@ -48,6 +48,7 @@ public class SecurityConfig {
                 "https://www.accsaberreloaded.com",
                 "https://*.accsaberreloaded.com",
                 "http://localhost:*",
+                "http://*.localhost:*",
                 "http://127.0.0.1:*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
