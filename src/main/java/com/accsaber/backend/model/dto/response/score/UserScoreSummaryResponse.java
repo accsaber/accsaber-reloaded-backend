@@ -12,6 +12,10 @@ import lombok.Value;
 public class UserScoreSummaryResponse {
     UUID mapDifficultyId;
     String songHash;
+    String songName;
+    String songAuthor;
+    String coverUrl;
+    String cdnCoverUrl;
     String ssLeaderboardId;
     String blLeaderboardId;
     BigDecimal ap;

@@ -3,8 +3,10 @@ package com.accsaber.backend.service.campaign;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -144,6 +146,75 @@ public class CampaignEvaluationService {
     }
 
     @Transactional
+    public void recomputeAfterRequirementChange(Campaign campaign, Set<UUID> changedNodeIds) {
+        if (changedNodeIds == null || changedNodeIds.isEmpty()) {
+            return;
+        }
+        UUID campaignId = campaign.getId();
+        Set<UUID> affected = new HashSet<>(changedNodeIds);
+        if (!campaign.isProgressionAgnostic()) {
+            affected.addAll(descendantsOf(campaignId, changedNodeIds));
+        }
+
+        Set<Long> touchedUsers = new HashSet<>();
+        for (UserCampaignScore ucs : userCampaignScoreRepository.findByCampaign_IdAndActiveTrue(campaignId)) {
+            if (affected.contains(ucs.getCampaignDifficulty().getId())) {
+                ucs.setActive(false);
+                userCampaignScoreRepository.save(ucs);
+                touchedUsers.add(ucs.getUser().getId());
+            }
+        }
+        if (touchedUsers.isEmpty()) {
+            return;
+        }
+
+        Graph graph = loadGraph(campaignId);
+        for (Long userId : touchedUsers) {
+            UserCampaign uc = userCampaignRepository
+                    .findByUser_IdAndCampaign_IdAndActiveTrue(userId, campaignId)
+                    .orElse(null);
+            if (uc == null || uc.getStatus() != UserCampaignStatus.COMPLETED) {
+                continue;
+            }
+            if (!isComplete(campaign, graph, loadCompletedIds(userId, campaignId))) {
+                uc.setStatus(UserCampaignStatus.IN_PROGRESS);
+                uc.setCompletedAt(null);
+                userCampaignRepository.save(uc);
+            }
+        }
+    }
+
+    private Set<UUID> descendantsOf(UUID campaignId, Set<UUID> seeds) {
+        List<CampaignDifficultyPath> paths = campaignDifficultyPathRepository
+                .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaignId);
+        Map<UUID, List<UUID>> dependents = new HashMap<>();
+        for (CampaignDifficultyPath p : paths) {
+            dependents.computeIfAbsent(p.getComesFromCampaignDifficulty().getId(), k -> new ArrayList<>())
+                    .add(p.getCampaignDifficulty().getId());
+        }
+        Set<UUID> result = new HashSet<>();
+        Deque<UUID> stack = new ArrayDeque<>(seeds);
+        while (!stack.isEmpty()) {
+            for (UUID dependent : dependents.getOrDefault(stack.pop(), Collections.emptyList())) {
+                if (result.add(dependent)) {
+                    stack.push(dependent);
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isComplete(Campaign campaign, Graph graph, Set<UUID> completedIds) {
+        if (graph.byId.isEmpty() || completedIds.isEmpty()) {
+            return false;
+        }
+        if (campaign.getCompletionMode() == CampaignCompletionMode.ALL) {
+            return completedIds.containsAll(graph.byId.keySet());
+        }
+        return graph.terminalId != null && hasCompletedPath(graph.terminalId, graph, completedIds);
+    }
+
+    @Transactional
     public void importLegacyScores(Long userId, UUID campaignId) {
         UserCampaign uc = userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(userId, campaignId)
                 .orElse(null);
@@ -258,18 +329,7 @@ public class CampaignEvaluationService {
         if (uc.getStatus() == UserCampaignStatus.COMPLETED && uc.isCompletionRewardsPaid()) {
             return;
         }
-        if (graph.byId.isEmpty() || completedIds.isEmpty()) {
-            return;
-        }
-
-        boolean complete;
-        if (campaign.getCompletionMode() == CampaignCompletionMode.ALL) {
-            complete = completedIds.containsAll(graph.byId.keySet());
-        } else {
-            UUID terminalId = graph.terminalId;
-            complete = terminalId != null && hasCompletedPath(terminalId, graph, completedIds);
-        }
-        if (!complete) {
+        if (!isComplete(campaign, graph, completedIds)) {
             return;
         }
 

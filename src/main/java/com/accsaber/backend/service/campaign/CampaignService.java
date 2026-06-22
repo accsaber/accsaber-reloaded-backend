@@ -235,6 +235,14 @@ public class CampaignService {
             throw new ValidationException("Only draft or editing campaigns can be published");
         }
         validateGraphSingleSink(campaign.getId());
+        List<CampaignDifficulty> dirty = campaignDifficultyRepository
+                .findByCampaign_IdAndActiveTrueAndRequirementDirtyTrue(campaign.getId());
+        if (!dirty.isEmpty()) {
+            Set<UUID> changed = dirty.stream().map(CampaignDifficulty::getId).collect(Collectors.toSet());
+            campaignEvaluationService.recomputeAfterRequirementChange(campaign, changed);
+            dirty.forEach(d -> d.setRequirementDirty(false));
+            campaignDifficultyRepository.saveAll(dirty);
+        }
         campaign.setStatus(CampaignStatus.PUBLISHED);
         return toCampaignResponse(campaignRepository.save(campaign));
     }
@@ -320,6 +328,27 @@ public class CampaignService {
     }
 
     @Transactional
+    public CampaignResponse publishAsPlayer(Long playerId, UUID campaignId) {
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(playerId);
+        assertPlayerOwnsDraft(loadActiveCampaign(campaignId), resolvedUserId);
+        return publish(campaignId);
+    }
+
+    @Transactional
+    public CampaignResponse unpublishAsPlayer(Long playerId, UUID campaignId) {
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(playerId);
+        Campaign campaign = loadActiveCampaign(campaignId);
+        if (campaign.getCreator() == null || !resolvedUserId.equals(campaign.getCreator().getId())) {
+            throw new ValidationException("Only the campaign creator can perform this action");
+        }
+        if (campaign.getStatus() != CampaignStatus.PUBLISHED && campaign.getStatus() != CampaignStatus.EDITING) {
+            throw new ValidationException("Only a published campaign can be unpublished");
+        }
+        campaign.setStatus(CampaignStatus.DRAFT);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
     public void deactivateCampaignAsPlayer(Long playerId, UUID campaignId) {
         Campaign campaign = ownedDraftCampaign(playerId, campaignId);
         campaign.setActive(false);
@@ -382,7 +411,7 @@ public class CampaignService {
             throw new ValidationException("Only the campaign creator can perform this action");
         }
         if (campaign.getStatus() != CampaignStatus.DRAFT) {
-            throw new ValidationException("Players can only edit campaigns in draft status");
+            throw new ValidationException("Players can only edit campaigns in draft status; unpublish first");
         }
     }
 
@@ -444,11 +473,19 @@ public class CampaignService {
             UpdateCampaignDifficultyRequest request) {
         ensureEditable(difficulty.getCampaign());
 
-        if (request.getRequirementType() != null) {
+        boolean requirementChanged = false;
+        if (request.getRequirementType() != null
+                && request.getRequirementType() != difficulty.getRequirementType()) {
             difficulty.setRequirementType(request.getRequirementType());
+            requirementChanged = true;
         }
-        if (request.getRequirementValue() != null) {
+        if (request.getRequirementValue() != null
+                && difficulty.getRequirementValue().compareTo(request.getRequirementValue()) != 0) {
             difficulty.setRequirementValue(request.getRequirementValue());
+            requirementChanged = true;
+        }
+        if (requirementChanged && difficulty.getCampaign().getStatus() == CampaignStatus.DRAFT) {
+            difficulty.setRequirementDirty(true);
         }
         if (request.getPrerequisiteMode() != null) {
             difficulty.setPrerequisiteMode(request.getPrerequisiteMode());
@@ -500,6 +537,10 @@ public class CampaignService {
         }
 
         difficulty = campaignDifficultyRepository.save(difficulty);
+        if (requirementChanged && difficulty.getCampaign().getStatus() != CampaignStatus.DRAFT) {
+            campaignEvaluationService.recomputeAfterRequirementChange(difficulty.getCampaign(),
+                    Set.of(difficulty.getId()));
+        }
         List<UUID> currentPrereqIds = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_IdAndActiveTrue(difficulty.getId()).stream()
                 .map(p -> p.getComesFromCampaignDifficulty().getId())
@@ -861,8 +902,8 @@ public class CampaignService {
     }
 
     private void ensureEditable(Campaign campaign) {
-        if (campaign.getStatus() != CampaignStatus.DRAFT && campaign.getStatus() != CampaignStatus.EDITING) {
-            throw new ValidationException("Campaign is locked; switch to editing mode first");
+        if (campaign.getStatus() == CampaignStatus.CURATED) {
+            throw new ValidationException("Curated campaigns are locked and cannot be edited");
         }
     }
 

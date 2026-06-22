@@ -163,6 +163,24 @@ public class CampaignController {
                 campaignService.updateCampaignAsPlayer(principal.getUserId(), campaignId, request));
     }
 
+    @Operation(summary = "Publish a campaign the authenticated player owns")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/{campaignId}/publish")
+    public ResponseEntity<CampaignResponse> publishMyCampaign(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(campaignService.publishAsPlayer(principal.getUserId(), campaignId));
+    }
+
+    @Operation(summary = "Unpublish a campaign the authenticated player owns, returning it to draft for editing")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/{campaignId}/unpublish")
+    public ResponseEntity<CampaignResponse> unpublishMyCampaign(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(campaignService.unpublishAsPlayer(principal.getUserId(), campaignId));
+    }
+
     @Operation(summary = "Soft-delete a draft campaign the authenticated player owns")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}")

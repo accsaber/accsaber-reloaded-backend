@@ -18,6 +18,8 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
 
         List<UserCampaignScore> findByUser_IdAndCampaign_IdAndActiveTrue(Long userId, UUID campaignId);
 
+        List<UserCampaignScore> findByCampaign_IdAndActiveTrue(UUID campaignId);
+
         List<UserCampaignScore> findByUser_IdAndCampaign_IdInAndActiveTrue(Long userId, Collection<UUID> campaignIds);
 
         List<UserCampaignScore> findByCampaign_IdAndActiveTrueAndRewardsPaidFalse(UUID campaignId);

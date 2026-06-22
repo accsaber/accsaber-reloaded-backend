@@ -173,7 +173,7 @@ public class UserController {
         return ResponseEntity.ok(scoreService.findByUser(userId, categoryId, search, pageable));
     }
 
-    @Operation(summary = "Get all user scores (minimal)", description = "Flat, unpaginated list of all of a player's active scores with minimal fields (mapDifficultyId, songHash, ssLeaderboardId, blLeaderboardId, ap, accuracy, score, maxScore, rank, blScoreId, ssScoreId, timeSet), ordered by AP descending. Intended for the plugin.")
+    @Operation(summary = "Get all user scores (minimal)", description = "Flat, unpaginated list of all of a player's active scores with minimal fields (mapDifficultyId, songHash, songName, songAuthor, coverUrl, cdnCoverUrl, ssLeaderboardId, blLeaderboardId, ap, accuracy, score, maxScore, rank, blScoreId, ssScoreId, timeSet), ordered by AP descending. Intended for the plugin.")
     @GetMapping("/{userId}/scores/all")
     public ResponseEntity<List<UserScoreSummaryResponse>> getAllUserScores(@PathVariable Long userId) {
         return ResponseEntity.ok(scoreService.findAllSummariesByUser(userId));

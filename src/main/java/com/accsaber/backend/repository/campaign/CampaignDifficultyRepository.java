@@ -15,6 +15,8 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
 
         List<CampaignDifficulty> findByCampaign_IdAndActiveTrue(UUID campaignId);
 
+        List<CampaignDifficulty> findByCampaign_IdAndActiveTrueAndRequirementDirtyTrue(UUID campaignId);
+
         List<CampaignDifficulty> findByCampaign_IdInAndActiveTrue(Collection<UUID> campaignIds);
 
         Optional<CampaignDifficulty> findByIdAndActiveTrue(UUID id);

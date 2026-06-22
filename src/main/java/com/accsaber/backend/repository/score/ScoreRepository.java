@@ -125,7 +125,9 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         SELECT s.mapDifficulty.id, s.mapDifficulty.map.songHash,
                                s.mapDifficulty.ssLeaderboardId, s.mapDifficulty.blLeaderboardId,
                                s.ap, s.score, s.mapDifficulty.maxScore, s.rank,
-                               s.blScoreId, s.ssScoreId, s.timeSet
+                               s.blScoreId, s.ssScoreId, s.timeSet,
+                               s.mapDifficulty.map.songName, s.mapDifficulty.map.songAuthor,
+                               s.mapDifficulty.map.coverUrl, s.mapDifficulty.map.cdnCoverUrl
                         FROM Score s
                         WHERE s.user.id = :userId AND s.active = true
                         ORDER BY s.ap DESC

@@ -8,11 +8,13 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -202,8 +204,24 @@ class CampaignServiceTest {
                 }
 
                 @Test
-                void rejectsUpdateWhenPublished() {
+                void allowsUpdateWhenPublished() {
                         campaign.setStatus(CampaignStatus.PUBLISHED);
+                        UpdateCampaignRequest request = new UpdateCampaignRequest();
+                        request.setName("Renamed");
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
+
+                        assertThat(result.getName()).isEqualTo("Renamed");
+                }
+
+                @Test
+                void rejectsUpdateWhenCurated() {
+                        campaign.setStatus(CampaignStatus.CURATED);
                         UpdateCampaignRequest request = new UpdateCampaignRequest();
                         request.setName("Locked");
 
@@ -273,6 +291,72 @@ class CampaignServiceTest {
                                         .thenReturn(List.of());
 
                         assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void clearsDirtyNodesAndRecomputesProgress() {
+                        CampaignDifficulty node = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true)
+                                        .requirementDirty(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(node));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of());
+                        when(campaignDifficultyRepository
+                                        .findByCampaign_IdAndActiveTrueAndRequirementDirtyTrue(campaign.getId()))
+                                        .thenReturn(List.of(node));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.publish(campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                        assertThat(node.isRequirementDirty()).isFalse();
+                        verify(campaignEvaluationService)
+                                        .recomputeAfterRequirementChange(campaign, Set.of(node.getId()));
+                }
+        }
+
+        @Nested
+        class Unpublish {
+
+                @Test
+                void returnsPublishedCampaignToDraft() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.unpublishAsPlayer(creator.getId(), campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.DRAFT);
+                }
+
+                @Test
+                void rejectsNonOwner() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.unpublishAsPlayer(999L, campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void rejectsWhenNotPublished() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.unpublishAsPlayer(creator.getId(), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
         }

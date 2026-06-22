@@ -95,6 +95,10 @@ public class CampaignDifficulty {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "requirement_dirty", nullable = false)
+    @Builder.Default
+    private boolean requirementDirty = false;
+
     @OneToMany(mappedBy = "campaignDifficulty", fetch = FetchType.LAZY)
     @Builder.Default
     private List<CampaignDifficultyPath> prerequisites = new ArrayList<>();
