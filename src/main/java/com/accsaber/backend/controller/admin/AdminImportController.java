@@ -47,14 +47,14 @@ public class AdminImportController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Backfill a user across all ranked BL difficulties")
+    @Operation(summary = "Backfill a user across all ranked difficulties")
     @PostMapping("/scores/backfill-user/{userId}")
     public ResponseEntity<Void> backfillUser(@PathVariable Long userId) {
         scoreImportService.backfillUserAsync(userId);
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Backfill multiple users across all ranked BL difficulties")
+    @Operation(summary = "Backfill multiple users across all ranked difficulties")
     @PostMapping("/scores/backfill-users")
     public ResponseEntity<Void> backfillUsers(@RequestBody List<Long> userIds) {
         scoreImportService.backfillUsersAsync(userIds);

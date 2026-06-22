@@ -257,7 +257,7 @@ public class ScoreImportService {
                     semaphore.acquireUninterruptibly();
                     try {
                         boolean changed = difficulty.getBlLeaderboardId() != null
-                                && reconcileUserScoreForDifficulty(resolvedUserId, difficulty, modifiers);
+                                && reconcileUserScoreFromBeatLeader(resolvedUserId, difficulty, modifiers);
                         if (!changed && scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
                             changed = reconcileUserScoreFromScoreSaber(resolvedUserId, difficulty, modifiers);
                         }
@@ -324,7 +324,7 @@ public class ScoreImportService {
         log.info("Parallel user backfill complete for {} users in {}s", userIds.size(), elapsed / 1000);
     }
 
-    private boolean reconcileUserScoreForDifficulty(Long userId, MapDifficulty difficulty,
+    private boolean reconcileUserScoreFromBeatLeader(Long userId, MapDifficulty difficulty,
             Map<String, UUID> modifiers) {
         Optional<BeatLeaderScoreResponse> blOpt = beatLeaderClient.getPlayerScoreOnLeaderboard(
                 String.valueOf(userId), difficulty.getBlLeaderboardId());
@@ -381,9 +381,7 @@ public class ScoreImportService {
         }
 
         if (ssScore.getPlayer() == null || ssScore.getPlayer().getId() == null) {
-            ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
-            player.setId(String.valueOf(userId));
-            ssScore.setPlayer(player);
+            ssScore.setPlayer(stubScoreSaberPlayer(userId));
         }
 
         Long affected = importScoreSaberScore(ssScore, difficulty, complexity, modifiers, true);
@@ -392,6 +390,12 @@ public class ScoreImportService {
 
     private static BeatLeaderScoreResponse.Player stubPlayer(Long userId) {
         BeatLeaderScoreResponse.Player p = new BeatLeaderScoreResponse.Player();
+        p.setId(String.valueOf(userId));
+        return p;
+    }
+
+    private static ScoreSaberScoreResponse.Player stubScoreSaberPlayer(Long userId) {
+        ScoreSaberScoreResponse.Player p = new ScoreSaberScoreResponse.Player();
         p.setId(String.valueOf(userId));
         return p;
     }

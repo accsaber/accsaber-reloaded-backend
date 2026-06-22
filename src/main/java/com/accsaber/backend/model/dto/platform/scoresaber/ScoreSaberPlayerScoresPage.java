@@ -16,13 +16,5 @@ public class ScoreSaberPlayerScoresPage {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Entry {
         private ScoreSaberScoreResponse score;
-        private Leaderboard leaderboard;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Leaderboard {
-        private Long id;
-        private Integer maxScore;
     }
 }
