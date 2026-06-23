@@ -1017,7 +1017,7 @@ public class ScoreImportService {
                     .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
             if (existingScore.isPresent()
                     && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getUnmodifiedScore())) {
-                enrichExistingScoreSaberScore(existingScore.get(), ssScore, difficulty.getId(), userId, modifiers);
+                enrichExistingScoreSaberScore(existingScore.get(), ssScore, difficulty, userId, modifiers);
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
@@ -1038,12 +1038,13 @@ public class ScoreImportService {
     }
 
     private ScoreSaberScoreStats fetchScoreSaberStats(ScoreSaberScoreResponse ssScore) {
-        return ssScore.getId() != null
-                ? scoreSaberClient.getScoreStats(ssScore.getId()).orElse(null)
-                : null;
+        if (ssScore.getId() == null || !Boolean.TRUE.equals(ssScore.getHasReplay())) {
+            return null;
+        }
+        return scoreSaberClient.getScoreStats(ssScore.getId()).orElse(null);
     }
 
-    private void enrichExistingScoreSaberScore(Score score, ScoreSaberScoreResponse ssScore, UUID mapDifficultyId,
+    private void enrichExistingScoreSaberScore(Score score, ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
             Long userId, Map<String, UUID> modifiers) {
         if (score.getStreak115() != null) {
             return;
@@ -1052,11 +1053,15 @@ public class ScoreImportService {
         if (stats == null) {
             return;
         }
-        SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, mapDifficultyId, userId,
+        SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, difficulty.getId(), userId,
                 modifiers);
-        if (ScorePayloadFields.mergeNullOnly(score, request)) {
-            scoreRepository.save(score);
-            log.debug("Enriched existing SS score {} with ScoreSaber stats", score.getId());
+        if (!ScorePayloadFields.mergeNullOnly(score, request)) {
+            return;
         }
+        score.setMapDifficulty(difficulty);
+        scoreRepository.save(score);
+        var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, score);
+        awardMilestoneXp(userId, evaluation);
+        log.debug("Enriched existing SS score {} with ScoreSaber stats and re-evaluated milestones", score.getId());
     }
 }

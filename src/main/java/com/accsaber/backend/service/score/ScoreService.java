@@ -941,6 +941,7 @@ public class ScoreService {
                                 .ap(s.getAp())
                                 .weightedAp(s.getWeightedAp())
                                 .blScoreId(s.getBlScoreId())
+                                .ssScoreId(s.getSsScoreId())
                                 .maxCombo(s.getMaxCombo())
                                 .badCuts(s.getBadCuts())
                                 .misses(s.getMisses())

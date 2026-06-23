@@ -486,6 +486,21 @@ public class MilestoneService {
 
     @Async("taskExecutor")
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void backfillUser(Long userId) {
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+        if (userRepository.findByIdAndActiveTrue(resolvedUserId).isEmpty()) {
+            log.warn("Cannot backfill milestones: user {} not found or inactive", resolvedUserId);
+            return;
+        }
+        log.info("Milestone backfill started for user {}", resolvedUserId);
+        var evaluation = milestoneEvaluationService.evaluateAllForUser(resolvedUserId);
+        awardMilestoneXp(resolvedUserId, evaluation);
+        log.info("Milestone backfill complete for user {} - {} milestones, {} sets completed",
+                resolvedUserId, evaluation.completedMilestones().size(), evaluation.completedSets().size());
+    }
+
+    @Async("taskExecutor")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void backfillAllMilestones() {
         List<Long> userIds = userRepository.findByActiveTrueOrderByTotalXpDesc().stream()
                 .map(User::getId)

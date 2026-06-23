@@ -174,6 +174,13 @@ public class AdminMilestoneController {
         return ResponseEntity.accepted().build();
     }
 
+    @Operation(summary = "Recalculate (backfill) all active milestones for a single user")
+    @PostMapping("/backfill-user/{userId}")
+    public ResponseEntity<Void> backfillUserMilestones(@PathVariable Long userId) {
+        milestoneService.backfillUser(userId);
+        return ResponseEntity.accepted().build();
+    }
+
     @Operation(summary = "Create a prerequisite link between milestones")
     @PostMapping("/prerequisites")
     public ResponseEntity<PrerequisiteLinkResponse> createPrerequisiteLink(

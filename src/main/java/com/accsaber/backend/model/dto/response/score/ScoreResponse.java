@@ -40,6 +40,7 @@ public class ScoreResponse {
     private BigDecimal ap;
     private BigDecimal weightedAp;
     private Long blScoreId;
+    private Long ssScoreId;
     private Integer maxCombo;
     private Integer badCuts;
     private Integer misses;
