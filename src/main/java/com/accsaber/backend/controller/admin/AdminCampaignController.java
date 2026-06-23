@@ -82,6 +82,15 @@ public class AdminCampaignController {
         return ResponseEntity.ok(campaignService.markCurated(campaignId, principal.getStaffUser()));
     }
 
+    @Operation(summary = "Strip curation status from a campaign")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
+    @PatchMapping("/{campaignId}/uncurate")
+    public ResponseEntity<CampaignResponse> uncurate(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal StaffUserDetails principal) {
+        return ResponseEntity.ok(campaignService.uncurate(campaignId, principal.getStaffUser()));
+    }
+
     @Operation(summary = "Deactivate a campaign")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{campaignId}/deactivate")

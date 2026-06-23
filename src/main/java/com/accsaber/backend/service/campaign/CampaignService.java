@@ -278,6 +278,22 @@ public class CampaignService {
     }
 
     @Transactional
+    public CampaignResponse uncurate(UUID campaignId, StaffUser curator) {
+        if (curator == null
+                || (curator.getRole() != StaffRole.CAMPAIGN_CURATOR && curator.getRole() != StaffRole.ADMIN)) {
+            throw new ValidationException("Only campaign curators or admins can uncurate");
+        }
+        Campaign campaign = loadActiveCampaign(campaignId);
+        if (campaign.getStatus() != CampaignStatus.CURATED) {
+            throw new ValidationException("Only curated campaigns can be uncurated");
+        }
+        campaign.setStatus(CampaignStatus.PUBLISHED);
+        campaign.setCuratedAt(null);
+        campaign.setCuratedBy(null);
+        return toCampaignResponse(campaignRepository.save(campaign));
+    }
+
+    @Transactional
     public void deactivateCampaign(UUID campaignId) {
         Campaign campaign = loadActiveCampaign(campaignId);
         campaign.setActive(false);
