@@ -22,6 +22,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
 import com.accsaber.backend.model.entity.user.UserPinnedScore;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
@@ -50,6 +51,7 @@ public class UserService {
     private final UserNameHistoryRepository userNameHistoryRepository;
     private final UserPinnedScoreRepository userPinnedScoreRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
+    private final UserCategorySkillRepository userCategorySkillRepository;
     private final DuplicateUserService duplicateUserService;
     private final StatisticsService statisticsService;
     private final RankingService rankingService;
@@ -187,15 +189,40 @@ public class UserService {
         if (!banned) {
             self.recalculateAfterUnban(userId);
         } else {
-            self.recalculateRankingsForUser(userId);
+            self.recalculateAfterBan(userId);
         }
     }
 
     @Async("rankingExecutor")
-    @Transactional
     public void recalculateAfterUnban(Long userId) {
-        log.info("Recalculating stats and rankings after unbanning user {}", userId);
+        log.info("Recalculating stats, rankings and skills after unbanning user {}", userId);
+        List<UUID> categoryIds = self.reinsertRanksAndRecalcStats(userId);
+        for (UUID categoryId : categoryIds) {
+            skillService.upsertSkill(userId, categoryId);
+            recalculateEngagedSkills(categoryId);
+        }
+        log.info("Recalculation complete after unbanning user {}", userId);
+    }
 
+    @Async("rankingExecutor")
+    public void recalculateAfterBan(Long userId) {
+        log.info("Recalculating rankings and skills after banning user {}", userId);
+        List<UUID> categoryIds = self.shiftRanksAndRecalcStats(userId);
+        for (UUID categoryId : categoryIds) {
+            recalculateEngagedSkills(categoryId);
+        }
+        log.info("Ranking and skill recalculation complete after banning user {}", userId);
+    }
+
+    @Async("rankingExecutor")
+    public void recalculateRankingsForUser(Long userId) {
+        log.info("Recalculating rankings for user {}", userId);
+        self.shiftRanksAndRecalcStats(userId);
+        log.info("Ranking recalculation complete for user {}", userId);
+    }
+
+    @Transactional
+    public List<UUID> reinsertRanksAndRecalcStats(Long userId) {
         List<Score> scores = scoreRepository.findByUser_IdAndActiveTrue(userId);
         for (Score score : scores) {
             int rank = scoreRankingService.rankNewScore(
@@ -203,7 +230,7 @@ public class UserService {
             score.setRank(rank);
             scoreRepository.save(score);
         }
-        log.info("Re-inserted score ranks for {} difficulties after unbanning user {}", scores.size(), userId);
+        log.info("Re-inserted score ranks for {} difficulties for user {}", scores.size(), userId);
 
         recalculateMapStatsForScores(scores, userId);
 
@@ -214,24 +241,20 @@ public class UserService {
         for (UUID categoryId : categoryIds) {
             statisticsService.recalculate(userId, categoryId, false, false);
             rankingService.updateRankings(categoryId);
-            skillService.upsertSkill(userId, categoryId);
         }
         overallStatisticsService.updateOverallRankings();
         userRepository.assignXpRankings();
         userRepository.assignXpCountryRankings();
-        log.info("Recalculation complete after unbanning user {}", userId);
+        return categoryIds;
     }
 
-    @Async("rankingExecutor")
     @Transactional
-    public void recalculateRankingsForUser(Long userId) {
-        log.info("Recalculating rankings after banning user {}", userId);
-
+    public List<UUID> shiftRanksAndRecalcStats(Long userId) {
         List<Score> scores = scoreRepository.findByUser_IdAndActiveTrue(userId);
         for (Score score : scores) {
             scoreRepository.shiftScoreRanksUp(score.getMapDifficulty().getId(), score.getRank());
         }
-        log.info("Shifted score ranks for {} difficulties after banning user {}", scores.size(), userId);
+        log.info("Shifted score ranks for {} difficulties for user {}", scores.size(), userId);
 
         recalculateMapStatsForScores(scores, userId);
 
@@ -245,7 +268,13 @@ public class UserService {
         overallStatisticsService.updateOverallRankings();
         userRepository.assignXpRankings();
         userRepository.assignXpCountryRankings();
-        log.info("Ranking recalculation complete after banning user {}", userId);
+        return categoryIds;
+    }
+
+    private void recalculateEngagedSkills(UUID categoryId) {
+        List<Long> engagedUserIds = userCategorySkillRepository.findActiveUserIdsByCategoryId(categoryId);
+        skillService.recomputeCategorySkills(categoryId, engagedUserIds);
+        log.info("Recomputed skills for {} engaged players in category {}", engagedUserIds.size(), categoryId);
     }
 
     private void recalculateMapStatsForScores(List<Score> scores, Long authorId) {

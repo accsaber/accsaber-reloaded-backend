@@ -12,8 +12,11 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.config.SkillProperties;
@@ -54,6 +57,10 @@ public class SkillService {
     private final UserCategorySkillSnapshotRepository snapshotRepository;
     private final APCalculationService apCalculationService;
     private final SkillProperties skillProperties;
+
+    @Autowired
+    @Lazy
+    private SkillService self;
 
     @Transactional
     public SkillResponse computeSkillForUser(Long userId, String categoryCode) {
@@ -118,6 +125,61 @@ public class SkillService {
         }
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void recomputeCategorySkills(UUID categoryId, List<Long> userIds) {
+        if (userIds.isEmpty()) {
+            return;
+        }
+        Category category = categoryRepository.findByIdAndActiveTrue(categoryId).orElse(null);
+        if (category == null) {
+            return;
+        }
+        boolean overall = OVERALL_CODE.equals(category.getCode());
+        Category overallCategory = categoryRepository.findByCodeAndActiveTrue(OVERALL_CODE).orElse(null);
+        BigDecimal categoryMax = overall ? null : scoreRepository.findMaxApInCategory(categoryId);
+        long activePlayers = statsRepository.countActivePlayersInCategory(categoryId);
+        UUID overallId = overallCategory != null ? overallCategory.getId() : null;
+        long overallActivePlayers = overallCategory != null
+                ? statsRepository.countActivePlayersInCategory(overallCategory.getId())
+                : 0;
+        SkillBatchContext context = new SkillBatchContext(
+                overall, categoryMax, activePlayers, overallId, overallActivePlayers);
+
+        for (Long userId : userIds) {
+            try {
+                self.recomputeUserSkill(userId, categoryId, context);
+            } catch (Exception e) {
+                log.error("Skill recompute failed for user {} in category {}: {}",
+                        userId, categoryId, e.getMessage());
+            }
+        }
+    }
+
+    @Transactional
+    public void recomputeUserSkill(Long userId, UUID categoryId, SkillBatchContext context) {
+        User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
+        if (user == null) {
+            return;
+        }
+        Category category = categoryRepository.findByIdAndActiveTrue(categoryId).orElse(null);
+        if (category == null) {
+            return;
+        }
+        if (context.overall()) {
+            persistOverall(user, category, context.activePlayers());
+            return;
+        }
+        persistSingle(user, category, context.categoryMax(), context.activePlayers());
+        if (context.overallCategoryId() != null) {
+            categoryRepository.findByIdAndActiveTrue(context.overallCategoryId())
+                    .ifPresent(overall -> persistOverall(user, overall, context.overallActivePlayers()));
+        }
+    }
+
+    public record SkillBatchContext(boolean overall, BigDecimal categoryMax, long activePlayers,
+            UUID overallCategoryId, long overallActivePlayers) {
+    }
+
     private void repairMissingCategories(User user, List<Category> activeCategories,
             Set<UUID> presentCategoryIds) {
         Category overall = null;
@@ -177,16 +239,21 @@ public class SkillService {
     }
 
     private void persistSingle(User user, Category category) {
+        persistSingle(user, category,
+                scoreRepository.findMaxApInCategory(category.getId()),
+                statsRepository.countActivePlayersInCategory(category.getId()));
+    }
+
+    private void persistSingle(User user, Category category, BigDecimal categoryMax, long activePlayers) {
         Optional<UserCategoryStatistics> statsOpt = statsRepository
                 .findByUser_IdAndCategory_IdAndActiveTrue(user.getId(), category.getId());
         Integer rank = statsOpt.map(UserCategoryStatistics::getRanking).orElse(null);
         Score topPlay = statsOpt.map(UserCategoryStatistics::getTopPlay).orElse(null);
         BigDecimal topAp = topPlay != null ? topPlay.getAp() : BigDecimal.ZERO;
 
-        long activePlayers = statsRepository.countActivePlayersInCategory(category.getId());
         BigDecimal rawApForOneGain = computeRawApForOneGain(user.getId(), category);
 
-        double peak = computePeakScore(topAp, category);
+        double peak = computePeakScore(topAp, categoryMax);
         double sustained = rawApForOneGain != null
                 ? sigmoidScore(rawApForOneGain.doubleValue(),
                         skillProperties.getSustainedCenter(), skillProperties.getSustainedSpread())
@@ -201,12 +268,15 @@ public class SkillService {
     }
 
     private void persistOverall(User user, Category overall) {
+        persistOverall(user, overall, statsRepository.countActivePlayersInCategory(overall.getId()));
+    }
+
+    private void persistOverall(User user, Category overall, long activePlayers) {
         List<UserCategorySkill> contributors = skillRepository.findByUserIdForOverall(user.getId());
 
         Optional<UserCategoryStatistics> statsOpt = statsRepository
                 .findByUser_IdAndCategory_IdAndActiveTrue(user.getId(), overall.getId());
         Integer rank = statsOpt.map(UserCategoryStatistics::getRanking).orElse(null);
-        long activePlayers = statsRepository.countActivePlayersInCategory(overall.getId());
 
         double rankScore = rankScore(rank, activePlayers);
 
@@ -288,9 +358,15 @@ public class SkillService {
         if (topAp == null || topAp.signum() <= 0) {
             return 0;
         }
+        return computePeakScore(topAp, scoreRepository.findMaxApInCategory(category.getId()));
+    }
+
+    private double computePeakScore(BigDecimal topAp, BigDecimal max) {
+        if (topAp == null || topAp.signum() <= 0) {
+            return 0;
+        }
         double rawSigmoid = sigmoidScore(topAp.doubleValue(),
                 skillProperties.getPeakCenter(), skillProperties.getPeakSpread());
-        BigDecimal max = scoreRepository.findMaxApInCategory(category.getId());
         if (max == null || max.signum() <= 0) {
             return rawSigmoid;
         }

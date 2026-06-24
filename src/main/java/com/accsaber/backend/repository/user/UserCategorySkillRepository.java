@@ -38,6 +38,14 @@ public interface UserCategorySkillRepository extends JpaRepository<UserCategoryS
                         """)
         List<UserCategorySkill> findByUserIdForOverall(@Param("userId") Long userId);
 
+        @Query("""
+                        SELECT s.user.id FROM UserCategorySkill s
+                        JOIN s.user u
+                        WHERE s.category.id = :categoryId
+                          AND u.active = true AND u.banned = false AND u.playerInactive = false
+                        """)
+        List<Long> findActiveUserIdsByCategoryId(@Param("categoryId") UUID categoryId);
+
         @Modifying
         @Query(value = """
                         INSERT INTO user_category_skills (
