@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.score;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -21,12 +22,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.client.ScoreSaberClient;
 import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
+import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -60,6 +65,8 @@ class ScoreIngestionServiceTest {
         private ScoreImportService scoreImportService;
         @Mock
         private DuplicateUserService duplicateUserService;
+        @Mock
+        private ScoreSaberClient scoreSaberClient;
 
         private MetricsService metricsService;
         private ScheduledExecutorService scheduler;
@@ -85,6 +92,7 @@ class ScoreIngestionServiceTest {
 
                 when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", NF_ID));
                 when(duplicateUserService.resolvePrimaryUserId(STEAM_ID)).thenReturn(STEAM_ID);
+                when(scoreSaberClient.getScoreStats(any())).thenReturn(Optional.empty());
 
                 difficulty = MapDifficulty.builder()
                                 .id(UUID.randomUUID())
@@ -103,7 +111,8 @@ class ScoreIngestionServiceTest {
                 ingestionService = new ScoreIngestionService(
                                 scoreService, playerImportService, mapDifficultyRepository,
                                 scoreRepository, scoreImportService, modifierCacheService,
-                                properties, scheduler, metricsService, duplicateUserService);
+                                properties, scheduler, metricsService, duplicateUserService,
+                                scoreSaberClient);
                 ingestionService.init();
         }
 
@@ -211,6 +220,34 @@ class ScoreIngestionServiceTest {
                         Thread.sleep(2000);
 
                         verify(scoreService, times(1)).submit(any());
+                }
+
+                @Test
+                void fetchesScoreStats_whenNull_andPopulatesFromStatsEndpoint() throws Exception {
+                        ScoreSaberScoreResponse ssScore = buildSsScore("");
+                        when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))
+                                        .thenReturn(Optional.of(difficulty));
+                        when(playerImportService.ensurePlayerExists(STEAM_ID))
+                                        .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
+                        when(scoreService.submit(any())).thenReturn(buildScoreResponse());
+
+                        ScoreSaberScoreStats stats = new ScoreSaberScoreStats();
+                        stats.setMax115Streak(150);
+                        stats.setLeftBombs(1);
+                        stats.setRightBombs(2);
+                        when(scoreSaberClient.getScoreStats(789012L)).thenReturn(Optional.of(stats));
+
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
+
+                        scheduler.awaitTermination(2, TimeUnit.SECONDS);
+                        Thread.sleep(200);
+
+                        verify(scoreSaberClient).getScoreStats(789012L);
+                        ArgumentCaptor<SubmitScoreRequest> captor = ArgumentCaptor.forClass(SubmitScoreRequest.class);
+                        verify(scoreService).submit(captor.capture());
+                        assertThat(captor.getValue().getStreak115()).isEqualTo(150);
+                        assertThat(captor.getValue().getBombHits()).isEqualTo(3);
+                        assertThat(captor.getValue().getSsScoreId()).isEqualTo(789012L);
                 }
 
                 @Test

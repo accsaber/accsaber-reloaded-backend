@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.accsaber.backend.client.ScoreSaberClient;
 import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
@@ -47,6 +48,7 @@ public class ScoreIngestionService {
 
     private final MetricsService metricsService;
     private final DuplicateUserService duplicateUserService;
+    private final ScoreSaberClient scoreSaberClient;
 
     private final ConcurrentHashMap<String, ScheduledFuture<?>> pendingSsScores = new ConcurrentHashMap<>();
     private volatile Set<String> rankedBlIds = Set.of();
@@ -61,7 +63,8 @@ public class ScoreIngestionService {
             PlatformProperties properties,
             @Qualifier("ingestionScheduler") ScheduledExecutorService ingestionScheduler,
             MetricsService metricsService,
-            DuplicateUserService duplicateUserService) {
+            DuplicateUserService duplicateUserService,
+            ScoreSaberClient scoreSaberClient) {
         this.scoreService = scoreService;
         this.playerImportService = playerImportService;
         this.mapDifficultyRepository = mapDifficultyRepository;
@@ -71,6 +74,7 @@ public class ScoreIngestionService {
         this.ingestionScheduler = ingestionScheduler;
         this.metricsService = metricsService;
         this.duplicateUserService = duplicateUserService;
+        this.scoreSaberClient = scoreSaberClient;
     }
 
     @PostConstruct
@@ -149,8 +153,9 @@ public class ScoreIngestionService {
                 try {
                     pendingSsScores.remove(playKey);
                     playerImportService.ensurePlayerExists(resolvedUserId);
+                    ScoreSaberScoreStats effectiveStats = resolveScoreStats(ssScore, scoreStats);
                     SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(
-                            ssScore, scoreStats, difficulty.getId(), resolvedUserId,
+                            ssScore, effectiveStats, difficulty.getId(), resolvedUserId,
                             modifierCacheService.getModifierCodeToId());
                     metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
                     metricsService.getSsScoresIngested().increment();
@@ -167,6 +172,13 @@ public class ScoreIngestionService {
         } catch (Exception e) {
             log.error("Error handling SS score: {}", e.getMessage());
         }
+    }
+
+    private ScoreSaberScoreStats resolveScoreStats(ScoreSaberScoreResponse ssScore, ScoreSaberScoreStats existing) {
+        if (existing != null || ssScore.getId() == null) {
+            return existing;
+        }
+        return scoreSaberClient.getScoreStats(ssScore.getId()).orElse(null);
     }
 
     public void refreshRankedLeaderboardIds() {

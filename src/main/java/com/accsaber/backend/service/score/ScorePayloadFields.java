@@ -20,6 +20,7 @@ final class ScorePayloadFields {
 
     private static final List<Binding<?>> BINDINGS = List.of(
             new Binding<>(SubmitScoreRequest::getBlScoreId, Score::getBlScoreId, Score::setBlScoreId),
+            new Binding<>(SubmitScoreRequest::getSsScoreId, Score::getSsScoreId, Score::setSsScoreId),
             new Binding<>(SubmitScoreRequest::getMaxCombo, Score::getMaxCombo, Score::setMaxCombo),
             new Binding<>(SubmitScoreRequest::getBadCuts, Score::getBadCuts, Score::setBadCuts),
             new Binding<>(SubmitScoreRequest::getMisses, Score::getMisses, Score::setMisses),
