@@ -136,6 +136,17 @@ public class MilestoneQueryBuilderService {
 
     private static final Set<String> TRANSFORM_FUNCTIONS = Set.of("MOD", "INTERVAL_SUBTRACT");
 
+    private static final String COUNTRY_SCOPE = "COUNTRY";
+
+    private static final Map<String, String> COUNTRY_SCOPE_PATHS = Map.of(
+            "scores", "s.user.country",
+            "user_category_statistics", "ucs.user.country",
+            "users", "u.country");
+
+    private boolean isCountryScoped(MilestoneQuerySpec spec) {
+        return spec.scope() != null && COUNTRY_SCOPE.equalsIgnoreCase(spec.scope());
+    }
+
     private record TableConfig(String entity, String alias, String userIdPath,
             String categoryIdPath, String rankedStatusPath) {
     }
@@ -511,6 +522,21 @@ public class MilestoneQueryBuilderService {
                 throw new ValidationException("limit is required when order_by is present");
             }
         }
+        if (spec.scope() != null) {
+            if (!"USER".equalsIgnoreCase(spec.scope()) && !COUNTRY_SCOPE.equalsIgnoreCase(spec.scope())) {
+                throw new ValidationException("Unsupported scope: " + spec.scope() + ". Allowed: USER, COUNTRY");
+            }
+            if (isCountryScoped(spec)) {
+                if (!COUNTRY_SCOPE_PATHS.containsKey(spec.from())) {
+                    throw new ValidationException("COUNTRY scope is only supported for tables with a country: "
+                            + COUNTRY_SCOPE_PATHS.keySet());
+                }
+                if (requiresNativeSql(spec)) {
+                    throw new ValidationException(
+                            "COUNTRY scope is not supported with order_by, group_by, or column_ref filters");
+                }
+            }
+        }
     }
 
     private void validateTransform(MilestoneQuerySpec.TransformSpec transform) {
@@ -582,6 +608,8 @@ public class MilestoneQueryBuilderService {
     public boolean requiresIndividualEvaluation(MilestoneQuerySpec spec) {
         if (spec.having() != null) return true;
         if (spec.divisor() != null) return true;
+        if (isCountryScoped(spec)) return true;
+        if (spec.select().offset() != null && spec.select().offset() != 0) return true;
         return requiresNativeSql(spec);
     }
 
@@ -619,7 +647,7 @@ public class MilestoneQueryBuilderService {
 
         ColumnDef selectCol = columns.get(spec.select().column());
         String fn = spec.select().function().toUpperCase();
-        String selectExpr = buildSelectClause(fn, selectCol.jpqlExpr());
+        String selectExpr = applySelectOffset(buildSelectClause(fn, selectCol.jpqlExpr()), spec.select());
 
         AtomicInteger paramCounter = new AtomicInteger(0);
         List<Object[]> extraParams = new ArrayList<>();
@@ -664,7 +692,13 @@ public class MilestoneQueryBuilderService {
             List<Object[]> extraParams, AtomicInteger paramCounter) {
         List<String> conditions = new ArrayList<>();
         if (table.userIdPath() != null) {
-            conditions.add(table.userIdPath() + " = :userId");
+            String countryPath = isCountryScoped(spec) ? COUNTRY_SCOPE_PATHS.get(spec.from()) : null;
+            if (countryPath != null) {
+                conditions.add(countryPath
+                        + " = (SELECT u_sc.country FROM User u_sc WHERE u_sc.id = :userId)");
+            } else {
+                conditions.add(table.userIdPath() + " = :userId");
+            }
         }
         if (categoryId != null && table.categoryIdPath() != null) {
             conditions.add(table.categoryIdPath() + " = :categoryId");
@@ -813,7 +847,8 @@ public class MilestoneQueryBuilderService {
         ColumnDef selectCol = columns.get(spec.select().column());
         String fn = spec.select().function().toUpperCase();
 
-        String selectExpr = buildSelectClause(fn, toNativeSql(selectCol.jpqlExpr()));
+        String selectExpr = applySelectOffset(buildSelectClause(fn, toNativeSql(selectCol.jpqlExpr())),
+                spec.select());
         String fromClause = buildNativeFromClause(spec, table, columns, selectCol);
 
         List<String> conditions = new ArrayList<>();
@@ -1230,6 +1265,14 @@ public class MilestoneQueryBuilderService {
             case "PLAIN" -> expr;
             default -> fn + "(" + expr + ")";
         };
+    }
+
+    private String applySelectOffset(String selectExpr, MilestoneQuerySpec.SelectSpec select) {
+        Integer offset = select.offset();
+        if (offset == null || offset == 0) {
+            return selectExpr;
+        }
+        return "(" + selectExpr + (offset > 0 ? " + " + offset : " - " + (-offset)) + ")";
     }
 
     private String buildSubqueryJpql(MilestoneQuerySpec spec, List<Object[]> extraParams,

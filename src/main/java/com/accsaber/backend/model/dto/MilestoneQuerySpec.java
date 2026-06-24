@@ -16,19 +16,32 @@ public record MilestoneQuerySpec(
         @JsonProperty("outer_function") String outerFunction,
         @JsonProperty("order_by") List<OrderBySpec> orderBy,
         Integer limit,
-        @JsonProperty("or_groups") List<List<FilterSpec>> orGroups) {
+        @JsonProperty("or_groups") List<List<FilterSpec>> orGroups,
+        String scope) {
 
     public MilestoneQuerySpec(SelectSpec select, String from, List<FilterSpec> filters) {
-        this(select, from, filters, null, null, null, null, null, null, null);
+        this(select, from, filters, null, null, null, null, null, null, null, null);
     }
 
     public MilestoneQuerySpec(SelectSpec select, String from, List<FilterSpec> filters,
             HavingSpec having, MilestoneQuerySpec divisor, List<GroupBySpec> groupBy,
             String outerFunction, List<OrderBySpec> orderBy, Integer limit) {
-        this(select, from, filters, having, divisor, groupBy, outerFunction, orderBy, limit, null);
+        this(select, from, filters, having, divisor, groupBy, outerFunction, orderBy, limit, null, null);
     }
 
-    public record SelectSpec(String function, String column) {
+    public MilestoneQuerySpec(SelectSpec select, String from, List<FilterSpec> filters,
+            HavingSpec having, MilestoneQuerySpec divisor, List<GroupBySpec> groupBy,
+            String outerFunction, List<OrderBySpec> orderBy, Integer limit,
+            List<List<FilterSpec>> orGroups) {
+        this(select, from, filters, having, divisor, groupBy, outerFunction, orderBy, limit, orGroups, null);
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SelectSpec(String function, String column, Integer offset) {
+
+        public SelectSpec(String function, String column) {
+            this(function, column, null);
+        }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

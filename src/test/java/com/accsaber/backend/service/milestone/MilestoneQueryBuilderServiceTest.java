@@ -70,6 +70,28 @@ class MilestoneQueryBuilderServiceTest {
                 }
 
                 @Test
+                void countryScope_onTableWithoutCountry_throws() {
+                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
+                                        new SelectSpec("COUNT", "id"), "maps", null,
+                                        null, null, null, null, null, null, null, "COUNTRY");
+
+                        assertThatThrownBy(() -> service.validate(spec))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("COUNTRY scope");
+                }
+
+                @Test
+                void invalidScope_throws() {
+                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
+                                        new SelectSpec("MAX", "ap"), "scores", null,
+                                        null, null, null, null, null, null, null, "REGION");
+
+                        assertThatThrownBy(() -> service.validate(spec))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("Unsupported scope");
+                }
+
+                @Test
                 void unknownTable_throwsValidationException() {
                         MilestoneQuerySpec spec = new MilestoneQuerySpec(
                                         new SelectSpec("MAX", "ap"),
@@ -397,6 +419,65 @@ class MilestoneQueryBuilderServiceTest {
                         BigDecimal result = service.evaluate(spec, 1L, null);
 
                         assertThat(result).isNull();
+                }
+
+                @Test
+                void selectOffset_appliedToAggregate() {
+                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
+                                        new SelectSpec("MIN", "country_ranking", -1),
+                                        "user_category_statistics",
+                                        List.of(new FilterSpec("active", "=", true)));
+
+                        when(mockQuery.getSingleResult()).thenReturn(BigDecimal.valueOf(4));
+
+                        BigDecimal result = service.evaluate(spec, 5L, null);
+
+                        assertThat(result).isEqualByComparingTo(BigDecimal.valueOf(4));
+                        ArgumentCaptor<String> jpqlCaptor = ArgumentCaptor.forClass(String.class);
+                        verify(entityManager).createQuery(jpqlCaptor.capture());
+                        assertThat(jpqlCaptor.getValue()).contains("(MIN(ucs.countryRanking) - 1)");
+                }
+
+                @Test
+                void countryScope_replacesUserScopeWithCountrySubquery() {
+                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
+                                        new SelectSpec("COUNT", "id"),
+                                        "user_category_statistics",
+                                        List.of(new FilterSpec("active", "=", true)),
+                                        null, null, null, null, null, null, null, "COUNTRY");
+
+                        when(mockQuery.getSingleResult()).thenReturn(50L);
+
+                        service.evaluate(spec, 5L, null);
+
+                        ArgumentCaptor<String> jpqlCaptor = ArgumentCaptor.forClass(String.class);
+                        verify(entityManager).createQuery(jpqlCaptor.capture());
+                        String jpql = jpqlCaptor.getValue();
+                        assertThat(jpql).contains(
+                                        "ucs.user.country = (SELECT u_sc.country FROM User u_sc WHERE u_sc.id = :userId)");
+                        assertThat(jpql).doesNotContain("ucs.user.id = :userId");
+                        verify(mockQuery).setParameter("userId", 5L);
+                }
+
+                @Test
+                void percentile_dividesRankByCountryPopulation() {
+                        MilestoneQuerySpec divisor = new MilestoneQuerySpec(
+                                        new SelectSpec("COUNT", "id"),
+                                        "user_category_statistics",
+                                        List.of(new FilterSpec("active", "=", true)),
+                                        null, null, null, null, null, null, null, "COUNTRY");
+                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
+                                        new SelectSpec("MIN", "country_ranking", -1),
+                                        "user_category_statistics",
+                                        List.of(new FilterSpec("active", "=", true)),
+                                        null, divisor, null, null, null, null);
+
+                        when(mockQuery.getSingleResult())
+                                        .thenReturn(BigDecimal.valueOf(4), BigDecimal.valueOf(50));
+
+                        BigDecimal result = service.evaluate(spec, 5L, null);
+
+                        assertThat(result).isEqualByComparingTo(new BigDecimal("0.08"));
                 }
 
                 @Test
