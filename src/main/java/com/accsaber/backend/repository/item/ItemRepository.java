@@ -43,4 +43,6 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     List<Item> findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
 
     Optional<Item> findByType_KeyAndNameAndActiveTrue(String typeKey, String name);
+
+    boolean existsByType_IdAndName(UUID typeId, String name);
 }

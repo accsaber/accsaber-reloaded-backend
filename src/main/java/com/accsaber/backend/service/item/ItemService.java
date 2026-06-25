@@ -22,6 +22,7 @@ import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
@@ -240,6 +241,9 @@ public class ItemService {
             boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean active,
             BigDecimal worth, String requirement, Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
+        if (itemRepository.existsByType_IdAndName(typeId, name)) {
+            throw new ConflictException("An item named '" + name + "' already exists for this type");
+        }
         itemValueValidator.validate(type, value);
         Item item = Item.builder()
                 .type(type)
@@ -268,8 +272,12 @@ public class ItemService {
             BigDecimal worth, String requirement, Integer unlockLevel) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
-        if (name != null)
+        if (name != null && !name.equals(item.getName())) {
+            if (itemRepository.existsByType_IdAndName(item.getType().getId(), name)) {
+                throw new ConflictException("An item named '" + name + "' already exists for this type");
+            }
             item.setName(name);
+        }
         if (description != null)
             item.setDescription(description);
         if (iconUrl != null)
