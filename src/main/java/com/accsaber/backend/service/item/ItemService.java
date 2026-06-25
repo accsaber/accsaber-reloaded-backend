@@ -237,8 +237,8 @@ public class ItemService {
     @Transactional
     public Item create(UUID typeId, String name, String description, String iconUrl,
             Object value, ItemRarity rarity, boolean tradeable,
-            boolean visible, boolean stackable, boolean welcomeGrant, boolean active, BigDecimal worth,
-            String requirement, Integer unlockLevel) {
+            boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean active,
+            BigDecimal worth, String requirement, Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
         itemValueValidator.validate(type, value);
         Item item = Item.builder()
@@ -252,6 +252,7 @@ public class ItemService {
                 .visible(visible)
                 .stackable(stackable)
                 .welcomeGrant(welcomeGrant)
+                .missionPoolable(missionPoolable)
                 .active(active)
                 .worth(worth)
                 .requirement(requirement)
@@ -263,8 +264,8 @@ public class ItemService {
     @Transactional
     public Item update(UUID id, String name, String description, String iconUrl,
             Object value, ItemRarity rarity,
-            Boolean tradeable, Boolean visible, Boolean stackable, Boolean welcomeGrant, BigDecimal worth,
-            String requirement, Integer unlockLevel) {
+            Boolean tradeable, Boolean visible, Boolean stackable, Boolean welcomeGrant, Boolean missionPoolable,
+            BigDecimal worth, String requirement, Integer unlockLevel) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         if (name != null)
@@ -287,6 +288,8 @@ public class ItemService {
             item.setStackable(stackable);
         if (welcomeGrant != null)
             item.setWelcomeGrant(welcomeGrant);
+        if (missionPoolable != null)
+            item.setMissionPoolable(missionPoolable);
         if (worth != null)
             item.setWorth(worth);
         if (requirement != null)

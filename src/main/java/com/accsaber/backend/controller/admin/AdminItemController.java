@@ -112,8 +112,8 @@ public class AdminItemController {
     public ResponseEntity<ItemResponse> createItem(@Valid @RequestBody CreateItemRequest req) {
         var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
                 req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
-                req.isStackable(), req.isWelcomeGrant(), req.isActive(), req.getWorth(), req.getRequirement(),
-                req.getUnlockLevel());
+                req.isStackable(), req.isWelcomeGrant(), req.isMissionPoolable(), req.isActive(), req.getWorth(),
+                req.getRequirement(), req.getUnlockLevel());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
@@ -123,8 +123,8 @@ public class AdminItemController {
             @RequestBody UpdateItemRequest req) {
         var item = itemService.update(id, req.getName(), req.getDescription(), req.getIconUrl(),
                 req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible(),
-                req.getStackable(), req.getWelcomeGrant(), req.getWorth(), req.getRequirement(),
-                req.getUnlockLevel());
+                req.getStackable(), req.getWelcomeGrant(), req.getMissionPoolable(), req.getWorth(),
+                req.getRequirement(), req.getUnlockLevel());
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 

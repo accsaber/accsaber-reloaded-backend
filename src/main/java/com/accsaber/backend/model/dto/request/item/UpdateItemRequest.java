@@ -19,6 +19,7 @@ public class UpdateItemRequest {
     private Boolean visible;
     private Boolean stackable;
     private Boolean welcomeGrant;
+    private Boolean missionPoolable;
     private BigDecimal worth;
     private String requirement;
     private Integer unlockLevel;

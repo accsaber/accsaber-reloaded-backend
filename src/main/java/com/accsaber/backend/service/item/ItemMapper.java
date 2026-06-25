@@ -60,6 +60,7 @@ public final class ItemMapper {
                 .deprecated(item.isDeprecated())
                 .stackable(item.isStackable())
                 .welcomeGrant(item.isWelcomeGrant())
+                .missionPoolable(item.isMissionPoolable())
                 .worth(item.getWorth())
                 .requirement(item.getRequirement())
                 .unlockLevel(item.getUnlockLevel())
