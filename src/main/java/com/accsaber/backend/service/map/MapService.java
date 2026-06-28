@@ -683,10 +683,11 @@ public class MapService {
         java.util.Map<UUID, BigDecimal> result = new java.util.HashMap<>();
         if (difficultyIds.isEmpty())
             return result;
-        for (Object[] row : voteRepository.avgSuggestedComplexityByDifficultyIds(difficultyIds)) {
-            BigDecimal avg = (BigDecimal) row[1];
-            if (avg != null)
-                result.put((UUID) row[0], avg.setScale(6, RoundingMode.HALF_UP));
+        for (Object[] row : voteRepository.sumSuggestedComplexityByDifficultyIds(difficultyIds)) {
+            BigDecimal sum = (BigDecimal) row[1];
+            long count = ((Number) row[2]).longValue();
+            if (sum != null && count > 0)
+                result.put((UUID) row[0], sum.divide(BigDecimal.valueOf(count), 6, RoundingMode.HALF_UP));
         }
         return result;
     }
