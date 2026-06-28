@@ -48,6 +48,9 @@ class MapVotingServiceTest {
         @Mock
         private StaffUserRepository staffUserRepository;
 
+        @Mock
+        private MapDifficultyComplexityService complexityService;
+
         @InjectMocks
         private MapVotingService votingService;
 
