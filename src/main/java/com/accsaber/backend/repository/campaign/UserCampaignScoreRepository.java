@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -36,4 +37,8 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
                         """)
         List<Object[]> countActiveByUserAndCampaignIds(@Param("userId") Long userId,
                         @Param("campaignIds") Collection<UUID> campaignIds);
+
+        @Modifying
+        @Query("delete from UserCampaignScore ucs where ucs.campaignDifficulty.id = :campaignDifficultyId")
+        int deleteByCampaignDifficulty_Id(@Param("campaignDifficultyId") UUID campaignDifficultyId);
 }

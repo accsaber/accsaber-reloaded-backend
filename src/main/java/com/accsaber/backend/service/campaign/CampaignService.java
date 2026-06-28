@@ -572,9 +572,10 @@ public class CampaignService {
             throw new ResourceNotFoundException("CampaignDifficulty", campaignDifficultyId);
         }
         ensureEditable(difficulty.getCampaign());
-        difficulty.setActive(false);
-        campaignDifficultyRepository.save(difficulty);
         campaignDifficultyPathRepository.deleteAllTouching(difficulty.getId());
+        campaignDifficultyItemRepository.deleteByCampaignDifficulty_Id(difficulty.getId());
+        userCampaignScoreRepository.deleteByCampaignDifficulty_Id(difficulty.getId());
+        campaignDifficultyRepository.delete(difficulty);
     }
 
     @Transactional
