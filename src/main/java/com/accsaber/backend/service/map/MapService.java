@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.map;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -76,10 +77,10 @@ public class MapService {
 
     record VoteSummary(int rankUpvotes, int rankDownvotes, int criteriaUpvotes, int criteriaDownvotes,
             VoteType headCriteriaVote, int reweightUpvotes, int reweightDownvotes,
-            int unrankUpvotes, int unrankDownvotes) {
+            int unrankUpvotes, int unrankDownvotes, BigDecimal averageVoteComplexity) {
     }
 
-    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null, 0, 0, 0, 0);
+    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, null, 0, 0, 0, 0, null);
 
     public Page<PublicMapResponse> findAllPublic(UUID categoryId, MapDifficultyStatus status, String search,
             Pageable pageable) {
@@ -543,7 +544,9 @@ public class MapService {
         BigDecimal complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         StaffInfo info = resolveStaffInfo(difficulty.getLastUpdatedBy());
-        return toDifficultyResponse(difficulty, complexity, stats, info);
+        BigDecimal avgComplexity = loadAvgReweightComplexity(List.of(difficultyId)).get(difficultyId);
+        VoteSummary votes = new VoteSummary(0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity);
+        return toDifficultyResponse(difficulty, complexity, stats, info, null, votes);
     }
 
     private void checkLeaderboardIdConflict(String blId, String ssId) {
@@ -662,6 +665,8 @@ public class MapService {
                 pair[1] = count;
         }
 
+        java.util.Map<UUID, BigDecimal> avgComplexities = loadAvgReweightComplexity(difficultyIds);
+
         java.util.Map<UUID, VoteSummary> result = new java.util.HashMap<>();
         for (UUID id : difficultyIds) {
             int[] rank = rankCounts.getOrDefault(id, new int[] { 0, 0 });
@@ -669,7 +674,19 @@ public class MapService {
             int[] reweight = reweightCounts.getOrDefault(id, new int[] { 0, 0 });
             int[] unrank = unrankCounts.getOrDefault(id, new int[] { 0, 0 });
             result.put(id, new VoteSummary(rank[0], rank[1], crit[0], crit[1], headVotes.get(id),
-                    reweight[0], reweight[1], unrank[0], unrank[1]));
+                    reweight[0], reweight[1], unrank[0], unrank[1], avgComplexities.get(id)));
+        }
+        return result;
+    }
+
+    private java.util.Map<UUID, BigDecimal> loadAvgReweightComplexity(List<UUID> difficultyIds) {
+        java.util.Map<UUID, BigDecimal> result = new java.util.HashMap<>();
+        if (difficultyIds.isEmpty())
+            return result;
+        for (Object[] row : voteRepository.avgSuggestedComplexityByDifficultyIds(difficultyIds)) {
+            BigDecimal avg = (BigDecimal) row[1];
+            if (avg != null)
+                result.put((UUID) row[0], avg.setScale(6, RoundingMode.HALF_UP));
         }
         return result;
     }
@@ -742,6 +759,7 @@ public class MapService {
                 .reweightDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.reweightDownvotes() : 0)
                 .unrankUpvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankUpvotes() : 0)
                 .unrankDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankDownvotes() : 0)
+                .averageVoteComplexity(d.getStatus() == MapDifficultyStatus.RANKED ? votes.averageVoteComplexity() : null)
                 .statistics(stats)
                 .build();
     }

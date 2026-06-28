@@ -54,5 +54,6 @@ public class MapDifficultyResponse {
     int reweightDownvotes;
     int unrankUpvotes;
     int unrankDownvotes;
+    BigDecimal averageVoteComplexity;
     MapDifficultyStatisticsResponse statistics;
 }

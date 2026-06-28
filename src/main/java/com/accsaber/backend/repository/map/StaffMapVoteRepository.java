@@ -42,6 +42,11 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
                         "WHERE v.mapDifficulty.id IN :ids AND v.criteriaVoteOverride = true AND v.active = true")
         List<Object[]> findHeadCriteriaVotesByDifficultyIds(@Param("ids") List<UUID> ids);
 
+        @Query("SELECT v.mapDifficulty.id, AVG(v.suggestedComplexity) FROM StaffMapVote v " +
+                        "WHERE v.mapDifficulty.id IN :ids AND v.type = 'reweight' AND v.suggestedComplexity IS NOT NULL AND v.active = true " +
+                        "GROUP BY v.mapDifficulty.id")
+        List<Object[]> avgSuggestedComplexityByDifficultyIds(@Param("ids") List<UUID> ids);
+
         @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map WHERE v.active = true")
         Page<StaffMapVote> findAllActiveWithMap(Pageable pageable);
 }

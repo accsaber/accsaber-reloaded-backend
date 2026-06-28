@@ -42,6 +42,7 @@ public class MapVotingService {
     private final StaffMapVoteRepository voteRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final StaffUserRepository staffUserRepository;
+    private final MapDifficultyComplexityService complexityService;
 
     @Value("${accsaber.voting.rank-threshold:3}")
     private int rankThreshold;
@@ -58,10 +59,11 @@ public class MapVotingService {
     public VoteListResponse getVotes(UUID mapDifficultyId, MapVoteAction type) {
         List<StaffMapVote> voteEntities = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(voteEntities);
+        BigDecimal complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
 
         List<VoteResponse> votes = voteEntities.stream()
                 .filter(v -> v.getType() == type)
-                .map(v -> toResponse(v, staffInfo.get(v.getStaffId())))
+                .map(v -> toResponse(v, staffInfo.get(v.getStaffId()), complexity))
                 .toList();
 
         boolean rankReady = isThresholdMet(mapDifficultyId, MapVoteAction.RANK, rankThreshold);
@@ -101,7 +103,14 @@ public class MapVotingService {
                         .collect(java.util.stream.Collectors.toMap(StaffUser::getId,
                                 s -> new StaffInfo(s.getUsername(),
                                         s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
-        return votes.map(v -> toResponse(v, staffInfo.get(v.getStaffId())));
+        List<UUID> difficultyIds = votes.getContent().stream()
+                .map(v -> v.getMapDifficulty().getId())
+                .distinct()
+                .toList();
+        java.util.Map<UUID, BigDecimal> complexities = complexityService
+                .findActiveComplexitiesForDifficulties(difficultyIds);
+        return votes.map(v -> toResponse(v, staffInfo.get(v.getStaffId()),
+                complexities.get(v.getMapDifficulty().getId())));
     }
 
     @Transactional
@@ -147,7 +156,8 @@ public class MapVotingService {
                 .map(s -> new StaffInfo(s.getUsername(),
                         s.getUser() != null ? s.getUser().getAvatarUrl() : null))
                 .orElse(null);
-        return toResponse(saved, info);
+        BigDecimal complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
+        return toResponse(saved, info, complexity);
     }
 
     @Transactional
@@ -316,11 +326,13 @@ public class MapVotingService {
                                 s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
     }
 
-    private VoteResponse toResponse(StaffMapVote v, StaffInfo info) {
+    private VoteResponse toResponse(StaffMapVote v, StaffInfo info, BigDecimal complexity) {
         var map = v.getMapDifficulty().getMap();
         return VoteResponse.builder()
                 .id(v.getId())
                 .mapDifficultyId(v.getMapDifficulty().getId())
+                .difficulty(v.getMapDifficulty().getDifficulty())
+                .complexity(complexity)
                 .songName(map.getSongName())
                 .songAuthor(map.getSongAuthor())
                 .mapAuthor(map.getMapAuthor())
