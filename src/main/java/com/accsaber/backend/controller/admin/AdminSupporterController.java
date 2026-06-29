@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.dto.request.supporter.ClaimSupporterEventRequest;
 import com.accsaber.backend.model.dto.request.supporter.ManualSupporterGrantRequest;
 import com.accsaber.backend.model.entity.supporter.KofiEvent;
 import com.accsaber.backend.model.entity.supporter.KofiEventType;
@@ -46,6 +47,13 @@ public class AdminSupporterController {
                 "tier", event.getTierName(),
                 "amountCents", event.getAmountCents(),
                 "type", event.getType().name()));
+    }
+
+    @Operation(summary = "Claim an existing (unclaimed) Ko-fi event for a user by Steam id - applies the tier/balance and seeds the event's email so future renewals auto-claim")
+    @PostMapping("/claim")
+    public ResponseEntity<Void> claim(@Valid @RequestBody ClaimSupporterEventRequest request) {
+        supporterService.claimByAdmin(request.getKofiTransactionId(), request.getUserId());
+        return ResponseEntity.noContent().build();
     }
 
     private KofiEventType parseType(String raw) {
