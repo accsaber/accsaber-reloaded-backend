@@ -96,6 +96,7 @@ public class MediaProcessingService {
     public void deleteIfExists(String subdir, String key) {
         deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.WEBP.extension));
         deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.AVIF.extension));
+        deletePathIfExists(baseDir(subdir).resolve(key + MediaFormat.PNG.extension));
     }
 
     private void deletePathIfExists(Path target) {
@@ -123,10 +124,10 @@ public class MediaProcessingService {
             Path target = baseDir.resolve(key + format.extension);
             tempOutput = Files.createTempFile("cdn-out-", format.extension);
 
-            if (format == MediaFormat.AVIF) {
-                runVipsAvif(tempInput, tempOutput, animated, maxDim);
-            } else {
-                runVipsWebp(tempInput, tempOutput, animated, maxDim);
+            switch (format) {
+                case AVIF -> runVipsAvif(tempInput, tempOutput, animated, maxDim);
+                case PNG -> runVipsPng(tempInput, tempOutput, animated, maxDim);
+                default -> runVipsWebp(tempInput, tempOutput, animated, maxDim);
             }
             atomicMove(tempOutput, target);
             makeWorldReadable(target);
@@ -252,6 +253,11 @@ public class MediaProcessingService {
         String outputArg = output + "[Q=" + cdn.getAvifQuality()
                 + ",compression=av1,effort=" + cdn.getAvifEffort() + "]";
         encodeWithFallback(input, outputArg, animated, maxDim, "AVIF");
+    }
+
+    private void runVipsPng(Path input, Path output, boolean animated, int maxDim) {
+        String outputArg = output + "[compression=" + cdn.getPngCompression() + "]";
+        encodeWithFallback(input, outputArg, animated, maxDim, "PNG");
     }
 
     private void encodeWithFallback(Path input, String outputArg, boolean animated, int maxDim, String label) {

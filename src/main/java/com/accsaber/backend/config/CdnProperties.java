@@ -19,6 +19,7 @@ public class CdnProperties {
     private int webpEffort = 4;
     private int avifQuality = 60;
     private int avifEffort = 4;
+    private int pngCompression = 6;
     private int avatarMaxDimension = 256;
     private int coverMaxDimension = 1024;
     private int uploadMaxDimension = 4096;

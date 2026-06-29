@@ -2,7 +2,8 @@ package com.accsaber.backend.service.media;
 
 public enum MediaFormat {
     WEBP(".webp"),
-    AVIF(".avif");
+    AVIF(".avif"),
+    PNG(".png");
 
     public final String extension;
 

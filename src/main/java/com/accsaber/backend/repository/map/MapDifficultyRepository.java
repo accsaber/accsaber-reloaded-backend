@@ -199,6 +199,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (:batchId IS NULL OR d.batch.id = :batchId)
                         AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -211,6 +212,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (:batchId IS NULL OR d.batch.id = :batchId)
                         AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -220,6 +222,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         Page<MapDifficulty> findWithComplexityFilters(
                         @Param("categoryId") UUID categoryId,
+                        @Param("batchId") UUID batchId,
                         @Param("statuses") Collection<MapDifficultyStatus> statuses,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,
@@ -232,6 +235,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (:batchId IS NULL OR d.batch.id = :batchId)
                         AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -247,6 +251,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
+                        AND (:batchId IS NULL OR d.batch.id = :batchId)
                         AND (:statuses IS NULL OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -259,6 +264,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         Page<MapDifficulty> findWithComplexityFiltersWithSearch(
                         @Param("categoryId") UUID categoryId,
+                        @Param("batchId") UUID batchId,
                         @Param("statuses") Collection<MapDifficultyStatus> statuses,
                         @Param("complexityMin") BigDecimal complexityMin,
                         @Param("complexityMax") BigDecimal complexityMax,

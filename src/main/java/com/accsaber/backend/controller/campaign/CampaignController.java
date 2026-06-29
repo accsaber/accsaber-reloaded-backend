@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,8 +38,11 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
+import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.media.MediaFormat;
 import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -58,14 +62,25 @@ public class CampaignController {
     private final CampaignService campaignService;
     private final MediaProcessingService mediaProcessingService;
 
+    private static Long viewerId(Authentication authentication) {
+        return authentication != null ? StaffPrincipals.linkedUserIdOf(authentication) : null;
+    }
+
+    private static boolean canViewAllDrafts(Authentication authentication) {
+        StaffRole role = StaffPrincipals.roleOrNull(authentication);
+        return role == StaffRole.ADMIN || role == StaffRole.CAMPAIGN_CURATOR;
+    }
+
     @Operation(summary = "List active campaigns")
     @GetMapping
     public ResponseEntity<Page<CampaignResponse>> listCampaigns(
             @RequestParam(required = false) List<CampaignStatus> status,
             @RequestParam(required = false) List<UUID> tagIds,
             @RequestParam(required = false) Long creatorId,
+            Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        return ResponseEntity.ok(campaignService.findCampaigns(status, tagIds, creatorId, pageable));
+        return ResponseEntity.ok(campaignService.findCampaigns(status, tagIds, creatorId,
+                viewerId(authentication), canViewAllDrafts(authentication), pageable));
     }
 
     @Operation(summary = "List campaigns seeking curation")
@@ -78,14 +93,20 @@ public class CampaignController {
 
     @Operation(summary = "Get campaign details by id")
     @GetMapping("/{campaignId}")
-    public ResponseEntity<CampaignDetailResponse> getCampaign(@PathVariable UUID campaignId) {
-        return ResponseEntity.ok(campaignService.findCampaignById(campaignId));
+    public ResponseEntity<CampaignDetailResponse> getCampaign(
+            @PathVariable UUID campaignId,
+            Authentication authentication) {
+        return ResponseEntity.ok(campaignService.findCampaignById(campaignId,
+                viewerId(authentication), canViewAllDrafts(authentication)));
     }
 
     @Operation(summary = "Get campaign details by slug")
     @GetMapping("/slug/{slug}")
-    public ResponseEntity<CampaignDetailResponse> getCampaignBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(campaignService.findCampaignBySlug(slug));
+    public ResponseEntity<CampaignDetailResponse> getCampaignBySlug(
+            @PathVariable String slug,
+            Authentication authentication) {
+        return ResponseEntity.ok(campaignService.findCampaignBySlug(slug,
+                viewerId(authentication), canViewAllDrafts(authentication)));
     }
 
     @Operation(summary = "List campaign tags")
@@ -309,7 +330,8 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString(),
+                MediaFormat.PNG);
         return ResponseEntity.ok(
                 campaignService.setIconUrlAsPlayer(principal.getUserId(), campaignId, url));
     }

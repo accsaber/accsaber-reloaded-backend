@@ -90,7 +90,8 @@ public class MapService {
     public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId, MapDifficultyStatus status,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId, Pageable pageable) {
         Collection<MapDifficultyStatus> statuses = status == null ? null : List.of(status);
-        return findDifficulties(categoryId, statuses, complexityMin, complexityMax, search, excludeUserId, pageable)
+        return findDifficulties(categoryId, null, statuses, complexityMin, complexityMax, search, excludeUserId,
+                pageable)
                 .map(MapService::toPublicDifficultyResponse);
     }
 
@@ -256,7 +257,8 @@ public class MapService {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
     }
 
-    public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, Collection<MapDifficultyStatus> statuses,
+    public Page<MapDifficultyResponse> findDifficulties(UUID categoryId, UUID batchId,
+            Collection<MapDifficultyStatus> statuses,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId,
             Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
@@ -264,9 +266,10 @@ public class MapService {
         Pageable effective = resolveDifficultySort(pageable);
         Page<MapDifficulty> difficulties = hasSearch
                 ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
-                        categoryId, statusFilter, complexityMin, complexityMax, excludeUserId, search.trim(), effective)
+                        categoryId, batchId, statusFilter, complexityMin, complexityMax, excludeUserId, search.trim(),
+                        effective)
                 : mapDifficultyRepository.findWithComplexityFilters(
-                        categoryId, statusFilter, complexityMin, complexityMax, excludeUserId, effective);
+                        categoryId, batchId, statusFilter, complexityMin, complexityMax, excludeUserId, effective);
 
         if (difficulties.isEmpty())
             return difficulties.map(d -> toDifficultyResponse(d, null, null, null));

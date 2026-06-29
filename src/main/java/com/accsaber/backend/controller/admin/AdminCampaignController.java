@@ -27,6 +27,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.media.MediaFormat;
 import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -154,7 +155,8 @@ public class AdminCampaignController {
     public ResponseEntity<CampaignResponse> uploadIcon(
             @PathVariable UUID campaignId,
             @RequestPart("file") MultipartFile file) {
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString(),
+                MediaFormat.PNG);
         return ResponseEntity.ok(campaignService.setIconUrl(campaignId, url));
     }
 

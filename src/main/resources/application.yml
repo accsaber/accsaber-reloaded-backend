@@ -150,6 +150,7 @@ accsaber:
     webp-effort: ${CDN_WEBP_EFFORT:4}
     avif-quality: ${CDN_AVIF_QUALITY:60}
     avif-effort: ${CDN_AVIF_EFFORT:4}
+    png-compression: ${CDN_PNG_COMPRESSION:6}
     avatar-max-dimension: ${CDN_AVATAR_MAX_DIMENSION:256}
     cover-max-dimension: ${CDN_COVER_MAX_DIMENSION:1024}
     upload-max-dimension: ${CDN_UPLOAD_MAX_DIMENSION:4096}

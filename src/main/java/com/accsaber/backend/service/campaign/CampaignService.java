@@ -101,13 +101,17 @@ public class CampaignService {
     public Page<CampaignResponse> findCampaigns(Collection<CampaignStatus> statuses,
             Collection<UUID> tagIds,
             Long creatorId,
+            Long viewerId,
+            boolean privileged,
             Pageable pageable) {
         boolean hasStatus = statuses != null && !statuses.isEmpty();
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         Collection<CampaignStatus> statusArg = hasStatus ? statuses : List.of(CampaignStatus.DRAFT);
         Collection<UUID> tagArg = hasTags ? tagIds : List.of(new UUID(0L, 0L));
+        Long resolvedViewerId = viewerId != null ? duplicateUserService.resolvePrimaryUserId(viewerId) : null;
         return paginateAsResponses(
-                campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg, pageable));
+                campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
+                        CampaignStatus.DRAFT, resolvedViewerId, privileged, pageable));
     }
 
     public Page<CampaignResponse> findCurationQueue(Pageable pageable) {
@@ -126,14 +130,32 @@ public class CampaignService {
                 diffCountByCampaign.getOrDefault(c.getId(), 0)));
     }
 
-    public CampaignDetailResponse findCampaignById(UUID campaignId) {
-        return buildDetailResponse(loadActiveCampaign(campaignId));
+    public CampaignDetailResponse findCampaignById(UUID campaignId, Long viewerId, boolean privileged) {
+        Campaign campaign = loadActiveCampaign(campaignId);
+        if (isDraftHiddenFrom(campaign, viewerId, privileged)) {
+            throw new ResourceNotFoundException("Campaign", campaignId);
+        }
+        return buildDetailResponse(campaign);
     }
 
-    public CampaignDetailResponse findCampaignBySlug(String slug) {
+    public CampaignDetailResponse findCampaignBySlug(String slug, Long viewerId, boolean privileged) {
         Campaign campaign = campaignRepository.findBySlugAndActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Campaign", slug));
+        if (isDraftHiddenFrom(campaign, viewerId, privileged)) {
+            throw new ResourceNotFoundException("Campaign", slug);
+        }
         return buildDetailResponse(campaign);
+    }
+
+    private boolean isDraftHiddenFrom(Campaign campaign, Long viewerId, boolean privileged) {
+        if (privileged || campaign.getStatus() != CampaignStatus.DRAFT) {
+            return false;
+        }
+        if (viewerId == null || campaign.getCreator() == null) {
+            return true;
+        }
+        Long resolvedViewerId = duplicateUserService.resolvePrimaryUserId(viewerId);
+        return !resolvedViewerId.equals(campaign.getCreator().getId());
     }
 
     @Transactional
@@ -717,6 +739,9 @@ public class CampaignService {
     public CampaignProgressResponse getUserProgress(Long userId, UUID campaignId) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
         Campaign campaign = loadActiveCampaign(campaignId);
+        if (isDraftHiddenFrom(campaign, resolvedUserId, false)) {
+            throw new ResourceNotFoundException("Campaign", campaignId);
+        }
         List<UUID> campaignIds = List.of(campaignId);
         ProgressContext ctx = loadProgressContext(resolvedUserId, campaignIds);
         return buildProgress(campaign, resolvedUserId, ctx);
@@ -741,7 +766,7 @@ public class CampaignService {
         List<CampaignProgressResponse> results = new ArrayList<>(campaignIds.size());
         for (UUID id : campaignIds) {
             Campaign campaign = campaignById.get(id);
-            if (campaign == null) {
+            if (campaign == null || isDraftHiddenFrom(campaign, resolvedUserId, false)) {
                 continue;
             }
             results.add(buildProgress(campaign, resolvedUserId, ctx));

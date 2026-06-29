@@ -45,6 +45,20 @@ public final class StaffPrincipals {
         throw new UnauthorizedException("Staff role not present");
     }
 
+    public static StaffRole roleOrNull(Authentication auth) {
+        if (auth == null) {
+            return null;
+        }
+        Object p = auth.getPrincipal();
+        if (p instanceof StaffUserDetails s) {
+            return s.getStaffUser().getRole();
+        }
+        if (p instanceof PlayerUserDetails player) {
+            return player.getStaffRole();
+        }
+        return null;
+    }
+
     private static Object principalOf(Authentication auth) {
         if (auth == null) {
             throw new UnauthorizedException("Authentication required");

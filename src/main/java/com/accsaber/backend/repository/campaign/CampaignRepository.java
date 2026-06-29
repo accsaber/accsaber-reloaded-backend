@@ -45,6 +45,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         WHERE c.active = true
                           AND (:hasStatus = false OR c.status IN :statuses)
                           AND (:creatorId IS NULL OR c.creator.id = :creatorId)
+                          AND (:privileged = true OR c.status <> :draftStatus OR c.creator.id = :viewerId)
                           AND (:hasTags = false OR EXISTS (
                               SELECT 1 FROM CampaignTagLink ctl
                               WHERE ctl.campaign = c AND ctl.campaignTag.id IN :tagIds))
@@ -55,5 +56,8 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         @Param("creatorId") Long creatorId,
                         @Param("hasTags") boolean hasTags,
                         @Param("tagIds") Collection<UUID> tagIds,
+                        @Param("draftStatus") CampaignStatus draftStatus,
+                        @Param("viewerId") Long viewerId,
+                        @Param("privileged") boolean privileged,
                         Pageable pageable);
 }
