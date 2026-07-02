@@ -38,5 +38,7 @@ public class CampaignDetailResponse {
     private Instant createdAt;
     private List<CampaignTagResponse> tags;
     private List<CampaignDifficultyResponse> difficulties;
+    private List<CampaignBarrierResponse> barriers;
+    private List<CampaignTextResponse> texts;
     private List<CampaignItemAwardResponse> completionItems;
 }

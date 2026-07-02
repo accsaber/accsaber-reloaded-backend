@@ -1,6 +1,5 @@
 package com.accsaber.backend.service.player;
 
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.owasp.html.CssSchema;
@@ -11,14 +10,13 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.exception.ValidationException;
 
 @Component
-public class BioSanitizer {
+public class RichTextSanitizer {
 
     public static final int MAX_LINKS = 5;
 
     private static final Pattern ANCHOR_OPEN = Pattern.compile("<a\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern ALIGN_VALUES = Pattern.compile("(?i)^(left|center|right|justify)$");
-
-    private static final CssSchema TEXT_ALIGN_ONLY = CssSchema.withProperties(Set.of("text-align"));
+    private static final Pattern EFFECT_CLASSES = Pattern.compile("(?i)^(glow|outline|shadow)( (glow|outline|shadow))*$");
 
     private static final String[] BLOCK_ELEMENTS = {
             "p", "div", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li"
@@ -27,12 +25,13 @@ public class BioSanitizer {
     private static final PolicyFactory POLICY = new HtmlPolicyBuilder()
             .allowCommonInlineFormattingElements()
             .allowElements("p", "div", "br", "ul", "ol", "li", "blockquote",
-                    "h1", "h2", "h3", "h4", "h5", "h6", "pre", "hr", "a")
+                    "h1", "h2", "h3", "h4", "h5", "h6", "pre", "hr", "a", "span")
             .allowUrlProtocols("http", "https")
             .allowAttributes("href").onElements("a")
             .requireRelNofollowOnLinks()
             .allowAttributes("align").matching(ALIGN_VALUES).onElements(BLOCK_ELEMENTS)
-            .allowStyling(TEXT_ALIGN_ONLY)
+            .allowAttributes("class").matching(EFFECT_CLASSES).globally()
+            .allowStyling(CssSchema.DEFAULT)
             .toFactory();
 
     public String sanitize(String html, int maxLength) {
@@ -40,12 +39,12 @@ public class BioSanitizer {
             return "";
         }
         if (html.length() > maxLength) {
-            throw new ValidationException("bio", "must not exceed " + maxLength + " characters");
+            throw new ValidationException("content", "must not exceed " + maxLength + " characters");
         }
         String sanitized = POLICY.sanitize(html);
         long linkCount = ANCHOR_OPEN.matcher(sanitized).results().count();
         if (linkCount > MAX_LINKS) {
-            throw new ValidationException("bio", "must not contain more than " + MAX_LINKS + " links");
+            throw new ValidationException("content", "must not contain more than " + MAX_LINKS + " links");
         }
         return sanitized;
     }

@@ -2,6 +2,7 @@ package com.accsaber.backend.config;
 
 import java.util.List;
 
+import com.accsaber.backend.security.BannedUserWriteFilter;
 import com.accsaber.backend.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -64,6 +65,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            BannedUserWriteFilter bannedUserWriteFilter,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver,
             CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
@@ -107,6 +109,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(bannedUserWriteFilter, JwtAuthenticationFilter.class)
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, e) ->
                         exceptionResolver.resolveException(request, response, null, e))

@@ -19,6 +19,14 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
 
         List<CampaignDifficulty> findByCampaign_IdInAndActiveTrue(Collection<UUID> campaignIds);
 
+        List<CampaignDifficulty> findByCampaign_IdAndBarrierTrueAndActiveTrue(UUID campaignId);
+
+        List<CampaignDifficulty> findByCampaign_IdInAndBarrierTrueAndActiveTrue(Collection<UUID> campaignIds);
+
+        long countByCampaign_IdAndBarrierFalseAndActiveTrue(UUID campaignId);
+
+        long countByCampaign_IdAndBarrierTrueAndActiveTrue(UUID campaignId);
+
         Optional<CampaignDifficulty> findByIdAndActiveTrue(UUID id);
 
         Optional<CampaignDifficulty> findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(UUID campaignId,
@@ -27,11 +35,9 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
         boolean existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(UUID campaignId, Integer positionX,
                         Integer positionY);
 
-        long countByCampaign_IdAndActiveTrue(UUID campaignId);
-
         @Query("""
                         SELECT cd.campaign.id, COUNT(cd) FROM CampaignDifficulty cd
-                        WHERE cd.campaign.id IN :campaignIds AND cd.active = true
+                        WHERE cd.campaign.id IN :campaignIds AND cd.active = true AND cd.barrier = false
                         GROUP BY cd.campaign.id
                         """)
         List<Object[]> countActiveByCampaignIds(@Param("campaignIds") Collection<UUID> campaignIds);

@@ -179,6 +179,7 @@ public class OauthService {
                 .userId(user.getId())
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
+                .cdnAvatarUrl(user.getCdnAvatarUrl())
                 .country(user.getCountry())
                 .banned(user.isBanned())
                 .connections(connections)

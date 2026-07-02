@@ -207,6 +207,7 @@ public class MilestoneEvaluationService {
                 .userName(user.getName())
                 .userCountry(user.getCountry())
                 .userAvatarUrl(user.getAvatarUrl())
+                .userCdnAvatarUrl(user.getCdnAvatarUrl())
                 .completedAt(Instant.now())
                 .milestones(milestonePayloads.isEmpty() ? null : milestonePayloads)
                 .sets(setPayloads.isEmpty() ? null : setPayloads)

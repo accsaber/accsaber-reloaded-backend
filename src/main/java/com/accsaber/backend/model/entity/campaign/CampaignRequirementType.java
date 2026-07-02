@@ -5,5 +5,6 @@ public enum CampaignRequirementType {
     AP,
     SCORE,
     STREAK_115,
-    FC
+    FC,
+    RANK
 }

@@ -45,14 +45,24 @@ public class CampaignDifficulty {
     private Campaign campaign;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "map_difficulty_id", nullable = false)
+    @JoinColumn(name = "map_difficulty_id")
     private MapDifficulty mapDifficulty;
 
-    @Column(name = "requirement_type", nullable = false)
+    @Column(name = "requirement_type")
     private CampaignRequirementType requirementType;
 
-    @Column(name = "requirement_value", nullable = false, precision = 20, scale = 6)
+    @Column(name = "requirement_value", precision = 20, scale = 6)
     private BigDecimal requirementValue;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean barrier = false;
+
+    @Column(name = "barrier_condition_type")
+    private BarrierConditionType barrierConditionType;
+
+    @Column(name = "barrier_condition_value", precision = 20, scale = 6)
+    private BigDecimal barrierConditionValue;
 
     @Column(name = "prerequisite_mode", nullable = false)
     @Builder.Default
@@ -62,6 +72,9 @@ public class CampaignDifficulty {
 
     @Column(name = "checkpoint_label")
     private String checkpointLabel;
+
+    @Column(name = "checkpoint_label_position")
+    private CampaignLabelPosition checkpointLabelPosition;
 
     @Column(name = "checkpoint_avatar_url")
     private String checkpointAvatarUrl;

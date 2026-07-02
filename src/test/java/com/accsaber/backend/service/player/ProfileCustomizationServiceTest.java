@@ -52,7 +52,7 @@ class ProfileCustomizationServiceTest {
     private UserSettingsService userSettingsService;
 
     @Mock
-    private BioSanitizer bioSanitizer;
+    private RichTextSanitizer richTextSanitizer;
 
     @Mock
     private SupporterService supporterService;
@@ -111,7 +111,7 @@ class ProfileCustomizationServiceTest {
         @Test
         void sanitizesAndPersists() {
             when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(bioSanitizer.sanitize("<p>hi</p>", 4000)).thenReturn("<p>hi</p>");
+            when(richTextSanitizer.sanitize("<p>hi</p>", 4000)).thenReturn("<p>hi</p>");
 
             service.updateBio(USER_ID, "<p>hi</p>");
 

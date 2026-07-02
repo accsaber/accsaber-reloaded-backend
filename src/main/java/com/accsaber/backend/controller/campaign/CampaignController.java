@@ -24,17 +24,22 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
+import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
+import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
+import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDetailResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignItemAwardResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
@@ -345,5 +350,71 @@ public class CampaignController {
         CampaignResponse result = campaignService.setIconUrlAsPlayer(principal.getUserId(), campaignId, null);
         mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
         return ResponseEntity.ok(result);
+    }
+
+    @Operation(summary = "Add a barrier to a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/{campaignId}/barriers")
+    public ResponseEntity<CampaignBarrierResponse> addBarrierToMyCampaign(
+            @PathVariable UUID campaignId,
+            @Valid @RequestBody AddCampaignBarrierRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(campaignService.addBarrierAsPlayer(principal.getUserId(), campaignId, request));
+    }
+
+    @Operation(summary = "Update a barrier on a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/barriers/{barrierId}")
+    public ResponseEntity<CampaignBarrierResponse> updateBarrierOnMyCampaign(
+            @PathVariable UUID barrierId,
+            @Valid @RequestBody UpdateCampaignBarrierRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(
+                campaignService.updateBarrierAsPlayer(principal.getUserId(), barrierId, request));
+    }
+
+    @Operation(summary = "Remove a barrier from a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{campaignId}/barriers/{barrierId}")
+    public ResponseEntity<Void> removeBarrierFromMyCampaign(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID barrierId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        campaignService.removeBarrierAsPlayer(principal.getUserId(), campaignId, barrierId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Add a freeform text element to a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/{campaignId}/texts")
+    public ResponseEntity<CampaignTextResponse> addTextToMyCampaign(
+            @PathVariable UUID campaignId,
+            @Valid @RequestBody CampaignTextRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(campaignService.addTextAsPlayer(principal.getUserId(), campaignId, request));
+    }
+
+    @Operation(summary = "Update a freeform text element on a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/texts/{textId}")
+    public ResponseEntity<CampaignTextResponse> updateTextOnMyCampaign(
+            @PathVariable UUID textId,
+            @Valid @RequestBody CampaignTextRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(
+                campaignService.updateTextAsPlayer(principal.getUserId(), textId, request));
+    }
+
+    @Operation(summary = "Remove a freeform text element from a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{campaignId}/texts/{textId}")
+    public ResponseEntity<Void> removeTextFromMyCampaign(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID textId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        campaignService.removeTextAsPlayer(principal.getUserId(), campaignId, textId);
+        return ResponseEntity.noContent().build();
     }
 }

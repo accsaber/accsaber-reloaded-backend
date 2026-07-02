@@ -19,6 +19,7 @@ public class ScoreResponse {
     private String userId;
     private String userName;
     private String avatarUrl;
+    private String cdnAvatarUrl;
     private String country;
     private UUID mapDifficultyId;
     private UUID mapId;

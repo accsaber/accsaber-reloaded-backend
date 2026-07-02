@@ -920,6 +920,7 @@ public class ScoreService {
                                 .userId(String.valueOf(user.getId()))
                                 .userName(user.getName())
                                 .avatarUrl(user.getAvatarUrl())
+                                .cdnAvatarUrl(user.getCdnAvatarUrl())
                                 .country(user.getCountry())
                                 .mapDifficultyId(diff.getId())
                                 .mapId(map.getId())

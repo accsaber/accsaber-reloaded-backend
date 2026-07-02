@@ -13,12 +13,9 @@ import lombok.Getter;
 public class UserCampaignResponse {
 
     private UUID id;
-    private UUID campaignId;
-    private String campaignName;
-    private String campaignSlug;
-    private UserCampaignStatus status;
+    private CampaignResponse campaign;
+    private UserCampaignStatus progressStatus;
     private Instant startedAt;
     private Instant completedAt;
-    private Integer totalDifficulties;
-    private Integer completedDifficulties;
+    private int completedDifficulties;
 }

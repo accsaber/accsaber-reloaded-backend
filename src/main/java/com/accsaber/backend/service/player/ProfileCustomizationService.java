@@ -42,7 +42,7 @@ public class ProfileCustomizationService {
     private final ScoreRepository scoreRepository;
     private final UserService userService;
     private final UserSettingsService userSettingsService;
-    private final BioSanitizer bioSanitizer;
+    private final RichTextSanitizer richTextSanitizer;
     private final SupporterService supporterService;
     private final CdnSyncService cdnSyncService;
 
@@ -66,7 +66,7 @@ public class ProfileCustomizationService {
     @Transactional
     public void updateBio(Long userId, String rawHtml) {
         User user = requireUser(userId);
-        user.setBio(bioSanitizer.sanitize(rawHtml, bioMaxFor(userId)));
+        user.setBio(richTextSanitizer.sanitize(rawHtml, bioMaxFor(userId)));
         userRepository.save(user);
     }
 

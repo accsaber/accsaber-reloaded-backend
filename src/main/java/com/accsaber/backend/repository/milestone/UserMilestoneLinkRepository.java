@@ -80,7 +80,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
         java.math.BigDecimal sumCompletedMilestoneXpByUserId(@Param("userId") Long userId);
         @Query(value = """
                         SELECT new com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse(
-                                u.id, u.name, u.avatarUrl, u.country, uml.completedAt)
+                                u.id, u.name, u.avatarUrl, u.cdnAvatarUrl, u.country, uml.completedAt)
                         FROM UserMilestoneLink uml
                         JOIN uml.user u
                         WHERE uml.milestone.id = :milestoneId

@@ -12,6 +12,7 @@ public class AuthMeResponse {
     Long userId;
     String name;
     String avatarUrl;
+    String cdnAvatarUrl;
     String country;
     boolean banned;
     List<OauthConnectionSummary> connections;

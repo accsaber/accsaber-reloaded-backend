@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionMode;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -13,15 +14,20 @@ public class CreateCampaignRequest {
 
     private Long creatorId;
 
+    @Size(max = 64)
     private String creatorAlias;
 
     @NotBlank
+    @Size(max = 100)
     private String name;
 
+    @Size(max = 80)
     private String slug;
 
+    @Size(max = 500)
     private String summary;
 
+    @Size(max = 4000)
     private String description;
 
     private Boolean progressionAgnostic;
@@ -30,9 +36,12 @@ public class CreateCampaignRequest {
 
     private Boolean playlistExportEnabled;
 
+    @Size(max = 512)
     private String backgroundUrl;
 
+    @Size(max = 512)
     private String iconUrl;
 
+    @Size(max = 10)
     private List<UUID> tagIds;
 }

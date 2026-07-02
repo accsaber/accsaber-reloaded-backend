@@ -17,14 +17,19 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
+import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignTagRequest;
+import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
+import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.campaign.CampaignService;
 import com.accsaber.backend.service.media.MediaFormat;
@@ -122,6 +127,56 @@ public class AdminCampaignController {
             @PathVariable UUID campaignId,
             @PathVariable UUID campaignDifficultyId) {
         campaignService.removeDifficulty(campaignId, campaignDifficultyId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Add a barrier to a campaign")
+    @PostMapping("/{campaignId}/barriers")
+    public ResponseEntity<CampaignBarrierResponse> addBarrier(
+            @PathVariable UUID campaignId,
+            @Valid @RequestBody AddCampaignBarrierRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.addBarrier(campaignId, request));
+    }
+
+    @Operation(summary = "Update a campaign barrier")
+    @PatchMapping("/barriers/{barrierId}")
+    public ResponseEntity<CampaignBarrierResponse> updateBarrier(
+            @PathVariable UUID barrierId,
+            @Valid @RequestBody UpdateCampaignBarrierRequest request) {
+        return ResponseEntity.ok(campaignService.updateBarrier(barrierId, request));
+    }
+
+    @Operation(summary = "Remove a barrier from a campaign")
+    @PatchMapping("/{campaignId}/barriers/{barrierId}/deactivate")
+    public ResponseEntity<Void> removeBarrier(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID barrierId) {
+        campaignService.removeDifficulty(campaignId, barrierId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Add a freeform text element to a campaign")
+    @PostMapping("/{campaignId}/texts")
+    public ResponseEntity<CampaignTextResponse> addText(
+            @PathVariable UUID campaignId,
+            @Valid @RequestBody CampaignTextRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.addText(campaignId, request));
+    }
+
+    @Operation(summary = "Update a campaign freeform text element")
+    @PatchMapping("/texts/{textId}")
+    public ResponseEntity<CampaignTextResponse> updateText(
+            @PathVariable UUID textId,
+            @Valid @RequestBody CampaignTextRequest request) {
+        return ResponseEntity.ok(campaignService.updateText(textId, request));
+    }
+
+    @Operation(summary = "Remove a freeform text element from a campaign")
+    @PatchMapping("/{campaignId}/texts/{textId}/deactivate")
+    public ResponseEntity<Void> removeText(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID textId) {
+        campaignService.removeText(campaignId, textId);
         return ResponseEntity.noContent().build();
     }
 

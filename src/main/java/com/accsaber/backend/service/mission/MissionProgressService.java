@@ -259,6 +259,7 @@ public class MissionProgressService {
                 .userName(user.getName())
                 .userCountry(user.getCountry())
                 .userAvatarUrl(user.getAvatarUrl())
+                .userCdnAvatarUrl(user.getCdnAvatarUrl())
                 .completedAt(mission.getCompletedAt())
                 .missionId(mission.getId())
                 .templateId(mission.getTemplate() != null ? mission.getTemplate().getId() : null)

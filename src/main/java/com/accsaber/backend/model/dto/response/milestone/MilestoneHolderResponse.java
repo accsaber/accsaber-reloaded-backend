@@ -14,6 +14,7 @@ public class MilestoneHolderResponse {
     private Long userId;
     private String name;
     private String avatarUrl;
+    private String cdnAvatarUrl;
     private String country;
     private Instant completedAt;
 }

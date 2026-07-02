@@ -22,6 +22,7 @@ public class MilestoneCompletedResponse {
     private String userName;
     private String userCountry;
     private String userAvatarUrl;
+    private String userCdnAvatarUrl;
     private Instant completedAt;
     private List<CompletedMilestone> milestones;
     private List<CompletedSet> sets;

@@ -50,7 +50,7 @@ public class UserCampaignScore {
     private CampaignDifficulty campaignDifficulty;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "score_id", nullable = false)
+    @JoinColumn(name = "score_id")
     private Score score;
 
     @Column(name = "submitted_at", nullable = false)

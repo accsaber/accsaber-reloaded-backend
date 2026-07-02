@@ -13,13 +13,12 @@ import lombok.Getter;
 @Builder
 public class CampaignProgressResponse {
 
-    private UUID campaignId;
-    private String campaignName;
-    private String campaignSlug;
-    private UserCampaignStatus status;
+    private UUID id;
+    private CampaignResponse campaign;
+    private UserCampaignStatus progressStatus;
     private Instant startedAt;
     private Instant completedAt;
-    private int totalDifficulties;
     private int completedDifficulties;
     private List<CampaignDifficultyProgressResponse> difficulties;
+    private List<BarrierProgressResponse> barriers;
 }

@@ -1,7 +1,6 @@
 package com.accsaber.backend.service.campaign;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,20 +17,23 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignBarrierAffectedDifficulty;
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionItem;
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionMode;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficultyItem;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
+import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
 import com.accsaber.backend.model.entity.campaign.UserCampaignScore;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.item.ItemSource;
-import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.repository.campaign.CampaignBarrierAffectedDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyPathRepository;
@@ -41,6 +43,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.util.CampaignScoreMetrics;
 
 import lombok.RequiredArgsConstructor;
 
@@ -53,6 +56,7 @@ public class CampaignEvaluationService {
     private final UserCampaignScoreRepository userCampaignScoreRepository;
     private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final CampaignDifficultyPathRepository campaignDifficultyPathRepository;
+    private final CampaignBarrierAffectedDifficultyRepository barrierAffectedRepository;
     private final CampaignDifficultyItemRepository campaignDifficultyItemRepository;
     private final CampaignCompletionItemRepository campaignCompletionItemRepository;
     private final ScoreRepository scoreRepository;
@@ -80,22 +84,22 @@ public class CampaignEvaluationService {
             CampaignDifficulty difficulty = campaignDifficultyRepository
                     .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(), mapDifficultyId)
                     .orElse(null);
-            if (difficulty == null) {
+            if (difficulty == null || difficulty.isBarrier()) {
                 continue;
             }
             if (scoreTime != null && uc.getStartedAt() != null && scoreTime.isBefore(uc.getStartedAt())) {
                 continue;
             }
-            if (!meetsRequirement(difficulty, score)) {
-                continue;
-            }
             Graph graph = loadGraph(campaign.getId());
             Set<UUID> completedIds = loadCompletedIds(uc.getUser().getId(), campaign.getId());
-            if (!campaign.isProgressionAgnostic()
-                    && !prereqsCompleted(difficulty.getId(), graph, completedIds)) {
-                continue;
+            if (!completedIds.contains(difficulty.getId())
+                    && meetsRequirement(difficulty, score)
+                    && (campaign.isProgressionAgnostic()
+                            || prereqsCompleted(difficulty.getId(), graph, completedIds))) {
+                recordQualifyingScore(uc, difficulty, score, graph, completedIds);
+                completedIds.add(difficulty.getId());
             }
-            recordQualifyingScore(uc, difficulty, score, graph, completedIds);
+            sweepBarriers(uc, graph, completedIds);
             sweepMilestonePayouts(uc, graph, completedIds);
             evaluateCampaignCompletion(uc, graph, completedIds);
         }
@@ -155,6 +159,15 @@ public class CampaignEvaluationService {
         if (!campaign.isProgressionAgnostic()) {
             affected.addAll(descendantsOf(campaignId, changedNodeIds));
         }
+        Set<UUID> barrierGates = barrierAffectedRepository.findByAffectedDifficulty_IdIn(affected).stream()
+                .map(a -> a.getBarrier().getId())
+                .collect(Collectors.toCollection(HashSet::new));
+        if (!barrierGates.isEmpty()) {
+            affected.addAll(barrierGates);
+            if (!campaign.isProgressionAgnostic()) {
+                affected.addAll(descendantsOf(campaignId, barrierGates));
+            }
+        }
 
         Set<Long> touchedUsers = new HashSet<>();
         for (UserCampaignScore ucs : userCampaignScoreRepository.findByCampaign_IdAndActiveTrue(campaignId)) {
@@ -209,7 +222,12 @@ public class CampaignEvaluationService {
             return false;
         }
         if (campaign.getCompletionMode() == CampaignCompletionMode.ALL) {
-            return completedIds.containsAll(graph.byId.keySet());
+            for (UUID id : graph.byId.keySet()) {
+                if (!graph.barrierIds.contains(id) && !completedIds.contains(id)) {
+                    return false;
+                }
+            }
+            return true;
         }
         return graph.terminalId != null && hasCompletedPath(graph.terminalId, graph, completedIds);
     }
@@ -235,7 +253,7 @@ public class CampaignEvaluationService {
         Map<UUID, Score> scoreByMapDifficulty = scoreRepository
                 .findByUser_IdAndMapDifficulty_IdInAndActiveTrue(userId, mapDifficultyIds).stream()
                 .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
-        Graph graph = graphFromDifficulties(campaignId, difficulties);
+        Graph graph = loadGraph(campaignId);
 
         boolean agnostic = campaign.isProgressionAgnostic();
         Set<UUID> completedIds = loadCompletedIds(userId, campaignId);
@@ -258,6 +276,11 @@ public class CampaignEvaluationService {
                 }
                 recordQualifyingScore(uc, difficulty, score, graph, completedIds);
                 completedIds.add(difficulty.getId());
+                changed = true;
+            }
+            int beforeBarrier = completedIds.size();
+            sweepBarriers(uc, graph, completedIds);
+            if (completedIds.size() > beforeBarrier) {
                 changed = true;
             }
             if (agnostic) {
@@ -298,6 +321,112 @@ public class CampaignEvaluationService {
             }
         }
         userCampaignScoreRepository.save(record);
+    }
+
+    private void sweepBarriers(UserCampaign uc, Graph graph, Set<UUID> completedIds) {
+        if (graph.barrierIds.isEmpty()) {
+            return;
+        }
+        List<UUID> pending = graph.barrierIds.stream()
+                .filter(id -> !completedIds.contains(id))
+                .toList();
+        if (pending.isEmpty()) {
+            return;
+        }
+        Map<UUID, List<UUID>> affectedByBarrier = new HashMap<>();
+        Set<UUID> affectedNodeIds = new HashSet<>();
+        for (CampaignBarrierAffectedDifficulty link : barrierAffectedRepository.findByBarrier_IdIn(pending)) {
+            UUID barrierId = link.getBarrier().getId();
+            UUID nodeId = link.getAffectedDifficulty().getId();
+            affectedByBarrier.computeIfAbsent(barrierId, k -> new ArrayList<>()).add(nodeId);
+            affectedNodeIds.add(nodeId);
+        }
+        if (affectedNodeIds.isEmpty()) {
+            return;
+        }
+        Map<UUID, UUID> mapDiffByNode = new HashMap<>();
+        for (UUID nodeId : affectedNodeIds) {
+            CampaignDifficulty node = graph.byId.get(nodeId);
+            if (node != null && node.getMapDifficulty() != null) {
+                mapDiffByNode.put(nodeId, node.getMapDifficulty().getId());
+            }
+        }
+        List<UUID> mapDiffIds = mapDiffByNode.values().stream().distinct().toList();
+        Map<UUID, Score> scoreByMapDiff = mapDiffIds.isEmpty()
+                ? Map.of()
+                : scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(uc.getUser().getId(), mapDiffIds)
+                        .stream()
+                        .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
+
+        for (UUID barrierId : pending) {
+            List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
+            if (affected.isEmpty()) {
+                continue;
+            }
+            List<Score> scores = new ArrayList<>(affected.size());
+            for (UUID nodeId : affected) {
+                UUID mapDiffId = mapDiffByNode.get(nodeId);
+                Score s = mapDiffId != null ? scoreByMapDiff.get(mapDiffId) : null;
+                if (s != null && !s.isPartial()) {
+                    scores.add(s);
+                }
+            }
+            if (barrierSatisfied(graph.byId.get(barrierId), scores, affected.size())) {
+                recordBarrierCompletion(uc, graph.byId.get(barrierId));
+                completedIds.add(barrierId);
+            }
+        }
+    }
+
+    private void recordBarrierCompletion(UserCampaign uc, CampaignDifficulty barrier) {
+        boolean exists = userCampaignScoreRepository
+                .findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(uc.getUser().getId(), barrier.getId())
+                .isPresent();
+        if (exists) {
+            return;
+        }
+        UserCampaignScore record = UserCampaignScore.builder()
+                .user(uc.getUser())
+                .campaign(uc.getCampaign())
+                .campaignDifficulty(barrier)
+                .score(null)
+                .submittedAt(Instant.now())
+                .build();
+        if (uc.getCampaign().getStatus() == CampaignStatus.CURATED) {
+            payDifficultyRewards(uc.getUser().getId(), barrier);
+            record.setRewardsPaid(true);
+        }
+        userCampaignScoreRepository.save(record);
+    }
+
+    private boolean barrierSatisfied(CampaignDifficulty barrier, List<Score> scores, int affectedCount) {
+        if (barrier == null || affectedCount == 0 || scores.size() < affectedCount) {
+            return false;
+        }
+        BarrierConditionType type = barrier.getBarrierConditionType();
+        if (type == null) {
+            return false;
+        }
+        if (type == BarrierConditionType.FC) {
+            return scores.stream().allMatch(CampaignScoreMetrics::isFullCombo);
+        }
+        BigDecimal target = barrier.getBarrierConditionValue();
+        if (target == null) {
+            return false;
+        }
+        List<BigDecimal> values = new ArrayList<>(scores.size());
+        for (Score s : scores) {
+            BigDecimal v = CampaignScoreMetrics.barrierMetric(s, type);
+            if (v == null) {
+                return false;
+            }
+            values.add(v);
+        }
+        BigDecimal aggregate = CampaignScoreMetrics.isMaxAggregate(type)
+                ? CampaignScoreMetrics.max(values)
+                : CampaignScoreMetrics.average(values);
+        int cmp = aggregate.compareTo(target);
+        return type.isLowerBetter() ? cmp <= 0 : cmp >= 0;
     }
 
     private void sweepMilestonePayouts(UserCampaign uc, Graph graph, Set<UUID> completedIds) {
@@ -345,6 +474,9 @@ public class CampaignEvaluationService {
     }
 
     private static boolean isMilestone(CampaignDifficulty difficulty) {
+        if (difficulty.isBarrier()) {
+            return false;
+        }
         String label = difficulty.getCheckpointLabel();
         return label != null && !label.isBlank();
     }
@@ -357,11 +489,15 @@ public class CampaignEvaluationService {
     private Graph graphFromDifficulties(UUID campaignId, List<CampaignDifficulty> difficulties) {
         Map<UUID, CampaignDifficulty> byId = new HashMap<>(difficulties.size() * 2);
         Map<UUID, CampaignPrerequisiteMode> modes = new HashMap<>(difficulties.size() * 2);
+        Set<UUID> barrierIds = new HashSet<>();
         for (CampaignDifficulty d : difficulties) {
             byId.put(d.getId(), d);
             modes.put(d.getId(), d.getPrerequisiteMode() != null
                     ? d.getPrerequisiteMode()
                     : CampaignPrerequisiteMode.OR);
+            if (d.isBarrier()) {
+                barrierIds.add(d.getId());
+            }
         }
         List<CampaignDifficultyPath> paths = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaignId);
@@ -383,7 +519,10 @@ public class CampaignEvaluationService {
                 terminalId = id;
             }
         }
-        return new Graph(byId, prereqs, modes, terminalId);
+        if (terminalId != null && barrierIds.contains(terminalId)) {
+            terminalId = null;
+        }
+        return new Graph(byId, prereqs, modes, barrierIds, terminalId);
     }
 
     private Set<UUID> loadCompletedIds(Long userId, UUID campaignId) {
@@ -462,6 +601,7 @@ public class CampaignEvaluationService {
             Map<UUID, CampaignDifficulty> byId,
             Map<UUID, List<UUID>> prereqs,
             Map<UUID, CampaignPrerequisiteMode> modes,
+            Set<UUID> barrierIds,
             UUID terminalId) {
     }
 
@@ -490,28 +630,12 @@ public class CampaignEvaluationService {
     }
 
     private boolean meetsRequirement(CampaignDifficulty difficulty, Score score) {
-        BigDecimal value = computeRequirementValue(difficulty, score);
-        return value != null && value.compareTo(difficulty.getRequirementValue()) >= 0;
-    }
-
-    private BigDecimal computeRequirementValue(CampaignDifficulty difficulty, Score score) {
-        return switch (difficulty.getRequirementType()) {
-            case ACC -> computeAccuracy(score);
-            case AP -> score.getAp();
-            case SCORE -> score.getScore() != null ? BigDecimal.valueOf(score.getScore()) : null;
-            case STREAK_115 -> score.getStreak115() != null ? BigDecimal.valueOf(score.getStreak115()) : null;
-            case FC -> score.getMisses() != null && score.getBadCuts() != null
-                    && score.getMisses() == 0 && score.getBadCuts() == 0 ? BigDecimal.ONE : BigDecimal.ZERO;
-        };
-    }
-
-    private BigDecimal computeAccuracy(Score score) {
-        MapDifficulty md = score.getMapDifficulty();
-        if (md == null || md.getMaxScore() == null || md.getMaxScore() == 0 || score.getScoreNoMods() == null) {
-            return null;
+        BigDecimal value = CampaignScoreMetrics.requirementValue(score, difficulty.getRequirementType());
+        if (value == null) {
+            return false;
         }
-        return BigDecimal.valueOf(score.getScoreNoMods())
-                .divide(BigDecimal.valueOf(md.getMaxScore()), 6, RoundingMode.HALF_UP);
+        int cmp = value.compareTo(difficulty.getRequirementValue());
+        return difficulty.getRequirementType() == CampaignRequirementType.RANK ? cmp <= 0 : cmp >= 0;
     }
 
     private Instant effectiveTime(Score score) {

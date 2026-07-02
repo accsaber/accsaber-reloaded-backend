@@ -21,6 +21,7 @@ public class MissionCompletedResponse {
     private String userName;
     private String userCountry;
     private String userAvatarUrl;
+    private String userCdnAvatarUrl;
     private Instant completedAt;
 
     private UUID missionId;

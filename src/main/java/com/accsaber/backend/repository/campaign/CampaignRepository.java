@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 
 public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
@@ -26,6 +27,9 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
         Page<Campaign> findByActiveTrueAndStatusIn(Collection<CampaignStatus> statuses, Pageable pageable);
 
         Optional<Campaign> findByIdAndActiveTrue(UUID id);
+
+        @Query("SELECT c.creator.id FROM Campaign c WHERE c.id = :id AND c.active = true")
+        Optional<Long> findCreatorIdByIdAndActiveTrue(@Param("id") UUID id);
 
         List<Campaign> findByIdInAndActiveTrue(Collection<UUID> ids);
 
@@ -45,7 +49,11 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         WHERE c.active = true
                           AND (:hasStatus = false OR c.status IN :statuses)
                           AND (:creatorId IS NULL OR c.creator.id = :creatorId)
-                          AND (:privileged = true OR c.status <> :draftStatus OR c.creator.id = :viewerId)
+                          AND (:privileged = true OR c.status <> :draftStatus OR c.creator.id = :viewerId
+                              OR EXISTS (
+                                  SELECT 1 FROM CampaignCollaborator cc
+                                  WHERE cc.campaign = c AND cc.user.id = :viewerId
+                                    AND cc.active = true AND cc.status = :collaboratorStatus))
                           AND (:hasTags = false OR EXISTS (
                               SELECT 1 FROM CampaignTagLink ctl
                               WHERE ctl.campaign = c AND ctl.campaignTag.id IN :tagIds))
@@ -59,5 +67,6 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         @Param("draftStatus") CampaignStatus draftStatus,
                         @Param("viewerId") Long viewerId,
                         @Param("privileged") boolean privileged,
+                        @Param("collaboratorStatus") CampaignCollaboratorStatus collaboratorStatus,
                         Pageable pageable);
 }

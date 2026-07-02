@@ -25,6 +25,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
@@ -35,6 +36,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
@@ -47,6 +49,8 @@ import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.campaign.CampaignBarrierAffectedDifficultyRepository;
+import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
 import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyPathRepository;
@@ -54,12 +58,14 @@ import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagLinkRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagRepository;
+import com.accsaber.backend.repository.campaign.CampaignTextRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.player.RichTextSanitizer;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignServiceTest {
@@ -67,9 +73,17 @@ class CampaignServiceTest {
         @Mock
         private CampaignRepository campaignRepository;
         @Mock
+        private CampaignCollaboratorRepository campaignCollaboratorRepository;
+        @Mock
         private CampaignDifficultyRepository campaignDifficultyRepository;
         @Mock
         private CampaignDifficultyPathRepository campaignDifficultyPathRepository;
+        @Mock
+        private CampaignBarrierAffectedDifficultyRepository barrierAffectedRepository;
+        @Mock
+        private CampaignTextRepository campaignTextRepository;
+        @Mock
+        private RichTextSanitizer richTextSanitizer;
         @Mock
         private CampaignDifficultyItemRepository campaignDifficultyItemRepository;
         @Mock
@@ -94,6 +108,8 @@ class CampaignServiceTest {
         private DuplicateUserService duplicateUserService;
         @Mock
         private CampaignEvaluationService campaignEvaluationService;
+        @Mock
+        private CdnProperties cdnProperties;
 
         @InjectMocks
         private CampaignService campaignService;
@@ -487,8 +503,8 @@ class CampaignServiceTest {
 
                         UserCampaignResponse result = campaignService.startCampaign(creator.getId(), campaign.getId());
 
-                        assertThat(result.getStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
-                        assertThat(result.getCampaignId()).isEqualTo(campaign.getId());
+                        assertThat(result.getProgressStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
+                        assertThat(result.getCampaign().getId()).isEqualTo(campaign.getId());
                 }
         }
 
@@ -534,7 +550,7 @@ class CampaignServiceTest {
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
-                        assertThat(result.getTotalDifficulties()).isEqualTo(1);
+                        assertThat(result.getCampaign().getDifficultyCount()).isEqualTo(1);
                         assertThat(result.getCompletedDifficulties()).isEqualTo(1);
                         assertThat(result.getDifficulties().get(0).isCompleted()).isTrue();
                         assertThat(result.getDifficulties().get(0).getUserValue())
@@ -645,6 +661,65 @@ class CampaignServiceTest {
 
                         assertThatThrownBy(() -> campaignService.deactivateCampaign(id))
                                         .isInstanceOf(ResourceNotFoundException.class);
+                }
+        }
+
+        @Nested
+        class CollaboratorEditing {
+
+                @Test
+                void allowsAcceptedCollaboratorToEditDraft() {
+                        UpdateCampaignRequest request = new UpdateCampaignRequest();
+                        request.setName("Renamed");
+                        Long collaboratorId = 777L;
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignCollaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
+                                        campaign.getId(), collaboratorId, CampaignCollaboratorStatus.ACCEPTED))
+                                        .thenReturn(true);
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.updateCampaignAsPlayer(collaboratorId,
+                                        campaign.getId(), request);
+
+                        assertThat(result.getName()).isEqualTo("Renamed");
+                }
+
+                @Test
+                void rejectsNonOwnerNonCollaboratorEdit() {
+                        UpdateCampaignRequest request = new UpdateCampaignRequest();
+                        request.setName("Nope");
+                        Long strangerId = 888L;
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignCollaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
+                                        campaign.getId(), strangerId, CampaignCollaboratorStatus.ACCEPTED))
+                                        .thenReturn(false);
+
+                        assertThatThrownBy(() -> campaignService.updateCampaignAsPlayer(strangerId,
+                                        campaign.getId(), request))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void rejectsCollaboratorEditWhenNotDraft() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        UpdateCampaignRequest request = new UpdateCampaignRequest();
+                        request.setName("Nope");
+                        Long collaboratorId = 777L;
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignCollaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
+                                        campaign.getId(), collaboratorId, CampaignCollaboratorStatus.ACCEPTED))
+                                        .thenReturn(true);
+
+                        assertThatThrownBy(() -> campaignService.updateCampaignAsPlayer(collaboratorId,
+                                        campaign.getId(), request))
+                                        .isInstanceOf(ValidationException.class);
                 }
         }
 }

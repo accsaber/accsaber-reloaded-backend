@@ -14,6 +14,7 @@ public class SupporterCreditsRowResponse {
     Long userId;
     String name;
     String avatarUrl;
+    String cdnAvatarUrl;
     String country;
     String currentTier;
     String currentTierDisplayName;
@@ -26,6 +27,7 @@ public class SupporterCreditsRowResponse {
                 .userId(account.getUserId())
                 .name(account.getUser().getName())
                 .avatarUrl(account.getUser().getAvatarUrl())
+                .cdnAvatarUrl(account.getUser().getCdnAvatarUrl())
                 .country(account.getUser().getCountry())
                 .lifetimeSupportedCents(account.getLifetimeSupportedCents())
                 .tierStartedAt(account.getTierStartedAt())

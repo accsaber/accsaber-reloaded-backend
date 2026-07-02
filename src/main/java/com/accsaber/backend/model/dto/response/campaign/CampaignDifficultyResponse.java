@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 
@@ -28,6 +29,7 @@ public class CampaignDifficultyResponse {
     private CampaignPrerequisiteMode prerequisiteMode;
     private String description;
     private String checkpointLabel;
+    private CampaignLabelPosition checkpointLabelPosition;
     private String checkpointAvatarUrl;
     private String checkpointColor;
     private String borderColor;
