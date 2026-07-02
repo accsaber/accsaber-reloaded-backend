@@ -58,6 +58,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
 import com.accsaber.backend.model.entity.campaign.CampaignTagLink;
 import com.accsaber.backend.model.entity.campaign.CampaignText;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
+import com.accsaber.backend.model.entity.campaign.UserCampaignScore;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -80,7 +81,6 @@ import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
@@ -113,7 +113,6 @@ public class CampaignService {
     private final CampaignTagLinkRepository campaignTagLinkRepository;
     private final UserCampaignRepository userCampaignRepository;
     private final UserCampaignScoreRepository userCampaignScoreRepository;
-    private final ScoreRepository scoreRepository;
     private final UserRepository userRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final ItemRepository itemRepository;
@@ -125,6 +124,7 @@ public class CampaignService {
     public Page<CampaignResponse> findCampaigns(Collection<CampaignStatus> statuses,
             Collection<UUID> tagIds,
             Long creatorId,
+            String search,
             Long viewerId,
             boolean privileged,
             Pageable pageable) {
@@ -132,11 +132,12 @@ public class CampaignService {
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         Collection<CampaignStatus> statusArg = hasStatus ? statuses : List.of(CampaignStatus.DRAFT);
         Collection<UUID> tagArg = hasTags ? tagIds : List.of(new UUID(0L, 0L));
+        String searchArg = search != null && !search.isBlank() ? search.trim() : null;
         Long resolvedViewerId = viewerId != null ? duplicateUserService.resolvePrimaryUserId(viewerId) : null;
         return paginateAsResponses(
                 campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
-                        CampaignCollaboratorStatus.ACCEPTED, pageable));
+                        CampaignCollaboratorStatus.ACCEPTED, searchArg, pageable));
     }
 
     public Page<CampaignResponse> findCurationQueue(Pageable pageable) {
@@ -881,24 +882,25 @@ public class CampaignService {
                         p -> p.getCampaignDifficulty().getId(),
                         Collectors.mapping(p -> p.getComesFromCampaignDifficulty().getId(), Collectors.toList())));
 
-        List<UUID> mapDifficultyIds = difficulties.stream()
-                .map(d -> d.getMapDifficulty().getId())
-                .toList();
-        Map<UUID, Score> scoreByMapDifficulty = mapDifficultyIds.isEmpty()
-                ? Map.of()
-                : scoreRepository
-                        .findByUser_IdAndMapDifficulty_IdInAndActiveTrue(resolvedUserId, mapDifficultyIds).stream()
-                        .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
-
         Map<UUID, UserCampaign> userCampaignByCampaign = userCampaignRepository
                 .findByUser_IdAndCampaign_IdInAndActiveTrue(resolvedUserId, campaignIds).stream()
                 .collect(Collectors.toMap(uc -> uc.getCampaign().getId(), uc -> uc));
 
-        Map<UUID, Set<UUID>> completedByCampaign = userCampaignScoreRepository
-                .findByUser_IdAndCampaign_IdInAndActiveTrue(resolvedUserId, campaignIds).stream()
+        List<UserCampaignScore> campaignScores = userCampaignScoreRepository
+                .findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(resolvedUserId, campaignIds);
+        Map<UUID, Set<UUID>> completedByCampaign = campaignScores.stream()
                 .collect(Collectors.groupingBy(
                         ucs -> ucs.getCampaign().getId(),
                         Collectors.mapping(ucs -> ucs.getCampaignDifficulty().getId(), Collectors.toSet())));
+        Map<UUID, Map<UUID, Score>> campaignScoreByDifficulty = new HashMap<>();
+        for (UserCampaignScore ucs : campaignScores) {
+            if (ucs.getScore() == null) {
+                continue;
+            }
+            campaignScoreByDifficulty
+                    .computeIfAbsent(ucs.getCampaign().getId(), k -> new HashMap<>())
+                    .put(ucs.getCampaignDifficulty().getId(), ucs.getScore());
+        }
 
         Map<UUID, List<CampaignTagResponse>> tagsByCampaign = loadTagsByCampaignIds(campaignIds);
 
@@ -915,7 +917,7 @@ public class CampaignService {
         Map<UUID, List<CampaignItemAwardResponse>> itemsByNode = loadDifficultyItemsBulk(nodeIds);
 
         return new ProgressContext(difficultiesByCampaign, barriersByCampaign, prereqsByDifficulty,
-                scoreByMapDifficulty, userCampaignByCampaign, completedByCampaign, tagsByCampaign,
+                campaignScoreByDifficulty, userCampaignByCampaign, completedByCampaign, tagsByCampaign,
                 affectedByBarrier, itemsByNode);
     }
 
@@ -923,6 +925,7 @@ public class CampaignService {
         UUID campaignId = campaign.getId();
         List<CampaignDifficulty> difficulties = ctx.difficultiesByCampaign.getOrDefault(campaignId, List.of());
         Set<UUID> completedIds = ctx.completedByCampaign.getOrDefault(campaignId, Set.of());
+        Map<UUID, Score> campaignScores = ctx.campaignScoreByDifficulty.getOrDefault(campaignId, Map.of());
         UserCampaign uc = ctx.userCampaignByCampaign.get(campaignId);
         boolean agnostic = campaign.isProgressionAgnostic();
 
@@ -933,7 +936,7 @@ public class CampaignService {
                     ? d.getPrerequisiteMode()
                     : CampaignPrerequisiteMode.OR;
             boolean unlocked = agnostic || prereqsSatisfied(prereqs, mode, completedIds);
-            Score score = ctx.scoreByMapDifficulty.get(d.getMapDifficulty().getId());
+            Score score = campaignScores.get(d.getId());
             BigDecimal userValue = score != null
                     ? CampaignScoreMetrics.requirementValue(score, d.getRequirementType())
                     : null;
@@ -1020,7 +1023,7 @@ public class CampaignService {
             Map<UUID, List<CampaignDifficulty>> difficultiesByCampaign,
             Map<UUID, List<CampaignDifficulty>> barriersByCampaign,
             Map<UUID, List<UUID>> prereqsByDifficulty,
-            Map<UUID, Score> scoreByMapDifficulty,
+            Map<UUID, Map<UUID, Score>> campaignScoreByDifficulty,
             Map<UUID, UserCampaign> userCampaignByCampaign,
             Map<UUID, Set<UUID>> completedByCampaign,
             Map<UUID, List<CampaignTagResponse>> tagsByCampaign,
@@ -1707,16 +1710,12 @@ public class CampaignService {
         if (type == null || affected.isEmpty()) {
             return null;
         }
-        Map<UUID, MapDifficulty> mapByNode = new HashMap<>();
-        for (CampaignDifficulty node : ctx.difficultiesByCampaign
-                .getOrDefault(barrier.getCampaign().getId(), List.of())) {
-            mapByNode.put(node.getId(), node.getMapDifficulty());
-        }
+        Map<UUID, Score> campaignScores = ctx.campaignScoreByDifficulty
+                .getOrDefault(barrier.getCampaign().getId(), Map.of());
         List<BigDecimal> values = new ArrayList<>(affected.size());
         boolean allFullCombo = true;
         for (UUID nodeId : affected) {
-            MapDifficulty md = mapByNode.get(nodeId);
-            Score score = md != null ? ctx.scoreByMapDifficulty.get(md.getId()) : null;
+            Score score = campaignScores.get(nodeId);
             if (score == null) {
                 return null;
             }

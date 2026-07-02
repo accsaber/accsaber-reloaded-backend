@@ -57,6 +57,13 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                           AND (:hasTags = false OR EXISTS (
                               SELECT 1 FROM CampaignTagLink ctl
                               WHERE ctl.campaign = c AND ctl.campaignTag.id IN :tagIds))
+                          AND (CAST(:search AS string) IS NULL
+                              OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                              OR LOWER(c.creator.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                              OR EXISTS (
+                                  SELECT 1 FROM CampaignCollaborator sc
+                                  WHERE sc.campaign = c AND sc.active = true AND sc.status = :collaboratorStatus
+                                    AND LOWER(sc.user.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))))
                         """)
         Page<Campaign> findFiltered(
                         @Param("hasStatus") boolean hasStatus,
@@ -68,5 +75,6 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         @Param("viewerId") Long viewerId,
                         @Param("privileged") boolean privileged,
                         @Param("collaboratorStatus") CampaignCollaboratorStatus collaboratorStatus,
+                        @Param("search") String search,
                         Pageable pageable);
 }

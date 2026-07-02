@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -535,7 +534,7 @@ class CampaignServiceTest {
                         when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of(uc));
-                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                        when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of(ucs));
                         when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
@@ -543,10 +542,6 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
                                         .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
@@ -565,16 +560,12 @@ class CampaignServiceTest {
                                         .requirementType(CampaignRequirementType.ACC)
                                         .requirementValue(new BigDecimal("0.90"))
                                         .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
-                        Score score = Score.builder()
-                                        .id(UUID.randomUUID()).user(creator).mapDifficulty(mapDifficulty)
-                                        .score(950000).scoreNoMods(950000).build();
-
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
                         when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of());
-                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                        when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of());
                         when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
@@ -582,17 +573,12 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
                                         .thenReturn(List.of());
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of(score));
-
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
                         assertThat(result.getCompletedDifficulties()).isEqualTo(0);
                         assertThat(result.getDifficulties().get(0).isCompleted()).isFalse();
-                        assertThat(result.getDifficulties().get(0).getUserValue())
-                                        .isEqualByComparingTo(new BigDecimal("0.95"));
+                        assertThat(result.getDifficulties().get(0).getUserValue()).isNull();
                 }
 
                 @Test
@@ -615,7 +601,7 @@ class CampaignServiceTest {
                         when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of());
-                        when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
+                        when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(eq(creator.getId()),
                                         anyCollection()))
                                         .thenReturn(List.of());
                         when(campaignDifficultyRepository.findActiveWithMapByCampaignIds(anyCollection()))
@@ -628,10 +614,6 @@ class CampaignServiceTest {
                                                                         .id(UUID.randomUUID()).campaignDifficulty(b)
                                                                         .comesFromCampaignDifficulty(a).active(true)
                                                                         .build()));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(eq(creator.getId()),
-                                        anyList()))
-                                        .thenReturn(List.of());
-
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 

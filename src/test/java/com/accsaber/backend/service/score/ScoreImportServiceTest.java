@@ -40,6 +40,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.campaign.CampaignEvaluationService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
@@ -88,6 +89,8 @@ class ScoreImportServiceTest {
         @Mock
         private MilestoneEvaluationService milestoneEvaluationService;
         @Mock
+        private CampaignEvaluationService campaignEvaluationService;
+        @Mock
         private MapDifficultyStatisticsService mapDifficultyStatisticsService;
         @Mock
         private ScoreRankingService scoreRankingService;
@@ -111,7 +114,8 @@ class ScoreImportServiceTest {
                                 mapDifficultyRepository, mapComplexityService, scoreRepository,
                                 scoreModifierLinkRepository, modifierRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
-                                milestoneEvaluationService, mapDifficultyStatisticsService, scoreRankingService,
+                                milestoneEvaluationService, campaignEvaluationService,
+                                mapDifficultyStatisticsService, scoreRankingService,
                                 duplicateUserService, skillService, songSuggestService, levelUpAwardService);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",

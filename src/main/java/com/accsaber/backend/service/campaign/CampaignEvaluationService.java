@@ -92,9 +92,9 @@ public class CampaignEvaluationService {
             }
             Graph graph = loadGraph(campaign.getId());
             Set<UUID> completedIds = loadCompletedIds(uc.getUser().getId(), campaign.getId());
-            if (!completedIds.contains(difficulty.getId())
-                    && meetsRequirement(difficulty, score)
-                    && (campaign.isProgressionAgnostic()
+            boolean alreadyCompleted = completedIds.contains(difficulty.getId());
+            if (meetsRequirement(difficulty, score)
+                    && (alreadyCompleted || campaign.isProgressionAgnostic()
                             || prereqsCompleted(difficulty.getId(), graph, completedIds))) {
                 recordQualifyingScore(uc, difficulty, score, graph, completedIds);
                 completedIds.add(difficulty.getId());
@@ -236,47 +236,66 @@ public class CampaignEvaluationService {
     public void importLegacyScores(Long userId, UUID campaignId) {
         UserCampaign uc = userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(userId, campaignId)
                 .orElse(null);
-        if (uc == null) {
+        if (uc == null || !uc.getCampaign().isLegacy()) {
             return;
         }
-        Campaign campaign = uc.getCampaign();
-        if (!campaign.isLegacy()) {
-            return;
-        }
+        settleCampaignFromCurrentScores(uc);
+    }
 
+    @Transactional
+    public void evaluateInProgressForUser(Long userId) {
+        List<UserCampaign> inProgress = userCampaignRepository
+                .findByUser_IdAndStatusAndActiveTrue(userId, UserCampaignStatus.IN_PROGRESS);
+        for (UserCampaign uc : inProgress) {
+            Campaign campaign = uc.getCampaign();
+            if (campaign.isActive() && campaign.getStatus() != CampaignStatus.DRAFT) {
+                settleCampaignFromCurrentScores(uc);
+            }
+        }
+    }
+
+    private void settleCampaignFromCurrentScores(UserCampaign uc) {
+        Campaign campaign = uc.getCampaign();
         List<CampaignDifficulty> difficulties = campaignDifficultyRepository
-                .findActiveWithMapByCampaignId(campaignId);
+                .findActiveWithMapByCampaignId(campaign.getId());
         if (difficulties.isEmpty()) {
             return;
         }
         List<UUID> mapDifficultyIds = difficulties.stream().map(d -> d.getMapDifficulty().getId()).toList();
         Map<UUID, Score> scoreByMapDifficulty = scoreRepository
-                .findByUser_IdAndMapDifficulty_IdInAndActiveTrue(userId, mapDifficultyIds).stream()
+                .findByUser_IdAndMapDifficulty_IdInAndActiveTrue(uc.getUser().getId(), mapDifficultyIds).stream()
                 .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
-        Graph graph = loadGraph(campaignId);
-
+        if (scoreByMapDifficulty.isEmpty()) {
+            return;
+        }
+        Graph graph = loadGraph(campaign.getId());
         boolean agnostic = campaign.isProgressionAgnostic();
-        Set<UUID> completedIds = loadCompletedIds(userId, campaignId);
+        boolean startFilter = !campaign.isLegacy() && uc.getStartedAt() != null;
+        Set<UUID> completedIds = loadCompletedIds(uc.getUser().getId(), campaign.getId());
         boolean changed = true;
         while (changed) {
             changed = false;
             for (CampaignDifficulty difficulty : difficulties) {
-                if (completedIds.contains(difficulty.getId())) {
-                    continue;
-                }
                 Score score = scoreByMapDifficulty.get(difficulty.getMapDifficulty().getId());
-                if (score == null || score.isPartial()) {
+                if (score == null || score.isPartial() || !meetsRequirement(difficulty, score)) {
                     continue;
                 }
-                if (!meetsRequirement(difficulty, score)) {
-                    continue;
+                if (startFilter) {
+                    Instant t = effectiveTime(score);
+                    if (t != null && t.isBefore(uc.getStartedAt())) {
+                        continue;
+                    }
                 }
-                if (!agnostic && !prereqsCompleted(difficulty.getId(), graph, completedIds)) {
+                boolean alreadyCompleted = completedIds.contains(difficulty.getId());
+                if (!alreadyCompleted && !agnostic
+                        && !prereqsCompleted(difficulty.getId(), graph, completedIds)) {
                     continue;
                 }
                 recordQualifyingScore(uc, difficulty, score, graph, completedIds);
-                completedIds.add(difficulty.getId());
-                changed = true;
+                if (!alreadyCompleted) {
+                    completedIds.add(difficulty.getId());
+                    changed = true;
+                }
             }
             int beforeBarrier = completedIds.size();
             sweepBarriers(uc, graph, completedIds);
@@ -297,6 +316,10 @@ public class CampaignEvaluationService {
                 .findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(uc.getUser().getId(), difficulty.getId())
                 .orElse(null);
         if (existing != null) {
+            if (isBetterScore(score, existing.getScore())) {
+                existing.setScore(score);
+                userCampaignScoreRepository.save(existing);
+            }
             return;
         }
         UserCampaignScore record = UserCampaignScore.builder()
@@ -344,19 +367,12 @@ public class CampaignEvaluationService {
         if (affectedNodeIds.isEmpty()) {
             return;
         }
-        Map<UUID, UUID> mapDiffByNode = new HashMap<>();
-        for (UUID nodeId : affectedNodeIds) {
-            CampaignDifficulty node = graph.byId.get(nodeId);
-            if (node != null && node.getMapDifficulty() != null) {
-                mapDiffByNode.put(nodeId, node.getMapDifficulty().getId());
-            }
-        }
-        List<UUID> mapDiffIds = mapDiffByNode.values().stream().distinct().toList();
-        Map<UUID, Score> scoreByMapDiff = mapDiffIds.isEmpty()
-                ? Map.of()
-                : scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(uc.getUser().getId(), mapDiffIds)
-                        .stream()
-                        .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
+        Map<UUID, Score> campaignScoreByDifficulty = userCampaignScoreRepository
+                .findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(uc.getUser().getId(), uc.getCampaign().getId())
+                .stream()
+                .filter(ucs -> ucs.getScore() != null)
+                .collect(Collectors.toMap(ucs -> ucs.getCampaignDifficulty().getId(), UserCampaignScore::getScore,
+                        (a, b) -> a));
 
         for (UUID barrierId : pending) {
             List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
@@ -365,8 +381,7 @@ public class CampaignEvaluationService {
             }
             List<Score> scores = new ArrayList<>(affected.size());
             for (UUID nodeId : affected) {
-                UUID mapDiffId = mapDiffByNode.get(nodeId);
-                Score s = mapDiffId != null ? scoreByMapDiff.get(mapDiffId) : null;
+                Score s = campaignScoreByDifficulty.get(nodeId);
                 if (s != null && !s.isPartial()) {
                     scores.add(s);
                 }
@@ -636,6 +651,19 @@ public class CampaignEvaluationService {
         }
         int cmp = value.compareTo(difficulty.getRequirementValue());
         return difficulty.getRequirementType() == CampaignRequirementType.RANK ? cmp <= 0 : cmp >= 0;
+    }
+
+    private boolean isBetterScore(Score candidate, Score current) {
+        if (current == null) {
+            return true;
+        }
+        if (candidate.getAp() == null) {
+            return false;
+        }
+        if (current.getAp() == null) {
+            return true;
+        }
+        return candidate.getAp().compareTo(current.getAp()) > 0;
     }
 
     private Instant effectiveTime(Score score) {

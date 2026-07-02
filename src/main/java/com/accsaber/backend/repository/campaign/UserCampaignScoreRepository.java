@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +23,13 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
         List<UserCampaignScore> findByCampaign_IdAndActiveTrue(UUID campaignId);
 
         List<UserCampaignScore> findByUser_IdAndCampaign_IdInAndActiveTrue(Long userId, Collection<UUID> campaignIds);
+
+        @EntityGraph(attributePaths = { "score", "score.mapDifficulty" })
+        List<UserCampaignScore> findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(Long userId,
+                        Collection<UUID> campaignIds);
+
+        @EntityGraph(attributePaths = { "score", "score.mapDifficulty" })
+        List<UserCampaignScore> findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(Long userId, UUID campaignId);
 
         List<UserCampaignScore> findByCampaign_IdAndActiveTrueAndRewardsPaidFalse(UUID campaignId);
 

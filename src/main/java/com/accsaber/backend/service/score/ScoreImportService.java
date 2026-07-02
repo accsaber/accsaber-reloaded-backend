@@ -39,6 +39,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.campaign.CampaignEvaluationService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
@@ -75,6 +76,7 @@ public class ScoreImportService {
     private final OverallStatisticsService overallStatisticsService;
     private final RankingService rankingService;
     private final MilestoneEvaluationService milestoneEvaluationService;
+    private final CampaignEvaluationService campaignEvaluationService;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
@@ -449,6 +451,12 @@ public class ScoreImportService {
             log.error("Milestone evaluation failed during user {} backfill: {}", userId, e.getMessage());
         }
 
+        try {
+            campaignEvaluationService.evaluateInProgressForUser(userId);
+        } catch (Exception e) {
+            log.error("Campaign evaluation failed during user {} backfill: {}", userId, e.getMessage());
+        }
+
         log.info("User backfill recalc complete for user {} ({} difficulties, {} categories)",
                 userId, affectedDifficulties.size(), affectedCategoryIds.size());
     }
@@ -742,6 +750,7 @@ public class ScoreImportService {
                         }
                         var evaluation = milestoneEvaluationService.evaluateAllForUser(userId);
                         awardMilestoneXp(userId, evaluation);
+                        campaignEvaluationService.evaluateInProgressForUser(userId);
                     } catch (Exception ex) {
                         log.error("Per-user post-backfill work failed for user {}: {}",
                                 userId, ex.getMessage());
@@ -787,6 +796,7 @@ public class ScoreImportService {
                         statisticsService.recalculate(userId, categoryId, false);
                         var evaluation = milestoneEvaluationService.evaluateAllForUser(userId);
                         awardMilestoneXp(userId, evaluation);
+                        campaignEvaluationService.evaluateInProgressForUser(userId);
                     } catch (Exception e) {
                         log.error("Batch recalc failed for user {} on difficulty {}: {}", userId, difficulty.getId(),
                                 e.getMessage());

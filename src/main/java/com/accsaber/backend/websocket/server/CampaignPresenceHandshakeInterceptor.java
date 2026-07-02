@@ -22,7 +22,9 @@ import com.accsaber.backend.service.staff.JwtService;
 
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CampaignPresenceHandshakeInterceptor implements HandshakeInterceptor {
@@ -46,6 +48,8 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
         String token = params.getFirst("token");
         String campaignParam = params.getFirst("campaignId");
         if (token == null || token.isBlank() || campaignParam == null || campaignParam.isBlank()) {
+            log.warn("Presence handshake rejected: missing token or campaignId (hasToken={}, campaignId={})",
+                    token != null && !token.isBlank(), campaignParam);
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
@@ -53,6 +57,7 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
         try {
             campaignId = UUID.fromString(campaignParam);
         } catch (IllegalArgumentException e) {
+            log.warn("Presence handshake rejected: invalid campaignId '{}'", campaignParam);
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
@@ -61,21 +66,26 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
         try {
             jwtService.validateToken(token);
             if (!JwtService.TYPE_PLAYER.equals(jwtService.extractTokenType(token))) {
+                log.warn("Presence handshake rejected: non-player token for campaign {}", campaignId);
                 response.setStatusCode(HttpStatus.UNAUTHORIZED);
                 return false;
             }
             userId = duplicateUserService.resolvePrimaryUserId(jwtService.extractPlayerId(token));
         } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Presence handshake rejected: invalid token for campaign {} ({})", campaignId, e.getMessage());
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
 
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null || user.isBanned()) {
+            log.warn("Presence handshake rejected: user {} inactive or banned (campaign {})", userId, campaignId);
             response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
         if (!isMember(campaignId, userId)) {
+            log.warn("Presence handshake rejected: user {} is not owner or accepted collaborator of campaign {}",
+                    userId, campaignId);
             response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
@@ -85,6 +95,7 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
         attributes.put(ATTR_USER_NAME, user.getName());
         attributes.put(ATTR_USER_AVATAR,
                 user.getCdnAvatarUrl() != null ? user.getCdnAvatarUrl() : user.getAvatarUrl());
+        log.debug("Presence handshake accepted: user {} on campaign {}", userId, campaignId);
         return true;
     }
 
