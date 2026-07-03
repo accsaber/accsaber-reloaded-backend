@@ -379,6 +379,18 @@ class CampaignServiceTest {
                         assertThatThrownBy(() -> campaignService.unpublishAsPlayer(creator.getId(), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
+
+                @Test
+                void rejectsCuratedCampaign() {
+                        campaign.setStatus(CampaignStatus.CURATED);
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.unpublishAsPlayer(creator.getId(), campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+
+                        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.CURATED);
+                }
         }
 
         @Nested

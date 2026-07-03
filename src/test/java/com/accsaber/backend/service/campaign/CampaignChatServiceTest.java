@@ -23,6 +23,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignChatMessage;
@@ -49,6 +50,8 @@ class CampaignChatServiceTest {
     @Mock
     private DuplicateUserService duplicateUserService;
     @Mock
+    private CampaignChatRateLimitService chatRateLimitService;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -73,6 +76,7 @@ class CampaignChatServiceTest {
                 campaignId, 50L, CampaignCollaboratorStatus.ACCEPTED)).thenReturn(true);
         when(campaignRepository.findByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(campaign));
         when(userRepository.findByIdAndActiveTrue(50L)).thenReturn(Optional.of(user));
+        when(chatRateLimitService.tryAcquire(50L)).thenReturn(true);
         when(chatRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var response = service.sendMessage(50L, campaignId, "  hello team  ");
@@ -84,6 +88,7 @@ class CampaignChatServiceTest {
         assertThat(captor.getValue().getCampaign().getId()).isEqualTo(campaignId);
         assertThat(response.getContent()).isEqualTo("hello team");
         assertThat(response.getAuthorName()).isEqualTo("Tester");
+        verify(chatRepository).pruneToNewest(campaignId, 1000);
         verify(eventPublisher).publishEvent(any(CampaignChatMessageEvent.class));
     }
 
@@ -92,11 +97,24 @@ class CampaignChatServiceTest {
         when(campaignRepository.findCreatorIdByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(50L));
         when(campaignRepository.findByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(campaign));
         when(userRepository.findByIdAndActiveTrue(50L)).thenReturn(Optional.of(user));
+        when(chatRateLimitService.tryAcquire(50L)).thenReturn(true);
         when(chatRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.sendMessage(50L, campaignId, "owner here");
 
         verify(chatRepository).save(any());
+    }
+
+    @Test
+    void throttledSenderIsRejectedBeforePersisting() {
+        when(campaignRepository.findCreatorIdByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(50L));
+        when(chatRateLimitService.tryAcquire(50L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.sendMessage(50L, campaignId, "spam"))
+                .isInstanceOf(TooManyRequestsException.class);
+
+        verify(chatRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

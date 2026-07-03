@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.campaign.CampaignChatMessageResponse;
 import com.accsaber.backend.model.event.CampaignChatMessageEvent;
@@ -29,11 +30,14 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class CampaignChatService {
 
+    private static final int MAX_MESSAGES_PER_CAMPAIGN = 1000;
+
     private final CampaignChatMessageRepository chatRepository;
     private final CampaignRepository campaignRepository;
     private final CampaignCollaboratorRepository collaboratorRepository;
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
+    private final CampaignChatRateLimitService chatRateLimitService;
     private final ApplicationEventPublisher eventPublisher;
 
     public Page<CampaignChatMessageResponse> getMessages(Long playerId, UUID campaignId, Pageable pageable) {
@@ -47,6 +51,9 @@ public class CampaignChatService {
     public CampaignChatMessageResponse sendMessage(Long playerId, UUID campaignId, String content) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(playerId);
         assertParticipant(campaignId, resolvedUserId);
+        if (!chatRateLimitService.tryAcquire(resolvedUserId)) {
+            throw new TooManyRequestsException("You're sending messages too quickly. Please slow down.");
+        }
         Campaign campaign = campaignRepository.findByIdAndActiveTrue(campaignId)
                 .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
         User author = userRepository.findByIdAndActiveTrue(resolvedUserId)
@@ -57,6 +64,7 @@ public class CampaignChatService {
                 .content(content.trim())
                 .build();
         CampaignChatMessageResponse response = toResponse(chatRepository.save(message));
+        chatRepository.pruneToNewest(campaignId, MAX_MESSAGES_PER_CAMPAIGN);
         eventPublisher.publishEvent(new CampaignChatMessageEvent(campaignId, response));
         return response;
     }
