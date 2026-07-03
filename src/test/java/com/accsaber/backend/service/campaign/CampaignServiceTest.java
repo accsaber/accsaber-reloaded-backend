@@ -23,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
@@ -702,6 +704,35 @@ class CampaignServiceTest {
                         assertThatThrownBy(() -> campaignService.updateCampaignAsPlayer(collaboratorId,
                                         campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
+                }
+        }
+
+        @Nested
+        class AbandonAndList {
+
+                @Test
+                void abandonMarksUserCampaignAbandoned() {
+                        UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID())
+                                        .user(creator).campaign(campaign)
+                                        .status(UserCampaignStatus.IN_PROGRESS).active(true).build();
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(
+                                        creator.getId(), campaign.getId())).thenReturn(Optional.of(uc));
+
+                        campaignService.abandonCampaign(creator.getId(), campaign.getId());
+
+                        assertThat(uc.getStatus()).isEqualTo(UserCampaignStatus.ABANDONED);
+                        verify(userCampaignRepository).save(uc);
+                }
+
+                @Test
+                void listExcludesAbandonedCampaigns() {
+                        when(userCampaignRepository.findActiveByUserExcludingStatus(eq(creator.getId()),
+                                        eq(UserCampaignStatus.ABANDONED), any())).thenReturn(Page.<UserCampaign>empty());
+
+                        campaignService.listUserCampaigns(creator.getId(), PageRequest.of(0, 20));
+
+                        verify(userCampaignRepository).findActiveByUserExcludingStatus(
+                                        creator.getId(), UserCampaignStatus.ABANDONED, PageRequest.of(0, 20));
                 }
         }
 }

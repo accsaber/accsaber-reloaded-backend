@@ -1,0 +1,67 @@
+# --- Racial / ethnic ---
+nigger
+niggers
+nigga
+niggas
+nigra
+coon
+coons
+darkie
+darky
+spic
+spics
+wetback
+wetbacks
+beaner
+beaners
+chink
+chinks
+gook
+gooks
+jap
+japs
+paki
+pakis
+raghead
+ragheads
+towelhead
+towelheads
+sandnigger
+wop
+wops
+gyppo
+redskin
+redskins
+
+# --- Antisemitic ---
+kike
+kikes
+yid
+yids
+heeb
+heebs
+
+# --- Homophobic ---
+faggot
+faggots
+faggy
+fag
+fags
+dyke
+dykes
+poofter
+poofters
+
+# --- Transphobic ---
+tranny
+trannies
+shemale
+shemales
+
+# --- Ableist ---
+retard
+retards
+retarded
+spastic
+spaz
+mongoloid

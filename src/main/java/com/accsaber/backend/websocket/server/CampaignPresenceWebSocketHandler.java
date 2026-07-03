@@ -70,6 +70,10 @@ public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    public void broadcastChat(UUID campaignId, String json) {
+        sendToRoom(campaignId, null, json);
+    }
+
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         remove(session);

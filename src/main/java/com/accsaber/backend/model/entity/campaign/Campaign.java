@@ -92,6 +92,9 @@ public class Campaign {
     @Column(name = "background_url")
     private String backgroundUrl;
 
+    @Column(name = "background_color")
+    private String backgroundColor;
+
     @Column(name = "icon_url")
     private String iconUrl;
 

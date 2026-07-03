@@ -2,6 +2,8 @@ package com.accsaber.backend.model.dto.request.campaign;
 
 import java.math.BigDecimal;
 
+import com.accsaber.backend.validation.CleanText;
+
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -11,6 +13,7 @@ import lombok.Data;
 public class CampaignTextRequest {
 
     @Size(max = 4000)
+    @CleanText
     private String content;
 
     @NotNull

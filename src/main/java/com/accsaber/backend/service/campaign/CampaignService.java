@@ -213,6 +213,7 @@ public class CampaignService {
                         : CampaignCompletionMode.TERMINAL)
                 .playlistExportEnabled(Boolean.TRUE.equals(request.getPlaylistExportEnabled()))
                 .backgroundUrl(request.getBackgroundUrl())
+                .backgroundColor(request.getBackgroundColor())
                 .iconUrl(request.getIconUrl())
                 .build();
 
@@ -259,6 +260,9 @@ public class CampaignService {
         }
         if (request.getBackgroundUrl() != null) {
             campaign.setBackgroundUrl(request.getBackgroundUrl());
+        }
+        if (request.getBackgroundColor() != null) {
+            campaign.setBackgroundColor(request.getBackgroundColor());
         }
         if (request.getIconUrl() != null) {
             campaign.setIconUrl(request.getIconUrl());
@@ -803,7 +807,8 @@ public class CampaignService {
 
     public Page<UserCampaignResponse> listUserCampaigns(Long userId, Pageable pageable) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
-        Page<UserCampaign> page = userCampaignRepository.findByUser_IdAndActiveTrue(resolvedUserId, pageable);
+        Page<UserCampaign> page = userCampaignRepository.findActiveByUserExcludingStatus(
+                resolvedUserId, UserCampaignStatus.ABANDONED, pageable);
         List<UUID> campaignIds = page.getContent().stream()
                 .map(uc -> uc.getCampaign().getId())
                 .distinct()
@@ -1561,6 +1566,7 @@ public class CampaignService {
                 .curatorNotes(campaign.getCuratorNotes())
                 .playlistExportEnabled(campaign.isPlaylistExportEnabled())
                 .backgroundUrl(campaign.getBackgroundUrl())
+                .backgroundColor(campaign.getBackgroundColor())
                 .iconUrl(campaign.getIconUrl())
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
@@ -1624,6 +1630,7 @@ public class CampaignService {
                 .completionXp(campaign.getCompletionXp())
                 .playlistExportEnabled(campaign.isPlaylistExportEnabled())
                 .backgroundUrl(campaign.getBackgroundUrl())
+                .backgroundColor(campaign.getBackgroundColor())
                 .iconUrl(campaign.getIconUrl())
                 .difficultyCount(difficultyCount)
                 .tags(tags)

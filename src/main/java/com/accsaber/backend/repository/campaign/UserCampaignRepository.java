@@ -24,13 +24,14 @@ public interface UserCampaignRepository extends JpaRepository<UserCampaign, UUID
             SELECT uc FROM UserCampaign uc
             JOIN FETCH uc.campaign c
             LEFT JOIN FETCH c.creator
-            WHERE uc.user.id = :userId AND uc.active = true
+            WHERE uc.user.id = :userId AND uc.active = true AND uc.status <> :excludedStatus
             """,
             countQuery = """
             SELECT COUNT(uc) FROM UserCampaign uc
-            WHERE uc.user.id = :userId AND uc.active = true
+            WHERE uc.user.id = :userId AND uc.active = true AND uc.status <> :excludedStatus
             """)
-    Page<UserCampaign> findByUser_IdAndActiveTrue(@Param("userId") Long userId, Pageable pageable);
+    Page<UserCampaign> findActiveByUserExcludingStatus(@Param("userId") Long userId,
+            @Param("excludedStatus") UserCampaignStatus excludedStatus, Pageable pageable);
 
     List<UserCampaign> findByUser_IdAndStatusAndActiveTrue(Long userId, UserCampaignStatus status);
 }

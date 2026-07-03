@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
+import com.accsaber.backend.validation.CleanText;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -26,9 +27,11 @@ public class AddCampaignDifficultyRequest {
     private BigDecimal requirementValue;
 
     @Size(max = 1000)
+    @CleanText
     private String description;
 
     @Size(max = 80)
+    @CleanText
     private String checkpointLabel;
 
     private CampaignLabelPosition checkpointLabelPosition;
