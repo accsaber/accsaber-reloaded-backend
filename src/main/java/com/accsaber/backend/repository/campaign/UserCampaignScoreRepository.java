@@ -1,5 +1,7 @@
 package com.accsaber.backend.repository.campaign;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +47,24 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
                         """)
         List<Object[]> countActiveByUserAndCampaignIds(@Param("userId") Long userId,
                         @Param("campaignIds") Collection<UUID> campaignIds);
+
+        @Query(value = """
+                        SELECT COALESCE(SUM(xp), 0) FROM (
+                            SELECT cd.xp AS xp
+                            FROM user_campaign_scores ucs
+                            JOIN campaign_difficulties cd ON ucs.campaign_difficulty_id = cd.id
+                            JOIN campaigns c ON ucs.campaign_id = c.id
+                            WHERE ucs.user_id = :userId AND ucs.submitted_at >= :since
+                              AND ucs.active = true AND c.status = 'curated' AND cd.active = true
+                            UNION ALL
+                            SELECT c.completion_xp AS xp
+                            FROM user_campaigns uc
+                            JOIN campaigns c ON uc.campaign_id = c.id
+                            WHERE uc.user_id = :userId AND uc.completed_at >= :since
+                              AND uc.active = true AND uc.status = 'completed' AND c.status = 'curated'
+                        ) parts
+                        """, nativeQuery = true)
+        BigDecimal sumCampaignXpGainedSince(@Param("userId") Long userId, @Param("since") Instant since);
 
         @Modifying
         @Query("delete from UserCampaignScore ucs where ucs.campaignDifficulty.id = :campaignDifficultyId")

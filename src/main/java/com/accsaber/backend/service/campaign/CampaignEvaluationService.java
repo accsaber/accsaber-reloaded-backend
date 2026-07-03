@@ -622,7 +622,7 @@ public class CampaignEvaluationService {
 
     private void payDifficultyRewards(Long userId, CampaignDifficulty difficulty) {
         if (difficulty.getXp() != null && difficulty.getXp().signum() > 0) {
-            levelUpAwardService.addXp(userId, difficulty.getXp());
+            levelUpAwardService.addCampaignXp(userId, difficulty.getXp());
         }
         List<CampaignDifficultyItem> items = campaignDifficultyItemRepository
                 .findByCampaignDifficulty_Id(difficulty.getId());
@@ -635,7 +635,7 @@ public class CampaignEvaluationService {
 
     private void payCompletionRewards(Long userId, Campaign campaign) {
         if (campaign.getCompletionXp() != null && campaign.getCompletionXp().signum() > 0) {
-            levelUpAwardService.addXp(userId, campaign.getCompletionXp());
+            levelUpAwardService.addCampaignXp(userId, campaign.getCompletionXp());
         }
         List<CampaignCompletionItem> items = campaignCompletionItemRepository.findByCampaign_Id(campaign.getId());
         for (CampaignCompletionItem item : items) {

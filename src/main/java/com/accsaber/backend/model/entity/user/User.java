@@ -58,6 +58,10 @@ public class User {
     @Builder.Default
     private BigDecimal missionXp = BigDecimal.ZERO;
 
+    @Column(name = "campaign_xp", nullable = false, precision = 20, scale = 6)
+    @Builder.Default
+    private BigDecimal campaignXp = BigDecimal.ZERO;
+
     @Column(name = "xp_ranking")
     private Integer xpRanking;
 

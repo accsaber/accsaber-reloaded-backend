@@ -15,5 +15,6 @@ public class UserAllStatisticsResponse {
     private BigDecimal totalMilestoneXp;
     private BigDecimal totalMilestoneSetBonusXp;
     private BigDecimal totalMissionXp;
+    private BigDecimal totalCampaignXp;
     private List<UserCategoryStatisticsResponse> categories;
 }

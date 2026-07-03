@@ -67,6 +67,8 @@ class StatisticsServiceTest {
         @Mock
         private UserMissionRepository userMissionRepository;
         @Mock
+        private com.accsaber.backend.repository.campaign.UserCampaignScoreRepository userCampaignScoreRepository;
+        @Mock
         private DuplicateUserService duplicateUserService;
         @Mock
         private com.accsaber.backend.service.skill.SkillService skillService;
@@ -121,6 +123,8 @@ class StatisticsServiceTest {
                 lenient().when(userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(any()))
                                 .thenReturn(BigDecimal.ZERO);
                 lenient().when(userMissionRepository.sumMissionXpGainedLast24h(any()))
+                                .thenReturn(BigDecimal.ZERO);
+                lenient().when(userCampaignScoreRepository.sumCampaignXpGainedSince(any(), any()))
                                 .thenReturn(BigDecimal.ZERO);
         }
 
@@ -463,6 +467,18 @@ class StatisticsServiceTest {
                                         "true_acc");
 
                         assertThat(result).isEmpty();
+                }
+
+                @Test
+                void campaignXpDiffIsSurfacedInDailyChange() {
+                        when(userCampaignScoreRepository.sumCampaignXpGainedSince(any(), any()))
+                                        .thenReturn(new BigDecimal("42.000000"));
+
+                        Optional<StatsDiffResponse> result = statisticsService.computeStatsDiff(user.getId(),
+                                        "true_acc");
+
+                        assertThat(result).isPresent();
+                        assertThat(result.get().getCampaignXpDiff()).isEqualByComparingTo("42.000000");
                 }
 
                 @Test

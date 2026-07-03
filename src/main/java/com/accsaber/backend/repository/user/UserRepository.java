@@ -99,6 +99,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.missionXp = u.missionXp + :xp WHERE u.id = :id")
     void addMissionXp(@Param("id") Long id, @Param("xp") BigDecimal xp);
 
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.campaignXp = u.campaignXp + :xp WHERE u.id = :id")
+    void addCampaignXp(@Param("id") Long id, @Param("xp") BigDecimal xp);
+
     @Query("SELECT u.totalXp FROM User u WHERE u.id = :id")
     java.util.Optional<BigDecimal> findTotalXpById(@Param("id") Long id);
 
@@ -112,6 +117,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 + COALESCE(cx.campaign_difficulty_xp, 0)
                 + COALESCE(cmx.campaign_completion_xp, 0)
                 + COALESCE(u.mission_xp, 0),
+            campaign_xp = COALESCE(cx.campaign_difficulty_xp, 0) + COALESCE(cmx.campaign_completion_xp, 0),
             updated_at = NOW()
             FROM (
                 SELECT user_id, SUM(xp_gained) AS score_xp FROM scores GROUP BY user_id

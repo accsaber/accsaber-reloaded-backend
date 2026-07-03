@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN campaign_xp NUMERIC(20,6) NOT NULL DEFAULT 0;
