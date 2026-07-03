@@ -89,6 +89,18 @@ public class Campaign {
     @Builder.Default
     private boolean playlistExportEnabled = false;
 
+    @Column(name = "total_upvotes", nullable = false)
+    @Builder.Default
+    private int totalUpvotes = 0;
+
+    @Column(name = "total_downvotes", nullable = false)
+    @Builder.Default
+    private int totalDownvotes = 0;
+
+    @Column(name = "vote_score", nullable = false)
+    @Builder.Default
+    private double voteScore = 0.0;
+
     @Column(name = "background_url")
     private String backgroundUrl;
 

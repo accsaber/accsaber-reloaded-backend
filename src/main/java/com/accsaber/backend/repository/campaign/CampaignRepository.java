@@ -9,8 +9,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
@@ -27,6 +30,10 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
         Page<Campaign> findByActiveTrueAndStatusIn(Collection<CampaignStatus> statuses, Pageable pageable);
 
         Optional<Campaign> findByIdAndActiveTrue(UUID id);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT c FROM Campaign c WHERE c.id = :id AND c.active = true")
+        Optional<Campaign> findByIdAndActiveTrueForUpdate(@Param("id") UUID id);
 
         @Query("SELECT c.creator.id FROM Campaign c WHERE c.id = :id AND c.active = true")
         Optional<Long> findCreatorIdByIdAndActiveTrue(@Param("id") UUID id);

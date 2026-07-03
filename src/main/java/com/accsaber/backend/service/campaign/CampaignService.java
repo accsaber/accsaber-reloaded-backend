@@ -40,6 +40,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignVoteResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
@@ -57,6 +58,8 @@ import com.accsaber.backend.model.entity.campaign.CampaignTag;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
 import com.accsaber.backend.model.entity.campaign.CampaignTagLink;
 import com.accsaber.backend.model.entity.campaign.CampaignText;
+import com.accsaber.backend.model.entity.campaign.CampaignVote;
+import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
 import com.accsaber.backend.model.entity.campaign.UserCampaignScore;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
@@ -77,6 +80,7 @@ import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagLinkRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagRepository;
 import com.accsaber.backend.repository.campaign.CampaignTextRepository;
+import com.accsaber.backend.repository.campaign.CampaignVoteRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
@@ -85,6 +89,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
 import com.accsaber.backend.util.CampaignScoreMetrics;
+import com.accsaber.backend.util.WilsonScore;
 
 import lombok.RequiredArgsConstructor;
 
@@ -113,6 +118,7 @@ public class CampaignService {
     private final CampaignTagLinkRepository campaignTagLinkRepository;
     private final UserCampaignRepository userCampaignRepository;
     private final UserCampaignScoreRepository userCampaignScoreRepository;
+    private final CampaignVoteRepository campaignVoteRepository;
     private final UserRepository userRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final ItemRepository itemRepository;
@@ -137,23 +143,44 @@ public class CampaignService {
         return paginateAsResponses(
                 campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
-                        CampaignCollaboratorStatus.ACCEPTED, searchArg, pageable));
+                        CampaignCollaboratorStatus.ACCEPTED, searchArg, pageable),
+                resolvedViewerId);
     }
 
     public Page<CampaignResponse> findCurationQueue(Pageable pageable) {
-        return paginateAsResponses(campaignRepository.findByActiveTrueAndSeekingCurationTrue(pageable));
+        return paginateAsResponses(campaignRepository.findByActiveTrueAndSeekingCurationTrue(pageable), null);
     }
 
-    private Page<CampaignResponse> paginateAsResponses(Page<Campaign> page) {
+    private Page<CampaignResponse> paginateAsResponses(Page<Campaign> page, Long resolvedViewerId) {
         if (!page.hasContent()) {
             return page.map(c -> toCampaignResponse(c, List.of(), 0));
         }
         List<UUID> ids = page.getContent().stream().map(Campaign::getId).distinct().toList();
         Map<UUID, List<CampaignTagResponse>> tagsByCampaign = loadTagsByCampaignIds(ids);
         Map<UUID, Integer> diffCountByCampaign = countMap(campaignDifficultyRepository.countActiveByCampaignIds(ids));
+        Map<UUID, CampaignVoteDirection> votesByCampaign = loadViewerVotes(resolvedViewerId, ids);
         return page.map(c -> toCampaignResponse(c,
                 tagsByCampaign.getOrDefault(c.getId(), List.of()),
-                diffCountByCampaign.getOrDefault(c.getId(), 0)));
+                diffCountByCampaign.getOrDefault(c.getId(), 0),
+                votesByCampaign.get(c.getId())));
+    }
+
+    private Map<UUID, CampaignVoteDirection> loadViewerVotes(Long resolvedViewerId, Collection<UUID> campaignIds) {
+        if (resolvedViewerId == null || campaignIds.isEmpty()) {
+            return Map.of();
+        }
+        return campaignVoteRepository.findByUser_IdAndCampaign_IdIn(resolvedViewerId, campaignIds).stream()
+                .collect(Collectors.toMap(v -> v.getCampaign().getId(), CampaignVote::getVote));
+    }
+
+    private CampaignVoteDirection viewerVoteFor(UUID campaignId, Long viewerId) {
+        if (viewerId == null) {
+            return null;
+        }
+        Long resolvedViewerId = duplicateUserService.resolvePrimaryUserId(viewerId);
+        return campaignVoteRepository.findByCampaign_IdAndUser_Id(campaignId, resolvedViewerId)
+                .map(CampaignVote::getVote)
+                .orElse(null);
     }
 
     public CampaignDetailResponse findCampaignById(UUID campaignId, Long viewerId, boolean privileged) {
@@ -161,7 +188,7 @@ public class CampaignService {
         if (isDraftHiddenFrom(campaign, viewerId, privileged)) {
             throw new ResourceNotFoundException("Campaign", campaignId);
         }
-        return buildDetailResponse(campaign);
+        return buildDetailResponse(campaign, viewerId);
     }
 
     public CampaignDetailResponse findCampaignBySlug(String slug, Long viewerId, boolean privileged) {
@@ -170,7 +197,7 @@ public class CampaignService {
         if (isDraftHiddenFrom(campaign, viewerId, privileged)) {
             throw new ResourceNotFoundException("Campaign", slug);
         }
-        return buildDetailResponse(campaign);
+        return buildDetailResponse(campaign, viewerId);
     }
 
     private boolean isDraftHiddenFrom(Campaign campaign, Long viewerId, boolean privileged) {
@@ -803,6 +830,48 @@ public class CampaignService {
         }
         userCampaign.setStatus(UserCampaignStatus.ABANDONED);
         userCampaignRepository.save(userCampaign);
+    }
+
+    @Transactional
+    public CampaignVoteResponse vote(Long userId, UUID campaignId, CampaignVoteDirection direction) {
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+        Campaign campaign = campaignRepository.findByIdAndActiveTrueForUpdate(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
+        if (campaign.getStatus() == CampaignStatus.DRAFT) {
+            throw new ValidationException("Cannot vote on a draft campaign");
+        }
+        User user = userRepository.findByIdAndActiveTrue(resolvedUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", resolvedUserId));
+        CampaignVote vote = campaignVoteRepository.findByCampaign_IdAndUser_Id(campaignId, resolvedUserId)
+                .orElseGet(() -> CampaignVote.builder().campaign(campaign).user(user).build());
+        vote.setVote(direction);
+        campaignVoteRepository.save(vote);
+        return recountVotes(campaign, direction);
+    }
+
+    @Transactional
+    public CampaignVoteResponse clearVote(Long userId, UUID campaignId) {
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+        Campaign campaign = campaignRepository.findByIdAndActiveTrueForUpdate(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
+        campaignVoteRepository.deleteByCampaign_IdAndUser_Id(campaignId, resolvedUserId);
+        return recountVotes(campaign, null);
+    }
+
+    private CampaignVoteResponse recountVotes(Campaign campaign, CampaignVoteDirection myVote) {
+        long up = campaignVoteRepository.countByCampaign_IdAndVote(campaign.getId(), CampaignVoteDirection.UP);
+        long down = campaignVoteRepository.countByCampaign_IdAndVote(campaign.getId(), CampaignVoteDirection.DOWN);
+        campaign.setTotalUpvotes((int) up);
+        campaign.setTotalDownvotes((int) down);
+        campaign.setVoteScore(WilsonScore.lowerBound(up, up + down));
+        campaignRepository.save(campaign);
+        return CampaignVoteResponse.builder()
+                .campaignId(campaign.getId())
+                .totalUpvotes((int) up)
+                .totalDownvotes((int) down)
+                .voteScore(campaign.getVoteScore())
+                .myVote(myVote)
+                .build();
     }
 
     public Page<UserCampaignResponse> listUserCampaigns(Long userId, Pageable pageable) {
@@ -1512,7 +1581,7 @@ public class CampaignService {
                 .toList();
     }
 
-    private CampaignDetailResponse buildDetailResponse(Campaign campaign) {
+    private CampaignDetailResponse buildDetailResponse(Campaign campaign, Long viewerId) {
         UUID campaignId = campaign.getId();
         List<CampaignDifficulty> difficulties = campaignDifficultyRepository
                 .findActiveWithMapByCampaignId(campaignId);
@@ -1568,6 +1637,10 @@ public class CampaignService {
                 .backgroundUrl(campaign.getBackgroundUrl())
                 .backgroundColor(campaign.getBackgroundColor())
                 .iconUrl(campaign.getIconUrl())
+                .totalUpvotes(campaign.getTotalUpvotes())
+                .totalDownvotes(campaign.getTotalDownvotes())
+                .voteScore(campaign.getVoteScore())
+                .myVote(viewerVoteFor(campaignId, viewerId))
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
                 .createdAt(campaign.getCreatedAt())
@@ -1613,6 +1686,11 @@ public class CampaignService {
 
     private CampaignResponse toCampaignResponse(Campaign campaign, List<CampaignTagResponse> tags,
             int difficultyCount) {
+        return toCampaignResponse(campaign, tags, difficultyCount, null);
+    }
+
+    private CampaignResponse toCampaignResponse(Campaign campaign, List<CampaignTagResponse> tags,
+            int difficultyCount, CampaignVoteDirection myVote) {
         return CampaignResponse.builder()
                 .id(campaign.getId())
                 .creatorId(campaign.getCreator() != null ? campaign.getCreator().getId() : null)
@@ -1633,6 +1711,10 @@ public class CampaignService {
                 .backgroundColor(campaign.getBackgroundColor())
                 .iconUrl(campaign.getIconUrl())
                 .difficultyCount(difficultyCount)
+                .totalUpvotes(campaign.getTotalUpvotes())
+                .totalDownvotes(campaign.getTotalDownvotes())
+                .voteScore(campaign.getVoteScore())
+                .myVote(myVote)
                 .tags(tags)
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())

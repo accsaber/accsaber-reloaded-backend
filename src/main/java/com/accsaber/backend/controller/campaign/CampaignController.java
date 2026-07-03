@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
+import com.accsaber.backend.model.dto.request.campaign.CampaignVoteRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignBarrierRequest;
@@ -40,6 +42,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignVoteResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
@@ -141,6 +144,26 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.abandonCampaign(principal.getUserId(), campaignId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Upvote or downvote a campaign as the authenticated player")
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/{campaignId}/vote")
+    public ResponseEntity<CampaignVoteResponse> voteOnCampaign(
+            @PathVariable UUID campaignId,
+            @Valid @RequestBody CampaignVoteRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(
+                campaignService.vote(principal.getUserId(), campaignId, request.getDirection()));
+    }
+
+    @Operation(summary = "Clear the authenticated player's vote on a campaign")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{campaignId}/vote")
+    public ResponseEntity<CampaignVoteResponse> clearCampaignVote(
+            @PathVariable UUID campaignId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(campaignService.clearVote(principal.getUserId(), campaignId));
     }
 
     @Operation(summary = "List the authenticated player's campaigns")

@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionMode;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
+import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -34,6 +35,10 @@ public class CampaignDetailResponse {
     private String backgroundUrl;
     private String backgroundColor;
     private String iconUrl;
+    private int totalUpvotes;
+    private int totalDownvotes;
+    private double voteScore;
+    private CampaignVoteDirection myVote;
     private Instant submittedAt;
     private Instant curatedAt;
     private Instant createdAt;

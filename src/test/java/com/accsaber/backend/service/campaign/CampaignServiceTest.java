@@ -60,6 +60,7 @@ import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagLinkRepository;
 import com.accsaber.backend.repository.campaign.CampaignTagRepository;
 import com.accsaber.backend.repository.campaign.CampaignTextRepository;
+import com.accsaber.backend.repository.campaign.CampaignVoteRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
@@ -97,6 +98,8 @@ class CampaignServiceTest {
         private UserCampaignRepository userCampaignRepository;
         @Mock
         private UserCampaignScoreRepository userCampaignScoreRepository;
+        @Mock
+        private CampaignVoteRepository campaignVoteRepository;
         @Mock
         private ScoreRepository scoreRepository;
         @Mock
