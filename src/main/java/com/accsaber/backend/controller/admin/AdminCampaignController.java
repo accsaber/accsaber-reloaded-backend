@@ -49,6 +49,7 @@ public class AdminCampaignController {
 
     private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
     private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
+    private static final String CAMPAIGN_CHECKPOINT_SUBDIR = "campaign-checkpoints";
 
     private final CampaignService campaignService;
     private final MediaProcessingService mediaProcessingService;
@@ -220,5 +221,28 @@ public class AdminCampaignController {
     public ResponseEntity<CampaignResponse> deleteIcon(@PathVariable UUID campaignId) {
         mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
         return ResponseEntity.ok(campaignService.setIconUrl(campaignId, null));
+    }
+
+    @Operation(summary = "Upload (or replace) the milestone avatar for a campaign node")
+    @PostMapping(value = "/difficulties/{campaignDifficultyId}/checkpoint-avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignDifficultyResponse> uploadNodeCheckpointAvatar(
+            @PathVariable UUID campaignDifficultyId,
+            @RequestPart("file") MultipartFile file) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_CHECKPOINT_SUBDIR,
+                campaignDifficultyId.toString(), MediaFormat.PNG);
+        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
+        request.setCheckpointAvatarUrl(url);
+        return ResponseEntity.ok(campaignService.updateDifficulty(campaignDifficultyId, request));
+    }
+
+    @Operation(summary = "Remove the milestone avatar for a campaign node")
+    @DeleteMapping("/difficulties/{campaignDifficultyId}/checkpoint-avatar")
+    public ResponseEntity<CampaignDifficultyResponse> deleteNodeCheckpointAvatar(
+            @PathVariable UUID campaignDifficultyId) {
+        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
+        request.setCheckpointAvatarUrl("");
+        CampaignDifficultyResponse result = campaignService.updateDifficulty(campaignDifficultyId, request);
+        mediaProcessingService.deleteIfExists(CAMPAIGN_CHECKPOINT_SUBDIR, campaignDifficultyId.toString());
+        return ResponseEntity.ok(result);
     }
 }

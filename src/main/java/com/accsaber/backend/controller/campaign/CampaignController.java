@@ -63,6 +63,7 @@ public class CampaignController {
 
     private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
     private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
+    private static final String CAMPAIGN_CHECKPOINT_SUBDIR = "campaign-checkpoints";
 
     private final CampaignService campaignService;
     private final MediaProcessingService mediaProcessingService;
@@ -350,6 +351,35 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         CampaignResponse result = campaignService.setIconUrlAsPlayer(principal.getUserId(), campaignId, null);
         mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(summary = "Upload (or replace) the milestone avatar for a node on a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping(value = "/difficulties/{campaignDifficultyId}/checkpoint-avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignDifficultyResponse> uploadMyNodeCheckpointAvatar(
+            @PathVariable UUID campaignDifficultyId,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_CHECKPOINT_SUBDIR,
+                campaignDifficultyId.toString(), MediaFormat.PNG);
+        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
+        request.setCheckpointAvatarUrl(url);
+        return ResponseEntity.ok(
+                campaignService.updateDifficultyAsPlayer(principal.getUserId(), campaignDifficultyId, request));
+    }
+
+    @Operation(summary = "Remove the milestone avatar for a node on a draft campaign the authenticated player can edit")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/difficulties/{campaignDifficultyId}/checkpoint-avatar")
+    public ResponseEntity<CampaignDifficultyResponse> deleteMyNodeCheckpointAvatar(
+            @PathVariable UUID campaignDifficultyId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
+        request.setCheckpointAvatarUrl("");
+        CampaignDifficultyResponse result = campaignService.updateDifficultyAsPlayer(
+                principal.getUserId(), campaignDifficultyId, request);
+        mediaProcessingService.deleteIfExists(CAMPAIGN_CHECKPOINT_SUBDIR, campaignDifficultyId.toString());
         return ResponseEntity.ok(result);
     }
 
