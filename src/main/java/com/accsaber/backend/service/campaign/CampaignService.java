@@ -340,6 +340,9 @@ public class CampaignService {
             campaignDifficultyRepository.saveAll(dirty);
         }
         campaign.setStatus(CampaignStatus.PUBLISHED);
+        if (campaign.getPublishedAt() == null) {
+            campaign.setPublishedAt(Instant.now());
+        }
         return toCampaignResponse(campaignRepository.save(campaign));
     }
 
@@ -1700,6 +1703,7 @@ public class CampaignService {
                 .myVote(viewerVoteFor(campaignId, viewerId))
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
+                .publishedAt(campaign.getPublishedAt())
                 .createdAt(campaign.getCreatedAt())
                 .tags(loadTagResponses(campaignId))
                 .difficulties(difficultyResponses)
@@ -1776,6 +1780,7 @@ public class CampaignService {
                 .tags(tags)
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
+                .publishedAt(campaign.getPublishedAt())
                 .createdAt(campaign.getCreatedAt())
                 .build();
     }

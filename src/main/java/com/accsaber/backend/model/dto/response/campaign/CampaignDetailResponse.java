@@ -42,6 +42,7 @@ public class CampaignDetailResponse {
     private CampaignVoteDirection myVote;
     private Instant submittedAt;
     private Instant curatedAt;
+    private Instant publishedAt;
     private Instant createdAt;
     private List<CampaignTagResponse> tags;
     private List<CampaignDifficultyResponse> difficulties;

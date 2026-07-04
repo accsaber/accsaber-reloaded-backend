@@ -117,6 +117,9 @@ public class Campaign {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
     @Column(name = "curated_at")
     private Instant curatedAt;
 

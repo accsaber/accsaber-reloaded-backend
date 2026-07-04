@@ -43,5 +43,6 @@ public class CampaignResponse {
     private List<CampaignTagResponse> tags;
     private Instant submittedAt;
     private Instant curatedAt;
+    private Instant publishedAt;
     private Instant createdAt;
 }

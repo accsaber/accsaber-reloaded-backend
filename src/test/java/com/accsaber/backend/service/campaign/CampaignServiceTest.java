@@ -296,6 +296,7 @@ class CampaignServiceTest {
                         CampaignResponse result = campaignService.publish(campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                        assertThat(result.getPublishedAt()).isNotNull();
                 }
 
                 @Test
