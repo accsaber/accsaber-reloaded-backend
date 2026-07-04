@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -39,16 +40,37 @@ public final class CampaignScoreMetrics {
         };
     }
 
-    public static BigDecimal barrierMetric(Score score, BarrierConditionType type) {
+    public static BigDecimal bestAccuracy(UserMapDifficultyBests bests) {
+        if (bests.maxScore() == null || bests.maxScore() == 0 || bests.bestScoreNoMods() == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(bests.bestScoreNoMods())
+                .divide(BigDecimal.valueOf(bests.maxScore()), 6, RoundingMode.HALF_UP);
+    }
+
+    public static BigDecimal requirementValue(UserMapDifficultyBests bests, CampaignRequirementType type) {
         return switch (type) {
-            case AVERAGE_ACC, ACC_MAX -> accuracy(score);
-            case AVERAGE_AP, AP_MAX -> score.getAp();
-            case STREAK_115_AVERAGE, STREAK_115_MAX ->
-                score.getStreak115() != null ? BigDecimal.valueOf(score.getStreak115()) : null;
-            case AVERAGE_RANK, MAX_RANK ->
-                score.getRank() != null ? BigDecimal.valueOf(score.getRank()) : null;
+            case ACC -> bestAccuracy(bests);
+            case AP -> bests.bestAp();
+            case SCORE -> toDecimal(bests.bestScore());
+            case STREAK_115 -> toDecimal(bests.bestStreak115());
+            case FC -> bests.hasFullCombo() ? BigDecimal.ONE : BigDecimal.ZERO;
+            case RANK -> toDecimal(bests.bestRank());
+        };
+    }
+
+    public static BigDecimal barrierMetric(UserMapDifficultyBests bests, BarrierConditionType type) {
+        return switch (type) {
+            case AVERAGE_ACC, ACC_MAX -> bestAccuracy(bests);
+            case AVERAGE_AP, AP_MAX -> bests.bestAp();
+            case STREAK_115_AVERAGE, STREAK_115_MAX -> toDecimal(bests.bestStreak115());
+            case AVERAGE_RANK, MAX_RANK -> toDecimal(bests.bestRank());
             case FC -> null;
         };
+    }
+
+    private static BigDecimal toDecimal(Integer value) {
+        return value != null ? BigDecimal.valueOf(value) : null;
     }
 
     public static boolean isMaxAggregate(BarrierConditionType type) {

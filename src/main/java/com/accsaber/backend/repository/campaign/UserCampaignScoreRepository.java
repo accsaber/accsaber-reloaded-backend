@@ -30,9 +30,6 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
         List<UserCampaignScore> findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(Long userId,
                         Collection<UUID> campaignIds);
 
-        @EntityGraph(attributePaths = { "score", "score.mapDifficulty" })
-        List<UserCampaignScore> findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(Long userId, UUID campaignId);
-
         List<UserCampaignScore> findByCampaign_IdAndActiveTrueAndRewardsPaidFalse(UUID campaignId);
 
         List<UserCampaignScore> findByUser_IdAndCampaign_IdAndActiveTrueAndRewardsPaidFalse(Long userId,

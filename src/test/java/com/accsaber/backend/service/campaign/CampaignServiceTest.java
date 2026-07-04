@@ -29,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
@@ -295,6 +296,71 @@ class CampaignServiceTest {
                         CampaignResponse result = campaignService.publish(campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                }
+
+                @Test
+                void ignoresBarriersWithoutPathsWhenCountingSinks() {
+                        CampaignDifficulty a = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty b = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty gate = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).barrier(true)
+                                        .positionX(2).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(a, b, gate));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(
+                                                        com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
+                                                                        .builder()
+                                                                        .id(UUID.randomUUID()).campaignDifficulty(b)
+                                                                        .comesFromCampaignDifficulty(a).active(true)
+                                                                        .build()));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.publish(campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                }
+
+                @Test
+                void rejectsWhenBarrierIsPathDeadEnd() {
+                        CampaignDifficulty a = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty gate = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).barrier(true)
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(a, gate));
+                        when(campaignDifficultyPathRepository
+                                        .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(
+                                                        com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
+                                                                        .builder()
+                                                                        .id(UUID.randomUUID()).campaignDifficulty(gate)
+                                                                        .comesFromCampaignDifficulty(a).active(true)
+                                                                        .build()));
+
+                        assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("barrier");
                 }
 
                 @Test
@@ -591,6 +657,10 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
                                         .thenReturn(List.of());
+                        when(scoreRepository.findBestsByUserAndMapDifficulties(eq(creator.getId()), anyCollection(),
+                                        any()))
+                                        .thenReturn(List.of(new UserMapDifficultyBests(mapDifficulty.getId(),
+                                                        1000000, 950000, 950000, null, null, null, 0)));
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 

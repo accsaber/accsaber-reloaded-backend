@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
@@ -85,6 +86,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
@@ -122,6 +124,7 @@ public class CampaignService {
     private final CampaignVoteRepository campaignVoteRepository;
     private final UserRepository userRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
+    private final ScoreRepository scoreRepository;
     private final ItemRepository itemRepository;
     private final CategoryRepository categoryRepository;
     private final DuplicateUserService duplicateUserService;
@@ -1026,6 +1029,13 @@ public class CampaignService {
         UserCampaign uc = ctx.userCampaignByCampaign.get(campaignId);
         boolean agnostic = campaign.isProgressionAgnostic();
 
+        Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty = loadProgressBests(campaign, uc, difficulties,
+                resolvedUserId);
+        Map<UUID, UUID> mapDifficultyByNode = new HashMap<>();
+        for (CampaignDifficulty d : difficulties) {
+            mapDifficultyByNode.put(d.getId(), d.getMapDifficulty().getId());
+        }
+
         List<CampaignDifficultyProgressResponse> progress = new ArrayList<>(difficulties.size());
         for (CampaignDifficulty d : difficulties) {
             List<UUID> prereqs = ctx.prereqsByDifficulty.getOrDefault(d.getId(), List.of());
@@ -1033,10 +1043,11 @@ public class CampaignService {
                     ? d.getPrerequisiteMode()
                     : CampaignPrerequisiteMode.OR;
             boolean unlocked = agnostic || prereqsSatisfied(prereqs, mode, completedIds);
-            Score score = campaignScores.get(d.getId());
-            BigDecimal userValue = score != null
-                    ? CampaignScoreMetrics.requirementValue(score, d.getRequirementType())
+            UserMapDifficultyBests bests = bestsByMapDifficulty.get(d.getMapDifficulty().getId());
+            BigDecimal userValue = bests != null
+                    ? CampaignScoreMetrics.requirementValue(bests, d.getRequirementType())
                     : null;
+            Score score = campaignScores.get(d.getId());
             Integer userScore = score != null ? score.getScore() : null;
             progress.add(CampaignDifficultyProgressResponse.builder()
                     .node(toCampaignDifficultyResponse(d, prereqs,
@@ -1048,7 +1059,8 @@ public class CampaignService {
                     .build());
         }
 
-        List<BarrierProgressResponse> barrierProgress = buildBarrierProgress(campaignId, ctx, completedIds, agnostic);
+        List<BarrierProgressResponse> barrierProgress = buildBarrierProgress(campaignId, ctx, completedIds, agnostic,
+                bestsByMapDifficulty, mapDifficultyByNode);
         Set<UUID> mapNodeIds = difficulties.stream().map(CampaignDifficulty::getId).collect(Collectors.toSet());
         int completedMapNodes = (int) completedIds.stream().filter(mapNodeIds::contains).count();
 
@@ -1068,7 +1080,8 @@ public class CampaignService {
     }
 
     private List<BarrierProgressResponse> buildBarrierProgress(UUID campaignId, ProgressContext ctx,
-            Set<UUID> completedIds, boolean agnostic) {
+            Set<UUID> completedIds, boolean agnostic,
+            Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty, Map<UUID, UUID> mapDifficultyByNode) {
         List<CampaignDifficulty> barriers = ctx.barriersByCampaign.getOrDefault(campaignId, List.of());
         if (barriers.isEmpty()) {
             return List.of();
@@ -1084,12 +1097,28 @@ public class CampaignService {
             result.add(BarrierProgressResponse.builder()
                     .barrier(toBarrierResponse(b, prereqs, affected,
                             ctx.itemsByNode.getOrDefault(b.getId(), List.of())))
-                    .currentValue(computeBarrierCurrentValue(b, affected, ctx))
+                    .currentValue(computeBarrierCurrentValue(b, affected, bestsByMapDifficulty, mapDifficultyByNode))
                     .satisfied(completedIds.contains(b.getId()))
                     .unlocked(unlocked)
                     .build());
         }
         return result;
+    }
+
+    private Map<UUID, UserMapDifficultyBests> loadProgressBests(Campaign campaign, UserCampaign uc,
+            List<CampaignDifficulty> difficulties, Long resolvedUserId) {
+        if (uc == null || difficulties.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> mapDifficultyIds = difficulties.stream()
+                .map(d -> d.getMapDifficulty().getId())
+                .distinct()
+                .toList();
+        Instant since = !campaign.isLegacy() && uc.getStartedAt() != null
+                ? uc.getStartedAt()
+                : Instant.EPOCH;
+        return scoreRepository.findBestsByUserAndMapDifficulties(resolvedUserId, mapDifficultyIds, since).stream()
+                .collect(Collectors.toMap(UserMapDifficultyBests::mapDifficultyId, b -> b));
     }
 
     private static boolean prereqsSatisfied(List<UUID> prereqs, CampaignPrerequisiteMode mode,
@@ -1523,20 +1552,28 @@ public class CampaignService {
         List<CampaignDifficultyPath> paths = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaignId);
 
-        Set<UUID> allIds = difficulties.stream().map(CampaignDifficulty::getId).collect(Collectors.toSet());
         Set<UUID> barrierIds = difficulties.stream().filter(CampaignDifficulty::isBarrier)
                 .map(CampaignDifficulty::getId).collect(Collectors.toSet());
         Set<UUID> nodesWithOutgoing = paths.stream()
                 .map(p -> p.getComesFromCampaignDifficulty().getId())
                 .collect(Collectors.toSet());
+        Set<UUID> nodesWithIncoming = paths.stream()
+                .map(p -> p.getCampaignDifficulty().getId())
+                .collect(Collectors.toSet());
 
-        Set<UUID> sinks = new HashSet<>(allIds);
+        boolean barrierIsPathDeadEnd = barrierIds.stream()
+                .anyMatch(id -> nodesWithIncoming.contains(id) && !nodesWithOutgoing.contains(id));
+        if (barrierIsPathDeadEnd) {
+            throw new ValidationException("A barrier cannot be the terminal endpoint of a campaign");
+        }
+
+        Set<UUID> sinks = difficulties.stream()
+                .filter(d -> !d.isBarrier())
+                .map(CampaignDifficulty::getId)
+                .collect(Collectors.toCollection(HashSet::new));
         sinks.removeAll(nodesWithOutgoing);
         if (sinks.size() != 1) {
             throw new ValidationException("Campaign graph must have exactly one terminal endpoint");
-        }
-        if (barrierIds.contains(sinks.iterator().next())) {
-            throw new ValidationException("A barrier cannot be the terminal endpoint of a campaign");
         }
     }
 
@@ -1819,25 +1856,23 @@ public class CampaignService {
     }
 
     private BigDecimal computeBarrierCurrentValue(CampaignDifficulty barrier, List<UUID> affected,
-            ProgressContext ctx) {
+            Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty, Map<UUID, UUID> mapDifficultyByNode) {
         BarrierConditionType type = barrier.getBarrierConditionType();
         if (type == null || affected.isEmpty()) {
             return null;
         }
-        Map<UUID, Score> campaignScores = ctx.campaignScoreByDifficulty
-                .getOrDefault(barrier.getCampaign().getId(), Map.of());
         List<BigDecimal> values = new ArrayList<>(affected.size());
         boolean allFullCombo = true;
         for (UUID nodeId : affected) {
-            Score score = campaignScores.get(nodeId);
-            if (score == null) {
+            UserMapDifficultyBests bests = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
+            if (bests == null) {
                 return null;
             }
             if (type == BarrierConditionType.FC) {
-                allFullCombo = allFullCombo && CampaignScoreMetrics.isFullCombo(score);
+                allFullCombo = allFullCombo && bests.hasFullCombo();
                 continue;
             }
-            BigDecimal v = CampaignScoreMetrics.barrierMetric(score, type);
+            BigDecimal v = CampaignScoreMetrics.barrierMetric(bests, type);
             if (v == null) {
                 return null;
             }

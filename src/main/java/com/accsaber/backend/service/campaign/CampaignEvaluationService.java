@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignBarrierAffectedDifficulty;
@@ -265,26 +267,22 @@ public class CampaignEvaluationService {
         Map<UUID, Score> scoreByMapDifficulty = scoreRepository
                 .findByUser_IdAndMapDifficulty_IdInAndActiveTrue(uc.getUser().getId(), mapDifficultyIds).stream()
                 .collect(Collectors.toMap(s -> s.getMapDifficulty().getId(), s -> s, (a, b) -> a));
-        if (scoreByMapDifficulty.isEmpty()) {
+        Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty = loadBests(uc, mapDifficultyIds);
+        if (scoreByMapDifficulty.isEmpty() || bestsByMapDifficulty.isEmpty()) {
             return;
         }
         Graph graph = loadGraph(campaign.getId());
         boolean agnostic = campaign.isProgressionAgnostic();
-        boolean startFilter = !campaign.isLegacy() && uc.getStartedAt() != null;
         Set<UUID> completedIds = loadCompletedIds(uc.getUser().getId(), campaign.getId());
         boolean changed = true;
         while (changed) {
             changed = false;
             for (CampaignDifficulty difficulty : difficulties) {
-                Score score = scoreByMapDifficulty.get(difficulty.getMapDifficulty().getId());
-                if (score == null || score.isPartial() || !meetsRequirement(difficulty, score)) {
+                UUID mapDifficultyId = difficulty.getMapDifficulty().getId();
+                Score score = scoreByMapDifficulty.get(mapDifficultyId);
+                UserMapDifficultyBests bests = bestsByMapDifficulty.get(mapDifficultyId);
+                if (score == null || bests == null || !meetsRequirement(difficulty, bests)) {
                     continue;
-                }
-                if (startFilter) {
-                    Instant t = effectiveTime(score);
-                    if (t != null && t.isBefore(uc.getStartedAt())) {
-                        continue;
-                    }
                 }
                 boolean alreadyCompleted = completedIds.contains(difficulty.getId());
                 if (!alreadyCompleted && !agnostic
@@ -367,30 +365,44 @@ public class CampaignEvaluationService {
         if (affectedNodeIds.isEmpty()) {
             return;
         }
-        Map<UUID, Score> campaignScoreByDifficulty = userCampaignScoreRepository
-                .findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(uc.getUser().getId(), uc.getCampaign().getId())
-                .stream()
-                .filter(ucs -> ucs.getScore() != null)
-                .collect(Collectors.toMap(ucs -> ucs.getCampaignDifficulty().getId(), UserCampaignScore::getScore,
-                        (a, b) -> a));
+        Map<UUID, UUID> mapDifficultyByNode = new HashMap<>();
+        for (UUID nodeId : affectedNodeIds) {
+            CampaignDifficulty node = graph.byId.get(nodeId);
+            if (node != null && node.getMapDifficulty() != null) {
+                mapDifficultyByNode.put(nodeId, node.getMapDifficulty().getId());
+            }
+        }
+        Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty = loadBests(uc, mapDifficultyByNode.values());
 
         for (UUID barrierId : pending) {
             List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
-            if (affected.isEmpty()) {
+            if (affected.isEmpty() || !completedIds.containsAll(affected)) {
                 continue;
             }
-            List<Score> scores = new ArrayList<>(affected.size());
+            List<UserMapDifficultyBests> bests = new ArrayList<>(affected.size());
             for (UUID nodeId : affected) {
-                Score s = campaignScoreByDifficulty.get(nodeId);
-                if (s != null && !s.isPartial()) {
-                    scores.add(s);
+                UserMapDifficultyBests b = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
+                if (b != null) {
+                    bests.add(b);
                 }
             }
-            if (barrierSatisfied(graph.byId.get(barrierId), scores, affected.size())) {
+            if (bests.size() == affected.size() && barrierSatisfied(graph.byId.get(barrierId), bests)) {
                 recordBarrierCompletion(uc, graph.byId.get(barrierId));
                 completedIds.add(barrierId);
             }
         }
+    }
+
+    private Map<UUID, UserMapDifficultyBests> loadBests(UserCampaign uc, Collection<UUID> mapDifficultyIds) {
+        if (mapDifficultyIds.isEmpty()) {
+            return Map.of();
+        }
+        Instant since = !uc.getCampaign().isLegacy() && uc.getStartedAt() != null
+                ? uc.getStartedAt()
+                : Instant.EPOCH;
+        return scoreRepository
+                .findBestsByUserAndMapDifficulties(uc.getUser().getId(), mapDifficultyIds, since).stream()
+                .collect(Collectors.toMap(UserMapDifficultyBests::mapDifficultyId, b -> b));
     }
 
     private void recordBarrierCompletion(UserCampaign uc, CampaignDifficulty barrier) {
@@ -414,8 +426,8 @@ public class CampaignEvaluationService {
         userCampaignScoreRepository.save(record);
     }
 
-    private boolean barrierSatisfied(CampaignDifficulty barrier, List<Score> scores, int affectedCount) {
-        if (barrier == null || affectedCount == 0 || scores.size() < affectedCount) {
+    private boolean barrierSatisfied(CampaignDifficulty barrier, List<UserMapDifficultyBests> bests) {
+        if (barrier == null || bests.isEmpty()) {
             return false;
         }
         BarrierConditionType type = barrier.getBarrierConditionType();
@@ -423,15 +435,15 @@ public class CampaignEvaluationService {
             return false;
         }
         if (type == BarrierConditionType.FC) {
-            return scores.stream().allMatch(CampaignScoreMetrics::isFullCombo);
+            return bests.stream().allMatch(UserMapDifficultyBests::hasFullCombo);
         }
         BigDecimal target = barrier.getBarrierConditionValue();
         if (target == null) {
             return false;
         }
-        List<BigDecimal> values = new ArrayList<>(scores.size());
-        for (Score s : scores) {
-            BigDecimal v = CampaignScoreMetrics.barrierMetric(s, type);
+        List<BigDecimal> values = new ArrayList<>(bests.size());
+        for (UserMapDifficultyBests b : bests) {
+            BigDecimal v = CampaignScoreMetrics.barrierMetric(b, type);
             if (v == null) {
                 return false;
             }
@@ -645,7 +657,14 @@ public class CampaignEvaluationService {
     }
 
     private boolean meetsRequirement(CampaignDifficulty difficulty, Score score) {
-        BigDecimal value = CampaignScoreMetrics.requirementValue(score, difficulty.getRequirementType());
+        return requirementMet(difficulty, CampaignScoreMetrics.requirementValue(score, difficulty.getRequirementType()));
+    }
+
+    private boolean meetsRequirement(CampaignDifficulty difficulty, UserMapDifficultyBests bests) {
+        return requirementMet(difficulty, CampaignScoreMetrics.requirementValue(bests, difficulty.getRequirementType()));
+    }
+
+    private boolean requirementMet(CampaignDifficulty difficulty, BigDecimal value) {
         if (value == null) {
             return false;
         }

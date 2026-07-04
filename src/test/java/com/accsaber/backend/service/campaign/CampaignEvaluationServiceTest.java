@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignBarrierAffectedDifficulty;
@@ -156,6 +158,11 @@ class CampaignEvaluationServiceTest {
                 return CampaignBarrierAffectedDifficulty.builder().barrier(barrier).affectedDifficulty(node).build();
         }
 
+        private UserMapDifficultyBests bests(MapDifficulty md, int bestScoreNoMods) {
+                return new UserMapDifficultyBests(md.getId(), md.getMaxScore(), bestScoreNoMods, bestScoreNoMods,
+                                null, null, null, 0);
+        }
+
         @Test
         void barrierRecordedWhenConditionMet() {
                 campaign.setStatus(CampaignStatus.PUBLISHED);
@@ -188,10 +195,8 @@ class CampaignEvaluationServiceTest {
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                UserCampaignScore recordedA = UserCampaignScore.builder()
-                                .campaignDifficulty(a).score(score).build();
-                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(recordedA));
+                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(bests(mdA, 950000)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -234,10 +239,8 @@ class CampaignEvaluationServiceTest {
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                UserCampaignScore recordedA = UserCampaignScore.builder()
-                                .campaignDifficulty(a).score(score).build();
-                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(recordedA));
+                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(bests(mdA, 950000)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -423,8 +426,8 @@ class CampaignEvaluationServiceTest {
                                 bar.getId())).thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(existing));
+                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(bests(mdA, 960000)));
 
                 service.evaluateAfterScore(user.getId(), improved);
 
@@ -456,6 +459,8 @@ class CampaignEvaluationServiceTest {
                                 .thenReturn(List.of(a));
                 when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(user.getId(),
                                 List.of(mdA.getId()))).thenReturn(List.of(active));
+                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(bests(mdA, 950000)));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository

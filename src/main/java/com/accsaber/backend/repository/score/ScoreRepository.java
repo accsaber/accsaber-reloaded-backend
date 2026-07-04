@@ -1,6 +1,7 @@
 package com.accsaber.backend.repository.score;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.score.Score;
 
@@ -305,6 +307,30 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("userId") Long userId,
                         @Param("categoryId") java.util.UUID categoryId,
                         org.springframework.data.domain.Pageable pageable);
+
+        @Query("""
+                        SELECT new com.accsaber.backend.model.dto.projection.UserMapDifficultyBests(
+                            s.mapDifficulty.id,
+                            MAX(s.mapDifficulty.maxScore),
+                            MAX(s.score),
+                            MAX(s.scoreNoMods),
+                            MAX(s.ap),
+                            MAX(s.streak115),
+                            MIN(CASE WHEN s.active = true THEN least(s.rank, s.rankWhenSet) END),
+                            MAX(CASE WHEN s.misses = 0 AND s.badCuts = 0 THEN 1 ELSE 0 END)
+                        )
+                        FROM Score s
+                        WHERE s.user.id = :userId
+                          AND s.mapDifficulty.id IN :mapDifficultyIds
+                          AND s.partial = false
+                          AND (s.mapDifficulty.maxScore IS NULL OR s.scoreNoMods <= s.mapDifficulty.maxScore)
+                          AND COALESCE(s.timeSet, s.createdAt) >= :since
+                        GROUP BY s.mapDifficulty.id
+                        """)
+        List<UserMapDifficultyBests> findBestsByUserAndMapDifficulties(
+                        @Param("userId") Long userId,
+                        @Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds,
+                        @Param("since") Instant since);
 
         @Query("""
                         SELECT s FROM Score s
