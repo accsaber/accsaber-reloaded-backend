@@ -17,7 +17,7 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager("leaderboards", "playlists", "missingPlaylists",
-                "unrankedPlaylists", "batchPlaylists", "statistics", "rankedDifficulties",
+                "unrankedPlaylists", "batchPlaylists", "campaignPlaylists", "statistics", "rankedDifficulties",
                 "curves", "categories", "modifiers");
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(500)

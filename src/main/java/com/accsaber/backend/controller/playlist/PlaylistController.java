@@ -6,7 +6,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.map.Batch;
+import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.map.BatchRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +34,7 @@ public class PlaylistController {
 
         private final PlaylistService playlistService;
         private final BatchRepository batchRepository;
+        private final CampaignRepository campaignRepository;
 
         @Deprecated
         @Operation(summary = "Download category playlist (query param)", deprecated = true, description = "Returns a Beat Saber playlist JSON file containing all ranked maps for the specified category. "
@@ -102,6 +106,36 @@ public class PlaylistController {
         public ResponseEntity<Map<String, Object>> getBatchPlaylist(
                         @Parameter(description = "ID of batch") @PathVariable UUID batchId) {
                 return buildBatchPlaylistResponse(batchId);
+        }
+
+        @Operation(summary = "Download campaign playlist", description = "Returns a Beat Saber playlist JSON file containing all maps of the specified campaign. "
+                        + "Only available when the campaign has playlist export enabled. "
+                        + "The syncURL field allows mod managers to auto-refresh the playlist. Path-only URL, standalone-compatible.")
+        @GetMapping(value = "/campaign/{campaignId}", produces = "application/json")
+        public ResponseEntity<Map<String, Object>> getCampaignPlaylist(
+                        @Parameter(description = "ID of campaign") @PathVariable UUID campaignId) {
+                return buildCampaignPlaylistResponse(campaignId);
+        }
+
+        private ResponseEntity<Map<String, Object>> buildCampaignPlaylistResponse(UUID campaignId) {
+                Campaign campaign = campaignRepository.findByIdAndActiveTrue(campaignId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
+                if (!campaign.isPlaylistExportEnabled()) {
+                        throw new ValidationException("Playlist export is not enabled for this campaign");
+                }
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path("/v1/playlists/campaign/{campaignId}")
+                                .buildAndExpand(campaignId)
+                                .toUriString();
+
+                Map<String, Object> playlist = playlistService.generateCampaignPlaylist(campaign, syncUrl);
+
+                String filename = "accsaber-campaign-" + campaign.getSlug() + ".bplist";
+
+                return ResponseEntity.ok()
+                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                                .header("Cache-Control", "no-store")
+                                .body(playlist);
         }
 
         private ResponseEntity<Map<String, Object>> buildBatchPlaylistResponse(UUID batchId) {

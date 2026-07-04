@@ -31,10 +31,13 @@ import org.springframework.data.domain.Pageable;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -56,10 +59,62 @@ class PlaylistServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private CampaignDifficultyRepository campaignDifficultyRepository;
+    @Mock
     private PlaylistAssembler playlistAssembler;
 
     @InjectMocks
     private PlaylistService playlistService;
+
+    @Nested
+    class GenerateCampaignPlaylist {
+
+        @Test
+        void buildsPlaylistFromCampaignDifficultiesExcludingBarriers() {
+            UUID campaignId = UUID.randomUUID();
+            Campaign campaign = Campaign.builder()
+                    .id(campaignId)
+                    .name("Acc Academy")
+                    .iconUrl("https://cdn.example/icon.png")
+                    .build();
+            MapDifficulty diffA = MapDifficulty.builder().id(UUID.randomUUID()).build();
+            MapDifficulty diffB = MapDifficulty.builder().id(UUID.randomUUID()).build();
+            CampaignDifficulty node = CampaignDifficulty.builder().mapDifficulty(diffA).build();
+            CampaignDifficulty barrier = CampaignDifficulty.builder().mapDifficulty(diffB).barrier(true).build();
+            when(campaignDifficultyRepository.findActiveWithMapByCampaignId(campaignId))
+                    .thenReturn(List.of(node, barrier));
+            when(playlistAssembler.fetchAndEncodeImage("https://cdn.example/icon.png"))
+                    .thenReturn("data:image/png;base64,ICON");
+            Map<String, Object> assembled = Map.of("playlistTitle", "AccSaber Campaign: Acc Academy");
+            when(playlistAssembler.assemble(eq("AccSaber Campaign: Acc Academy"), eq("data:image/png;base64,ICON"),
+                    eq(SYNC_URL), any())).thenReturn(assembled);
+
+            Map<String, Object> result = playlistService.generateCampaignPlaylist(campaign, SYNC_URL);
+
+            assertThat(result).isSameAs(assembled);
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<MapDifficulty>> diffCaptor = (ArgumentCaptor<List<MapDifficulty>>) (ArgumentCaptor<?>) ArgumentCaptor
+                    .forClass(List.class);
+            verify(playlistAssembler).assemble(anyString(), anyString(), anyString(), diffCaptor.capture());
+            assertThat(diffCaptor.getValue()).containsExactly(diffA);
+        }
+
+        @Test
+        void fallsBackToOverallImageWithoutIcon() {
+            UUID campaignId = UUID.randomUUID();
+            Campaign campaign = Campaign.builder().id(campaignId).name("No Icon").build();
+            when(campaignDifficultyRepository.findActiveWithMapByCampaignId(campaignId)).thenReturn(List.of());
+            when(playlistAssembler.loadCategoryImage("overall")).thenReturn("data:image/png;base64,OVERALL");
+            when(playlistAssembler.assemble(anyString(), eq("data:image/png;base64,OVERALL"), anyString(), any()))
+                    .thenReturn(Map.of());
+
+            playlistService.generateCampaignPlaylist(campaign, SYNC_URL);
+
+            verify(playlistAssembler, never()).fetchAndEncodeImage(any());
+            verify(playlistAssembler).assemble(eq("AccSaber Campaign: No Icon"),
+                    eq("data:image/png;base64,OVERALL"), eq(SYNC_URL), any());
+        }
+    }
 
     @Nested
     class GenerateSnipePlaylist {

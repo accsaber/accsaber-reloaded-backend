@@ -19,12 +19,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -44,6 +47,7 @@ public class PlaylistService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final ScoreRepository scoreRepository;
     private final UserRepository userRepository;
+    private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final PlaylistAssembler playlistAssembler;
 
     @Cacheable(value = "playlists", key = "#categoryCode")
@@ -109,6 +113,26 @@ public class PlaylistService {
                 difficulties);
     }
 
+    @Cacheable(value = "campaignPlaylists", key = "#campaign.id")
+    public Map<String, Object> generateCampaignPlaylist(Campaign campaign, String syncUrl) {
+        List<MapDifficulty> difficulties = campaignDifficultyRepository
+                .findActiveWithMapByCampaignId(campaign.getId())
+                .stream()
+                .filter(cd -> !cd.isBarrier())
+                .map(CampaignDifficulty::getMapDifficulty)
+                .toList();
+
+        String image = campaign.getIconUrl() != null && !campaign.getIconUrl().isBlank()
+                ? playlistAssembler.fetchAndEncodeImage(campaign.getIconUrl())
+                : playlistAssembler.loadCategoryImage(OVERALL_CODE);
+
+        return playlistAssembler.assemble(
+                "AccSaber Campaign: " + campaign.getName(),
+                image,
+                syncUrl,
+                difficulties);
+    }
+
     public Map<String, Object> generateSnipePlaylist(Long sniperId, Long targetId, String categoryCode, int size,
             String syncUrl) {
         if (sniperId.equals(targetId)) {
@@ -166,6 +190,11 @@ public class PlaylistService {
     @CacheEvict(value = "unrankedPlaylists", allEntries = true)
     public void evictAllUnrankedPlaylists() {
         log.info("Evicted all unranked playlist caches");
+    }
+
+    @CacheEvict(value = "campaignPlaylists", key = "#campaignId")
+    public void evictCampaignPlaylist(UUID campaignId) {
+        log.info("Evicted campaign playlist cache for campaign: {}", campaignId);
     }
 
     @CacheEvict(value = "unrankedPlaylists", key = "#categoryCode")

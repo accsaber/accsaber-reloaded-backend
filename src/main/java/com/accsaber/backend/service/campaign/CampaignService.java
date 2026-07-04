@@ -88,6 +88,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
+import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
 import com.accsaber.backend.util.WilsonScore;
 
@@ -125,6 +126,7 @@ public class CampaignService {
     private final CategoryRepository categoryRepository;
     private final DuplicateUserService duplicateUserService;
     private final CampaignEvaluationService campaignEvaluationService;
+    private final PlaylistService playlistService;
     private final CdnProperties cdnProperties;
 
     public Page<CampaignResponse> findCampaigns(Collection<CampaignStatus> statuses,
@@ -239,7 +241,8 @@ public class CampaignService {
                 .completionMode(request.getCompletionMode() != null
                         ? request.getCompletionMode()
                         : CampaignCompletionMode.TERMINAL)
-                .playlistExportEnabled(Boolean.TRUE.equals(request.getPlaylistExportEnabled()))
+                .playlistExportEnabled(request.getPlaylistExportEnabled() == null
+                        || request.getPlaylistExportEnabled())
                 .backgroundUrl(request.getBackgroundUrl())
                 .backgroundColor(request.getBackgroundColor())
                 .iconUrl(request.getIconUrl())
@@ -314,6 +317,7 @@ public class CampaignService {
             replaceTagLinks(campaign, request.getTagIds());
         }
 
+        playlistService.evictCampaignPlaylist(campaign.getId());
         return toCampaignResponse(campaignRepository.save(campaign));
     }
 
@@ -612,6 +616,7 @@ public class CampaignService {
 
         difficulty = campaignDifficultyRepository.save(difficulty);
         createPrerequisitePaths(difficulty, request.getPrerequisiteCampaignDifficultyIds());
+        playlistService.evictCampaignPlaylist(campaignId);
 
         return toCampaignDifficultyResponse(difficulty,
                 safePrereqIds(request.getPrerequisiteCampaignDifficultyIds()),
@@ -722,6 +727,7 @@ public class CampaignService {
         campaignDifficultyItemRepository.deleteByCampaignDifficulty_Id(difficulty.getId());
         userCampaignScoreRepository.deleteByCampaignDifficulty_Id(difficulty.getId());
         campaignDifficultyRepository.delete(difficulty);
+        playlistService.evictCampaignPlaylist(campaignId);
     }
 
     @Transactional

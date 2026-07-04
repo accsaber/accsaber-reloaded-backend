@@ -71,6 +71,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
+import com.accsaber.backend.service.playlist.PlaylistService;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignServiceTest {
@@ -117,6 +118,8 @@ class CampaignServiceTest {
         private DuplicateUserService duplicateUserService;
         @Mock
         private CampaignEvaluationService campaignEvaluationService;
+        @Mock
+        private PlaylistService playlistService;
         @Mock
         private CdnProperties cdnProperties;
 

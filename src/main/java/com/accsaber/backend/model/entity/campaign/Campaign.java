@@ -91,7 +91,7 @@ public class Campaign {
 
     @Column(name = "playlist_export_enabled", nullable = false)
     @Builder.Default
-    private boolean playlistExportEnabled = false;
+    private boolean playlistExportEnabled = true;
 
     @Column(name = "total_upvotes", nullable = false)
     @Builder.Default
