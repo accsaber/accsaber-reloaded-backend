@@ -335,32 +335,44 @@ class CampaignServiceTest {
                 }
 
                 @Test
-                void rejectsWhenBarrierIsPathDeadEnd() {
+                void allowsBarrierWithIncomingPathsAndNoOutgoing() {
                         CampaignDifficulty a = CampaignDifficulty.builder()
                                         .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
                                         .requirementType(CampaignRequirementType.ACC)
                                         .requirementValue(new BigDecimal("0.90"))
                                         .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                        CampaignDifficulty b = CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.95"))
+                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
                         CampaignDifficulty gate = CampaignDifficulty.builder()
                                         .id(UUID.randomUUID()).campaign(campaign).barrier(true)
-                                        .positionX(1).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                                        .positionX(2).positionY(0).xp(BigDecimal.ZERO).active(true).build();
 
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
                         when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(List.of(a, gate));
+                                        .thenReturn(List.of(a, b, gate));
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                         .thenReturn(List.of(
                                                         com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
                                                                         .builder()
+                                                                        .id(UUID.randomUUID()).campaignDifficulty(b)
+                                                                        .comesFromCampaignDifficulty(a).active(true)
+                                                                        .build(),
+                                                        com.accsaber.backend.model.entity.campaign.CampaignDifficultyPath
+                                                                        .builder()
                                                                         .id(UUID.randomUUID()).campaignDifficulty(gate)
                                                                         .comesFromCampaignDifficulty(a).active(true)
                                                                         .build()));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("barrier");
+                        CampaignResponse result = campaignService.publish(campaign.getId());
+
+                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                 }
 
                 @Test

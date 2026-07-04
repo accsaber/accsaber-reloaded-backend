@@ -1552,20 +1552,9 @@ public class CampaignService {
         List<CampaignDifficultyPath> paths = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaignId);
 
-        Set<UUID> barrierIds = difficulties.stream().filter(CampaignDifficulty::isBarrier)
-                .map(CampaignDifficulty::getId).collect(Collectors.toSet());
         Set<UUID> nodesWithOutgoing = paths.stream()
                 .map(p -> p.getComesFromCampaignDifficulty().getId())
                 .collect(Collectors.toSet());
-        Set<UUID> nodesWithIncoming = paths.stream()
-                .map(p -> p.getCampaignDifficulty().getId())
-                .collect(Collectors.toSet());
-
-        boolean barrierIsPathDeadEnd = barrierIds.stream()
-                .anyMatch(id -> nodesWithIncoming.contains(id) && !nodesWithOutgoing.contains(id));
-        if (barrierIsPathDeadEnd) {
-            throw new ValidationException("A barrier cannot be the terminal endpoint of a campaign");
-        }
 
         Set<UUID> sinks = difficulties.stream()
                 .filter(d -> !d.isBarrier())
