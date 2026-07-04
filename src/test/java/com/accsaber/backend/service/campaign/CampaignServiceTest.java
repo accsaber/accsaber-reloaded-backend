@@ -522,6 +522,30 @@ class CampaignServiceTest {
                         assertThat(result.getProgressStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
                         assertThat(result.getCampaign().getId()).isEqualTo(campaign.getId());
                 }
+
+                @Test
+                void revivingAbandonedCampaignKeepsCompletionRewardsPaid() {
+                        campaign.setStatus(CampaignStatus.CURATED);
+                        UserCampaign abandoned = UserCampaign.builder().id(UUID.randomUUID())
+                                        .user(creator).campaign(campaign)
+                                        .status(UserCampaignStatus.ABANDONED)
+                                        .completionRewardsPaid(true)
+                                        .completedAt(java.time.Instant.now())
+                                        .active(true).build();
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(userRepository.findByIdAndActiveTrue(creator.getId())).thenReturn(Optional.of(creator));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(
+                                        creator.getId(), campaign.getId())).thenReturn(Optional.of(abandoned));
+                        when(userCampaignRepository.save(any(UserCampaign.class)))
+                                        .thenAnswer(inv -> inv.getArgument(0));
+
+                        UserCampaignResponse result = campaignService.startCampaign(creator.getId(), campaign.getId());
+
+                        assertThat(result.getProgressStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
+                        assertThat(abandoned.isCompletionRewardsPaid()).isTrue();
+                        assertThat(abandoned.getCompletedAt()).isNull();
+                }
         }
 
         @Nested
@@ -737,6 +761,20 @@ class CampaignServiceTest {
 
                         assertThat(uc.getStatus()).isEqualTo(UserCampaignStatus.ABANDONED);
                         verify(userCampaignRepository).save(uc);
+                }
+
+                @Test
+                void cannotAbandonCompletedCampaign() {
+                        UserCampaign completed = UserCampaign.builder().id(UUID.randomUUID())
+                                        .user(creator).campaign(campaign)
+                                        .status(UserCampaignStatus.COMPLETED).active(true).build();
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdAndActiveTrue(
+                                        creator.getId(), campaign.getId())).thenReturn(Optional.of(completed));
+
+                        assertThatThrownBy(() -> campaignService.abandonCampaign(creator.getId(), campaign.getId()))
+                                        .isInstanceOf(ValidationException.class);
+
+                        assertThat(completed.getStatus()).isEqualTo(UserCampaignStatus.COMPLETED);
                 }
 
                 @Test

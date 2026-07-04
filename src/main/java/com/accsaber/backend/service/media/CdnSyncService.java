@@ -141,7 +141,7 @@ public class CdnSyncService {
 
     public String storeUserUploadedAvatar(Long userId, MultipartFile file) {
         String cdnUrl = mediaProcessingService.storeImage(file, USER_AVATAR_SUBDIR,
-                String.valueOf(userId), MediaFormat.AVIF);
+                String.valueOf(userId), MediaFormat.AVIF, cdn.getAvatarMaxDimension());
         userService.setUserUploadedAvatar(userId, cdnUrl);
         userSettingsService.set(userId, UserSettingKey.SYNC_AVATAR, false);
         return cdnUrl;

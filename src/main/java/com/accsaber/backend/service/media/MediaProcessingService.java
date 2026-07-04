@@ -56,13 +56,17 @@ public class MediaProcessingService {
     }
 
     public String storeImage(MultipartFile file, String subdir, String key, MediaFormat format) {
+        return storeImage(file, subdir, key, format, cdn.getUploadMaxDimension());
+    }
+
+    public String storeImage(MultipartFile file, String subdir, String key, MediaFormat format, int maxDim) {
         validate(file);
         return encodeAndPublish(
                 subdir,
                 key,
                 suffixFor(file),
                 tempInput -> file.transferTo(tempInput.toFile()),
-                cdn.getUploadMaxDimension(),
+                maxDim,
                 format);
     }
 
