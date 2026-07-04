@@ -1554,7 +1554,14 @@ public class CampaignService {
 
         Set<UUID> nodesWithOutgoing = paths.stream()
                 .map(p -> p.getComesFromCampaignDifficulty().getId())
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(HashSet::new));
+
+        List<UUID> barrierIds = difficulties.stream().filter(CampaignDifficulty::isBarrier)
+                .map(CampaignDifficulty::getId).toList();
+        if (!barrierIds.isEmpty()) {
+            barrierAffectedRepository.findByBarrier_IdIn(barrierIds)
+                    .forEach(a -> nodesWithOutgoing.add(a.getId().getCampaignDifficultyId()));
+        }
 
         Set<UUID> sinks = difficulties.stream()
                 .filter(d -> !d.isBarrier())
