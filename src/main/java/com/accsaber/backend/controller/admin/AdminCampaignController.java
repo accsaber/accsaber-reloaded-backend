@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -104,6 +105,15 @@ public class AdminCampaignController {
     public ResponseEntity<Void> deactivateCampaign(@PathVariable UUID campaignId) {
         campaignService.deactivateCampaign(campaignId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Mark a campaign official (allows its creators to reward untradeable items)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{campaignId}/official")
+    public ResponseEntity<CampaignResponse> setOfficial(
+            @PathVariable UUID campaignId,
+            @RequestParam(name = "value", defaultValue = "true") boolean official) {
+        return ResponseEntity.ok(campaignService.setOfficial(campaignId, official));
     }
 
     @Operation(summary = "Add a difficulty to a campaign")

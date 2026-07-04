@@ -45,11 +45,7 @@ public class AdminCrateController {
     @Operation(summary = "List the reward pool of a crate with drop weights and normalized drop chances")
     @GetMapping("/{crateItemId}/contents")
     public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
-        List<CrateContent> contents = crateService.listContents(crateItemId);
-        long total = contents.stream().mapToLong(CrateContent::getDropWeight).sum();
-        return ResponseEntity.ok(contents.stream()
-                .map(c -> ItemMapper.toCrateContentResponse(c, total))
-                .toList());
+        return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listContents(crateItemId)));
     }
 
     @Operation(summary = "Add a reward to a crate, or update its drop weight")

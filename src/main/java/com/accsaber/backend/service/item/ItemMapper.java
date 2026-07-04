@@ -113,6 +113,13 @@ public final class ItemMapper {
                 .build();
     }
 
+    public static List<CrateContentResponse> toCrateContentResponses(List<CrateContent> contents) {
+        long total = contents.stream().mapToLong(CrateContent::getDropWeight).sum();
+        return contents.stream()
+                .map(c -> toCrateContentResponse(c, total))
+                .toList();
+    }
+
     public static CrateContentResponse toCrateContentResponse(CrateContent content, long totalWeight) {
         return CrateContentResponse.builder()
                 .rewardItem(toItemResponse(content.getRewardItem()))

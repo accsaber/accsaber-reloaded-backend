@@ -64,6 +64,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                           AND (:hasTags = false OR EXISTS (
                               SELECT 1 FROM CampaignTagLink ctl
                               WHERE ctl.campaign = c AND ctl.campaignTag.id IN :tagIds))
+                          AND (:official IS NULL OR c.official = :official)
                           AND (CAST(:search AS string) IS NULL
                               OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
                               OR LOWER(c.creator.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
@@ -83,5 +84,6 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                         @Param("privileged") boolean privileged,
                         @Param("collaboratorStatus") CampaignCollaboratorStatus collaboratorStatus,
                         @Param("search") String search,
+                        @Param("official") Boolean official,
                         Pageable pageable);
 }

@@ -131,6 +131,7 @@ public class CampaignService {
             Collection<UUID> tagIds,
             Long creatorId,
             String search,
+            Boolean official,
             Long viewerId,
             boolean privileged,
             Pageable pageable) {
@@ -143,7 +144,7 @@ public class CampaignService {
         return paginateAsResponses(
                 campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
-                        CampaignCollaboratorStatus.ACCEPTED, searchArg, pageable),
+                        CampaignCollaboratorStatus.ACCEPTED, searchArg, official, pageable),
                 resolvedViewerId);
     }
 
@@ -386,6 +387,13 @@ public class CampaignService {
         Campaign campaign = loadActiveCampaign(campaignId);
         campaign.setActive(false);
         campaignRepository.save(campaign);
+    }
+
+    @Transactional
+    public CampaignResponse setOfficial(UUID campaignId, boolean official) {
+        Campaign campaign = loadActiveCampaign(campaignId);
+        campaign.setOfficial(official);
+        return toCampaignResponse(campaignRepository.save(campaign));
     }
 
     @Transactional
@@ -744,11 +752,19 @@ public class CampaignService {
         return loadCompletionItems(campaign.getId());
     }
 
+    private void assertRewardItemAllowed(Item item, Campaign campaign) {
+        if (!item.isTradeable() && !campaign.isOfficial()) {
+            throw new ValidationException(
+                    "Only official campaigns can reward untradeable items");
+        }
+    }
+
     private List<CampaignItemAwardResponse> setDifficultyItem(CampaignDifficulty difficulty,
             SetCampaignItemRequest request) {
         ensureEditable(difficulty.getCampaign());
         Item item = itemRepository.findByIdAndActiveTrue(request.getItemId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId()));
+        assertRewardItemAllowed(item, difficulty.getCampaign());
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
 
         CampaignDifficultyItem.CampaignDifficultyItemId key = new CampaignDifficultyItem.CampaignDifficultyItemId(
@@ -768,6 +784,7 @@ public class CampaignService {
         ensureEditable(campaign);
         Item item = itemRepository.findByIdAndActiveTrue(request.getItemId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId()));
+        assertRewardItemAllowed(item, campaign);
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
 
         CampaignCompletionItem.CampaignCompletionItemId key = new CampaignCompletionItem.CampaignCompletionItemId(
@@ -1628,6 +1645,7 @@ public class CampaignService {
                 .description(campaign.getDescription())
                 .status(campaign.getStatus())
                 .seekingCuration(campaign.isSeekingCuration())
+                .official(campaign.isOfficial())
                 .progressionAgnostic(campaign.isProgressionAgnostic())
                 .completionMode(campaign.getCompletionMode())
                 .legacy(campaign.isLegacy())
@@ -1702,6 +1720,7 @@ public class CampaignService {
                 .description(campaign.getDescription())
                 .status(campaign.getStatus())
                 .seekingCuration(campaign.isSeekingCuration())
+                .official(campaign.isOfficial())
                 .progressionAgnostic(campaign.isProgressionAgnostic())
                 .completionMode(campaign.getCompletionMode())
                 .legacy(campaign.isLegacy())

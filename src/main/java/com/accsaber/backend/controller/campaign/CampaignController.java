@@ -87,9 +87,10 @@ public class CampaignController {
             @RequestParam(required = false) List<UUID> tagIds,
             @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean official,
             Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        return ResponseEntity.ok(campaignService.findCampaigns(status, tagIds, creatorId, search,
+        return ResponseEntity.ok(campaignService.findCampaigns(status, tagIds, creatorId, search, official,
                 viewerId(authentication), canViewAllDrafts(authentication), pageable));
     }
 

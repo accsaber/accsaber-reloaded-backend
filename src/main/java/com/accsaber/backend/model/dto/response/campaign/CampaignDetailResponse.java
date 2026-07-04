@@ -26,6 +26,7 @@ public class CampaignDetailResponse {
     private String description;
     private CampaignStatus status;
     private boolean seekingCuration;
+    private boolean official;
     private boolean progressionAgnostic;
     private CampaignCompletionMode completionMode;
     private boolean legacy;

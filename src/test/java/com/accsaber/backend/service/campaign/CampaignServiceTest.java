@@ -31,6 +31,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
+import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
@@ -43,6 +44,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
@@ -63,6 +65,7 @@ import com.accsaber.backend.repository.campaign.CampaignTextRepository;
 import com.accsaber.backend.repository.campaign.CampaignVoteRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -90,6 +93,8 @@ class CampaignServiceTest {
         private CampaignDifficultyItemRepository campaignDifficultyItemRepository;
         @Mock
         private CampaignCompletionItemRepository campaignCompletionItemRepository;
+        @Mock
+        private ItemRepository itemRepository;
         @Mock
         private CampaignTagRepository campaignTagRepository;
         @Mock
@@ -786,6 +791,86 @@ class CampaignServiceTest {
 
                         verify(userCampaignRepository).findActiveByUserExcludingStatus(
                                         creator.getId(), UserCampaignStatus.ABANDONED, PageRequest.of(0, 20));
+                }
+        }
+
+        @Nested
+        class OfficialAndItemRewards {
+
+                private CampaignDifficulty draftNode() {
+                        return CampaignDifficulty.builder()
+                                        .id(UUID.randomUUID()).campaign(campaign).mapDifficulty(mapDifficulty)
+                                        .requirementType(CampaignRequirementType.ACC)
+                                        .requirementValue(new BigDecimal("0.90"))
+                                        .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
+                }
+
+                @Test
+                void rejectsUntradeableItemOnNonOfficialCampaign() {
+                        CampaignDifficulty node = draftNode();
+                        Item untradeable = Item.builder().id(UUID.randomUUID()).tradeable(false).build();
+                        SetCampaignItemRequest request = new SetCampaignItemRequest();
+                        request.setItemId(untradeable.getId());
+                        when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
+                                        .thenReturn(Optional.of(node));
+                        when(itemRepository.findByIdAndActiveTrue(untradeable.getId()))
+                                        .thenReturn(Optional.of(untradeable));
+
+                        assertThatThrownBy(() -> campaignService.setDifficultyItemAsPlayer(
+                                        creator.getId(), node.getId(), request))
+                                        .isInstanceOf(ValidationException.class);
+                }
+
+                @Test
+                void allowsUntradeableItemOnOfficialCampaign() {
+                        campaign.setOfficial(true);
+                        CampaignDifficulty node = draftNode();
+                        Item untradeable = Item.builder().id(UUID.randomUUID()).tradeable(false).build();
+                        SetCampaignItemRequest request = new SetCampaignItemRequest();
+                        request.setItemId(untradeable.getId());
+                        when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
+                                        .thenReturn(Optional.of(node));
+                        when(itemRepository.findByIdAndActiveTrue(untradeable.getId()))
+                                        .thenReturn(Optional.of(untradeable));
+                        when(campaignDifficultyItemRepository.findById(any())).thenReturn(Optional.empty());
+                        when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
+                                        .thenReturn(List.of());
+
+                        campaignService.setDifficultyItemAsPlayer(creator.getId(), node.getId(), request);
+
+                        verify(campaignDifficultyItemRepository).save(any());
+                }
+
+                @Test
+                void allowsTradeableItemOnNonOfficialCampaign() {
+                        CampaignDifficulty node = draftNode();
+                        Item tradeable = Item.builder().id(UUID.randomUUID()).tradeable(true).build();
+                        SetCampaignItemRequest request = new SetCampaignItemRequest();
+                        request.setItemId(tradeable.getId());
+                        when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
+                                        .thenReturn(Optional.of(node));
+                        when(itemRepository.findByIdAndActiveTrue(tradeable.getId()))
+                                        .thenReturn(Optional.of(tradeable));
+                        when(campaignDifficultyItemRepository.findById(any())).thenReturn(Optional.empty());
+                        when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
+                                        .thenReturn(List.of());
+
+                        campaignService.setDifficultyItemAsPlayer(creator.getId(), node.getId(), request);
+
+                        verify(campaignDifficultyItemRepository).save(any());
+                }
+
+                @Test
+                void setOfficialMarksCampaignOfficialAndExposesIt() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
+                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
+
+                        CampaignResponse result = campaignService.setOfficial(campaign.getId(), true);
+
+                        assertThat(campaign.isOfficial()).isTrue();
+                        assertThat(result.isOfficial()).isTrue();
                 }
         }
 }

@@ -1,15 +1,18 @@
 package com.accsaber.backend.controller.item;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.item.CrateService;
@@ -20,15 +23,21 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/v1/users/me/crates")
+@RequestMapping("/v1")
 @RequiredArgsConstructor
 @Tag(name = "Crates")
 public class CrateController {
 
     private final CrateService crateService;
 
+    @Operation(summary = "List a crate's reward pool with normalized drop chances")
+    @GetMapping("/crates/{crateItemId}/contents")
+    public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
+        return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listContents(crateItemId)));
+    }
+
     @Operation(summary = "Open one of my owned crate item links and receive a random reward")
-    @PostMapping("/{linkId}/open")
+    @PostMapping("/users/me/crates/{linkId}/open")
     public ResponseEntity<CrateOpenResponse> open(
             @PathVariable UUID linkId,
             @AuthenticationPrincipal PlayerUserDetails principal) {

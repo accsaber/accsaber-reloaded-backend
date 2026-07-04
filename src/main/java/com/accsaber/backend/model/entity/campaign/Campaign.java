@@ -66,6 +66,10 @@ public class Campaign {
     @Builder.Default
     private boolean seekingCuration = false;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean official = false;
+
     @Column(name = "progression_agnostic", nullable = false)
     @Builder.Default
     private boolean progressionAgnostic = false;
