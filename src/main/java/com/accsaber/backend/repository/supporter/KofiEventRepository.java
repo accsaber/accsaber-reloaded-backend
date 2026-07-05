@@ -25,10 +25,9 @@ public interface KofiEventRepository extends JpaRepository<KofiEvent, UUID> {
 
         @Query("SELECT e FROM KofiEvent e WHERE e.claimedUser IS NULL "
                         + "AND e.tierName IS NOT NULL "
-                        + "AND LOWER(e.tierName) = LOWER(:tierName) "
                         + "AND e.receivedAt >= :since "
                         + "ORDER BY e.receivedAt DESC")
-        List<KofiEvent> findUnclaimedByTierSince(@Param("tierName") String tierName, @Param("since") Instant since);
+        List<KofiEvent> findUnclaimedSince(@Param("since") Instant since);
 
         List<KofiEvent> findByClaimedUser_IdOrderByClaimedAtDesc(Long userId);
 

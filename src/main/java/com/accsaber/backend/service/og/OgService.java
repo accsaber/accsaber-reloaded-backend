@@ -10,12 +10,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
+import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
+import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyStatisticsRepository;
@@ -40,6 +44,8 @@ public class OgService {
     private final MapDifficultyRepository difficultyRepository;
     private final MapDifficultyComplexityRepository complexityRepository;
     private final MapDifficultyStatisticsRepository diffStatsRepository;
+    private final CampaignRepository campaignRepository;
+    private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final LevelService levelService;
 
     public String buildPlayerOg(Long userId) {
@@ -127,6 +133,63 @@ public class OgService {
         }
 
         return buildHtml("website", title, desc.toString(), image, url);
+    }
+
+    public String buildCampaignOg(String campaignIdOrSlug) {
+        Campaign campaign = resolveCampaign(campaignIdOrSlug);
+        if (campaign == null || campaign.getStatus() == CampaignStatus.DRAFT) {
+            return buildDefaultHtml(BASE_URL + "/campaigns/" + campaignIdOrSlug);
+        }
+
+        String url = BASE_URL + "/campaigns/" + campaign.getSlug();
+        String image = campaign.getIconUrl() != null ? campaign.getIconUrl() : campaign.getBackgroundUrl();
+        String title = campaign.getName() + " | " + SITE_NAME;
+
+        StringBuilder desc = new StringBuilder();
+        String creatorName = campaign.getCreatorAlias() != null && !campaign.getCreatorAlias().isBlank()
+                ? campaign.getCreatorAlias()
+                : campaign.getCreator() != null ? campaign.getCreator().getName() : null;
+        if (creatorName != null) {
+            desc.append("Created by ").append(creatorName);
+        }
+        if (campaign.getSummary() != null && !campaign.getSummary().isBlank()) {
+            if (!desc.isEmpty()) {
+                desc.append("\n");
+            }
+            desc.append(campaign.getSummary());
+        }
+
+        long mapCount = campaignDifficultyRepository
+                .countByCampaign_IdAndBarrierFalseAndActiveTrue(campaign.getId());
+        if (!desc.isEmpty()) {
+            desc.append("\n");
+        }
+        desc.append(mapCount).append(mapCount == 1 ? " map" : " maps");
+        if (campaign.getStatus() == CampaignStatus.CURATED) {
+            desc.append(" · Curated");
+        }
+        if (campaign.isOfficial()) {
+            desc.append(" · Official");
+        }
+        desc.append("\n▲ ").append(campaign.getTotalUpvotes())
+                .append(" / ▼ ").append(campaign.getTotalDownvotes());
+
+        return buildHtml("website", title, desc.toString(), image, url);
+    }
+
+    private Campaign resolveCampaign(String campaignIdOrSlug) {
+        if (campaignIdOrSlug == null || campaignIdOrSlug.isBlank()) {
+            return null;
+        }
+        try {
+            UUID id = UUID.fromString(campaignIdOrSlug);
+            Campaign byId = campaignRepository.findByIdAndActiveTrue(id).orElse(null);
+            if (byId != null) {
+                return byId;
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        return campaignRepository.findBySlugAndActiveTrue(campaignIdOrSlug).orElse(null);
     }
 
     private Map resolveMap(String mapIdOrCode) {

@@ -37,4 +37,9 @@ public class OgController {
             @RequestParam(required = false) String characteristic) {
         return ResponseEntity.ok(ogService.buildMapOg(mapIdOrCode, difficultyId, difficulty, characteristic));
     }
+
+    @GetMapping(value = "/campaigns/{campaignIdOrSlug}", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> campaignOg(@PathVariable String campaignIdOrSlug) {
+        return ResponseEntity.ok(ogService.buildCampaignOg(campaignIdOrSlug));
+    }
 }

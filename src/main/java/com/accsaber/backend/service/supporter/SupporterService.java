@@ -124,15 +124,22 @@ public class SupporterService {
 
     @Transactional
     public Optional<KofiEvent> claimByRoleSignal(Long userId, String tierName, Instant assignedAt) {
-        Instant since = assignedAt.minus(ROLE_CORRELATION_WINDOW);
-        List<KofiEvent> candidates = kofiEventRepository.findUnclaimedByTierSince(tierName, since);
-        if (candidates.isEmpty()) {
-            log.info("Role-signal claim for user {} tier {}: no unclaimed event in window", userId, tierName);
+        SupporterTier signalTier = resolveTierByName(tierName).orElse(null);
+        if (signalTier == null) {
+            log.warn("Role-signal claim for user {}: tier name '{}' does not resolve to any supporter tier", userId, tierName);
             return Optional.empty();
         }
-        KofiEvent event = candidates.get(0);
-        claimEventForUser(event.getId(), userId, KofiClaimSource.bot_role_event);
-        return Optional.of(event);
+        Instant since = assignedAt.minus(ROLE_CORRELATION_WINDOW);
+        List<KofiEvent> candidates = kofiEventRepository.findUnclaimedSince(since);
+        for (KofiEvent event : candidates) {
+            SupporterTier eventTier = resolveTierByName(event.getTierName()).orElse(null);
+            if (eventTier != null && eventTier.getTierKey().equals(signalTier.getTierKey())) {
+                claimEventForUser(event.getId(), userId, KofiClaimSource.bot_role_event);
+                return Optional.of(event);
+            }
+        }
+        log.info("Role-signal claim for user {} tier {}: no unclaimed event in window", userId, tierName);
+        return Optional.empty();
     }
 
     @Transactional
@@ -342,7 +349,14 @@ public class SupporterService {
 
     private Optional<SupporterTier> resolveTierByName(String name) {
         if (name == null || name.isBlank()) return Optional.empty();
-        return supporterTierRepository.findByDisplayNameIgnoreCase(name.trim());
+        String trimmed = name.trim();
+        Optional<SupporterTier> exact = supporterTierRepository.findByDisplayNameIgnoreCase(trimmed);
+        if (exact.isPresent()) return exact;
+        String lower = trimmed.toLowerCase();
+        return supporterTierRepository.findAllByOrderBySortOrderAsc().stream()
+                .filter(t -> lower.contains(t.getTierKey().toLowerCase())
+                        || lower.contains(t.getDisplayName().toLowerCase()))
+                .reduce((a, b) -> a.getSortOrder() >= b.getSortOrder() ? a : b);
     }
 
     private Optional<SupporterTier> highestAffordableTier(int cents) {
