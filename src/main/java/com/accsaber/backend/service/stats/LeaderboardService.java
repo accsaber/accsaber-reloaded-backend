@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.player.LeaderboardResponse;
+import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.dto.response.player.XpLeaderboardResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
@@ -42,6 +43,16 @@ public class LeaderboardService {
     private final UserCategoryRankingHistoryRepository categoryRankingHistoryRepository;
     private final LevelService levelService;
     private final SupporterService supporterService;
+
+    public UUID resolveCategoryId(String idOrCode) {
+        try {
+            return UUID.fromString(idOrCode);
+        } catch (IllegalArgumentException e) {
+            return categoryRepository.findByCodeAndActiveTrue(idOrCode)
+                    .map(Category::getId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + idOrCode));
+        }
+    }
 
     @Cacheable(value = "leaderboards", key = "'global:' + #categoryId + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
     public Page<LeaderboardResponse> getGlobal(UUID categoryId, String search, String hmd, boolean includeInactive,

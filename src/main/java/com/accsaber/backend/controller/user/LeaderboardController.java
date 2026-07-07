@@ -36,16 +36,17 @@ public class LeaderboardController {
     private final LeaderboardService leaderboardService;
     private final UserRelationService userRelationService;
 
-    @Operation(summary = "Global leaderboard", description = "Paginated global rankings for a category, sorted by ranking ascending. Optionally filter by player name search, HMD, inactive status, or restrict to one of the authenticated player's relation types (follower/rival/blocked).")
-    @GetMapping("/{categoryId}")
+    @Operation(summary = "Global leaderboard", description = "Paginated global rankings for a category, addressed by UUID or category code (e.g. true_acc), sorted by ranking ascending. Optionally filter by player name search, HMD, inactive status, or restrict to one of the authenticated player's relation types (follower/rival/blocked).")
+    @GetMapping("/{category}")
     public ResponseEntity<Page<LeaderboardResponse>> getGlobal(
-            @PathVariable UUID categoryId,
+            @PathVariable String category,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String hmd,
             @RequestParam(defaultValue = "true") boolean inactiveUsers,
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
+        UUID categoryId = leaderboardService.resolveCategoryId(category);
         if (relation != null) {
             List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
@@ -55,10 +56,10 @@ public class LeaderboardController {
         return ResponseEntity.ok(leaderboardService.getGlobal(categoryId, search, hmd, inactiveUsers, pageable));
     }
 
-    @Operation(summary = "Country leaderboard", description = "Paginated rankings filtered by country for a category, sorted by AP descending. Optionally filter by player name search, HMD, inactive status, or restrict to one of the authenticated player's relation types.")
-    @GetMapping("/{categoryId}/country/{country}")
+    @Operation(summary = "Country leaderboard", description = "Paginated rankings filtered by country for a category, addressed by UUID or category code (e.g. true_acc), sorted by AP descending. Optionally filter by player name search, HMD, inactive status, or restrict to one of the authenticated player's relation types.")
+    @GetMapping("/{category}/country/{country}")
     public ResponseEntity<Page<LeaderboardResponse>> getByCountry(
-            @PathVariable UUID categoryId,
+            @PathVariable String category,
             @PathVariable String country,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String hmd,
@@ -66,6 +67,7 @@ public class LeaderboardController {
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
+        UUID categoryId = leaderboardService.resolveCategoryId(category);
         if (relation != null) {
             List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
