@@ -21,6 +21,7 @@ import com.accsaber.backend.model.dto.response.milestone.MilestoneSetLinkRespons
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.entity.milestone.LevelThreshold;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 
@@ -36,15 +37,17 @@ public class MilestoneController {
 
     private final MilestoneService milestoneService;
     private final LevelService levelService;
+    private final CategoryService categoryService;
 
-    @Operation(summary = "List active milestones with optional filters")
+    @Operation(summary = "List active milestones with optional filters", description = "Optional set, category (UUID or code), and type filters")
     @GetMapping("/milestones")
     public ResponseEntity<Page<MilestoneResponse>> listMilestones(
             @RequestParam(required = false) UUID setId,
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String type,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
-        return ResponseEntity.ok(milestoneService.findAllActive(setId, categoryId, type, pageable));
+        return ResponseEntity
+                .ok(milestoneService.findAllActive(setId, categoryService.resolveId(categoryId), type, pageable));
     }
 
     @Operation(summary = "List active milestone sets")

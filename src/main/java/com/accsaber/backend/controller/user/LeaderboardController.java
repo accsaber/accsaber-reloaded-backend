@@ -20,6 +20,7 @@ import com.accsaber.backend.model.dto.response.player.LeaderboardResponse;
 import com.accsaber.backend.model.dto.response.player.XpLeaderboardResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.player.UserRelationService;
 import com.accsaber.backend.service.stats.LeaderboardService;
 
@@ -35,6 +36,7 @@ public class LeaderboardController {
 
     private final LeaderboardService leaderboardService;
     private final UserRelationService userRelationService;
+    private final CategoryService categoryService;
 
     @Operation(summary = "Global leaderboard", description = "Paginated global rankings for a category, addressed by UUID or category code (e.g. true_acc), sorted by ranking ascending. Optionally filter by player name search, HMD, inactive status, or restrict to one of the authenticated player's relation types (follower/rival/blocked).")
     @GetMapping("/{category}")
@@ -46,7 +48,7 @@ public class LeaderboardController {
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
-        UUID categoryId = leaderboardService.resolveCategoryId(category);
+        UUID categoryId = categoryService.resolveId(category);
         if (relation != null) {
             List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);
@@ -67,7 +69,7 @@ public class LeaderboardController {
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ranking", direction = Sort.Direction.ASC) Pageable pageable) {
-        UUID categoryId = leaderboardService.resolveCategoryId(category);
+        UUID categoryId = categoryService.resolveId(category);
         if (relation != null) {
             List<Long> filter = userRelationService.findRelationFilterUserIds(requirePrincipal(principal).getUserId(),
                     relation);

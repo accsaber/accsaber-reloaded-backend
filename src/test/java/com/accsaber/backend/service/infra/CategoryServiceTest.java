@@ -68,6 +68,35 @@ class CategoryServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    @Test
+    void resolveId_parsesUuidWithoutLookup() {
+        UUID id = UUID.randomUUID();
+
+        assertThat(categoryService.resolveId(id.toString())).isEqualTo(id);
+    }
+
+    @Test
+    void resolveId_resolvesCode() {
+        Category category = buildCategory("true_acc", "True Acc", null, null);
+        when(categoryRepository.findByCodeAndActiveTrue("true_acc")).thenReturn(Optional.of(category));
+
+        assertThat(categoryService.resolveId("true_acc")).isEqualTo(category.getId());
+    }
+
+    @Test
+    void resolveId_returnsNullForNullOrBlank() {
+        assertThat(categoryService.resolveId(null)).isNull();
+        assertThat(categoryService.resolveId(" ")).isNull();
+    }
+
+    @Test
+    void resolveId_throwsForUnknownCode() {
+        when(categoryRepository.findByCodeAndActiveTrue("nope")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.resolveId("nope"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
     private Category buildCategory(String code, String name, Curve scoreCurve, Curve weightCurve) {
         return Category.builder()
                 .id(UUID.randomUUID())

@@ -1,7 +1,6 @@
 package com.accsaber.backend.controller.infra;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,9 +29,9 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.findAllActive());
     }
 
-    @Operation(summary = "Get category by ID", description = "Returns a single category with its associated curves")
-    @GetMapping("/{id}")
-    public ResponseEntity<CategoryResponse> getCategory(@PathVariable UUID id) {
-        return ResponseEntity.ok(categoryService.findById(id));
+    @Operation(summary = "Get category", description = "Returns a single category with its associated curves, addressed by UUID or code (e.g. true_acc)")
+    @GetMapping("/{category}")
+    public ResponseEntity<CategoryResponse> getCategory(@PathVariable String category) {
+        return ResponseEntity.ok(categoryService.findById(categoryService.resolveId(category)));
     }
 }

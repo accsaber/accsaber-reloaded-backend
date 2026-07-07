@@ -129,33 +129,6 @@ class LeaderboardServiceTest {
         }
 
         @Nested
-        class ResolveCategoryId {
-
-                @Test
-                void parsesUuidWithoutLookup() {
-                        assertThat(leaderboardService.resolveCategoryId(category.getId().toString()))
-                                        .isEqualTo(category.getId());
-                }
-
-                @Test
-                void returnsIdForKnownCode() {
-                        when(categoryRepository.findByCodeAndActiveTrue("true_acc"))
-                                        .thenReturn(Optional.of(category));
-
-                        assertThat(leaderboardService.resolveCategoryId("true_acc"))
-                                        .isEqualTo(category.getId());
-                }
-
-                @Test
-                void unknownCodeThrows() {
-                        when(categoryRepository.findByCodeAndActiveTrue("nope")).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> leaderboardService.resolveCategoryId("nope"))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
         class GetByCountry {
 
                 @Test

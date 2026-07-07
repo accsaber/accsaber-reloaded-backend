@@ -35,6 +35,19 @@ public class CategoryService {
         return toResponse(category);
     }
 
+    public UUID resolveId(String idOrCode) {
+        if (idOrCode == null || idOrCode.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(idOrCode);
+        } catch (IllegalArgumentException e) {
+            return categoryRepository.findByCodeAndActiveTrue(idOrCode)
+                    .map(Category::getId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Category", idOrCode));
+        }
+    }
+
     private CategoryResponse toResponse(Category category) {
         return CategoryResponse.builder()
                 .id(category.getId())

@@ -27,6 +27,7 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.player.UserRelationService;
@@ -47,29 +48,31 @@ public class MapController {
     private final ScoreService scoreService;
     private final MapDifficultyStatisticsService statisticsService;
     private final UserRelationService userRelationService;
+    private final CategoryService categoryService;
 
-    @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category, status, and/or search (matches song name, song author, or mapper)")
+    @Operation(summary = "List maps", description = "Paginated map list, optionally filtered by category (UUID or code), status, and/or search (matches song name, song author, or mapper)")
     @GetMapping
     public ResponseEntity<Page<PublicMapResponse>> listMaps(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "songName", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findAllPublic(categoryId, status, search, pageable));
+        return ResponseEntity
+                .ok(mapService.findAllPublic(categoryService.resolveId(categoryId), status, search, pageable));
     }
 
-    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category, status, complexity range, and/or search (matches song name, song author, or mapper)")
+    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category (UUID or code), status, complexity range, and/or search (matches song name, song author, or mapper)")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<PublicMapDifficultyResponse>> listDifficulties(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) BigDecimal complexityMin,
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity
-                .ok(mapService.findDifficultiesPublic(categoryId, status, complexityMin, complexityMax, search, null,
-                        pageable));
+                .ok(mapService.findDifficultiesPublic(categoryService.resolveId(categoryId), status, complexityMin,
+                        complexityMax, search, null, pageable));
     }
 
     @Operation(summary = "All ranked difficulties", description = "Returns a flat list of all ranked difficulties with song hash, difficulty level, and current complexity. Cached until ranked difficulties change.")

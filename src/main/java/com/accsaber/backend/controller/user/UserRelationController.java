@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.player.UserRelationService;
 import com.accsaber.backend.service.score.ScoreService;
 
@@ -39,6 +40,7 @@ public class UserRelationController {
 
     private final UserRelationService relationService;
     private final ScoreService scoreService;
+    private final CategoryService categoryService;
 
     @Operation(summary = "List authenticated player's relations (followers/rivals/blocked)")
     @GetMapping("/me/relations")
@@ -54,14 +56,14 @@ public class UserRelationController {
     @GetMapping("/me/relations/scores")
     public ResponseEntity<Page<ScoreResponse>> getRelationScores(
             @RequestParam(required = false) UserRelationType type,
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "false") boolean includePrincipal,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
         Long userId = requirePrincipal(principal).getUserId();
-        return ResponseEntity
-                .ok(scoreService.findByUserRelations(userId, type, categoryId, search, includePrincipal, pageable));
+        return ResponseEntity.ok(scoreService.findByUserRelations(userId, type,
+                categoryService.resolveId(categoryId), search, includePrincipal, pageable));
     }
 
     @Operation(summary = "Create a relation (follower, rival, or blocked) targeting another player")

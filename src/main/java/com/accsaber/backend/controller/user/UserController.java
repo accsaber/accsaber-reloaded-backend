@@ -37,6 +37,7 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.campaign.CampaignService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 import com.accsaber.backend.service.player.UserService;
 import com.accsaber.backend.service.score.ScoreService;
@@ -59,6 +60,7 @@ public class UserController {
     private final MilestoneService milestoneService;
     private final LevelService levelService;
     private final CampaignService campaignService;
+    private final CategoryService categoryService;
 
     @Operation(summary = "Get user profile", description = "Returns a player profile by user ID. Optionally include all category statistics. Relation counts include `blockedCount` only when the authenticated viewer is the same user.")
     @GetMapping("/{userId}")
@@ -163,14 +165,15 @@ public class UserController {
                 .ok(scoreService.findActiveByUserAndSongHash(userId, songHash, difficulty, characteristic));
     }
 
-    @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category and/or song name")
+    @Operation(summary = "Get user scores", description = "Paginated list of a player's active scores, optionally filtered by category (UUID or code) and/or song name")
     @GetMapping("/{userId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getUserScores(
             @PathVariable Long userId,
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(scoreService.findByUser(userId, categoryId, search, pageable));
+        return ResponseEntity
+                .ok(scoreService.findByUser(userId, categoryService.resolveId(categoryId), search, pageable));
     }
 
     @Operation(summary = "Get all user scores (minimal)", description = "Flat, unpaginated list of all of a player's active scores with minimal fields (mapDifficultyId, songHash, songName, songAuthor, coverUrl, cdnCoverUrl, ssLeaderboardId, blLeaderboardId, ap, accuracy, score, maxScore, rank, blScoreId, ssScoreId, timeSet), ordered by AP descending. Intended for the plugin.")
@@ -212,23 +215,24 @@ public class UserController {
     @GetMapping("/{userId}/missing-maps")
     public ResponseEntity<Page<PublicMapDifficultyResponse>> getMissingMaps(
             @PathVariable Long userId,
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) BigDecimal complexityMin,
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findDifficultiesPublic(categoryId, status, complexityMin, complexityMax,
-                search, userId, pageable));
+        return ResponseEntity.ok(mapService.findDifficultiesPublic(categoryService.resolveId(categoryId), status,
+                complexityMin, complexityMax, search, userId, pageable));
     }
 
-    @Operation(summary = "Get map difficulties where user has an active score at or above an AP threshold", description = "Flat list of difficulties on which the player has an active score with AP >= `apMin`. Optionally filter by category.")
+    @Operation(summary = "Get map difficulties where user has an active score at or above an AP threshold", description = "Flat list of difficulties on which the player has an active score with AP >= `apMin`. Optionally filter by category (UUID or code).")
     @GetMapping("/{userId}/maps-above-ap")
     public ResponseEntity<List<PublicMapDifficultyResponse>> getMapsAboveAp(
             @PathVariable Long userId,
             @RequestParam BigDecimal apMin,
-            @RequestParam(required = false) UUID categoryId) {
-        return ResponseEntity.ok(mapService.findDifficultiesWithUserScoreAbovePublic(userId, apMin, categoryId));
+            @RequestParam(required = false) String categoryId) {
+        return ResponseEntity.ok(mapService.findDifficultiesWithUserScoreAbovePublic(userId, apMin,
+                categoryService.resolveId(categoryId)));
     }
 
     @Operation(summary = "Get user progress in a campaign")

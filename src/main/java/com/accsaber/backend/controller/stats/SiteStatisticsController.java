@@ -1,7 +1,6 @@
 package com.accsaber.backend.controller.stats;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +19,7 @@ import com.accsaber.backend.model.dto.response.statistics.MilestoneCollectorResp
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserImprovementsResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserMapImprovementsResponse;
+import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.stats.SiteStatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,60 +33,67 @@ import lombok.RequiredArgsConstructor;
 public class SiteStatisticsController {
 
     private final SiteStatisticsService siteStatisticsService;
+    private final CategoryService categoryService;
 
-    @Operation(summary = "Top 115 streaks", description = "Scores ranked by highest 115 note streak. Optional category and country filters.")
+    @Operation(summary = "Top 115 streaks", description = "Scores ranked by highest 115 note streak. Optional category (UUID or code) and country filters.")
     @GetMapping("/leaderboards/streaks")
     public ResponseEntity<Page<ScoreResponse>> getTopStreaks(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getTopStreaks(categoryId, country, pageable));
+        return ResponseEntity
+                .ok(siteStatisticsService.getTopStreaks(categoryService.resolveId(categoryId), country, pageable));
     }
 
-    @Operation(summary = "Top scores by AP", description = "Scores ranked by highest AP. Optional category and country filters.")
+    @Operation(summary = "Top scores by AP", description = "Scores ranked by highest AP. Optional category (UUID or code) and country filters.")
     @GetMapping("/leaderboards/max-ap")
     public ResponseEntity<Page<ScoreResponse>> getTopByAp(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getTopByAp(categoryId, country, pageable));
+        return ResponseEntity
+                .ok(siteStatisticsService.getTopByAp(categoryService.resolveId(categoryId), country, pageable));
     }
 
-    @Operation(summary = "Maps with highest average weighted AP", description = "Map difficulties ranked by average weighted AP across all scores. Optional category and country filters and minimum score threshold.")
+    @Operation(summary = "Maps with highest average weighted AP", description = "Map difficulties ranked by average weighted AP across all scores. Optional category (UUID or code) and country filters and minimum score threshold.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<Page<MapAvgApResponse>> getHighestAvgAp(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @RequestParam(defaultValue = "5") int minScores,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getHighestAvgAp(categoryId, country, minScores, pageable));
+        return ResponseEntity.ok(siteStatisticsService.getHighestAvgAp(categoryService.resolveId(categoryId), country,
+                minScores, pageable));
     }
 
-    @Operation(summary = "Most retried maps", description = "Map difficulties ranked by number of superseded scores (improvements). Optional category and country filters.")
+    @Operation(summary = "Most retried maps", description = "Map difficulties ranked by number of superseded scores (improvements). Optional category (UUID or code) and country filters.")
     @GetMapping("/leaderboards/most-retried")
     public ResponseEntity<Page<MapRetryResponse>> getMostRetriedMaps(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostRetriedMaps(categoryId, country, pageable));
+        return ResponseEntity
+                .ok(siteStatisticsService.getMostRetriedMaps(categoryService.resolveId(categoryId), country, pageable));
     }
 
-    @Operation(summary = "Users with most improvements", description = "Users ranked by total number of superseded scores across all maps. Optional category and country filters.")
+    @Operation(summary = "Users with most improvements", description = "Users ranked by total number of superseded scores across all maps. Optional category (UUID or code) and country filters.")
     @GetMapping("/leaderboards/most-improvements")
     public ResponseEntity<Page<UserImprovementsResponse>> getMostImprovements(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostImprovements(categoryId, country, pageable));
+        return ResponseEntity.ok(
+                siteStatisticsService.getMostImprovements(categoryService.resolveId(categoryId), country, pageable));
     }
 
-    @Operation(summary = "Users with most improvements on a single map", description = "Users ranked by most superseded scores on any single map difficulty. Optional category and country filters.")
+    @Operation(summary = "Users with most improvements on a single map", description = "Users ranked by most superseded scores on any single map difficulty. Optional category (UUID or code) and country filters.")
     @GetMapping("/leaderboards/most-map-improvements")
     public ResponseEntity<Page<UserMapImprovementsResponse>> getMostMapImprovements(
-            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostMapImprovements(categoryId, country, pageable));
+        return ResponseEntity.ok(
+                siteStatisticsService.getMostMapImprovements(categoryService.resolveId(categoryId), country, pageable));
     }
 
     @Operation(summary = "Milestone collectors", description = "Users ranked by number of completed milestones. Optional country filter.")
