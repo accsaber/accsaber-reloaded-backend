@@ -206,9 +206,18 @@ public class ItemService {
         Map<String, UserItemResponse> result = new LinkedHashMap<>();
         equippedLinkIdByType.forEach((typeKey, linkId) -> {
             UserItemLink picked = linkId != null ? explicitLinks.get(linkId) : fallbacksByType.get(typeKey);
-            result.put(typeKey, picked == null
+            UserItemResponse response = picked == null
                     ? null
-                    : ItemMapper.toUserItemResponse(picked, countersByLink.get(picked.getId())));
+                    : ItemMapper.toUserItemResponse(picked, countersByLink.get(picked.getId()));
+            if (response != null && linkId != null) {
+                UserSettingKey.forEquippedItemVariant(typeKey).ifPresent(variantSlot -> {
+                    Object variant = rawSettings.get(variantSlot.key());
+                    if (variant != null) {
+                        response.setVariantKey(variant.toString());
+                    }
+                });
+            }
+            result.put(typeKey, response);
         });
         return result;
     }
@@ -546,7 +555,7 @@ public class ItemService {
     }
 
     @Transactional
-    public void equip(Long userId, UUID linkId) {
+    public void equip(Long userId, UUID linkId, String variantKey) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         UserItemLink link = userItemLinkRepository.findById(linkId)
                 .orElseThrow(() -> new ResourceNotFoundException("UserItemLink", linkId));
@@ -558,6 +567,14 @@ public class ItemService {
                 .orElseThrow(() -> new ValidationException(
                         "linkId", "items of type '" + typeKey + "' are not equippable"));
         userSettingsService.set(resolved, slot, linkId);
+        UserSettingKey variantSlot = UserSettingKey.forEquippedItemVariant(typeKey).orElse(null);
+        if (variantSlot != null) {
+            if (variantKey != null && !variantKey.isBlank()) {
+                userSettingsService.set(resolved, variantSlot, variantKey);
+            } else {
+                userSettingsService.clear(resolved, variantSlot);
+            }
+        }
     }
 
     @Transactional
@@ -567,6 +584,8 @@ public class ItemService {
                 .orElseThrow(() -> new ValidationException(
                         "typeKey", "items of type '" + typeKey + "' are not equippable"));
         userSettingsService.clear(resolved, slot);
+        UserSettingKey.forEquippedItemVariant(typeKey)
+                .ifPresent(variantSlot -> userSettingsService.clear(resolved, variantSlot));
     }
 
     @Transactional
@@ -577,6 +596,8 @@ public class ItemService {
         UUID equipped = userSettingsService.get(userId, slot, UUID.class);
         if (linkId.equals(equipped)) {
             userSettingsService.clear(userId, slot);
+            UserSettingKey.forEquippedItemVariant(typeKey)
+                    .ifPresent(variantSlot -> userSettingsService.clear(userId, variantSlot));
         }
     }
 

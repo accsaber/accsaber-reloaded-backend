@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Builder
@@ -23,6 +24,9 @@ public class UserItemResponse {
     private UUID awardedByStaffId;
     private String reason;
     private Instant awardedAt;
+
+    @Setter
+    private String variantKey;
 
     @Getter
     @Builder

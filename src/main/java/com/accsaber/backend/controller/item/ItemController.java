@@ -118,7 +118,7 @@ public class ItemController {
     public ResponseEntity<Void> equip(
             @Valid @RequestBody EquipItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.equip(requirePrincipal(principal).getUserId(), request.getLinkId());
+        itemService.equip(requirePrincipal(principal).getUserId(), request.getLinkId(), request.getVariantKey());
         return ResponseEntity.noContent().build();
     }
 

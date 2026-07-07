@@ -24,7 +24,15 @@ public enum UserSettingKey {
     EQUIPPED_THEME("equipped.theme", UUID.class, null, true),
     EQUIPPED_PROFILE_BACKGROUND("equipped.profileBackground", UUID.class, null, true),
     EQUIPPED_PROFILE_THUMBNAIL_BACKGROUND("equipped.profileThumbnailBackground", UUID.class, null, true),
-    EQUIPPED_STATISTIC("equipped.statistic", UUID.class, null, true);
+    EQUIPPED_STATISTIC("equipped.statistic", UUID.class, null, true),
+
+    EQUIPPED_TITLE_VARIANT("equipped.titleVariant", String.class, null, true),
+    EQUIPPED_PROFILE_BORDER_SHAPE_VARIANT("equipped.profileBorderShapeVariant", String.class, null, true),
+    EQUIPPED_PROFILE_BORDER_COLOR_VARIANT("equipped.profileBorderColorVariant", String.class, null, true),
+    EQUIPPED_THEME_VARIANT("equipped.themeVariant", String.class, null, true),
+    EQUIPPED_PROFILE_BACKGROUND_VARIANT("equipped.profileBackgroundVariant", String.class, null, true),
+    EQUIPPED_PROFILE_THUMBNAIL_BACKGROUND_VARIANT("equipped.profileThumbnailBackgroundVariant", String.class, null, true),
+    EQUIPPED_STATISTIC_VARIANT("equipped.statisticVariant", String.class, null, true);
 
     public static final String GROUP_PRIVACY = "privacy";
     public static final String GROUP_APPEARANCE = "appearance";
@@ -75,6 +83,10 @@ public enum UserSettingKey {
         return Optional.ofNullable(EQUIP_BY_TYPE_KEY.get(typeKey));
     }
 
+    public static Optional<UserSettingKey> forEquippedItemVariant(String typeKey) {
+        return Optional.ofNullable(EQUIP_VARIANT_BY_TYPE_KEY.get(typeKey));
+    }
+
     public Optional<String> equippedTypeKey() {
         return Optional.ofNullable(TYPE_KEY_BY_EQUIP.get(this));
     }
@@ -87,6 +99,15 @@ public enum UserSettingKey {
             "profile_background", EQUIPPED_PROFILE_BACKGROUND,
             "profile_thumbnail_background", EQUIPPED_PROFILE_THUMBNAIL_BACKGROUND,
             "statistic", EQUIPPED_STATISTIC);
+
+    private static final Map<String, UserSettingKey> EQUIP_VARIANT_BY_TYPE_KEY = Map.of(
+            "title", EQUIPPED_TITLE_VARIANT,
+            "profile_border_shape", EQUIPPED_PROFILE_BORDER_SHAPE_VARIANT,
+            "profile_border_color", EQUIPPED_PROFILE_BORDER_COLOR_VARIANT,
+            "theme", EQUIPPED_THEME_VARIANT,
+            "profile_background", EQUIPPED_PROFILE_BACKGROUND_VARIANT,
+            "profile_thumbnail_background", EQUIPPED_PROFILE_THUMBNAIL_BACKGROUND_VARIANT,
+            "statistic", EQUIPPED_STATISTIC_VARIANT);
 
     private static final Map<UserSettingKey, String> TYPE_KEY_BY_EQUIP = EQUIP_BY_TYPE_KEY.entrySet().stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
