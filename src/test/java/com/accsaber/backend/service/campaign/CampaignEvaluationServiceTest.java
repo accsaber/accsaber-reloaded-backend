@@ -52,6 +52,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.service.mission.MissionProgressService;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignEvaluationServiceTest {
@@ -76,6 +77,8 @@ class CampaignEvaluationServiceTest {
         private LevelUpAwardService levelUpAwardService;
         @Mock
         private ItemService itemService;
+        @Mock
+        private MissionProgressService missionProgressService;
 
         @InjectMocks
         private CampaignEvaluationService service;

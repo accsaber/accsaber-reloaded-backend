@@ -74,7 +74,8 @@ public class MissionProgressService {
             if (mission.getExpiresAt() != null && mission.getExpiresAt().isBefore(now))
                 continue;
             if (evaluate(mission, latestScore)) {
-                completeMission(mission, latestScore);
+                completeMission(mission, userId,
+                        latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
             }
         }
     }
@@ -207,15 +208,14 @@ public class MissionProgressService {
         return mission.getTargetMapDifficulty().getId().equals(score.getMapDifficultyId());
     }
 
-    private void completeMission(UserMission mission, ScoreResponse latestScore) {
-        Long userId = Long.parseLong(latestScore.getUserId());
+    private void completeMission(UserMission mission, Long userId, Instant completedAt) {
         mission.setStatus(MissionStatus.completed);
-        mission.setCompletedAt(latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
+        mission.setCompletedAt(completedAt);
 
         if (mission.getXpReward() > 0) {
             int xpReward = mission.getXpReward();
             levelUpAwardService.addMissionXp(userId, BigDecimal.valueOf(xpReward));
-            creditXpToWindowMissions(userId, xpReward, latestScore);
+            creditXpToWindowMissions(userId, xpReward, completedAt);
         }
         if (mission.getItemReward() != null && !mission.isItemAwarded()) {
             try {
@@ -231,7 +231,17 @@ public class MissionProgressService {
         publishCompletionEvent(userId, mission);
     }
 
-    private void creditXpToWindowMissions(Long userId, int xpAmount, ScoreResponse latestScore) {
+    @Transactional
+    public void creditXp(Long userId, BigDecimal amount) {
+        if (!missionsEnabled)
+            return;
+        if (amount == null)
+            return;
+        int gained = amount.setScale(0, RoundingMode.HALF_UP).intValue();
+        creditXpToWindowMissions(userId, gained, Instant.now());
+    }
+
+    private void creditXpToWindowMissions(Long userId, int xpAmount, Instant completedAt) {
         if (xpAmount <= 0)
             return;
         Instant now = Instant.now();
@@ -244,7 +254,7 @@ public class MissionProgressService {
                 continue;
             window.setProgressCount(window.getProgressCount() + xpAmount);
             if (window.getTargetXp() != null && window.getProgressCount() >= window.getTargetXp()) {
-                completeMission(window, latestScore);
+                completeMission(window, userId, completedAt);
             }
         }
     }

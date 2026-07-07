@@ -45,6 +45,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.service.mission.MissionProgressService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
 
 import lombok.RequiredArgsConstructor;
@@ -64,6 +65,7 @@ public class CampaignEvaluationService {
     private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
+    private final MissionProgressService missionProgressService;
 
     @Transactional
     public void evaluateAfterScore(Long userId, Score score) {
@@ -635,6 +637,7 @@ public class CampaignEvaluationService {
     private void payDifficultyRewards(Long userId, CampaignDifficulty difficulty) {
         if (difficulty.getXp() != null && difficulty.getXp().signum() > 0) {
             levelUpAwardService.addCampaignXp(userId, difficulty.getXp());
+            missionProgressService.creditXp(userId, difficulty.getXp());
         }
         List<CampaignDifficultyItem> items = campaignDifficultyItemRepository
                 .findByCampaignDifficulty_Id(difficulty.getId());
@@ -648,6 +651,7 @@ public class CampaignEvaluationService {
     private void payCompletionRewards(Long userId, Campaign campaign) {
         if (campaign.getCompletionXp() != null && campaign.getCompletionXp().signum() > 0) {
             levelUpAwardService.addCampaignXp(userId, campaign.getCompletionXp());
+            missionProgressService.creditXp(userId, campaign.getCompletionXp());
         }
         List<CampaignCompletionItem> items = campaignCompletionItemRepository.findByCampaign_Id(campaign.getId());
         for (CampaignCompletionItem item : items) {
