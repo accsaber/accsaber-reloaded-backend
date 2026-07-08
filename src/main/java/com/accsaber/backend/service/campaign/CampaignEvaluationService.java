@@ -375,17 +375,29 @@ public class CampaignEvaluationService {
             }
         }
         Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty = loadBests(uc, mapDifficultyByNode.values());
+        boolean agnostic = uc.getCampaign().isProgressionAgnostic();
 
-        for (UUID barrierId : pending) {
-            List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
-            if (affected.isEmpty()) {
-                continue;
-            }
-            CampaignDifficulty barrier = graph.byId.get(barrierId);
-            CampaignPrerequisiteMode mode = graph.modes.getOrDefault(barrierId, CampaignPrerequisiteMode.AND);
-            if (barrierBroken(barrier, affected, mode, completedIds, mapDifficultyByNode, bestsByMapDifficulty)) {
-                recordBarrierCompletion(uc, barrier);
-                completedIds.add(barrierId);
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (UUID barrierId : pending) {
+                if (completedIds.contains(barrierId)) {
+                    continue;
+                }
+                List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
+                if (affected.isEmpty()) {
+                    continue;
+                }
+                if (!agnostic && !prereqsCompleted(barrierId, graph, completedIds)) {
+                    continue;
+                }
+                CampaignDifficulty barrier = graph.byId.get(barrierId);
+                CampaignPrerequisiteMode mode = graph.modes.getOrDefault(barrierId, CampaignPrerequisiteMode.AND);
+                if (barrierBroken(barrier, affected, mode, completedIds, mapDifficultyByNode, bestsByMapDifficulty)) {
+                    recordBarrierCompletion(uc, barrier);
+                    completedIds.add(barrierId);
+                    changed = true;
+                }
             }
         }
     }
