@@ -34,8 +34,8 @@ public class CampaignDifficultyResponse {
     private String checkpointColor;
     private String borderColor;
     private String borderShape;
-    private String size;
-    private String checkpointSize;
+    private Integer size;
+    private Integer checkpointSize;
     private Integer positionX;
     private Integer positionY;
     private BigDecimal xp;

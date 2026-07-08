@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
+import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.item.CrateService;
 import com.accsaber.backend.service.item.ItemMapper;
@@ -34,6 +36,20 @@ public class CrateController {
     @GetMapping("/crates/{crateItemId}/contents")
     public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
         return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listContents(crateItemId)));
+    }
+
+    @Operation(summary = "List the modifiers a crate can roll onto its reward, with drop chances")
+    @GetMapping("/crates/{crateItemId}/modifiers")
+    public ResponseEntity<List<CrateModifierResponse>> listModifiers(@PathVariable UUID crateItemId) {
+        return ResponseEntity.ok(ItemMapper.toCrateModifierResponses(crateService.listModifiers(crateItemId)));
+    }
+
+    @Operation(summary = "List the unusual effects a crate can roll (equal chance among them)")
+    @GetMapping("/crates/{crateItemId}/unusual-effects")
+    public ResponseEntity<List<UnusualEffectResponse>> listUnusualEffects(@PathVariable UUID crateItemId) {
+        return ResponseEntity.ok(crateService.listUnusualEffects(crateItemId).stream()
+                .map(ItemMapper::toUnusualEffectResponse)
+                .toList());
     }
 
     @Operation(summary = "Open one of my owned crate item links and receive a random reward")

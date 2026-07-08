@@ -109,6 +109,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Modifying
     @Transactional
+    @Query("UPDATE User u SET u.itemEssence = u.itemEssence + :amount WHERE u.id = :id")
+    void addItemEssence(@Param("id") Long id, @Param("amount") BigDecimal amount);
+
+    @Query("SELECT u.itemEssence FROM User u WHERE u.id = :id")
+    java.util.Optional<BigDecimal> findItemEssenceById(@Param("id") Long id);
+
+    @Modifying
+    @Transactional
     @Query(value = """
             UPDATE users u SET total_xp =
                 COALESCE(sx.score_xp, 0)

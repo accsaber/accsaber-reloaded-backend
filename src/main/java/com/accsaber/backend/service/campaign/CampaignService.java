@@ -1231,6 +1231,9 @@ public class CampaignService {
                 .barrier(true)
                 .barrierConditionType(request.getConditionType())
                 .barrierConditionValue(request.getConditionValue())
+                .prerequisiteMode(request.getPrerequisiteMode() != null
+                        ? request.getPrerequisiteMode()
+                        : CampaignPrerequisiteMode.AND)
                 .description(request.getDescription())
                 .checkpointLabel(request.getCheckpointLabel())
                 .checkpointLabelPosition(request.getCheckpointLabelPosition())
@@ -1287,6 +1290,11 @@ public class CampaignService {
                 && (barrier.getBarrierConditionValue() == null
                         || barrier.getBarrierConditionValue().compareTo(request.getConditionValue()) != 0)) {
             barrier.setBarrierConditionValue(request.getConditionValue());
+            conditionChanged = true;
+        }
+        if (request.getPrerequisiteMode() != null
+                && request.getPrerequisiteMode() != barrier.getPrerequisiteMode()) {
+            barrier.setPrerequisiteMode(request.getPrerequisiteMode());
             conditionChanged = true;
         }
         validateBarrierCondition(barrier.getBarrierConditionType(), barrier.getBarrierConditionValue());
@@ -1825,6 +1833,7 @@ public class CampaignService {
                 .id(barrier.getId())
                 .conditionType(barrier.getBarrierConditionType())
                 .conditionValue(barrier.getBarrierConditionValue())
+                .prerequisiteMode(barrier.getPrerequisiteMode())
                 .description(barrier.getDescription())
                 .checkpointLabel(barrier.getCheckpointLabel())
                 .checkpointLabelPosition(barrier.getCheckpointLabelPosition())

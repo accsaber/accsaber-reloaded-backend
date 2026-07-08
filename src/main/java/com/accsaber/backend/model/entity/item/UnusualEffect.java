@@ -1,8 +1,6 @@
 package com.accsaber.backend.model.entity.item;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -25,30 +23,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "item_modifiers")
+@Table(name = "unusual_effects")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemModifier {
-
-    public static final String NORMAL = "normal";
-    public static final String UNIQUE = "unique";
-    public static final String VINTAGE = "vintage";
-    public static final String GENUINE = "genuine";
-    public static final String STRANGE = "strange";
-    public static final String UNUSUAL = "unusual";
-    public static final String HAUNTED = "haunted";
-    public static final String JOLLY = "jolly";
-    public static final String COLLECTORS = "collectors";
-    public static final String HOLOGRAPHIC = "holographic";
-    public static final String DECORATED = "decorated";
-    public static final String ASCENDANT = "ascendant";
-    public static final String BATTLE_WORN = "battle_worn";
-    public static final String FOUNDERS = "founders";
-
-    public static final Set<String> PER_INSTANCE_KEYS = Set.of(STRANGE, FOUNDERS, DECORATED, BATTLE_WORN, UNUSUAL);
+public class UnusualEffect {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -62,21 +43,9 @@ public class ItemModifier {
 
     private String description;
 
-    @Column(name = "color_hex", nullable = false)
-    private String colorHex;
-
     @Column(name = "effect_spec", nullable = false, columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private JsonNode effectSpec;
-
-    @Column(name = "global_drop_chance")
-    private BigDecimal globalDropChance;
-
-    @Column(name = "season_start")
-    private String seasonStart;
-
-    @Column(name = "season_end")
-    private String seasonEnd;
 
     @Column(nullable = false)
     @Builder.Default

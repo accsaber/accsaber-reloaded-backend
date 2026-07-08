@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
+import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -17,6 +18,7 @@ public class CampaignBarrierResponse {
     private UUID id;
     private BarrierConditionType conditionType;
     private BigDecimal conditionValue;
+    private CampaignPrerequisiteMode prerequisiteMode;
     private String description;
     private String checkpointLabel;
     private CampaignLabelPosition checkpointLabelPosition;
@@ -24,8 +26,8 @@ public class CampaignBarrierResponse {
     private String checkpointColor;
     private String borderColor;
     private String borderShape;
-    private String size;
-    private String checkpointSize;
+    private Integer size;
+    private Integer checkpointSize;
     private Integer positionX;
     private Integer positionY;
     private BigDecimal xp;

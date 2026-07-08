@@ -22,9 +22,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.EquipItemRequest;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
+import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
+import com.accsaber.backend.model.dto.response.item.EssenceBalanceResponse;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -32,6 +35,7 @@ import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
+import com.accsaber.backend.service.item.UnusualEffectService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +50,7 @@ public class ItemController {
 
     private final ItemService itemService;
     private final ItemTypeService itemTypeService;
+    private final UnusualEffectService unusualEffectService;
 
     @Operation(summary = "List all visible item types")
     @GetMapping("/item-types")
@@ -60,6 +65,14 @@ public class ItemController {
     public ResponseEntity<List<ItemModifierResponse>> listModifiers() {
         return ResponseEntity.ok(itemService.findAllActiveModifiers().stream()
                 .map(ItemMapper::toModifierResponse)
+                .toList());
+    }
+
+    @Operation(summary = "List all active unusual effects")
+    @GetMapping("/unusual-effects")
+    public ResponseEntity<List<UnusualEffectResponse>> listUnusualEffects() {
+        return ResponseEntity.ok(unusualEffectService.findAll(false).stream()
+                .map(ItemMapper::toUnusualEffectResponse)
                 .toList());
     }
 
@@ -129,6 +142,26 @@ public class ItemController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         itemService.unequip(requirePrincipal(principal).getUserId(), typeKey);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Disintegrate an owned item link into item essence (destroys it for its worth)")
+    @PostMapping("/users/me/items/{linkId}/disintegrate")
+    public ResponseEntity<DisintegrationResponse> disintegrate(
+            @PathVariable UUID linkId,
+            @RequestParam(required = false) Long quantity,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        Long me = requirePrincipal(principal).getUserId();
+        return ResponseEntity.ok(itemService.disintegrate(me, linkId, quantity));
+    }
+
+    @Operation(summary = "Get my current item essence balance")
+    @GetMapping("/users/me/essence")
+    public ResponseEntity<EssenceBalanceResponse> getEssenceBalance(
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        Long me = requirePrincipal(principal).getUserId();
+        return ResponseEntity.ok(EssenceBalanceResponse.builder()
+                .balance(itemService.getEssenceBalance(me))
+                .build());
     }
 
     private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {

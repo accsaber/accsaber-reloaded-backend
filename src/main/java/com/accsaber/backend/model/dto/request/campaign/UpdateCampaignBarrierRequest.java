@@ -6,9 +6,11 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
+import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.validation.CleanText;
 
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -18,6 +20,8 @@ public class UpdateCampaignBarrierRequest {
     private BarrierConditionType conditionType;
 
     private BigDecimal conditionValue;
+
+    private CampaignPrerequisiteMode prerequisiteMode;
 
     @Size(max = 1000)
     @CleanText
@@ -42,11 +46,11 @@ public class UpdateCampaignBarrierRequest {
     @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
     private String borderShape;
 
-    @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
-    private String size;
+    @PositiveOrZero
+    private Integer size;
 
-    @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
-    private String checkpointSize;
+    @PositiveOrZero
+    private Integer checkpointSize;
 
     private Integer positionX;
 

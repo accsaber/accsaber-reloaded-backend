@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.accsaber.backend.model.dto.request.item.AwardItemRequest;
 import com.accsaber.backend.model.dto.request.item.CreateItemRequest;
 import com.accsaber.backend.model.dto.request.item.CreateItemTypeRequest;
+import com.accsaber.backend.model.dto.request.item.UpdateItemModifierRequest;
 import com.accsaber.backend.model.dto.request.item.UpdateItemRequest;
 import com.accsaber.backend.model.dto.request.item.UpdateItemTypeRequest;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
@@ -162,6 +163,15 @@ public class AdminItemController {
         return ResponseEntity.ok(itemService.findAllActiveModifiers().stream()
                 .map(ItemMapper::toModifierResponse)
                 .toList());
+    }
+
+    @Operation(summary = "Update an item modifier's global drop chance and season window")
+    @PatchMapping("/item-modifiers/{id}")
+    public ResponseEntity<ItemModifierResponse> updateModifier(@PathVariable UUID id,
+            @RequestBody UpdateItemModifierRequest req) {
+        var modifier = itemService.updateModifier(id, req.getGlobalDropChance(),
+                req.getSeasonStart(), req.getSeasonEnd());
+        return ResponseEntity.ok(ItemMapper.toModifierResponse(modifier));
     }
 
     @Operation(summary = "Revoke a user's item award (hard delete)")

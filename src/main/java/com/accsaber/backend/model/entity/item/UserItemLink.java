@@ -59,6 +59,10 @@ public class UserItemLink {
     @Builder.Default
     private Set<ItemModifier> modifiers = new HashSet<>();
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "unusual_effect_id")
+    private UnusualEffect unusualEffect;
+
     @Column(name = "serial_number")
     private Long serialNumber;
 

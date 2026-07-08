@@ -1,9 +1,16 @@
 package com.accsaber.backend.service.item;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import java.util.random.RandomGenerator;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,11 +19,21 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
+import com.accsaber.backend.model.entity.item.CrateModifier;
+import com.accsaber.backend.model.entity.item.CrateModifier.CrateModifierId;
+import com.accsaber.backend.model.entity.item.CrateUnusualEffect;
+import com.accsaber.backend.model.entity.item.CrateUnusualEffect.CrateUnusualEffectId;
 import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.item.ItemModifier;
+import com.accsaber.backend.model.entity.item.UnusualEffect;
 import com.accsaber.backend.model.entity.item.UserCrateOpen;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.repository.item.CrateContentRepository;
+import com.accsaber.backend.repository.item.CrateModifierRepository;
+import com.accsaber.backend.repository.item.CrateUnusualEffectRepository;
+import com.accsaber.backend.repository.item.ItemModifierRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.item.UnusualEffectRepository;
 import com.accsaber.backend.repository.item.UserCrateOpenRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -31,9 +48,14 @@ public class CrateService {
 
     private final UserItemLinkRepository userItemLinkRepository;
     private final CrateContentRepository crateContentRepository;
+    private final CrateModifierRepository crateModifierRepository;
+    private final CrateUnusualEffectRepository crateUnusualEffectRepository;
     private final UserCrateOpenRepository userCrateOpenRepository;
     private final ItemRepository itemRepository;
+    private final ItemModifierRepository itemModifierRepository;
+    private final UnusualEffectRepository unusualEffectRepository;
     private final ItemService itemService;
+    private final ModifierResolver modifierResolver;
     private final DuplicateUserService duplicateUserService;
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -94,6 +116,98 @@ public class CrateService {
         crateContentRepository.deleteById(pk);
     }
 
+    public List<CrateModifier> listModifiers(UUID crateItemId) {
+        loadCrateItem(crateItemId);
+        return crateModifierRepository.findByCrateItem_Id(crateItemId);
+    }
+
+    @Transactional
+    public CrateModifier upsertModifier(UUID crateItemId, UUID modifierId, BigDecimal dropChance) {
+        if (dropChance == null || dropChance.signum() <= 0 || dropChance.compareTo(BigDecimal.ONE) > 0) {
+            throw new ValidationException("dropChance", "must be between 0 (exclusive) and 1 (inclusive)");
+        }
+        Item crate = loadCrateItem(crateItemId);
+        ItemModifier modifier = itemModifierRepository.findById(modifierId)
+                .orElseThrow(() -> new ResourceNotFoundException("ItemModifier", modifierId));
+        if (!modifier.isActive()) {
+            throw new ValidationException("modifierId", "cannot attach an inactive modifier");
+        }
+        if (ItemModifier.NORMAL.equals(modifier.getKey())) {
+            throw new ValidationException("modifierId", "the normal modifier cannot be attached to a crate");
+        }
+
+        CrateModifierId pk = CrateModifierId.builder()
+                .crateItemId(crateItemId)
+                .modifierId(modifierId)
+                .build();
+
+        CrateModifier attachment = crateModifierRepository.findById(pk).orElse(null);
+        if (attachment == null) {
+            attachment = CrateModifier.builder()
+                    .id(pk)
+                    .crateItem(crate)
+                    .modifier(modifier)
+                    .dropChance(dropChance)
+                    .build();
+        } else {
+            attachment.setDropChance(dropChance);
+        }
+        return crateModifierRepository.save(attachment);
+    }
+
+    @Transactional
+    public void removeModifier(UUID crateItemId, UUID modifierId) {
+        loadCrateItem(crateItemId);
+        CrateModifierId pk = CrateModifierId.builder()
+                .crateItemId(crateItemId)
+                .modifierId(modifierId)
+                .build();
+        if (!crateModifierRepository.existsById(pk)) {
+            throw new ResourceNotFoundException("CrateModifier", modifierId);
+        }
+        crateModifierRepository.deleteById(pk);
+    }
+
+    public List<UnusualEffect> listUnusualEffects(UUID crateItemId) {
+        loadCrateItem(crateItemId);
+        return sortedEffects(crateUnusualEffectRepository.findByCrateItem_Id(crateItemId));
+    }
+
+    @Transactional
+    public UnusualEffect attachUnusualEffect(UUID crateItemId, UUID effectId) {
+        Item crate = loadCrateItem(crateItemId);
+        UnusualEffect effect = unusualEffectRepository.findById(effectId)
+                .orElseThrow(() -> new ResourceNotFoundException("UnusualEffect", effectId));
+        if (!effect.isActive()) {
+            throw new ValidationException("effectId", "cannot attach an inactive unusual effect");
+        }
+        CrateUnusualEffectId pk = CrateUnusualEffectId.builder()
+                .crateItemId(crateItemId)
+                .effectId(effectId)
+                .build();
+        if (!crateUnusualEffectRepository.existsById(pk)) {
+            crateUnusualEffectRepository.save(CrateUnusualEffect.builder()
+                    .id(pk)
+                    .crateItem(crate)
+                    .effect(effect)
+                    .build());
+        }
+        return effect;
+    }
+
+    @Transactional
+    public void detachUnusualEffect(UUID crateItemId, UUID effectId) {
+        loadCrateItem(crateItemId);
+        CrateUnusualEffectId pk = CrateUnusualEffectId.builder()
+                .crateItemId(crateItemId)
+                .effectId(effectId)
+                .build();
+        if (!crateUnusualEffectRepository.existsById(pk)) {
+            throw new ResourceNotFoundException("CrateUnusualEffect", effectId);
+        }
+        crateUnusualEffectRepository.deleteById(pk);
+    }
+
     private Item loadCrateItem(UUID crateItemId) {
         Item crate = itemRepository.findById(crateItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", crateItemId));
@@ -125,7 +239,10 @@ public class CrateService {
         }
 
         long seed = secureRandom.nextLong();
-        CrateContent winner = roll(contents, seed);
+        SplittableRandom rng = new SplittableRandom(seed);
+        CrateContent winner = roll(contents, rng);
+        Set<ItemModifier> rolledModifiers = rollModifiers(crateItem.getId(), rng);
+        UnusualEffect unusualEffect = rollUnusualEffect(crateItem.getId(), rolledModifiers, rng);
 
         UUID consumedLinkId = crateLink.getId();
         String typeKey = crateItem.getType().getKey();
@@ -134,7 +251,8 @@ public class CrateService {
         userItemLinkRepository.flush();
         itemService.clearEquippedIfLinkGone(resolved, consumedLinkId, typeKey);
 
-        UserItemLink rewardLink = itemService.awardFromCrate(resolved, winner.getRewardItem(), consumedLinkId);
+        UserItemLink rewardLink = itemService.awardFromCrate(resolved, winner.getRewardItem(),
+                consumedLinkId, rolledModifiers, unusualEffect);
 
         UserCrateOpen open = UserCrateOpen.builder()
                 .user(rewardLink.getUser())
@@ -147,12 +265,50 @@ public class CrateService {
         return userCrateOpenRepository.save(open);
     }
 
-    static CrateContent roll(List<CrateContent> contents, long seed) {
+    private Set<ItemModifier> rollModifiers(UUID crateItemId, SplittableRandom rng) {
+        List<CrateModifier> attached = crateModifierRepository.findByCrateItem_Id(crateItemId);
+        Set<UUID> attachedIds = attached.stream()
+                .map(cm -> cm.getModifier().getId())
+                .collect(Collectors.toSet());
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        List<ItemModifier> globalCandidates = itemModifierRepository
+                .findByActiveTrueAndGlobalDropChanceIsNotNull().stream()
+                .filter(m -> !attachedIds.contains(m.getId()))
+                .filter(m -> modifierResolver.inSeason(m, today))
+                .toList();
+        return ModifierResolver.rollModifiers(attached, globalCandidates, rng);
+    }
+
+    private UnusualEffect rollUnusualEffect(UUID crateItemId, Set<ItemModifier> rolledModifiers, RandomGenerator rng) {
+        boolean unusualRolled = rolledModifiers.stream()
+                .anyMatch(m -> ItemModifier.UNUSUAL.equals(m.getKey()));
+        if (!unusualRolled) {
+            return null;
+        }
+        return pickUnusualEffect(crateUnusualEffectRepository.findByCrateItem_Id(crateItemId), rng);
+    }
+
+    static UnusualEffect pickUnusualEffect(List<CrateUnusualEffect> attached, RandomGenerator rng) {
+        if (attached.isEmpty()) {
+            return null;
+        }
+        List<UnusualEffect> effects = sortedEffects(attached);
+        return effects.get(rng.nextInt(effects.size()));
+    }
+
+    private static List<UnusualEffect> sortedEffects(List<CrateUnusualEffect> attached) {
+        return attached.stream()
+                .map(CrateUnusualEffect::getEffect)
+                .sorted(Comparator.comparing(UnusualEffect::getKey))
+                .toList();
+    }
+
+    static CrateContent roll(List<CrateContent> contents, SplittableRandom rng) {
         long total = 0L;
         for (CrateContent c : contents) {
             total += c.getDropWeight();
         }
-        long pick = new SplittableRandom(seed).nextLong(total);
+        long pick = rng.nextLong(total);
         long acc = 0L;
         for (CrateContent c : contents) {
             acc += c.getDropWeight();

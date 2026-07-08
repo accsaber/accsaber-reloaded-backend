@@ -89,10 +89,10 @@ public class CampaignDifficulty {
     private String borderShape;
 
     @Column(name = "size")
-    private String size;
+    private Integer size;
 
     @Column(name = "checkpoint_size")
-    private String checkpointSize;
+    private Integer checkpointSize;
 
     @Column(name = "position_x", nullable = false)
     private Integer positionX;

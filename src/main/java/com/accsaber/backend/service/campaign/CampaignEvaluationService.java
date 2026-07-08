@@ -378,21 +378,44 @@ public class CampaignEvaluationService {
 
         for (UUID barrierId : pending) {
             List<UUID> affected = affectedByBarrier.getOrDefault(barrierId, List.of());
-            if (affected.isEmpty() || !completedIds.containsAll(affected)) {
+            if (affected.isEmpty()) {
                 continue;
             }
-            List<UserMapDifficultyBests> bests = new ArrayList<>(affected.size());
-            for (UUID nodeId : affected) {
-                UserMapDifficultyBests b = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
-                if (b != null) {
-                    bests.add(b);
-                }
-            }
-            if (bests.size() == affected.size() && barrierSatisfied(graph.byId.get(barrierId), bests)) {
-                recordBarrierCompletion(uc, graph.byId.get(barrierId));
+            CampaignDifficulty barrier = graph.byId.get(barrierId);
+            CampaignPrerequisiteMode mode = graph.modes.getOrDefault(barrierId, CampaignPrerequisiteMode.AND);
+            if (barrierBroken(barrier, affected, mode, completedIds, mapDifficultyByNode, bestsByMapDifficulty)) {
+                recordBarrierCompletion(uc, barrier);
                 completedIds.add(barrierId);
             }
         }
+    }
+
+    private boolean barrierBroken(CampaignDifficulty barrier, List<UUID> affected, CampaignPrerequisiteMode mode,
+            Set<UUID> completedIds, Map<UUID, UUID> mapDifficultyByNode,
+            Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty) {
+        if (mode == CampaignPrerequisiteMode.OR) {
+            for (UUID nodeId : affected) {
+                if (!completedIds.contains(nodeId)) {
+                    continue;
+                }
+                UserMapDifficultyBests b = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
+                if (b != null && barrierSatisfied(barrier, List.of(b))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (!completedIds.containsAll(affected)) {
+            return false;
+        }
+        List<UserMapDifficultyBests> bests = new ArrayList<>(affected.size());
+        for (UUID nodeId : affected) {
+            UserMapDifficultyBests b = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
+            if (b != null) {
+                bests.add(b);
+            }
+        }
+        return bests.size() == affected.size() && barrierSatisfied(barrier, bests);
     }
 
     private Map<UUID, UserMapDifficultyBests> loadBests(UserCampaign uc, Collection<UUID> mapDifficultyIds) {

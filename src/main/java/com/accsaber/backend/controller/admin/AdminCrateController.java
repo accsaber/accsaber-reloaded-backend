@@ -14,8 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.item.UpsertCrateContentRequest;
+import com.accsaber.backend.model.dto.request.item.UpsertCrateModifierRequest;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
+import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.service.item.CrateService;
 import com.accsaber.backend.service.item.ItemMapper;
@@ -65,6 +68,57 @@ public class AdminCrateController {
             @PathVariable UUID crateItemId,
             @PathVariable UUID rewardItemId) {
         crateService.removeContent(crateItemId, rewardItemId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "List the modifiers attached to a crate with their per-crate drop chances")
+    @GetMapping("/{crateItemId}/modifiers")
+    public ResponseEntity<List<CrateModifierResponse>> listModifiers(@PathVariable UUID crateItemId) {
+        return ResponseEntity.ok(ItemMapper.toCrateModifierResponses(crateService.listModifiers(crateItemId)));
+    }
+
+    @Operation(summary = "Attach a modifier to a crate, or update its per-crate drop chance")
+    @PutMapping("/{crateItemId}/modifiers/{modifierId}")
+    public ResponseEntity<CrateModifierResponse> upsertModifier(
+            @PathVariable UUID crateItemId,
+            @PathVariable UUID modifierId,
+            @Valid @RequestBody UpsertCrateModifierRequest req) {
+        return ResponseEntity.ok(ItemMapper.toCrateModifierResponse(
+                crateService.upsertModifier(crateItemId, modifierId, req.getDropChance())));
+    }
+
+    @Operation(summary = "Detach a modifier from a crate")
+    @DeleteMapping("/{crateItemId}/modifiers/{modifierId}")
+    public ResponseEntity<Void> removeModifier(
+            @PathVariable UUID crateItemId,
+            @PathVariable UUID modifierId) {
+        crateService.removeModifier(crateItemId, modifierId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "List the unusual effects a crate can roll (equal chance among them)")
+    @GetMapping("/{crateItemId}/unusual-effects")
+    public ResponseEntity<List<UnusualEffectResponse>> listUnusualEffects(@PathVariable UUID crateItemId) {
+        return ResponseEntity.ok(crateService.listUnusualEffects(crateItemId).stream()
+                .map(ItemMapper::toUnusualEffectResponse)
+                .toList());
+    }
+
+    @Operation(summary = "Attach an unusual effect to a crate's roll pool")
+    @PutMapping("/{crateItemId}/unusual-effects/{effectId}")
+    public ResponseEntity<UnusualEffectResponse> attachUnusualEffect(
+            @PathVariable UUID crateItemId,
+            @PathVariable UUID effectId) {
+        return ResponseEntity.ok(ItemMapper.toUnusualEffectResponse(
+                crateService.attachUnusualEffect(crateItemId, effectId)));
+    }
+
+    @Operation(summary = "Detach an unusual effect from a crate's roll pool")
+    @DeleteMapping("/{crateItemId}/unusual-effects/{effectId}")
+    public ResponseEntity<Void> detachUnusualEffect(
+            @PathVariable UUID crateItemId,
+            @PathVariable UUID effectId) {
+        crateService.detachUnusualEffect(crateItemId, effectId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -16,6 +16,7 @@ public class UserItemResponse {
     private UUID linkId;
     private ItemResponse item;
     private List<ModifierRef> modifiers;
+    private EffectRef unusualEffect;
     private Long serialNumber;
     private Long quantity;
     private Map<String, Long> counters;
@@ -35,6 +36,15 @@ public class UserItemResponse {
         private String key;
         private String name;
         private String colorHex;
+        private Object effectSpec;
+    }
+
+    @Getter
+    @Builder
+    public static class EffectRef {
+        private UUID id;
+        private String key;
+        private String name;
         private Object effectSpec;
     }
 }

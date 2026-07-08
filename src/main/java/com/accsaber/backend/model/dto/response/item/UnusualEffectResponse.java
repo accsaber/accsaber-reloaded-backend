@@ -1,6 +1,5 @@
 package com.accsaber.backend.model.dto.response.item;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,17 +8,13 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class ItemModifierResponse {
+public class UnusualEffectResponse {
 
     private UUID id;
     private String key;
     private String name;
     private String description;
-    private String colorHex;
     private Object effectSpec;
-    private BigDecimal globalDropChance;
-    private String seasonStart;
-    private String seasonEnd;
     private boolean active;
     private Instant createdAt;
 }

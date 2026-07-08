@@ -27,6 +27,7 @@ public class TradeResponse {
         private UUID linkId;
         private ItemResponse item;
         private List<UserItemResponse.ModifierRef> modifiers;
+        private UserItemResponse.EffectRef unusualEffect;
         private Long serialNumber;
         private Long quantity;
     }

@@ -6,17 +6,21 @@ import java.util.Map;
 import java.util.Set;
 
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
+import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.CrateContent;
+import com.accsaber.backend.model.entity.item.CrateModifier;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.TradeItemSide;
+import com.accsaber.backend.model.entity.item.UnusualEffect;
 import com.accsaber.backend.model.entity.item.UserCrateOpen;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
@@ -88,8 +92,24 @@ public final class ItemMapper {
                 .description(m.getDescription())
                 .colorHex(m.getColorHex())
                 .effectSpec(toObject(m.getEffectSpec()))
+                .globalDropChance(m.getGlobalDropChance())
+                .seasonStart(m.getSeasonStart())
+                .seasonEnd(m.getSeasonEnd())
                 .active(m.isActive())
                 .createdAt(m.getCreatedAt())
+                .build();
+    }
+
+    public static List<CrateModifierResponse> toCrateModifierResponses(List<CrateModifier> modifiers) {
+        return modifiers.stream()
+                .map(ItemMapper::toCrateModifierResponse)
+                .toList();
+    }
+
+    public static CrateModifierResponse toCrateModifierResponse(CrateModifier modifier) {
+        return CrateModifierResponse.builder()
+                .modifier(toModifierRef(modifier.getModifier()))
+                .dropChance(modifier.getDropChance())
                 .build();
     }
 
@@ -97,11 +117,36 @@ public final class ItemMapper {
         return toUserItemResponse(link, null);
     }
 
+    public static UnusualEffectResponse toUnusualEffectResponse(UnusualEffect effect) {
+        return UnusualEffectResponse.builder()
+                .id(effect.getId())
+                .key(effect.getKey())
+                .name(effect.getName())
+                .description(effect.getDescription())
+                .effectSpec(toObject(effect.getEffectSpec()))
+                .active(effect.isActive())
+                .createdAt(effect.getCreatedAt())
+                .build();
+    }
+
+    public static UserItemResponse.EffectRef toEffectRef(UnusualEffect effect) {
+        if (effect == null) {
+            return null;
+        }
+        return UserItemResponse.EffectRef.builder()
+                .id(effect.getId())
+                .key(effect.getKey())
+                .name(effect.getName())
+                .effectSpec(toObject(effect.getEffectSpec()))
+                .build();
+    }
+
     public static UserItemResponse toUserItemResponse(UserItemLink link, Map<String, Long> counters) {
         return UserItemResponse.builder()
                 .linkId(link.getId())
                 .item(toItemResponse(link.getItem()))
                 .modifiers(toModifierRefs(link.getModifiers()))
+                .unusualEffect(toEffectRef(link.getUnusualEffect()))
                 .serialNumber(link.getSerialNumber())
                 .quantity(link.getQuantity())
                 .counters(counters == null || counters.isEmpty() ? null : counters)
@@ -180,6 +225,7 @@ public final class ItemMapper {
                 .linkId(link.getId())
                 .item(toItemResponse(link.getItem()))
                 .modifiers(toModifierRefs(link.getModifiers()))
+                .unusualEffect(toEffectRef(link.getUnusualEffect()))
                 .serialNumber(link.getSerialNumber())
                 .quantity(entry.getQuantity())
                 .build();

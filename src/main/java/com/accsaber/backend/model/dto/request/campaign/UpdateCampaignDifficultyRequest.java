@@ -10,6 +10,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.validation.CleanText;
 
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -43,11 +44,11 @@ public class UpdateCampaignDifficultyRequest {
     @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
     private String borderShape;
 
-    @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
-    private String size;
+    @PositiveOrZero
+    private Integer size;
 
-    @Pattern(regexp = "^$|^[A-Za-z0-9 _-]{1,32}$", message = "invalid style token")
-    private String checkpointSize;
+    @PositiveOrZero
+    private Integer checkpointSize;
 
     private Integer positionX;
     private Integer positionY;

@@ -26,19 +26,25 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
+import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.ItemType;
+import com.accsaber.backend.model.entity.item.TradeStatus;
+import com.accsaber.backend.model.entity.item.UnusualEffect;
+import com.accsaber.backend.model.entity.item.UserItemDisintegration;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.item.ItemModifierRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.item.UserItemDisintegrationRepository;
 import com.accsaber.backend.repository.item.UserItemLinkCounterRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
+import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserSettingsService;
@@ -64,6 +70,8 @@ public class ItemService {
     private final UserSettingsService userSettingsService;
     private final ItemModifierRepository itemModifierRepository;
     private final UserItemLinkCounterRepository counterRepository;
+    private final UserItemTradeItemRepository tradeItemRepository;
+    private final UserItemDisintegrationRepository disintegrationRepository;
     private final ModifierResolver modifierResolver;
     @PersistenceContext
     private EntityManager entityManager;
@@ -321,6 +329,41 @@ public class ItemService {
     }
 
     @Transactional
+    public ItemModifier updateModifier(UUID id, BigDecimal globalDropChance,
+            String seasonStart, String seasonEnd) {
+        ItemModifier modifier = itemModifierRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ItemModifier", id));
+        validateGlobalDropConfig(globalDropChance, seasonStart, seasonEnd);
+        modifier.setGlobalDropChance(globalDropChance);
+        modifier.setSeasonStart(seasonStart);
+        modifier.setSeasonEnd(seasonEnd);
+        return itemModifierRepository.save(modifier);
+    }
+
+    private void validateGlobalDropConfig(BigDecimal globalDropChance, String seasonStart, String seasonEnd) {
+        if (globalDropChance != null
+                && (globalDropChance.signum() <= 0 || globalDropChance.compareTo(BigDecimal.ONE) > 0)) {
+            throw new ValidationException("globalDropChance", "must be between 0 (exclusive) and 1 (inclusive)");
+        }
+        if ((seasonStart == null) != (seasonEnd == null)) {
+            throw new ValidationException("season", "seasonStart and seasonEnd must both be set or both be null");
+        }
+        validateMonthDay("seasonStart", seasonStart);
+        validateMonthDay("seasonEnd", seasonEnd);
+    }
+
+    private void validateMonthDay(String field, String value) {
+        if (value == null) {
+            return;
+        }
+        try {
+            ModifierResolver.parseSeasonBound(value);
+        } catch (IllegalArgumentException | java.time.DateTimeException e) {
+            throw new ValidationException(field, "must be a valid MM-DD date");
+        }
+    }
+
+    @Transactional
     public Item setIconUrl(UUID id, String iconUrl) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
@@ -342,6 +385,80 @@ public class ItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         item.setActive(true);
         return itemRepository.save(item);
+    }
+
+    public BigDecimal getEssenceBalance(Long userId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        return userRepository.findItemEssenceById(resolved).orElse(BigDecimal.ZERO);
+    }
+
+    @Transactional
+    public DisintegrationResponse disintegrate(Long userId, UUID linkId, Long quantity) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        UserItemLink link = userItemLinkRepository.findByIdForUpdate(linkId)
+                .orElseThrow(() -> new ResourceNotFoundException("UserItemLink", linkId));
+        if (!link.getUser().getId().equals(resolved)) {
+            throw new ValidationException("linkId", "user does not own this item link");
+        }
+        Item item = link.getItem();
+        BigDecimal worth = item.getWorth();
+        if (worth == null || worth.signum() <= 0) {
+            throw new ValidationException("linkId", "this item has no essence value and cannot be disintegrated");
+        }
+        if (!tradeItemRepository.findLinkIdsInTradesWithStatus(List.of(linkId), TradeStatus.pending).isEmpty()) {
+            throw new ConflictException("This item is part of a pending trade and cannot be disintegrated");
+        }
+        if (isLinkEquipped(resolved, linkId, item.getType().getKey())) {
+            throw new ConflictException("Unequip this item before disintegrating it");
+        }
+
+        long owned = link.getQuantity();
+        long toDestroy = quantity == null ? owned : quantity;
+        if (toDestroy < 1) {
+            throw new ValidationException("quantity", "must be at least 1");
+        }
+        if (toDestroy > owned) {
+            throw new ValidationException("quantity", "cannot disintegrate more than you own");
+        }
+
+        BigDecimal essence = worth.multiply(BigDecimal.valueOf(toDestroy));
+        Long remaining;
+        if (toDestroy == owned) {
+            userItemLinkRepository.delete(link);
+            userItemLinkRepository.flush();
+            remaining = null;
+        } else {
+            link.setQuantity(owned - toDestroy);
+            userItemLinkRepository.save(link);
+            remaining = owned - toDestroy;
+        }
+
+        userRepository.addItemEssence(resolved, essence);
+        BigDecimal balance = userRepository.findItemEssenceById(resolved).orElse(BigDecimal.ZERO);
+
+        disintegrationRepository.save(UserItemDisintegration.builder()
+                .user(userRepository.getReferenceById(resolved))
+                .item(item)
+                .quantity(toDestroy)
+                .essenceGained(essence)
+                .build());
+
+        return DisintegrationResponse.builder()
+                .linkId(linkId)
+                .itemId(item.getId())
+                .quantityDisintegrated(toDestroy)
+                .remainingQuantity(remaining)
+                .essenceGained(essence)
+                .balance(balance)
+                .build();
+    }
+
+    private boolean isLinkEquipped(Long userId, UUID linkId, String typeKey) {
+        UserSettingKey slot = UserSettingKey.forEquippedItemType(typeKey).orElse(null);
+        if (slot == null) {
+            return false;
+        }
+        return linkId.equals(userSettingsService.get(userId, slot, UUID.class));
     }
 
     @Transactional
@@ -391,7 +508,8 @@ public class ItemService {
     }
 
     @Transactional
-    public UserItemLink awardFromCrate(Long userId, Item rewardItem, UUID consumedCrateLinkId) {
+    public UserItemLink awardFromCrate(Long userId, Item rewardItem, UUID consumedCrateLinkId,
+            Set<ItemModifier> rolledModifiers, UnusualEffect unusualEffect) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         if (!userRepository.existsById(resolved)) {
             throw new ResourceNotFoundException("User", userId);
@@ -399,8 +517,16 @@ public class ItemService {
         if (rewardItem.isDeprecated()) {
             throw new ValidationException("rewardItem", "cannot award a deprecated item");
         }
-        return awardOrMerge(resolved, rewardItem, null, 1L, ItemSource.crate_drop,
+        Set<ItemModifier> explicit = (rolledModifiers == null || rolledModifiers.isEmpty())
+                ? null
+                : rolledModifiers;
+        UserItemLink link = awardOrMerge(resolved, rewardItem, explicit, 1L, ItemSource.crate_drop,
                 consumedCrateLinkId.toString(), null, "Opened from crate");
+        if (unusualEffect != null) {
+            link.setUnusualEffect(unusualEffect);
+            link = userItemLinkRepository.save(link);
+        }
+        return link;
     }
 
     @Transactional
@@ -465,7 +591,7 @@ public class ItemService {
     }
 
     private Set<ItemModifier> resolveInstancedModifiers(Set<ItemModifier> explicit, long serial) {
-        Set<ItemModifier> autoLayers = modifierResolver.resolveAutoLayers(serial).stream()
+        Set<ItemModifier> autoLayers = modifierResolver.resolveFounders(serial).stream()
                 .map(this::loadModifier)
                 .collect(Collectors.toSet());
         if (explicit == null && autoLayers.isEmpty()) {
@@ -590,15 +716,13 @@ public class ItemService {
 
     @Transactional
     public void clearEquippedIfLinkGone(Long userId, UUID linkId, String typeKey) {
-        UserSettingKey slot = UserSettingKey.forEquippedItemType(typeKey).orElse(null);
-        if (slot == null)
+        if (!isLinkEquipped(userId, linkId, typeKey)) {
             return;
-        UUID equipped = userSettingsService.get(userId, slot, UUID.class);
-        if (linkId.equals(equipped)) {
-            userSettingsService.clear(userId, slot);
-            UserSettingKey.forEquippedItemVariant(typeKey)
-                    .ifPresent(variantSlot -> userSettingsService.clear(userId, variantSlot));
         }
+        UserSettingKey.forEquippedItemType(typeKey)
+                .ifPresent(slot -> userSettingsService.clear(userId, slot));
+        UserSettingKey.forEquippedItemVariant(typeKey)
+                .ifPresent(variantSlot -> userSettingsService.clear(userId, variantSlot));
     }
 
     private JsonNode toJsonNode(Object value) {

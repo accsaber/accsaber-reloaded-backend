@@ -14,5 +14,7 @@ public interface ItemModifierRepository extends JpaRepository<ItemModifier, UUID
 
     List<ItemModifier> findByActiveTrue();
 
+    List<ItemModifier> findByActiveTrueAndGlobalDropChanceIsNotNull();
+
     Optional<ItemModifier> findByKey(String key);
 }

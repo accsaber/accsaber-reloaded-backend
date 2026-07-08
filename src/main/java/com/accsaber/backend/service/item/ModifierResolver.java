@@ -2,50 +2,71 @@ package com.accsaber.backend.service.item;
 
 import java.time.LocalDate;
 import java.time.MonthDay;
-import java.time.ZoneId;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.random.RandomGenerator;
 
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.model.entity.item.CrateModifier;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 
 @Component
 public class ModifierResolver {
 
     public static final long FOUNDERS_THRESHOLD = 5L;
-    public static final double SEASONAL_DROP_CHANCE = 0.05;
 
-    private static final MonthDay HALLOWEEN_FROM = MonthDay.of(10, 25);
-    private static final MonthDay HALLOWEEN_TO = MonthDay.of(11, 1);
-    private static final MonthDay CHRISTMAS_FROM = MonthDay.of(12, 20);
-    private static final MonthDay CHRISTMAS_TO = MonthDay.of(12, 31);
-
-    public Set<String> resolveAutoLayers(long serial, LocalDate today) {
+    public Set<String> resolveFounders(long serial) {
         Set<String> layers = new LinkedHashSet<>();
         if (serial > 0 && serial <= FOUNDERS_THRESHOLD) {
             layers.add(ItemModifier.FOUNDERS);
         }
-        MonthDay md = MonthDay.from(today);
-        if (within(md, HALLOWEEN_FROM, HALLOWEEN_TO) && roll()) {
-            layers.add(ItemModifier.HAUNTED);
-        }
-        if (within(md, CHRISTMAS_FROM, CHRISTMAS_TO) && roll()) {
-            layers.add(ItemModifier.JOLLY);
-        }
         return layers;
     }
 
-    public Set<String> resolveAutoLayers(long serial) {
-        return resolveAutoLayers(serial, LocalDate.now(ZoneId.systemDefault()));
+    public boolean inSeason(ItemModifier modifier, LocalDate today) {
+        String start = modifier.getSeasonStart();
+        String end = modifier.getSeasonEnd();
+        if (start == null || end == null) {
+            return true;
+        }
+        MonthDay from = parseSeasonBound(start);
+        MonthDay to = parseSeasonBound(end);
+        MonthDay md = MonthDay.from(today);
+        if (!from.isAfter(to)) {
+            return !md.isBefore(from) && !md.isAfter(to);
+        }
+        return !md.isBefore(from) || !md.isAfter(to);
     }
 
-    private boolean roll() {
-        return ThreadLocalRandom.current().nextDouble() < SEASONAL_DROP_CHANCE;
+    static Set<ItemModifier> rollModifiers(List<CrateModifier> attached,
+            Collection<ItemModifier> globalCandidates, RandomGenerator rng) {
+        Set<ItemModifier> winners = new LinkedHashSet<>();
+        attached.stream()
+                .sorted(Comparator.comparing(cm -> cm.getModifier().getKey()))
+                .forEach(cm -> {
+                    if (rng.nextDouble() < cm.getDropChance().doubleValue()) {
+                        winners.add(cm.getModifier());
+                    }
+                });
+        globalCandidates.stream()
+                .sorted(Comparator.comparing(ItemModifier::getKey))
+                .forEach(m -> {
+                    if (rng.nextDouble() < m.getGlobalDropChance().doubleValue()) {
+                        winners.add(m);
+                    }
+                });
+        return winners;
     }
 
-    private boolean within(MonthDay value, MonthDay from, MonthDay to) {
-        return !value.isBefore(from) && !value.isAfter(to);
+    public static MonthDay parseSeasonBound(String value) {
+        String[] parts = value.split("-");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("season bound must be in MM-DD format");
+        }
+        return MonthDay.of(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
     }
 }
