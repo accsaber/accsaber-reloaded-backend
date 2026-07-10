@@ -109,9 +109,24 @@ class ProfileCustomizationServiceTest {
     class UpdateBio {
 
         @Test
-        void sanitizesAndPersists() {
+        void sanitizesWithBasicPolicyForNonSupporter() {
             when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(richTextSanitizer.sanitize("<p>hi</p>", 4000)).thenReturn("<p>hi</p>");
+            when(supporterService.isActiveSupporter(USER_ID)).thenReturn(false);
+            when(richTextSanitizer.sanitize("<p>hi</p>",
+                    ProfileCustomizationService.BASIC_MAX_BIO_LENGTH, false)).thenReturn("<p>hi</p>");
+
+            service.updateBio(USER_ID, "<p>hi</p>");
+
+            assertThat(user.getBio()).isEqualTo("<p>hi</p>");
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        void sanitizesWithRichPolicyForSupporter() {
+            when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
+            when(supporterService.isActiveSupporter(USER_ID)).thenReturn(true);
+            when(richTextSanitizer.sanitize("<p>hi</p>",
+                    ProfileCustomizationService.SUPPORTER_MAX_BIO_LENGTH, true)).thenReturn("<p>hi</p>");
 
             service.updateBio(USER_ID, "<p>hi</p>");
 

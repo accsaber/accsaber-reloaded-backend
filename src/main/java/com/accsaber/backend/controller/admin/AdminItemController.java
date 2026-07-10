@@ -147,7 +147,8 @@ public class AdminItemController {
     public ResponseEntity<UserItemResponse> award(@Valid @RequestBody AwardItemRequest req,
             @AuthenticationPrincipal StaffUserDetails staff) {
         var link = itemService.awardManual(req.getUserId(), req.getItemId(),
-                staff.getStaffUser(), req.getReason(), req.getModifierKeys(), req.getQuantity());
+                staff.getStaffUser(), req.getReason(), req.getModifierKeys(), req.getQuantity(),
+                req.getUnusualEffectId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toUserItemResponse(link));
     }
 

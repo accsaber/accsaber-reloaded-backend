@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.player;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.owasp.html.CssSchema;
@@ -22,26 +23,41 @@ public class RichTextSanitizer {
             "p", "div", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li"
     };
 
-    private static final PolicyFactory POLICY = new HtmlPolicyBuilder()
-            .allowCommonInlineFormattingElements()
-            .allowElements("p", "div", "br", "ul", "ol", "li", "blockquote",
-                    "h1", "h2", "h3", "h4", "h5", "h6", "pre", "hr", "a", "span")
-            .allowUrlProtocols("http", "https")
-            .allowAttributes("href").onElements("a")
-            .requireRelNofollowOnLinks()
-            .allowAttributes("align").matching(ALIGN_VALUES).onElements(BLOCK_ELEMENTS)
+    private static final CssSchema BASIC_CSS = CssSchema.withProperties(List.of("text-align"));
+
+    private static final PolicyFactory RICH_POLICY = baseBuilder()
             .allowAttributes("class").matching(EFFECT_CLASSES).globally()
             .allowStyling(CssSchema.DEFAULT)
             .toFactory();
 
+    private static final PolicyFactory BASIC_POLICY = baseBuilder()
+            .allowStyling(BASIC_CSS)
+            .toFactory();
+
+    private static HtmlPolicyBuilder baseBuilder() {
+        return new HtmlPolicyBuilder()
+                .allowCommonInlineFormattingElements()
+                .allowElements("p", "div", "br", "ul", "ol", "li", "blockquote",
+                        "h1", "h2", "h3", "h4", "h5", "h6", "pre", "hr", "a", "span")
+                .allowUrlProtocols("http", "https")
+                .allowAttributes("href").onElements("a")
+                .requireRelNofollowOnLinks()
+                .allowAttributes("align").matching(ALIGN_VALUES).onElements(BLOCK_ELEMENTS);
+    }
+
     public String sanitize(String html, int maxLength) {
+        return sanitize(html, maxLength, true);
+    }
+
+    public String sanitize(String html, int maxLength, boolean allowRichEffects) {
         if (html == null) {
             return "";
         }
         if (html.length() > maxLength) {
             throw new ValidationException("content", "must not exceed " + maxLength + " characters");
         }
-        String sanitized = POLICY.sanitize(html);
+        PolicyFactory policy = allowRichEffects ? RICH_POLICY : BASIC_POLICY;
+        String sanitized = policy.sanitize(html);
         long linkCount = ANCHOR_OPEN.matcher(sanitized).results().count();
         if (linkCount > MAX_LINKS) {
             throw new ValidationException("content", "must not contain more than " + MAX_LINKS + " links");

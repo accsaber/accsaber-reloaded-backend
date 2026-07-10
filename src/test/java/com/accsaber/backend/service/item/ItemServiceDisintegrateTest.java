@@ -130,6 +130,16 @@ class ItemServiceDisintegrateTest {
     }
 
     @Test
+    void disintegrateRejectsUntradeableItem() {
+        stubOwnedLink(link(item("material", new BigDecimal("50"), false, false), 1L));
+
+        assertThatThrownBy(() -> itemService.disintegrate(USER_ID, LINK_ID, null))
+                .isInstanceOf(ValidationException.class);
+
+        verify(userRepository, never()).addItemEssence(any(), any());
+    }
+
+    @Test
     void disintegrateRejectsQuantityAboveOwned() {
         stubOwnedLink(link(item("material", new BigDecimal("5"), true), 2L));
         stubNotInTrade();
@@ -155,12 +165,17 @@ class ItemServiceDisintegrateTest {
     }
 
     private static Item item(String typeKey, BigDecimal worth, boolean stackable) {
+        return item(typeKey, worth, stackable, true);
+    }
+
+    private static Item item(String typeKey, BigDecimal worth, boolean stackable, boolean tradeable) {
         return Item.builder()
                 .id(UUID.randomUUID())
                 .type(ItemType.builder().key(typeKey).name(typeKey).build())
                 .name("thing")
                 .worth(worth)
                 .stackable(stackable)
+                .tradeable(tradeable)
                 .build();
     }
 

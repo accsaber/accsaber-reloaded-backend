@@ -66,7 +66,9 @@ public class ProfileCustomizationService {
     @Transactional
     public void updateBio(Long userId, String rawHtml) {
         User user = requireUser(userId);
-        user.setBio(richTextSanitizer.sanitize(rawHtml, bioMaxFor(userId)));
+        boolean supporter = supporterService.isActiveSupporter(userId);
+        int maxLength = supporter ? SUPPORTER_MAX_BIO_LENGTH : BASIC_MAX_BIO_LENGTH;
+        user.setBio(richTextSanitizer.sanitize(rawHtml, maxLength, supporter));
         userRepository.save(user);
     }
 
@@ -154,11 +156,5 @@ public class ProfileCustomizationService {
         return supporterService.isActiveSupporter(userId)
                 ? SUPPORTER_MAX_PINNED_SCORES
                 : BASIC_MAX_PINNED_SCORES;
-    }
-
-    private int bioMaxFor(Long userId) {
-        return supporterService.isActiveSupporter(userId)
-                ? SUPPORTER_MAX_BIO_LENGTH
-                : BASIC_MAX_BIO_LENGTH;
     }
 }

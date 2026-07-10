@@ -125,4 +125,37 @@ class RichTextSanitizerTest {
         assertThat(out).doesNotContain("align=");
         assertThat(out).doesNotContain("javascript");
     }
+
+    @Test
+    void basicPolicyStripsColorAndFontStyling() {
+        String out = sanitizer.sanitize(
+                "<span style=\"color:#ff0000;font-size:24px;font-family:Arial\">x</span>", MAX, false);
+        assertThat(out).doesNotContain("color");
+        assertThat(out).doesNotContain("font-size");
+        assertThat(out).doesNotContain("font-family");
+        assertThat(out).contains("x");
+    }
+
+    @Test
+    void basicPolicyStripsTextShadow() {
+        String out = sanitizer.sanitize("<span style=\"text-shadow:0 0 5px red\">x</span>", MAX, false);
+        assertThat(out).doesNotContain("text-shadow");
+        assertThat(out).contains("x");
+    }
+
+    @Test
+    void basicPolicyStripsEffectClasses() {
+        String out = sanitizer.sanitize("<span class=\"glow\">x</span>", MAX, false);
+        assertThat(out).doesNotContain("glow");
+        assertThat(out).contains("x");
+    }
+
+    @Test
+    void basicPolicyPreservesFormattingAndAlignment() {
+        String out = sanitizer.sanitize(
+                "<p style=\"text-align:center\"><strong>hi</strong> and <em>there</em></p>", MAX, false);
+        assertThat(out).contains("text-align:center");
+        assertThat(out).contains("<strong>hi</strong>");
+        assertThat(out).contains("<em>there</em>");
+    }
 }

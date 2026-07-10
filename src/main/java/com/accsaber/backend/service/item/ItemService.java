@@ -41,6 +41,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.item.ItemModifierRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.item.UnusualEffectRepository;
 import com.accsaber.backend.repository.item.UserItemDisintegrationRepository;
 import com.accsaber.backend.repository.item.UserItemLinkCounterRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
@@ -69,6 +70,7 @@ public class ItemService {
     private final ItemTypeService itemTypeService;
     private final UserSettingsService userSettingsService;
     private final ItemModifierRepository itemModifierRepository;
+    private final UnusualEffectRepository unusualEffectRepository;
     private final UserItemLinkCounterRepository counterRepository;
     private final UserItemTradeItemRepository tradeItemRepository;
     private final UserItemDisintegrationRepository disintegrationRepository;
@@ -401,6 +403,9 @@ public class ItemService {
             throw new ValidationException("linkId", "user does not own this item link");
         }
         Item item = link.getItem();
+        if (!item.isTradeable()) {
+            throw new ValidationException("linkId", "this item is not tradeable and cannot be disintegrated");
+        }
         BigDecimal worth = item.getWorth();
         if (worth == null || worth.signum() <= 0) {
             throw new ValidationException("linkId", "this item has no essence value and cannot be disintegrated");
@@ -531,7 +536,7 @@ public class ItemService {
 
     @Transactional
     public UserItemLink awardManual(Long userId, UUID itemId, StaffUser staff, String reason,
-            Collection<String> modifierKeys, Long quantity) {
+            Collection<String> modifierKeys, Long quantity, UUID unusualEffectId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         if (!userRepository.existsById(resolved)) {
             throw new ResourceNotFoundException("User", userId);
@@ -553,7 +558,25 @@ public class ItemService {
                 ? null
                 : loadModifierSet(modifierKeys);
 
-        return awardOrMerge(resolved, item, explicit, qty, ItemSource.manual, null, staff, reason);
+        if (unusualEffectId != null && !hasModifier(explicit, ItemModifier.UNUSUAL)) {
+            throw new ValidationException("unusualEffectId",
+                    "the unusual modifier must be applied to assign an unusual effect");
+        }
+
+        UserItemLink link = awardOrMerge(resolved, item, explicit, qty, ItemSource.manual, null, staff, reason);
+
+        if (unusualEffectId != null) {
+            UnusualEffect effect = unusualEffectRepository.findById(unusualEffectId)
+                    .orElseThrow(() -> new ResourceNotFoundException("UnusualEffect", unusualEffectId));
+            link.setUnusualEffect(effect);
+            link = userItemLinkRepository.save(link);
+        }
+
+        return link;
+    }
+
+    private static boolean hasModifier(Set<ItemModifier> modifiers, String key) {
+        return modifiers != null && modifiers.stream().anyMatch(m -> key.equals(m.getKey()));
     }
 
     @Transactional

@@ -20,6 +20,8 @@ public class AwardItemRequest {
 
     private List<String> modifierKeys;
 
+    private UUID unusualEffectId;
+
     @Min(1)
     private Long quantity;
 }

@@ -142,12 +142,13 @@ public class CampaignService {
             Pageable pageable) {
         boolean hasStatus = statuses != null && !statuses.isEmpty();
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
-        Collection<CampaignStatus> statusArg = hasStatus ? statuses : List.of(CampaignStatus.DRAFT);
+        Collection<CampaignStatus> statusArg = hasStatus ? statuses
+                : List.of(CampaignStatus.PUBLISHED, CampaignStatus.EDITING, CampaignStatus.CURATED);
         Collection<UUID> tagArg = hasTags ? tagIds : List.of(new UUID(0L, 0L));
         String searchArg = search != null && !search.isBlank() ? search.trim() : null;
         Long resolvedViewerId = viewerId != null ? duplicateUserService.resolvePrimaryUserId(viewerId) : null;
         return paginateAsResponses(
-                campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
+                campaignRepository.findFiltered(true, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
                         CampaignCollaboratorStatus.ACCEPTED, searchArg, official, pageable),
                 resolvedViewerId);
