@@ -69,6 +69,11 @@ public class CrateService {
         return crateContentRepository.findByCrateItem_Id(crateItemId);
     }
 
+    public List<CrateContent> listVisibleContents(UUID crateItemId) {
+        loadCrateItem(crateItemId);
+        return crateContentRepository.findByCrateItem_IdAndRewardItem_VisibleTrue(crateItemId);
+    }
+
     @Transactional
     public CrateContent upsertContent(UUID crateItemId, UUID rewardItemId, int dropWeight) {
         if (dropWeight < 1) {
@@ -233,7 +238,8 @@ public class CrateService {
             throw new ValidationException("linkId", "item is not a crate");
         }
 
-        List<CrateContent> contents = crateContentRepository.findByCrateItem_Id(crateItem.getId());
+        List<CrateContent> contents = crateContentRepository
+                .findByCrateItem_IdAndRewardItem_VisibleTrue(crateItem.getId());
         if (contents.isEmpty()) {
             throw new ValidationException("crate", "crate has no contents configured");
         }

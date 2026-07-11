@@ -35,7 +35,7 @@ public class CrateController {
     @Operation(summary = "List a crate's reward pool with normalized drop chances")
     @GetMapping("/crates/{crateItemId}/contents")
     public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
-        return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listContents(crateItemId)));
+        return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listVisibleContents(crateItemId)));
     }
 
     @Operation(summary = "List the modifiers a crate can roll onto its reward, with drop chances")

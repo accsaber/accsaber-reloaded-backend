@@ -13,4 +13,6 @@ import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
 public interface CrateContentRepository extends JpaRepository<CrateContent, CrateContentId> {
 
     List<CrateContent> findByCrateItem_Id(UUID crateItemId);
+
+    List<CrateContent> findByCrateItem_IdAndRewardItem_VisibleTrue(UUID crateItemId);
 }
