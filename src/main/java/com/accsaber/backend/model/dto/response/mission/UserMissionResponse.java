@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.accsaber.backend.model.entity.mission.UserMission;
+import com.accsaber.backend.util.MissionDescriptionRenderer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
@@ -96,52 +97,12 @@ public class UserMissionResponse {
     }
 
     public static String renderDescription(UserMission m) {
-        String tpl = m.getTemplate().getDescription();
-        if (tpl == null || tpl.isBlank())
-            return tpl;
-        String out = tpl;
-        if (out.contains("{count}"))
-            out = out.replace("{count}", m.getTargetCount() != null ? m.getTargetCount().toString() : "?");
-        if (out.contains("{xp}"))
-            out = out.replace("{xp}", m.getTargetXp() != null ? m.getTargetXp().toString() : "?");
-        if (out.contains("{acc}"))
-            out = out.replace("{acc}", formatAcc(m.getTargetAcc()));
-        if (out.contains("{ap}"))
-            out = out.replace("{ap}", formatAp(m.getTargetAp()));
-        if (out.contains("{score}"))
-            out = out.replace("{score}", m.getTargetScore() != null ? m.getTargetScore().toString() : "?");
-        if (out.contains("{threshold}"))
-            out = out.replace("{threshold}", formatAp(m.getTargetThresholdAp()));
-        if (out.contains("{streak}"))
-            out = out.replace("{streak}", m.getTargetStreak() != null ? m.getTargetStreak().toString() : "?");
-        if (out.contains("{map}"))
-            out = out.replace("{map}", formatMap(m));
-        if (out.contains("{player}"))
-            out = out.replace("{player}", m.getTargetPlayer() != null ? m.getTargetPlayer().getName() : "another player");
-        if (out.contains("{category}"))
-            out = out.replace("{category}", m.getCategory() != null ? m.getCategory().getName() : "any category");
-        return out;
-    }
-
-    private static String formatAcc(BigDecimal acc) {
-        if (acc == null)
-            return "?";
-        return acc.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP) + "%";
-    }
-
-    private static String formatAp(BigDecimal ap) {
-        if (ap == null)
-            return "?";
-        return ap.setScale(0, RoundingMode.HALF_UP).toPlainString();
-    }
-
-    private static String formatMap(UserMission m) {
-        if (m.getTargetMapDifficulty() == null || m.getTargetMapDifficulty().getMap() == null)
-            return "a ranked map";
-        String song = m.getTargetMapDifficulty().getMap().getSongName();
-        String diff = m.getTargetMapDifficulty().getDifficulty() != null
-                ? m.getTargetMapDifficulty().getDifficulty().name()
-                : null;
-        return diff != null ? song + " (" + diff + ")" : song;
+        return MissionDescriptionRenderer.render(m.getTemplate().getDescription(),
+                new MissionDescriptionRenderer.Values(
+                        m.getTargetCount(), m.getTargetXp(), m.getTargetAcc(), m.getTargetAp(),
+                        m.getTargetScore(), m.getTargetThresholdAp(), m.getTargetStreak(),
+                        MissionDescriptionRenderer.formatMap(m.getTargetMapDifficulty()),
+                        m.getTargetPlayer() != null ? m.getTargetPlayer().getName() : null,
+                        m.getCategory() != null ? m.getCategory().getName() : null));
     }
 }

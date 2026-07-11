@@ -95,6 +95,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         DELETE FROM UserMission m
                         WHERE m.user.id = :userId
                           AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
+                          AND m.pool <> com.accsaber.backend.model.entity.mission.MissionPool.event
                         """)
         int deleteActiveForUser(@Param("userId") Long userId);
 
@@ -110,26 +111,20 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
         @Modifying
         @Query("""
                         DELETE FROM UserMission m
-                        WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                          AND m.targetMapDifficulty.id = :mapDifficultyId
-                        """)
-        int deleteActiveByMapDifficulty(@Param("mapDifficultyId") UUID mapDifficultyId);
-
-        @Modifying
-        @Query("""
-                        DELETE FROM UserMission m
-                        WHERE m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                          AND m.targetPlayer.id = :playerId
-                        """)
-        int deleteActiveByTargetPlayer(@Param("playerId") Long playerId);
-
-        @Modifying
-        @Query("""
-                        DELETE FROM UserMission m
                         WHERE m.pool = :pool
                           AND m.status <> com.accsaber.backend.model.entity.mission.MissionStatus.completed
                         """)
         int deleteNonCompletedByPool(@Param("pool") MissionPool pool);
+
+        @Modifying
+        @Query("""
+                        UPDATE UserMission m
+                        SET m.status = com.accsaber.backend.model.entity.mission.MissionStatus.expired
+                        WHERE m.pool = com.accsaber.backend.model.entity.mission.MissionPool.event
+                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
+                          AND m.expiresAt < :now
+                        """)
+        int expireEventMissions(@Param("now") Instant now);
 
         @Query(value = """
                         SELECT COALESCE(SUM(xp_reward), 0)
@@ -139,4 +134,45 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND completed_at >= NOW() - INTERVAL '24 hours'
                         """, nativeQuery = true)
         BigDecimal sumMissionXpGainedLast24h(@Param("userId") Long userId);
+
+        long countByUser_IdAndTemplate_IdAndStatus(Long userId, UUID templateId, MissionStatus status);
+
+        interface TemplateStatusView {
+                UUID getTemplateId();
+
+                MissionStatus getStatus();
+        }
+
+        @Query("""
+                        SELECT m.template.id AS templateId, m.status AS status
+                        FROM UserMission m
+                        WHERE m.user.id = :userId
+                          AND m.template.event.id = :eventId
+                        """)
+        List<TemplateStatusView> findTemplateStatusesByUserAndEvent(
+                        @Param("userId") Long userId,
+                        @Param("eventId") UUID eventId);
+
+        @Query("""
+                        SELECT m FROM UserMission m
+                        JOIN FETCH m.template t
+                        LEFT JOIN FETCH m.category
+                        LEFT JOIN FETCH m.targetMapDifficulty d
+                        LEFT JOIN FETCH d.map
+                        LEFT JOIN FETCH m.targetPlayer
+                        LEFT JOIN FETCH m.itemReward
+                        WHERE m.user.id = :userId
+                          AND t.event.id = :eventId
+                        ORDER BY m.assignedAt ASC
+                        """)
+        List<UserMission> findByUserAndEvent(@Param("userId") Long userId, @Param("eventId") UUID eventId);
+
+        @Query("""
+                        SELECT COUNT(DISTINCT m.template.id) FROM UserMission m
+                        WHERE m.user.id = :userId
+                          AND m.template.event.id = :eventId
+                          AND m.template.active = true
+                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
+                        """)
+        long countDistinctCompletedTemplatesForEvent(@Param("userId") Long userId, @Param("eventId") UUID eventId);
 }

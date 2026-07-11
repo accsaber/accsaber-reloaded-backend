@@ -5,8 +5,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
+import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.Curve;
 
 import jakarta.persistence.Column;
@@ -94,6 +97,30 @@ public class MissionTemplate {
     @Column(name = "target_count_max")
     private Integer targetCountMax;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
+
+    @Column(name = "unlocks_at")
+    private Instant unlocksAt;
+
+    @Column(name = "completable_until")
+    private Instant completableUntil;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean repeatable = false;
+
+    @Column(name = "max_completions")
+    private Integer maxCompletions;
+
+    @Column(name = "fixed_xp")
+    private Integer fixedXp;
+
+    @Column(name = "event_targets", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private EventMissionTargets eventTargets;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
@@ -105,4 +132,21 @@ public class MissionTemplate {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public Instant unlockInstant(Event forEvent) {
+        return unlocksAt != null ? unlocksAt : forEvent.getStartsAt();
+    }
+
+    public Instant closeInstant(Event forEvent) {
+        Instant until = completableUntil != null ? completableUntil : forEvent.getEndsAt();
+        return until.isBefore(forEvent.getEndsAt()) ? until : forEvent.getEndsAt();
+    }
+
+    public boolean isOpenAt(Event forEvent, Instant now) {
+        return !unlockInstant(forEvent).isAfter(now) && closeInstant(forEvent).isAfter(now);
+    }
+
+    public int weekOf(Event forEvent) {
+        return forEvent.weekOf(unlockInstant(forEvent));
+    }
 }

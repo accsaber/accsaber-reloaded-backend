@@ -1,8 +1,10 @@
 package com.accsaber.backend.model.dto.request.mission;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionType;
 
@@ -49,4 +51,15 @@ public class MissionTemplateRequest {
     private Integer targetCountMax;
 
     private Boolean active;
+
+    private UUID eventId;
+
+    private Instant unlocksAt;
+    private Instant completableUntil;
+
+    private Boolean repeatable;
+    private Integer maxCompletions;
+    private Integer fixedXp;
+
+    private EventMissionTargets targets;
 }

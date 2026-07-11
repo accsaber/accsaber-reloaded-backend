@@ -1,15 +1,19 @@
 package com.accsaber.backend.model.dto.response.mission;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class MissionTemplateResponse {
 
     private UUID id;
@@ -31,6 +35,14 @@ public class MissionTemplateResponse {
     private Integer targetCountMax;
     private boolean active;
 
+    private UUID eventId;
+    private Instant unlocksAt;
+    private Instant completableUntil;
+    private Boolean repeatable;
+    private Integer maxCompletions;
+    private Integer fixedXp;
+    private EventMissionTargets targets;
+
     public static MissionTemplateResponse from(MissionTemplate t) {
         return MissionTemplateResponse.builder()
                 .id(t.getId())
@@ -51,6 +63,13 @@ public class MissionTemplateResponse {
                 .targetCountMin(t.getTargetCountMin())
                 .targetCountMax(t.getTargetCountMax())
                 .active(t.isActive())
+                .eventId(t.getEvent() != null ? t.getEvent().getId() : null)
+                .unlocksAt(t.getUnlocksAt())
+                .completableUntil(t.getCompletableUntil())
+                .repeatable(t.getEvent() != null ? t.isRepeatable() : null)
+                .maxCompletions(t.getMaxCompletions())
+                .fixedXp(t.getFixedXp())
+                .targets(t.getEventTargets())
                 .build();
     }
 }

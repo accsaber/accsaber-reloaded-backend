@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.mission;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -7,11 +8,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.request.mission.MissionTemplateRequest;
+import com.accsaber.backend.model.entity.mission.Event;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
+import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.mission.EventRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,9 +32,17 @@ public class MissionTemplateService {
     private final MissionTemplateRepository templateRepository;
     private final CurveRepository curveRepository;
     private final ItemRepository itemRepository;
+    private final EventRepository eventRepository;
+    private final CategoryRepository categoryRepository;
+    private final MapDifficultyRepository mapDifficultyRepository;
+    private final UserRepository userRepository;
 
     public List<MissionTemplate> listAll() {
         return templateRepository.findAll();
+    }
+
+    public List<MissionTemplate> listByEvent(UUID eventId) {
+        return templateRepository.findActiveByEvent(eventId);
     }
 
     public MissionTemplate findById(UUID id) {
@@ -62,7 +79,10 @@ public class MissionTemplateService {
             builder.bandMedium(req.getBandMedium());
         if (req.getBandHard() != null)
             builder.bandHard(req.getBandHard());
-        return templateRepository.save(builder.build());
+        MissionTemplate template = builder.build();
+        applyEventFields(template, req);
+        validateEventConsistency(template);
+        return templateRepository.save(template);
     }
 
     @Transactional
@@ -103,6 +123,8 @@ public class MissionTemplateService {
             template.setTargetCountMax(req.getTargetCountMax());
         if (req.getActive() != null)
             template.setActive(req.getActive());
+        applyEventFields(template, req);
+        validateEventConsistency(template);
         return templateRepository.save(template);
     }
 
@@ -111,5 +133,67 @@ public class MissionTemplateService {
         MissionTemplate template = findById(id);
         template.setActive(false);
         templateRepository.save(template);
+    }
+
+    private void applyEventFields(MissionTemplate template, MissionTemplateRequest req) {
+        if (req.getEventId() != null) {
+            template.setEvent(eventRepository.findById(req.getEventId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Event", req.getEventId())));
+        }
+        if (req.getUnlocksAt() != null)
+            template.setUnlocksAt(req.getUnlocksAt());
+        if (req.getCompletableUntil() != null)
+            template.setCompletableUntil(req.getCompletableUntil());
+        if (req.getRepeatable() != null)
+            template.setRepeatable(req.getRepeatable());
+        if (req.getMaxCompletions() != null)
+            template.setMaxCompletions(req.getMaxCompletions());
+        if (req.getFixedXp() != null)
+            template.setFixedXp(req.getFixedXp());
+        if (req.getTargets() != null) {
+            validateTargetRefs(req.getTargets());
+            template.setEventTargets(req.getTargets());
+        }
+    }
+
+    private void validateTargetRefs(EventMissionTargets targets) {
+        if (targets.categoryId() != null && !categoryRepository.existsById(targets.categoryId())) {
+            throw new ResourceNotFoundException("Category", targets.categoryId());
+        }
+        if (targets.mapDifficultyId() != null && !mapDifficultyRepository.existsById(targets.mapDifficultyId())) {
+            throw new ResourceNotFoundException("MapDifficulty", targets.mapDifficultyId());
+        }
+        if (targets.playerId() != null && !userRepository.existsById(targets.playerId())) {
+            throw new ResourceNotFoundException("User", targets.playerId());
+        }
+    }
+
+    private void validateEventConsistency(MissionTemplate template) {
+        Event event = template.getEvent();
+        if (event == null) {
+            if (template.getPool() == MissionPool.event) {
+                throw new ValidationException("eventId", "required for event pool templates");
+            }
+            return;
+        }
+        if (template.getPool() != MissionPool.event) {
+            throw new ValidationException("pool", "must be event when eventId is set");
+        }
+        if (template.getUnlocksAt() != null
+                && (template.getUnlocksAt().isBefore(event.getStartsAt())
+                        || !template.getUnlocksAt().isBefore(event.getEndsAt()))) {
+            throw new ValidationException("unlocksAt", "must fall within the event window");
+        }
+        if (template.getCompletableUntil() != null) {
+            Instant unlock = template.getUnlocksAt() != null ? template.getUnlocksAt() : event.getStartsAt();
+            if (!template.getCompletableUntil().isAfter(unlock)
+                    || template.getCompletableUntil().isAfter(event.getEndsAt())) {
+                throw new ValidationException("completableUntil",
+                        "must be after the unlock and no later than the event end");
+            }
+        }
+        if (template.getMaxCompletions() != null && !template.isRepeatable()) {
+            throw new ValidationException("maxCompletions", "only valid on repeatable missions");
+        }
     }
 }

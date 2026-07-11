@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.MissionBand;
@@ -60,6 +61,7 @@ public class MissionAssignmentService {
     private final ItemRepository itemRepository;
     private final MissionBuilderService builderService;
     private final MissionRolloverService rolloverService;
+    private final EventMissionService eventMissionService;
     private final TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -119,6 +121,7 @@ public class MissionAssignmentService {
                         assignForUser(userId, MissionPool.weekly, cache, false);
                     }
                 });
+                eventMissionService.ensureForUser(userId);
             } catch (Exception e) {
                 log.warn("Mission assignment on login failed for user {}: {}", userId, e.getMessage());
             }
@@ -141,6 +144,9 @@ public class MissionAssignmentService {
 
     @Transactional
     public List<UserMission> regenerateForUser(Long userId, MissionPool pool) {
+        if (pool == MissionPool.event) {
+            throw new ValidationException("pool", "event missions are managed via the event endpoints");
+        }
         MissionPoolCache cache = loadPoolCache();
         if (pool == null) {
             userMissionRepository.deleteActiveForUserAndPool(userId, MissionPool.daily);
@@ -155,6 +161,9 @@ public class MissionAssignmentService {
     }
 
     public void rolloutPool(MissionPool pool, boolean freshSeed) {
+        if (pool == MissionPool.event) {
+            throw new ValidationException("pool", "event missions are managed via the event endpoints");
+        }
         purgeAndRollPool(pool, freshSeed);
     }
 

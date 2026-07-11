@@ -19,6 +19,7 @@ import com.accsaber.backend.model.dto.response.mission.MissionCompletedResponse;
 import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
@@ -47,6 +48,7 @@ public class MissionProgressService {
     private final ItemService itemService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final EventMissionService eventMissionService;
 
     @Value("${accsaber.missions.enabled:false}")
     private boolean missionsEnabled;
@@ -225,6 +227,13 @@ public class MissionProgressService {
                 mission.setItemAwarded(true);
             } catch (Exception e) {
                 log.warn("Failed to award crate for mission {}: {}", mission.getId(), e.getMessage());
+            }
+        }
+
+        if (mission.getPool() == MissionPool.event) {
+            int bonusXp = eventMissionService.onEventMissionCompleted(mission, userId);
+            if (bonusXp > 0) {
+                creditXpToWindowMissions(userId, bonusXp, completedAt);
             }
         }
 
