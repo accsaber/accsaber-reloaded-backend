@@ -1,8 +1,11 @@
 package com.accsaber.backend.security;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -34,10 +37,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final List<StaffRole> PLAYER_LINKED_ROLES = List.of(StaffRole.RANKING, StaffRole.RANKING_HEAD);
-    private static final Comparator<StaffUser> HIGHEST_ROLE_FIRST = Comparator
-            .comparingInt((StaffUser s) -> PLAYER_LINKED_ROLES.indexOf(s.getRole()))
-            .reversed();
+    private static final Map<String, List<StaffRole>> SUBDOMAIN_ROLES = Map.of(
+            "ranking", List.of(StaffRole.RANKING_HEAD, StaffRole.RANKING),
+            "creatives", List.of(StaffRole.CREATIVE));
 
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
@@ -73,7 +75,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        UserDetails userDetails = loadUserDetails(token);
+        UserDetails userDetails = loadUserDetails(token, playerRolesFor(
+                request.getHeader("X-AccSaber-Realm"),
+                request.getHeader("Origin"),
+                request.getHeader("Referer")));
         if (userDetails != null) {
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(userDetails, null,
                     userDetails.getAuthorities());
@@ -84,18 +89,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private UserDetails loadUserDetails(String token) {
+    private UserDetails loadUserDetails(String token, List<StaffRole> surfacedRoles) {
         String type = jwtService.extractTokenType(token);
         if (JwtService.TYPE_PLAYER.equals(type)) {
             Long userId = jwtService.extractPlayerId(token);
             return userRepository.findByIdAndActiveTrue(userId)
                     .map(user -> {
-                        StaffUser staff = staffUserRepository
-                                .findByUserIdAndRoleInAndStatusAndActiveTrue(
-                                        userId, PLAYER_LINKED_ROLES, StaffUserStatus.ACCEPTED)
-                                .stream()
-                                .min(HIGHEST_ROLE_FIRST)
-                                .orElse(null);
+                        StaffUser staff = surfaceStaffRole(userId, surfacedRoles);
                         return new PlayerUserDetails(
                                 user,
                                 staff != null ? staff.getId() : null,
@@ -110,6 +110,51 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         log.warn("Rejecting JWT with unknown token type: {}", type);
         return null;
+    }
+
+    private StaffUser surfaceStaffRole(Long userId, List<StaffRole> surfacedRoles) {
+        if (surfacedRoles.isEmpty()) {
+            return null;
+        }
+        return staffUserRepository
+                .findByUserIdAndRoleInAndStatusAndActiveTrue(userId, surfacedRoles, StaffUserStatus.ACCEPTED)
+                .stream()
+                .min(Comparator.comparingInt((StaffUser s) -> surfacedRoles.indexOf(s.getRole())))
+                .orElse(null);
+    }
+
+    static List<StaffRole> playerRolesFor(String realmHeader, String origin, String referer) {
+        if (realmHeader != null) {
+            List<StaffRole> byName = SUBDOMAIN_ROLES.get(realmHeader.trim().toLowerCase(Locale.ROOT));
+            if (byName != null) {
+                return byName;
+            }
+        }
+        List<StaffRole> byOrigin = rolesForUrlHeader(origin);
+        return byOrigin.isEmpty() ? rolesForUrlHeader(referer) : byOrigin;
+    }
+
+    private static List<StaffRole> rolesForUrlHeader(String url) {
+        if (url == null) {
+            return List.of();
+        }
+        String host;
+        try {
+            host = URI.create(url).getHost();
+        } catch (IllegalArgumentException e) {
+            return List.of();
+        }
+        if (host == null || !isAccsaberHost(host)) {
+            return List.of();
+        }
+        int dot = host.indexOf('.');
+        String subdomain = dot > 0 ? host.substring(0, dot) : "";
+        return SUBDOMAIN_ROLES.getOrDefault(subdomain, List.of());
+    }
+
+    private static boolean isAccsaberHost(String host) {
+        return host.equals("accsaberreloaded.com") || host.endsWith(".accsaberreloaded.com")
+                || host.equals("localhost") || host.endsWith(".localhost");
     }
 
     static class ServiceAuthentication extends AbstractAuthenticationToken {

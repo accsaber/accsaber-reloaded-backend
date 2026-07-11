@@ -148,7 +148,8 @@ public class OauthController {
     @Operation(summary = "Get the currently authenticated player")
     @GetMapping("/me")
     public ResponseEntity<AuthMeResponse> me(@AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(oauthService.getMe(requirePrincipal(principal).getUserId()));
+        PlayerUserDetails player = requirePrincipal(principal);
+        return ResponseEntity.ok(oauthService.getMe(player.getUserId(), player.getStaffId()));
     }
 
     @Operation(summary = "Remove an OAuth connection from the current player")

@@ -156,7 +156,7 @@ public class OauthService {
     }
 
     @Transactional(readOnly = true)
-    public AuthMeResponse getMe(Long userId) {
+    public AuthMeResponse getMe(Long userId, UUID surfacedStaffId) {
         User user = requireUser(userId);
 
         var connections = oauthConnectionRepository.findByUserIdAndActiveTrue(userId).stream()
@@ -168,12 +168,11 @@ public class OauthService {
                         .build())
                 .toList();
 
-        StaffContext staff = staffUserRepository
-                .findByUserIdAndRoleInAndStatusAndActiveTrue(userId, OAUTH_ELIGIBLE_ROLES, StaffUserStatus.ACCEPTED)
-                .stream()
-                .min(HIGHEST_ROLE_FIRST)
-                .map(this::toStaffContext)
-                .orElse(null);
+        StaffContext staff = surfacedStaffId == null
+                ? null
+                : staffUserRepository.findById(surfacedStaffId)
+                        .map(this::toStaffContext)
+                        .orElse(null);
 
         return AuthMeResponse.builder()
                 .userId(user.getId())

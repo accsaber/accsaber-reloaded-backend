@@ -117,6 +117,20 @@ public final class ItemMapper {
         return toUserItemResponse(link, null);
     }
 
+    public static UserItemResponse toPreviewResponse(Item item, Set<ItemModifier> modifiers,
+            UnusualEffect effect, String variantKey) {
+        UserItemResponse response = UserItemResponse.builder()
+                .item(toItemResponse(item))
+                .modifiers(toModifierRefs(modifiers))
+                .unusualEffect(toEffectRef(effect))
+                .quantity(1L)
+                .build();
+        if (variantKey != null && !variantKey.isBlank()) {
+            response.setVariantKey(variantKey);
+        }
+        return response;
+    }
+
     public static UnusualEffectResponse toUnusualEffectResponse(UnusualEffect effect) {
         return UnusualEffectResponse.builder()
                 .id(effect.getId())

@@ -111,6 +111,24 @@ public class ItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
     }
 
+    @Transactional(readOnly = true)
+    public UserItemResponse previewItem(UUID itemId, UUID unusualEffectId, List<String> modifierKeys,
+            String variantKey) {
+        Item item = findByIdForStaff(itemId);
+        Set<ItemModifier> modifiers = (modifierKeys == null || modifierKeys.isEmpty())
+                ? Set.of()
+                : loadModifierSet(modifierKeys);
+        if (unusualEffectId != null && !hasModifier(modifiers, ItemModifier.UNUSUAL)) {
+            throw new ValidationException("unusualEffectId",
+                    "the unusual modifier must be applied to assign an unusual effect");
+        }
+        UnusualEffect effect = unusualEffectId == null
+                ? null
+                : unusualEffectRepository.findById(unusualEffectId)
+                        .orElseThrow(() -> new ResourceNotFoundException("UnusualEffect", unusualEffectId));
+        return ItemMapper.toPreviewResponse(item, modifiers, effect, variantKey);
+    }
+
     public List<UserItemLink> findUserCollection(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         return userItemLinkRepository.findByUser_Id(resolved);

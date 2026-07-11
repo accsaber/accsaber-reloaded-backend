@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.EquipItemRequest;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
+import com.accsaber.backend.model.dto.request.item.ItemPreviewRequest;
 import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
 import com.accsaber.backend.model.dto.response.item.EssenceBalanceResponse;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
@@ -89,6 +91,17 @@ public class ItemController {
     @GetMapping("/items/{id}")
     public ResponseEntity<ItemResponse> getItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.findById(id)));
+    }
+
+    @Operation(summary = "Preview an item, modifier, and unusual effect combo exactly as it renders equipped")
+    @PostMapping("/items/preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CREATIVE')")
+    public ResponseEntity<UserItemResponse> previewItem(@Valid @RequestBody ItemPreviewRequest request) {
+        return ResponseEntity.ok(itemService.previewItem(
+                request.getItemId(),
+                request.getUnusualEffectId(),
+                request.getModifierKeys(),
+                request.getVariantKey()));
     }
 
     @Operation(summary = "List a user's owned item collection")

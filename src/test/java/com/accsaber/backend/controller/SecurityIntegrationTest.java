@@ -15,6 +15,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.accsaber.backend.controller.ranking.RankingBatchController;
+import com.accsaber.backend.controller.staff.StaffItemController;
+import com.accsaber.backend.controller.staff.StaffUnusualEffectController;
 import com.accsaber.backend.controller.staff.StaffUserController;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +36,22 @@ class SecurityIntegrationTest {
 
                 assertThat(annotation).isNotNull();
                 assertThat(annotation.value()).isEqualTo("hasRole('ADMIN')");
+        }
+
+        @Test
+        void staffItemController_hasAdminOrCreativeClassLevelPreAuthorize() {
+                PreAuthorize annotation = StaffItemController.class.getAnnotation(PreAuthorize.class);
+
+                assertThat(annotation).isNotNull();
+                assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'CREATIVE')");
+        }
+
+        @Test
+        void staffUnusualEffectController_hasAdminOrCreativeClassLevelPreAuthorize() {
+                PreAuthorize annotation = StaffUnusualEffectController.class.getAnnotation(PreAuthorize.class);
+
+                assertThat(annotation).isNotNull();
+                assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'CREATIVE')");
         }
 
         @Test
