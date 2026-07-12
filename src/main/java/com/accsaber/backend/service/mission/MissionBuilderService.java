@@ -45,8 +45,12 @@ public class MissionBuilderService {
     private static final double STREAK_COMPLEXITY_MIN = 1.0;
     private static final double STREAK_COMPLEXITY_MAX = 15.0;
     private static final double STREAK_COMPLEXITY_BAND_SIZE = 3.0;
+    private static final double STREAK_DEFAULT_COMPLEXITY = 7.0;
     private static final double STREAK_COMPLEXITY_BASE_FACTOR = 0.95;
     private static final double STREAK_COMPLEXITY_FACTOR_STEP = 0.15;
+    private static final int STREAK_COMPLEXITY_BAND_COUNT = (int) Math
+            .ceil((STREAK_COMPLEXITY_MAX - STREAK_COMPLEXITY_MIN) / STREAK_COMPLEXITY_BAND_SIZE);
+    private static final BigDecimal STREAK_COMPLEXITY_MIN_DECIMAL = BigDecimal.valueOf(STREAK_COMPLEXITY_MIN);
     private static final BigDecimal STREAK_COMPLEXITY_BAND_SIZE_DECIMAL = BigDecimal.valueOf(STREAK_COMPLEXITY_BAND_SIZE);
     private static final String OVERALL_CODE = "overall";
     private static final ThreadLocal<String> LAST_FAIL_REASON = new ThreadLocal<>();
@@ -594,56 +598,71 @@ public class MissionBuilderService {
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
         BigDecimal streakThreshold = skillService.liftedThreshold(ctx, category, skill.getRawApForOneGain());
-        MapPick pick = targetService.sampleEligibleMap(category, streakThreshold,
-                calibrationService.bandMultiplier(template, band), category.getScoreCurve(), rng);
-        if (pick == null)
-            return failBuild("no-eligible-map");
-
-        BigDecimal[] complexityBand = streakComplexityBand(pick.complexity());
-        int userRepresentativeStreak = skillService.representativeUserStreakForComplexityBand(
-                ctx.userId(), category.getId(), band, complexityBand[0], complexityBand[1]);
-        if (userRepresentativeStreak < 3)
-            return failBuild("user-streak-too-low");
-
-        int reference = mapStreakReference(pick, userRepresentativeStreak);
         BigDecimal skillLvl = skillService.skillLevelFor(ctx, category);
         boolean topTier = skillLvl != null && skillLvl.doubleValue() >= 90.0;
-        int targetStreak = streakTargetFor(band, reference, topTier);
-        int userCap = userRepresentativeStreak + 2;
-        targetStreak = Math.max(3, Math.min(targetStreak, userCap));
-
-        int xp = calibrationService.computeXpReward(template, skillLvl, band, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
-                .targetMapDifficulty(pick.difficulty())
-                .targetStreak(targetStreak)
-                .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
-                .build();
+        String lastReason = "no-eligible-map";
+        for (int attempt = 0; attempt < COMPUTE_MAP_RETRIES; attempt++) {
+            MapPick pick = targetService.sampleEligibleMap(category, streakThreshold,
+                    calibrationService.bandMultiplier(template, band), category.getScoreCurve(), rng);
+            if (pick == null) {
+                lastReason = "no-eligible-map";
+                continue;
+            }
+            int bandAbility = complexityBandAbility(ctx.userId(), category.getId(), band, pick);
+            if (bandAbility < 3) {
+                lastReason = "user-streak-too-low-for-complexity";
+                continue;
+            }
+            int reference = mapStreakReference(pick, bandAbility);
+            int targetStreak = Math.max(3, Math.min(streakTargetFor(band, reference, topTier), bandAbility + 2));
+            int xp = calibrationService.computeXpReward(template, skillLvl, band, null);
+            return baseBuilder(ctx, template, category, expiresAt, pool, band)
+                    .targetMapDifficulty(pick.difficulty())
+                    .targetStreak(targetStreak)
+                    .xpReward(xp)
+                    .itemReward(rollItemReward(template, rng, cache))
+                    .build();
+        }
+        return failBuild(lastReason);
     }
 
-    private int mapStreakReference(MapPick pick, int fallbackUserStreak) {
+    private int complexityBandAbility(Long userId, UUID categoryId, MissionBand band, MapPick pick) {
+        BigDecimal[] complexityBand = streakComplexityBand(pick.complexity());
+        MissionSkillService.RepresentativeStreak rep = skillService.representativeUserStreakForComplexityBand(
+                userId, categoryId, band, complexityBand[0], complexityBand[1]);
+        if (rep.fromComplexityBand())
+            return rep.value();
+        return (int) Math.round(rep.value() * complexityTranslationFactor(pick.complexity()));
+    }
+
+    private int mapStreakReference(MapPick pick, int bandAbility) {
         List<Integer> topStreaks = scoreRepository.findTopStreak115ValuesByMapDifficulty(
                 pick.difficulty().getId(), PageRequest.of(0, 5));
-        if (!topStreaks.isEmpty()) {
-            int max = topStreaks.get(0);
-            double avg = topStreaks.stream().mapToInt(Integer::intValue).average().orElse(max);
-            return Math.max(2, (int) Math.round(0.6 * avg + 0.4 * max));
-        }
-        double complexity = pick.complexity() != null ? pick.complexity().doubleValue() : 7.0;
+        if (topStreaks.isEmpty())
+            return bandAbility;
+        int max = topStreaks.get(0);
+        double avg = topStreaks.stream().mapToInt(Integer::intValue).average().orElse(max);
+        return Math.max(2, (int) Math.round(0.6 * avg + 0.4 * max));
+    }
+
+    private int complexityBandIndex(double complexity) {
         double clamped = Math.max(STREAK_COMPLEXITY_MIN, Math.min(STREAK_COMPLEXITY_MAX, complexity));
-        int bandIndex = Math.max(0, (int) Math.ceil(clamped / STREAK_COMPLEXITY_BAND_SIZE) - 1);
-        double factor = STREAK_COMPLEXITY_BASE_FACTOR - bandIndex * STREAK_COMPLEXITY_FACTOR_STEP;
-        return Math.max(2, (int) Math.round(fallbackUserStreak * factor));
+        int index = (int) Math.floor((clamped - STREAK_COMPLEXITY_MIN) / STREAK_COMPLEXITY_BAND_SIZE);
+        return Math.max(0, Math.min(index, STREAK_COMPLEXITY_BAND_COUNT - 1));
+    }
+
+    private double complexityTranslationFactor(BigDecimal complexity) {
+        double raw = complexity != null ? complexity.doubleValue() : STREAK_DEFAULT_COMPLEXITY;
+        return STREAK_COMPLEXITY_BASE_FACTOR - complexityBandIndex(raw) * STREAK_COMPLEXITY_FACTOR_STEP;
     }
 
     private BigDecimal[] streakComplexityBand(BigDecimal complexity) {
-        double raw = complexity != null ? complexity.doubleValue() : 7.0;
-        double clamped = Math.max(STREAK_COMPLEXITY_MIN, Math.min(STREAK_COMPLEXITY_MAX, raw));
-        int bandIndex = Math.max(0, (int) Math.ceil(clamped / STREAK_COMPLEXITY_BAND_SIZE) - 1);
-        BigDecimal min = BigDecimal.valueOf(bandIndex).multiply(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL)
-                .add(BigDecimal.ONE);
-        BigDecimal max = min.add(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL).subtract(BigDecimal.ONE);
-        return new BigDecimal[] { min, max.min(BigDecimal.valueOf(STREAK_COMPLEXITY_MAX)) };
+        double raw = complexity != null ? complexity.doubleValue() : STREAK_DEFAULT_COMPLEXITY;
+        int bandIndex = complexityBandIndex(raw);
+        BigDecimal lo = STREAK_COMPLEXITY_MIN_DECIMAL
+                .add(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL.multiply(BigDecimal.valueOf(bandIndex)));
+        BigDecimal hiExclusive = lo.add(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL);
+        return new BigDecimal[] { lo, hiExclusive };
     }
 
     private int streakTargetFor(MissionBand band, int reference, boolean topTier) {

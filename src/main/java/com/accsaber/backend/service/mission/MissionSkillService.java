@@ -89,19 +89,22 @@ public class MissionSkillService {
         return categorySkillLevel.add(skillGap.multiply(liftFraction));
     }
 
+    public record RepresentativeStreak(int value, boolean fromComplexityBand) {
+    }
+
     public int representativeUserStreak(Long userId, UUID categoryId, MissionBand band) {
         List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategory(
                 userId, categoryId, PageRequest.of(0, 10));
         return representativeStreakFromTop(top, band);
     }
 
-    public int representativeUserStreakForComplexityBand(Long userId, UUID categoryId, MissionBand band,
-            BigDecimal complexityMin, BigDecimal complexityMax) {
+    public RepresentativeStreak representativeUserStreakForComplexityBand(Long userId, UUID categoryId,
+            MissionBand band, BigDecimal complexityMin, BigDecimal complexityMaxExclusive) {
         List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategoryAndComplexityRange(
-                userId, categoryId, complexityMin, complexityMax, PageRequest.of(0, 10));
+                userId, categoryId, complexityMin, complexityMaxExclusive, PageRequest.of(0, 10));
         if (top.isEmpty())
-            return representativeUserStreak(userId, categoryId, band);
-        return representativeStreakFromTop(top, band);
+            return new RepresentativeStreak(representativeUserStreak(userId, categoryId, band), false);
+        return new RepresentativeStreak(representativeStreakFromTop(top, band), true);
     }
 
     private int representativeStreakFromTop(List<Integer> top, MissionBand band) {

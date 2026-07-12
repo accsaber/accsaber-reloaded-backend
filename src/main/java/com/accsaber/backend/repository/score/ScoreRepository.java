@@ -314,14 +314,15 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND s.mapDifficulty.category.id = :categoryId
                           AND s.active = true
                           AND s.streak115 IS NOT NULL
-                          AND c.complexity BETWEEN :minComplexity AND :maxComplexity
+                          AND c.complexity >= :minComplexity
+                          AND c.complexity < :maxComplexityExclusive
                         ORDER BY s.streak115 DESC
                         """)
         List<Integer> findTopStreak115ValuesByUserAndCategoryAndComplexityRange(
                         @Param("userId") Long userId,
                         @Param("categoryId") java.util.UUID categoryId,
                         @Param("minComplexity") java.math.BigDecimal minComplexity,
-                        @Param("maxComplexity") java.math.BigDecimal maxComplexity,
+                        @Param("maxComplexityExclusive") java.math.BigDecimal maxComplexityExclusive,
                         org.springframework.data.domain.Pageable pageable);
 
         @Query("""
