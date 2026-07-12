@@ -92,6 +92,19 @@ public class MissionSkillService {
     public int representativeUserStreak(Long userId, UUID categoryId, MissionBand band) {
         List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategory(
                 userId, categoryId, PageRequest.of(0, 10));
+        return representativeStreakFromTop(top, band);
+    }
+
+    public int representativeUserStreakForComplexityBand(Long userId, UUID categoryId, MissionBand band,
+            BigDecimal complexityMin, BigDecimal complexityMax) {
+        List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategoryAndComplexityRange(
+                userId, categoryId, complexityMin, complexityMax, PageRequest.of(0, 10));
+        if (top.isEmpty())
+            return representativeUserStreak(userId, categoryId, band);
+        return representativeStreakFromTop(top, band);
+    }
+
+    private int representativeStreakFromTop(List<Integer> top, MissionBand band) {
         if (top.isEmpty())
             return 0;
         int max = top.get(0);

@@ -42,6 +42,12 @@ public class MissionBuilderService {
     private static final int SNIPE_CANDIDATE_LIMIT = 50;
     private static final int MAP_SAMPLE_ATTEMPTS = 8;
     private static final int COMPUTE_MAP_RETRIES = 6;
+    private static final double STREAK_COMPLEXITY_MIN = 1.0;
+    private static final double STREAK_COMPLEXITY_MAX = 15.0;
+    private static final double STREAK_COMPLEXITY_BAND_SIZE = 3.0;
+    private static final double STREAK_COMPLEXITY_BASE_FACTOR = 0.95;
+    private static final double STREAK_COMPLEXITY_FACTOR_STEP = 0.15;
+    private static final BigDecimal STREAK_COMPLEXITY_BAND_SIZE_DECIMAL = BigDecimal.valueOf(STREAK_COMPLEXITY_BAND_SIZE);
     private static final String OVERALL_CODE = "overall";
     private static final ThreadLocal<String> LAST_FAIL_REASON = new ThreadLocal<>();
 
@@ -587,14 +593,17 @@ public class MissionBuilderService {
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
-        int userRepresentativeStreak = skillService.representativeUserStreak(ctx.userId(), category.getId(), band);
-        if (userRepresentativeStreak < 3)
-            return failBuild("user-streak-too-low");
         BigDecimal streakThreshold = skillService.liftedThreshold(ctx, category, skill.getRawApForOneGain());
         MapPick pick = targetService.sampleEligibleMap(category, streakThreshold,
                 calibrationService.bandMultiplier(template, band), category.getScoreCurve(), rng);
         if (pick == null)
             return failBuild("no-eligible-map");
+
+        BigDecimal[] complexityBand = streakComplexityBand(pick.complexity());
+        int userRepresentativeStreak = skillService.representativeUserStreakForComplexityBand(
+                ctx.userId(), category.getId(), band, complexityBand[0], complexityBand[1]);
+        if (userRepresentativeStreak < 3)
+            return failBuild("user-streak-too-low");
 
         int reference = mapStreakReference(pick, userRepresentativeStreak);
         BigDecimal skillLvl = skillService.skillLevelFor(ctx, category);
@@ -621,10 +630,20 @@ public class MissionBuilderService {
             return Math.max(2, (int) Math.round(0.6 * avg + 0.4 * max));
         }
         double complexity = pick.complexity() != null ? pick.complexity().doubleValue() : 7.0;
-        double factor = complexity >= 10.0 ? 0.35
-                : complexity >= 8.0 ? 0.55
-                : complexity >= 6.0 ? 0.75 : 0.95;
+        double clamped = Math.max(STREAK_COMPLEXITY_MIN, Math.min(STREAK_COMPLEXITY_MAX, complexity));
+        int bandIndex = Math.max(0, (int) Math.ceil(clamped / STREAK_COMPLEXITY_BAND_SIZE) - 1);
+        double factor = STREAK_COMPLEXITY_BASE_FACTOR - bandIndex * STREAK_COMPLEXITY_FACTOR_STEP;
         return Math.max(2, (int) Math.round(fallbackUserStreak * factor));
+    }
+
+    private BigDecimal[] streakComplexityBand(BigDecimal complexity) {
+        double raw = complexity != null ? complexity.doubleValue() : 7.0;
+        double clamped = Math.max(STREAK_COMPLEXITY_MIN, Math.min(STREAK_COMPLEXITY_MAX, raw));
+        int bandIndex = Math.max(0, (int) Math.ceil(clamped / STREAK_COMPLEXITY_BAND_SIZE) - 1);
+        BigDecimal min = BigDecimal.valueOf(bandIndex).multiply(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL)
+                .add(BigDecimal.ONE);
+        BigDecimal max = min.add(STREAK_COMPLEXITY_BAND_SIZE_DECIMAL).subtract(BigDecimal.ONE);
+        return new BigDecimal[] { min, max.min(BigDecimal.valueOf(STREAK_COMPLEXITY_MAX)) };
     }
 
     private int streakTargetFor(MissionBand band, int reference, boolean topTier) {
