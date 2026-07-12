@@ -113,6 +113,20 @@ public class EventService {
         return eventRepository.save(event);
     }
 
+    @Transactional
+    public Event setBackgroundUrl(UUID id, String url) {
+        Event event = findById(id);
+        event.setBackgroundUrl(url);
+        return eventRepository.save(event);
+    }
+
+    @Transactional
+    public Event setIconUrl(UUID id, String url) {
+        Event event = findById(id);
+        event.setIconUrl(url);
+        return eventRepository.save(event);
+    }
+
     private List<Item> resolveBonusItems(List<UUID> ids) {
         List<UUID> distinct = List.copyOf(new HashSet<>(ids));
         List<Item> items = itemRepository.findAllById(distinct);
