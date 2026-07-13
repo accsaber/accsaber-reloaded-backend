@@ -43,6 +43,9 @@ public class Event {
     @Column(nullable = false)
     private String title;
 
+    @Column(nullable = false, unique = true)
+    private String slug;
+
     private String description;
 
     @Column(name = "background_url")

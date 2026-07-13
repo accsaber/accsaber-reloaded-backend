@@ -16,6 +16,7 @@ import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.mission.EventRepository;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 
@@ -53,6 +54,16 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
     }
 
+    public UUID resolveId(String idOrSlug) {
+        UUID id = tryParseUuid(idOrSlug);
+        if (id != null) {
+            return id;
+        }
+        return eventRepository.findBySlug(idOrSlug)
+                .map(Event::getId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", idOrSlug));
+    }
+
     @Transactional
     public Event create(EventRequest req) {
         if (req.getTitle() == null || req.getTitle().isBlank()) {
@@ -64,6 +75,7 @@ public class EventService {
         validateWindow(req.getStartsAt(), req.getEndsAt());
         Event.EventBuilder builder = Event.builder()
                 .title(req.getTitle())
+                .slug(resolveSlug(req.getSlug(), req.getTitle(), null))
                 .description(req.getDescription())
                 .backgroundUrl(req.getBackgroundUrl())
                 .iconUrl(req.getIconUrl())
@@ -84,6 +96,9 @@ public class EventService {
         Event event = findById(id);
         if (req.getTitle() != null) {
             event.setTitle(req.getTitle());
+        }
+        if (req.getSlug() != null) {
+            event.setSlug(resolveSlug(req.getSlug(), event.getTitle(), id));
         }
         if (req.getDescription() != null) {
             event.setDescription(req.getDescription());
@@ -146,6 +161,28 @@ public class EventService {
     private void validateWindow(Instant startsAt, Instant endsAt) {
         if (!endsAt.isAfter(startsAt)) {
             throw new ValidationException("endsAt", "must be after startsAt");
+        }
+    }
+
+    private String resolveSlug(String requested, String title, UUID excludeId) {
+        String source = requested != null && !requested.isBlank() ? requested : title;
+        String slug = Slugs.slugify(source);
+        if (slug.isEmpty()) {
+            throw new ValidationException("slug", "could not derive a slug; provide one explicitly");
+        }
+        eventRepository.findBySlug(slug).ifPresent(existing -> {
+            if (excludeId == null || !existing.getId().equals(excludeId)) {
+                throw new ValidationException("slug", "already in use");
+            }
+        });
+        return slug;
+    }
+
+    private UUID tryParseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 }

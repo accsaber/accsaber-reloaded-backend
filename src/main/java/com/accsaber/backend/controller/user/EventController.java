@@ -51,56 +51,62 @@ public class EventController {
     }
 
     @Operation(summary = "List an event's missions",
-            description = "Optional week filter, 1-based from the event start (week 1 = first 7 days).")
-    @GetMapping("/{id}/missions")
-    public ResponseEntity<List<EventMissionResponse>> missions(@PathVariable UUID id,
+            description = "Accepts the event id or slug. Optional week filter, 1-based from the event start "
+                    + "(week 1 = first 7 days).")
+    @GetMapping("/{idOrSlug}/missions")
+    public ResponseEntity<List<EventMissionResponse>> missions(@PathVariable String idOrSlug,
             @RequestParam(required = false) Integer week) {
-        return ResponseEntity.ok(eventMissionService.getMissions(id, week));
+        return ResponseEntity.ok(eventMissionService.getMissions(eventService.resolveId(idOrSlug), week));
     }
 
     @Operation(summary = "List an event's missions with the authenticated player's progress",
-            description = "Optional week filter. Lazily assigns any unlocked event missions the player is missing.")
-    @GetMapping("/{id}/missions/me")
+            description = "Accepts the event id or slug. Optional week filter. Lazily assigns any unlocked event "
+                    + "missions the player is missing.")
+    @GetMapping("/{idOrSlug}/missions/me")
     public ResponseEntity<List<EventProgressResponse.EventMissionProgressResponse>> myMissions(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID id,
+            @PathVariable String idOrSlug,
             @RequestParam(required = false) Integer week) {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required");
         }
+        UUID id = eventService.resolveId(idOrSlug);
         Long userId = principal.getUserId();
         eventMissionService.ensureForUserAndEventId(userId, id);
         return ResponseEntity.ok(eventMissionService.getMissionsWithProgress(userId, id, week));
     }
 
     @Operation(summary = "Begin an event for the authenticated player",
-            description = "Opt-in: creates the player's event profile and rolls out the first unlocked week of "
-                    + "missions. Later weeks stay locked until the current week is completed. Idempotent.")
-    @PostMapping("/{id}/begin")
+            description = "Accepts the event id or slug. Opt-in: creates the player's event profile and rolls out "
+                    + "the first unlocked week of missions. Later weeks stay locked until the current week is "
+                    + "completed. Idempotent.")
+    @PostMapping("/{idOrSlug}/begin")
     public ResponseEntity<EventProgressResponse> begin(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID id) {
+            @PathVariable String idOrSlug) {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required");
         }
-        return ResponseEntity.ok(eventMissionService.begin(principal.getUserId(), id));
+        return ResponseEntity.ok(eventMissionService.begin(principal.getUserId(), eventService.resolveId(idOrSlug)));
     }
 
-    @Operation(summary = "Get an event with its missions")
-    @GetMapping("/{id}")
-    public ResponseEntity<EventDetailResponse> get(@PathVariable UUID id) {
-        return ResponseEntity.ok(eventMissionService.getDetail(id));
+    @Operation(summary = "Get an event with its missions", description = "Accepts the event id or slug.")
+    @GetMapping("/{idOrSlug}")
+    public ResponseEntity<EventDetailResponse> get(@PathVariable String idOrSlug) {
+        return ResponseEntity.ok(eventMissionService.getDetail(eventService.resolveId(idOrSlug)));
     }
 
     @Operation(summary = "Get an event with the authenticated player's progress",
-            description = "Lazily assigns any unlocked event missions the player is missing.")
-    @GetMapping("/{id}/me")
+            description = "Accepts the event id or slug. Lazily assigns any unlocked event missions the player is "
+                    + "missing.")
+    @GetMapping("/{idOrSlug}/me")
     public ResponseEntity<EventProgressResponse> getMyProgress(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID id) {
+            @PathVariable String idOrSlug) {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required");
         }
+        UUID id = eventService.resolveId(idOrSlug);
         Long userId = principal.getUserId();
         eventMissionService.ensureForUserAndEventId(userId, id);
         return ResponseEntity.ok(eventMissionService.getProgress(userId, id));

@@ -12,6 +12,8 @@ public class EventRequest {
 
     private String title;
 
+    private String slug;
+
     private String description;
 
     private String backgroundUrl;

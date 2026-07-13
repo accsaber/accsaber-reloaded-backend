@@ -92,6 +92,7 @@ import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
+import com.accsaber.backend.util.Slugs;
 import com.accsaber.backend.util.WilsonScore;
 
 import lombok.RequiredArgsConstructor;
@@ -1532,7 +1533,7 @@ public class CampaignService {
     private String normalizeAndValidateSlug(String requested, String fallbackName, UUID excludeId) {
         String candidate = requested != null && !requested.isBlank()
                 ? requested.trim().toLowerCase()
-                : slugify(fallbackName);
+                : Slugs.slugify(fallbackName);
         if (!SLUG_PATTERN.matcher(candidate).matches()) {
             throw new ValidationException("slug",
                     "must be lowercase alphanumeric with dash separators");
@@ -1544,16 +1545,6 @@ public class CampaignService {
             throw new ValidationException("slug", "is already in use");
         }
         return candidate;
-    }
-
-    private String slugify(String input) {
-        if (input == null) {
-            return "";
-        }
-        String lowered = input.toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-+|-+$", "");
-        return lowered.isEmpty() ? "" : lowered;
     }
 
     private void validateGraphSingleSink(UUID campaignId) {

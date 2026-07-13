@@ -26,6 +26,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @EntityGraph(attributePaths = "bonusItems")
     Optional<Event> findWithBonusItemsById(UUID id);
 
+    Optional<Event> findBySlug(String slug);
+
     @Query("""
             SELECT e FROM Event e
             LEFT JOIN FETCH e.bonusItems

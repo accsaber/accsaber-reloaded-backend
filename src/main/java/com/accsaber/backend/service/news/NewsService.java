@@ -2,7 +2,6 @@ package com.accsaber.backend.service.news;
 
 import java.time.Instant;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,6 +33,7 @@ import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.news.NewsRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,9 +41,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class NewsService {
-
-    private static final Pattern SLUG_INVALID_CHARS = Pattern.compile("[^a-z0-9-]+");
-    private static final Pattern SLUG_DASH_RUNS = Pattern.compile("-{2,}");
 
     private final NewsRepository newsRepository;
     private final StaffUserRepository staffUserRepository;
@@ -199,7 +196,7 @@ public class NewsService {
         String base = (requested != null && !requested.isBlank())
                 ? requested.trim()
                 : (fallbackTitle != null ? fallbackTitle : "");
-        String slug = slugify(base);
+        String slug = Slugs.slugify(base);
         if (slug.isEmpty()) {
             throw new ValidationException("Slug cannot be empty");
         }
@@ -210,19 +207,6 @@ public class NewsService {
             throw new ConflictException("News", "slug=" + slug);
         }
         return slug;
-    }
-
-    private static String slugify(String input) {
-        String lower = input.toLowerCase().trim().replace(' ', '-');
-        String cleaned = SLUG_INVALID_CHARS.matcher(lower).replaceAll("");
-        cleaned = SLUG_DASH_RUNS.matcher(cleaned).replaceAll("-");
-        if (cleaned.startsWith("-")) {
-            cleaned = cleaned.substring(1);
-        }
-        if (cleaned.endsWith("-")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 1);
-        }
-        return cleaned;
     }
 
     private Batch resolveBatch(UUID batchId) {
