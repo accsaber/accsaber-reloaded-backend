@@ -14,23 +14,24 @@ import com.accsaber.backend.model.entity.mission.Event;
 
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
-    @EntityGraph(attributePaths = "bonusItems")
+    @EntityGraph(attributePaths = { "bonusItems", "bonusItems.type" })
     List<Event> findByActiveTrueOrderByStartsAtDesc();
 
-    @EntityGraph(attributePaths = "bonusItems")
+    @EntityGraph(attributePaths = { "bonusItems", "bonusItems.type" })
     List<Event> findAllByOrderByStartsAtDesc();
 
-    @EntityGraph(attributePaths = "bonusItems")
+    @EntityGraph(attributePaths = { "bonusItems", "bonusItems.type" })
     Optional<Event> findByIdAndActiveTrue(UUID id);
 
-    @EntityGraph(attributePaths = "bonusItems")
+    @EntityGraph(attributePaths = { "bonusItems", "bonusItems.type" })
     Optional<Event> findWithBonusItemsById(UUID id);
 
     Optional<Event> findBySlug(String slug);
 
     @Query("""
             SELECT e FROM Event e
-            LEFT JOIN FETCH e.bonusItems
+            LEFT JOIN FETCH e.bonusItems bi
+            LEFT JOIN FETCH bi.type
             WHERE e.active = true
               AND e.startsAt <= :now
               AND e.endsAt > :now
@@ -40,7 +41,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     @Query("""
             SELECT e FROM Event e
-            LEFT JOIN FETCH e.bonusItems
+            LEFT JOIN FETCH e.bonusItems bi
+            LEFT JOIN FETCH bi.type
             WHERE e.active = true
               AND e.startsAt > :now
             ORDER BY e.startsAt ASC
@@ -49,7 +51,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     @Query("""
             SELECT e FROM Event e
-            LEFT JOIN FETCH e.bonusItems
+            LEFT JOIN FETCH e.bonusItems bi
+            LEFT JOIN FETCH bi.type
             WHERE e.active = true
               AND e.endsAt <= :now
             ORDER BY e.endsAt DESC
