@@ -2,6 +2,7 @@ package com.accsaber.backend.service.mission;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
 import com.accsaber.backend.model.dto.response.mission.EventMissionResponse;
+import com.accsaber.backend.model.dto.response.mission.EventProfileResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
 import com.accsaber.backend.model.dto.response.mission.EventResponse;
 import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
@@ -33,16 +35,15 @@ import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
-import com.accsaber.backend.model.entity.mission.UserEventBonus;
+import com.accsaber.backend.model.entity.mission.UserEventProfile;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.mission.EventRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
-import com.accsaber.backend.repository.mission.UserEventBonusRepository;
+import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -58,11 +59,10 @@ public class EventMissionService {
     private final EventRepository eventRepository;
     private final MissionTemplateRepository templateRepository;
     private final UserMissionRepository userMissionRepository;
-    private final UserEventBonusRepository bonusRepository;
+    private final UserEventProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
-    private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
     private final TransactionTemplate transactionTemplate;
@@ -103,6 +103,31 @@ public class EventMissionService {
         }
     }
 
+    @Transactional
+    public EventProgressResponse begin(Long userId, UUID eventId) {
+        Event event = activeEvent(eventId);
+        if (!event.isLive(Instant.now())) {
+            throw new ValidationException("Event is not live");
+        }
+        User user = userRepository.findByIdAndActiveTrue(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (user.isBanned()) {
+            throw new ValidationException("Banned users cannot join events");
+        }
+        List<MissionTemplate> templates = templateRepository.findActiveByEvent(eventId);
+        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(eventId, userId).orElse(null);
+        if (profile == null) {
+            profile = UserEventProfile.builder()
+                    .event(event)
+                    .user(userRepository.getReferenceById(userId))
+                    .build();
+            recomputeProgression(profile, event, templates, Set.of());
+            profile = profileRepository.save(profile);
+        }
+        ensureAssignments(userId, event, templates, profile);
+        return buildProgress(userId, event, templates);
+    }
+
     public void rolloutEvent(UUID eventId) {
         Event event = eventRepository.findByIdAndActiveTrue(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", eventId));
@@ -113,10 +138,10 @@ public class EventMissionService {
         if (templates.isEmpty()) {
             return;
         }
-        List<Long> eligible = scoreRepository.findActivePlayerIdsWithAtLeastActiveScores(1);
-        log.info("Rolling out event '{}' missions for {} users", event.getTitle(), eligible.size());
+        List<Long> participants = profileRepository.findUserIdsByEvent(eventId);
+        log.info("Rolling out event '{}' missions for {} participants", event.getTitle(), participants.size());
 
-        for (Long userId : eligible) {
+        for (Long userId : participants) {
             backfillExecutor.execute(() -> {
                 try {
                     transactionTemplate.executeWithoutResult(
@@ -132,6 +157,9 @@ public class EventMissionService {
     public void ensureForUser(Long userId) {
         Instant now = Instant.now();
         for (Event event : eventRepository.findLive(now)) {
+            if (!profileRepository.existsByEvent_IdAndUser_Id(event.getId(), userId)) {
+                continue;
+            }
             List<MissionTemplate> templates = templateRepository.findActiveByEvent(event.getId());
             if (templates.isEmpty()) {
                 continue;
@@ -144,6 +172,9 @@ public class EventMissionService {
     public void ensureForUserAndEventId(Long userId, UUID eventId) {
         Event event = eventRepository.findByIdAndActiveTrue(eventId).orElse(null);
         if (event == null || !event.isLive(Instant.now())) {
+            return;
+        }
+        if (!profileRepository.existsByEvent_IdAndUser_Id(eventId, userId)) {
             return;
         }
         List<MissionTemplate> templates = templateRepository.findActiveByEvent(eventId);
@@ -159,6 +190,15 @@ public class EventMissionService {
         if (user == null || user.isBanned()) {
             return;
         }
+        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(event.getId(), userId).orElse(null);
+        if (profile == null) {
+            return;
+        }
+        ensureAssignments(userId, event, templates, profile);
+    }
+
+    private void ensureAssignments(Long userId, Event event, List<MissionTemplate> templates,
+            UserEventProfile profile) {
         Instant now = Instant.now();
         Map<UUID, List<MissionStatus>> existing = userMissionRepository
                 .findTemplateStatusesByUserAndEvent(userId, event.getId()).stream()
@@ -168,6 +208,9 @@ public class EventMissionService {
                                 Collectors.toList())));
 
         for (MissionTemplate template : templates) {
+            if (template.weekOf(event) > profile.getUnlockedWeek()) {
+                continue;
+            }
             if (!template.isOpenAt(event, now)) {
                 continue;
             }
@@ -190,8 +233,23 @@ public class EventMissionService {
         if (event == null) {
             return 0;
         }
+        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(event.getId(), userId).orElse(null);
+        if (profile == null) {
+            return 0;
+        }
         respawnIfRepeatable(userId, template, event);
-        return maybeAwardBonus(userId, event);
+
+        List<MissionTemplate> templates = templateRepository.findActiveByEvent(event.getId());
+        Set<UUID> completedIds = new HashSet<>(
+                userMissionRepository.findCompletedTemplateIdsForEvent(userId, event.getId()));
+        int previousWeek = profile.getUnlockedWeek();
+        boolean allComplete = recomputeProgression(profile, event, templates, completedIds);
+        if (profile.getUnlockedWeek() > previousWeek) {
+            ensureAssignments(userId, event, templates, profile);
+        }
+        int bonusXp = allComplete ? maybeAwardBonus(userId, profile, event) : 0;
+        profileRepository.save(profile);
+        return bonusXp;
     }
 
     private void respawnIfRepeatable(Long userId, MissionTemplate template, Event event) {
@@ -206,19 +264,32 @@ public class EventMissionService {
         userMissionRepository.save(buildUserMission(userId, template, event));
     }
 
-    private int maybeAwardBonus(Long userId, Event event) {
-        if (bonusRepository.existsByEvent_IdAndUser_Id(event.getId(), userId)) {
-            return 0;
-        }
-        long total = templateRepository.countByEvent_IdAndActiveTrue(event.getId());
-        if (total == 0) {
-            return 0;
-        }
-        long completed = userMissionRepository.countDistinctCompletedTemplatesForEvent(userId, event.getId());
-        if (completed < total) {
-            return 0;
-        }
+    private boolean recomputeProgression(UserEventProfile profile, Event event,
+            List<MissionTemplate> templates, Set<UUID> completedIds) {
+        Map<Integer, List<UUID>> idsByWeek = templates.stream()
+                .collect(Collectors.groupingBy(t -> t.weekOf(event),
+                        Collectors.mapping(MissionTemplate::getId, Collectors.toList())));
+        List<Integer> weeks = idsByWeek.keySet().stream().sorted().toList();
 
+        int unlockedWeek = weeks.isEmpty() ? 1 : weeks.get(weeks.size() - 1);
+        boolean allComplete = !weeks.isEmpty();
+        for (int week : weeks) {
+            if (completedIds.containsAll(idsByWeek.get(week))) {
+                continue;
+            }
+            unlockedWeek = week;
+            allComplete = false;
+            break;
+        }
+        profile.setUnlockedWeek(unlockedWeek);
+        profile.setMissionsCompleted(completedIds.size());
+        return allComplete;
+    }
+
+    private int maybeAwardBonus(Long userId, UserEventProfile profile, Event event) {
+        if (profile.getBonusAwardedAt() != null) {
+            return 0;
+        }
         int bonusXp = event.getBonusXp() != null ? event.getBonusXp() : 0;
         if (bonusXp > 0) {
             levelUpAwardService.addMissionXp(userId, BigDecimal.valueOf(bonusXp));
@@ -232,11 +303,10 @@ public class EventMissionService {
                         item.getId(), event.getId(), e.getMessage());
             }
         }
-        bonusRepository.save(UserEventBonus.builder()
-                .event(event)
-                .user(userRepository.getReferenceById(userId))
-                .xpAwarded(bonusXp)
-                .build());
+        Instant now = Instant.now();
+        profile.setBonusXp(bonusXp);
+        profile.setBonusAwardedAt(now);
+        profile.setCompletedAt(now);
         log.info("Awarded event completion bonus for event '{}' to user {}", event.getTitle(), userId);
         return bonusXp;
     }
@@ -268,29 +338,38 @@ public class EventMissionService {
     public List<EventProgressResponse.EventMissionProgressResponse> getMissionsWithProgress(
             Long userId, UUID eventId, Integer week) {
         Event event = activeEvent(eventId);
-        return assembleMissionProgress(userId, event, templatesForWeek(event, week));
+        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(eventId, userId).orElse(null);
+        return assembleMissionProgress(userId, event, templatesForWeek(event, week), profile);
     }
 
     @Transactional(readOnly = true)
     public EventProgressResponse getProgress(Long userId, UUID eventId) {
         Event event = activeEvent(eventId);
-        List<MissionTemplate> templates = templateRepository.findActiveByEvent(eventId);
+        return buildProgress(userId, event, templateRepository.findActiveByEvent(eventId));
+    }
+
+    private EventProgressResponse buildProgress(Long userId, Event event, List<MissionTemplate> templates) {
+        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(event.getId(), userId).orElse(null);
         return EventProgressResponse.builder()
                 .event(EventResponse.from(event))
-                .missions(assembleMissionProgress(userId, event, templates))
-                .bonusAwarded(bonusRepository.existsByEvent_IdAndUser_Id(eventId, userId))
+                .profile(profile != null ? EventProfileResponse.from(profile) : null)
+                .begun(profile != null)
+                .missions(assembleMissionProgress(userId, event, templates, profile))
+                .bonusAwarded(profile != null && profile.getBonusAwardedAt() != null)
                 .build();
     }
 
     private List<EventProgressResponse.EventMissionProgressResponse> assembleMissionProgress(
-            Long userId, Event event, List<MissionTemplate> templates) {
+            Long userId, Event event, List<MissionTemplate> templates, UserEventProfile profile) {
         EventMissionResponse.TargetContext ctx = buildTargetContext(templates);
         Map<UUID, List<UserMission>> byTemplate = userMissionRepository.findByUserAndEvent(userId, event.getId())
                 .stream().collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         Instant now = Instant.now();
+        int unlockedWeek = profile != null ? profile.getUnlockedWeek() : 0;
 
         return templates.stream().map(t -> {
-            List<UserMission> rows = byTemplate.getOrDefault(t.getId(), List.of());
+            boolean weekLocked = t.weekOf(event) > unlockedWeek;
+            List<UserMission> rows = weekLocked ? List.of() : byTemplate.getOrDefault(t.getId(), List.of());
             UserMission current = rows.stream()
                     .filter(m -> m.getStatus() == MissionStatus.active)
                     .reduce((a, b) -> b).orElse(null);
@@ -300,6 +379,7 @@ public class EventMissionService {
                     .current(current != null ? UserMissionResponse.from(current) : null)
                     .completions(completions)
                     .completed(completions > 0)
+                    .weekLocked(weekLocked)
                     .build();
         }).toList();
     }
@@ -338,7 +418,7 @@ public class EventMissionService {
                 mapDifficultyIds.add(targets.mapDifficultyId());
             }
             if (targets.playerId() != null) {
-                playerIds.add(targets.playerId());
+                playerIds.add(targets.playerIdAsLong());
             }
         }
         Map<UUID, Category> categories = categoryIds.isEmpty() ? Map.of()
@@ -371,7 +451,7 @@ public class EventMissionService {
                 builder.targetMapDifficulty(mapDifficultyRepository.getReferenceById(targets.mapDifficultyId()));
             }
             if (targets.playerId() != null) {
-                builder.targetPlayer(userRepository.getReferenceById(targets.playerId()));
+                builder.targetPlayer(userRepository.getReferenceById(targets.playerIdAsLong()));
             }
             builder.targetAcc(targets.acc())
                     .targetAp(targets.ap())

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,6 +71,19 @@ public class EventController {
         Long userId = principal.getUserId();
         eventMissionService.ensureForUserAndEventId(userId, id);
         return ResponseEntity.ok(eventMissionService.getMissionsWithProgress(userId, id, week));
+    }
+
+    @Operation(summary = "Begin an event for the authenticated player",
+            description = "Opt-in: creates the player's event profile and rolls out the first unlocked week of "
+                    + "missions. Later weeks stay locked until the current week is completed. Idempotent.")
+    @PostMapping("/{id}/begin")
+    public ResponseEntity<EventProgressResponse> begin(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID id) {
+        if (principal == null) {
+            throw new UnauthorizedException("Player authentication required");
+        }
+        return ResponseEntity.ok(eventMissionService.begin(principal.getUserId(), id));
     }
 
     @Operation(summary = "Get an event with its missions")

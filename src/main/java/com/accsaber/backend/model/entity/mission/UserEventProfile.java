@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import com.accsaber.backend.model.entity.user.User;
 
@@ -23,13 +24,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user_event_bonuses")
+@Table(name = "user_event_profiles")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserEventBonus {
+public class UserEventProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -43,11 +44,33 @@ public class UserEventBonus {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "xp_awarded", nullable = false)
+    @Column(name = "unlocked_week", nullable = false)
     @Builder.Default
-    private Integer xpAwarded = 0;
+    private Integer unlockedWeek = 1;
+
+    @Column(name = "missions_completed", nullable = false)
+    @Builder.Default
+    private Integer missionsCompleted = 0;
+
+    @Column(name = "started_at", nullable = false, updatable = false)
+    @CreationTimestamp
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "bonus_xp", nullable = false)
+    @Builder.Default
+    private Integer bonusXp = 0;
+
+    @Column(name = "bonus_awarded_at")
+    private Instant bonusAwardedAt;
 
     @CreationTimestamp
-    @Column(name = "awarded_at", nullable = false, updatable = false)
-    private Instant awardedAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 }

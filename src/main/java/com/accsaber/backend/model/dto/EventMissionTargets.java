@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record EventMissionTargets(
         UUID categoryId,
         UUID mapDifficultyId,
-        Long playerId,
+        String playerId,
         BigDecimal acc,
         BigDecimal ap,
         Integer score,
@@ -17,4 +17,8 @@ public record EventMissionTargets(
         Integer xp,
         BigDecimal thresholdAp,
         Integer streak) {
+
+    public Long playerIdAsLong() {
+        return playerId == null ? null : Long.valueOf(playerId);
+    }
 }

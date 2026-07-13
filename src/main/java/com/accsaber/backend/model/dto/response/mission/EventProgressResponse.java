@@ -13,6 +13,8 @@ import lombok.Getter;
 public class EventProgressResponse {
 
     private EventResponse event;
+    private EventProfileResponse profile;
+    private boolean begun;
     private List<EventMissionProgressResponse> missions;
     private boolean bonusAwarded;
 
@@ -24,5 +26,6 @@ public class EventProgressResponse {
         private UserMissionResponse current;
         private long completions;
         private boolean completed;
+        private boolean weekLocked;
     }
 }

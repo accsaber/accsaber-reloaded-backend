@@ -63,7 +63,7 @@ public class EventMissionResponse {
 
         public User player(EventMissionTargets targets) {
             return targets != null && targets.playerId() != null
-                    ? players.get(targets.playerId())
+                    ? players.get(targets.playerIdAsLong())
                     : null;
         }
     }

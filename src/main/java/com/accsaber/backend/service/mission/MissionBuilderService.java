@@ -786,6 +786,8 @@ public class MissionBuilderService {
     private Item rollItemReward(MissionTemplate template, Random rng, MissionPoolCache cache) {
         if (template.getAwardsItem() != null)
             return template.getAwardsItem();
+        if (cache.eventCrate() != null && rng.nextInt(100) < 20)
+            return cache.eventCrate();
         List<Item> pool = cache.poolableItems();
         if (pool.isEmpty())
             return null;

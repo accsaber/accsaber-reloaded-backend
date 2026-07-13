@@ -163,8 +163,16 @@ public class MissionTemplateService {
         if (targets.mapDifficultyId() != null && !mapDifficultyRepository.existsById(targets.mapDifficultyId())) {
             throw new ResourceNotFoundException("MapDifficulty", targets.mapDifficultyId());
         }
-        if (targets.playerId() != null && !userRepository.existsById(targets.playerId())) {
-            throw new ResourceNotFoundException("User", targets.playerId());
+        if (targets.playerId() != null) {
+            Long playerId;
+            try {
+                playerId = targets.playerIdAsLong();
+            } catch (NumberFormatException e) {
+                throw new ValidationException("targets.playerId", "must be a numeric Steam ID");
+            }
+            if (!userRepository.existsById(playerId)) {
+                throw new ResourceNotFoundException("User", playerId);
+            }
         }
     }
 

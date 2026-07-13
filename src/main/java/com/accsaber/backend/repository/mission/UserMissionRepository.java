@@ -168,11 +168,11 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
         List<UserMission> findByUserAndEvent(@Param("userId") Long userId, @Param("eventId") UUID eventId);
 
         @Query("""
-                        SELECT COUNT(DISTINCT m.template.id) FROM UserMission m
+                        SELECT DISTINCT m.template.id FROM UserMission m
                         WHERE m.user.id = :userId
                           AND m.template.event.id = :eventId
                           AND m.template.active = true
                           AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
                         """)
-        long countDistinctCompletedTemplatesForEvent(@Param("userId") Long userId, @Param("eventId") UUID eventId);
+        List<UUID> findCompletedTemplateIdsForEvent(@Param("userId") Long userId, @Param("eventId") UUID eventId);
 }
