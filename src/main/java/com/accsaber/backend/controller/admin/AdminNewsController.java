@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -17,7 +18,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
 import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
@@ -25,6 +28,7 @@ import com.accsaber.backend.model.dto.response.news.NewsResponse;
 import com.accsaber.backend.model.entity.news.NewsStatus;
 import com.accsaber.backend.model.entity.news.NewsType;
 import com.accsaber.backend.security.StaffPrincipals;
+import com.accsaber.backend.service.media.MediaProcessingService;
 import com.accsaber.backend.service.news.NewsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,7 +43,10 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin News")
 public class AdminNewsController {
 
+    private static final String NEWS_IMAGE_SUBDIR = "news";
+
     private final NewsService newsService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "List all active news", description = "Optional ?status and ?type filters")
     @GetMapping
@@ -77,6 +84,33 @@ public class AdminNewsController {
                 StaffPrincipals.staffIdOf(authentication),
                 StaffPrincipals.roleOf(authentication));
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Upload (or replace) the image for a news post")
+    @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<NewsResponse> uploadImage(
+            @PathVariable UUID id,
+            @RequestPart("file") MultipartFile file,
+            Authentication authentication) {
+        String url = mediaProcessingService.storeImage(file, NEWS_IMAGE_SUBDIR, id.toString());
+        return ResponseEntity.ok(newsService.setImageUrl(
+                id,
+                url,
+                StaffPrincipals.staffIdOf(authentication),
+                StaffPrincipals.roleOf(authentication)));
+    }
+
+    @Operation(summary = "Remove the image for a news post")
+    @DeleteMapping("/{id}/image")
+    public ResponseEntity<NewsResponse> deleteImage(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        mediaProcessingService.deleteIfExists(NEWS_IMAGE_SUBDIR, id.toString());
+        return ResponseEntity.ok(newsService.setImageUrl(
+                id,
+                null,
+                StaffPrincipals.staffIdOf(authentication),
+                StaffPrincipals.roleOf(authentication)));
     }
 
     @Operation(summary = "Delete a news post", description = "Soft delete by default; pass hard=true to permanently remove the row")

@@ -155,6 +155,14 @@ public class NewsService {
     }
 
     @Transactional
+    public NewsResponse setImageUrl(UUID id, String url, UUID staffUserId, StaffRole role) {
+        News news = loadActive(id);
+        ensureCanEdit(news, staffUserId, role);
+        news.setImageUrl(url);
+        return toResponse(newsRepository.save(news));
+    }
+
+    @Transactional
     public void deactivate(UUID id) {
         News news = loadActive(id);
         news.setActive(false);
