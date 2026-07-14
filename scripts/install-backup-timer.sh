@@ -60,4 +60,4 @@ echo
 sudo systemctl list-timers accsaber-backup.timer --no-pager
 echo
 echo "run:"
-echo "  sudo systemctl start accsaber-backup.service && journalctl -u accsaber-backup -f"
+echo "  sudo systemctl start --no-block accsaber-backup.service && journalctl -u accsaber-backup -f"

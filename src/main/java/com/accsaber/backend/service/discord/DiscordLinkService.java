@@ -31,14 +31,11 @@ public class DiscordLinkService {
     private final ProfileUrlResolver profileUrlResolver;
 
     @Transactional
-    public DiscordLinkResponse link(LinkDiscordRequest request) {
+    public DiscordLinkResponse link(Long userId, LinkDiscordRequest request) {
         if (oauthConnectionRepository
                 .existsByProviderAndProviderUserIdAndActiveTrue(PROVIDER, request.getDiscordId())) {
             throw new ConflictException("Discord account is already linked", request.getDiscordId());
         }
-
-        String platformId = profileUrlResolver.resolve(request.getProfileUrl());
-        Long userId = duplicateUserService.resolvePrimaryUserId(Long.parseLong(platformId));
 
         if (oauthConnectionRepository.existsByUserIdAndProviderAndActiveTrue(userId, PROVIDER)) {
             throw new ConflictException("Player is already linked to a Discord account", userId);

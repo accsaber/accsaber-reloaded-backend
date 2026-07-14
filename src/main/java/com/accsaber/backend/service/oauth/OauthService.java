@@ -210,7 +210,7 @@ public class OauthService {
         OauthConnection providerConn = addOrRefreshConnection(user, provider, providerUserId,
                 providerUsername, providerAvatarUrl);
 
-        if (pendingLinkToken != null) {
+        if (pendingLinkToken != null && linkUserId != null) {
             PendingLinkClaims pending = stateService.parsePendingLinkToken(pendingLinkToken);
             addOrRefreshConnection(user, PROVIDER_DISCORD, pending.discordId(), pending.discordUsername(),
                     pending.discordAvatarUrl());

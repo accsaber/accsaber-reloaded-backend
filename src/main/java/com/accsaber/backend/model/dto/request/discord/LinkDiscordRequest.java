@@ -8,7 +8,4 @@ public class LinkDiscordRequest {
 
     @NotBlank
     private String discordId;
-
-    @NotBlank
-    private String profileUrl;
 }
