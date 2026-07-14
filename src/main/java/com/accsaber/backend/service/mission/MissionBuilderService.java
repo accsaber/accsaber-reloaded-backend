@@ -145,6 +145,7 @@ public class MissionBuilderService {
             case SNIPE_PLAYER_ON_MAP -> buildSnipe(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_ON_MAP -> buildStreakOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_N_IN_CATEGORY -> buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case STREAK_SUM_N -> failBuild("event-only-type");
             case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
             case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
         };
@@ -429,7 +430,7 @@ public class MissionBuilderService {
                 continue;
 
             Score picked = pickSnipeCandidate(candidate, ctx.userId(), baseline, category.getId(),
-                    snipe.targetAp(), snipe.apCap(), userSkillVal, maxSkillDistance, rng);
+                    snipe, userSkillVal, maxSkillDistance, rng);
             if (picked == null)
                 continue;
             pick = candidate;
@@ -472,7 +473,9 @@ public class MissionBuilderService {
             capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache, userCurrentAp);
             if (capped.compareTo(userCurrentAp) <= 0)
                 return null;
-            return new SnipeTarget(capped, capped);
+            BigDecimal cappedApCap = targetService.capExtremeAtTopAp(capped.multiply(snipeSlack(band)), band,
+                    skill, skillLevel);
+            return new SnipeTarget(capped, cappedApCap, snipeMinAp(capped, userCurrentAp, band));
         }
         BigDecimal mapTarget = targetService.mapAwareTarget(candidate.difficulty().getId(), category.getId(),
                 userSkillVal, null, band);
@@ -482,28 +485,51 @@ public class MissionBuilderService {
         target = targetService.applyLeaderboardDensityDampener(target, band, candidate, cache, null);
         if (target == null)
             return null;
-        BigDecimal slack = switch (band) {
+        BigDecimal apCap = targetService.capExtremeAtTopAp(target.multiply(snipeSlack(band)), band, skill, skillLevel);
+        return new SnipeTarget(target, apCap, snipeMinAp(target, null, band));
+    }
+
+    private BigDecimal snipeSlack(MissionBand band) {
+        return switch (band) {
             case easy -> new BigDecimal("1.00");
             case medium -> new BigDecimal("1.01");
             case hard -> new BigDecimal("1.03");
             case extreme -> new BigDecimal("1.04");
         };
-        BigDecimal apCap = targetService.capExtremeAtTopAp(target.multiply(slack), band, skill, skillLevel);
-        return new SnipeTarget(target, apCap);
+    }
+
+    private BigDecimal snipeMinAp(BigDecimal targetAp, BigDecimal userCurrentAp, MissionBand band) {
+        BigDecimal floor = targetAp.multiply(snipeFloorFraction(band));
+        if (userCurrentAp != null && userCurrentAp.signum() > 0)
+            floor = floor.max(userCurrentAp);
+        return floor;
+    }
+
+    private BigDecimal snipeFloorFraction(MissionBand band) {
+        return switch (band) {
+            case easy -> new BigDecimal("0.95");
+            case medium -> new BigDecimal("0.97");
+            case hard -> new BigDecimal("0.99");
+            case extreme -> new BigDecimal("1.01");
+        };
     }
 
     private Score pickSnipeCandidate(MapPick pick, Long userId, int baseline, UUID categoryId,
-            BigDecimal targetAp, BigDecimal apCap, double userSkillVal, double maxSkillDistance, Random rng) {
+            SnipeTarget snipe, double userSkillVal, double maxSkillDistance, Random rng) {
         List<Object[]> rows = scoreRepository.findSnipeCandidatesAboveBaselineWithSkill(
-                pick.difficulty().getId(), userId, baseline, categoryId,
+                pick.difficulty().getId(), userId, baseline, categoryId, snipe.targetAp(),
                 PageRequest.of(0, SNIPE_CANDIDATE_LIMIT * 2));
         List<Score> viable = rows.stream()
                 .filter(row -> Math.abs(((BigDecimal) row[1]).doubleValue() - userSkillVal) <= maxSkillDistance)
                 .filter(row -> {
                     Score s = (Score) row[0];
-                    return apCap == null || s.getAp() == null || s.getAp().compareTo(apCap) <= 0;
+                    return snipe.apCap() == null || s.getAp() == null || s.getAp().compareTo(snipe.apCap()) <= 0;
                 })
-                .sorted(Comparator.comparing(row -> ((Score) row[0]).getAp().subtract(targetAp).abs()))
+                .filter(row -> {
+                    Score s = (Score) row[0];
+                    return s.getAp() != null && s.getAp().compareTo(snipe.minAp()) >= 0;
+                })
+                .sorted(Comparator.comparing(row -> ((Score) row[0]).getAp().subtract(snipe.targetAp()).abs()))
                 .map(row -> (Score) row[0])
                 .toList();
         if (viable.isEmpty())
@@ -818,7 +844,7 @@ public class MissionBuilderService {
         return null;
     }
 
-    private record SnipeTarget(BigDecimal targetAp, BigDecimal apCap) {
+    private record SnipeTarget(BigDecimal targetAp, BigDecimal apCap, BigDecimal minAp) {
     }
 
     private record MapTargetResult(MapPick pick, BigDecimal targetRawAp, BigDecimal targetAcc,

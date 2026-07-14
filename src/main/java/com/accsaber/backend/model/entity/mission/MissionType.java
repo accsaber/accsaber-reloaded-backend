@@ -10,6 +10,7 @@ public enum MissionType {
     SNIPE_PLAYER_ON_MAP,
     STREAK_ON_MAP,
     STREAK_N_IN_CATEGORY,
+    STREAK_SUM_N,
     COMEBACK_PB,
     SCORES_N
 }

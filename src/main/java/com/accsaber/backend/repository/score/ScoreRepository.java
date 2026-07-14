@@ -352,24 +352,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         org.springframework.data.domain.Pageable pageable);
 
         @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId
-                          AND s.active = true
-                          AND u.active = true AND u.banned = false
-                          AND s.user.id <> :excludeUserId
-                          AND s.score > :minScore
-                          AND s.ap IS NOT NULL
-                        ORDER BY ABS(s.ap - :targetAp) ASC
-                        """)
-        List<Score> findSnipeCandidatesNearTargetAp(
-                        @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("excludeUserId") Long excludeUserId,
-                        @Param("minScore") Integer minScore,
-                        @Param("targetAp") java.math.BigDecimal targetAp,
-                        org.springframework.data.domain.Pageable pageable);
-
-        @Query("""
                         SELECT s, ucs.skillLevel FROM Score s
                         JOIN FETCH s.user u
                         JOIN com.accsaber.backend.model.entity.user.UserCategorySkill ucs
@@ -381,13 +363,14 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND s.score > :minScore
                           AND s.ap IS NOT NULL
                           AND ucs.skillLevel IS NOT NULL
-                        ORDER BY s.ap ASC
+                        ORDER BY ABS(s.ap - :targetAp) ASC
                         """)
         List<Object[]> findSnipeCandidatesAboveBaselineWithSkill(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("excludeUserId") Long excludeUserId,
                         @Param("minScore") Integer minScore,
                         @Param("categoryId") UUID categoryId,
+                        @Param("targetAp") java.math.BigDecimal targetAp,
                         org.springframework.data.domain.Pageable pageable);
 
         @Query("""

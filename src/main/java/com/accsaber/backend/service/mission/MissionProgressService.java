@@ -94,6 +94,7 @@ public class MissionProgressService {
             case SNIPE_PLAYER_ON_MAP -> evalSnipe(mission, score);
             case STREAK_ON_MAP -> evalStreakOnMap(mission, score);
             case STREAK_N_IN_CATEGORY -> evalStreakNInCategory(mission, score);
+            case STREAK_SUM_N -> evalStreakSum(mission, score);
             case COMEBACK_PB -> evalPbSpecificMap(mission, score);
             case SCORES_N -> evalScoresN(mission, score);
         };
@@ -117,6 +118,16 @@ public class MissionProgressService {
         if (streak == null || streak < mission.getTargetStreak())
             return false;
         mission.setProgressCount(mission.getProgressCount() + 1);
+        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
+    }
+
+    private boolean evalStreakSum(UserMission mission, ScoreResponse score) {
+        if (!matchesCategoryScope(mission, score))
+            return false;
+        Integer streak = score.getStreak115();
+        if (streak == null || streak <= 0)
+            return false;
+        mission.setProgressCount(mission.getProgressCount() + streak);
         return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
     }
 
