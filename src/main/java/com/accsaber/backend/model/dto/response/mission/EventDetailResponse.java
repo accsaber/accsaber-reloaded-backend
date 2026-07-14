@@ -13,5 +13,5 @@ import lombok.Getter;
 public class EventDetailResponse {
 
     private EventResponse event;
-    private List<EventMissionResponse> missions;
+    private List<MissionResponse> missions;
 }

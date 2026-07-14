@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
-import com.accsaber.backend.model.dto.response.mission.EventMissionResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.dto.response.mission.EventResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.mission.EventMissionService;
@@ -54,7 +54,7 @@ public class EventController {
             description = "Accepts the event id or slug. Optional week filter, 1-based from the event start "
                     + "(week 1 = first 7 days).")
     @GetMapping("/{idOrSlug}/missions")
-    public ResponseEntity<List<EventMissionResponse>> missions(@PathVariable String idOrSlug,
+    public ResponseEntity<List<MissionResponse>> missions(@PathVariable String idOrSlug,
             @RequestParam(required = false) Integer week) {
         return ResponseEntity.ok(eventMissionService.getMissions(eventService.resolveId(idOrSlug), week));
     }

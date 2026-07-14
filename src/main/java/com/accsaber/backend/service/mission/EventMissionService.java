@@ -22,11 +22,10 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
-import com.accsaber.backend.model.dto.response.mission.EventMissionResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProfileResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
 import com.accsaber.backend.model.dto.response.mission.EventResponse;
-import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -321,16 +320,16 @@ public class EventMissionService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventMissionResponse> getMissions(UUID eventId, Integer week) {
+    public List<MissionResponse> getMissions(UUID eventId, Integer week) {
         Event event = activeEvent(eventId);
         return missionResponses(event, templatesForWeek(event, week));
     }
 
-    private List<EventMissionResponse> missionResponses(Event event, List<MissionTemplate> templates) {
-        EventMissionResponse.TargetContext ctx = buildTargetContext(templates);
+    private List<MissionResponse> missionResponses(Event event, List<MissionTemplate> templates) {
+        MissionResponse.TargetContext ctx = buildTargetContext(templates);
         Instant now = Instant.now();
         return templates.stream()
-                .map(t -> EventMissionResponse.from(t, event, now, ctx))
+                .map(t -> MissionResponse.fromTemplate(t, event, now, ctx))
                 .toList();
     }
 
@@ -361,7 +360,7 @@ public class EventMissionService {
 
     private List<EventProgressResponse.EventMissionProgressResponse> assembleMissionProgress(
             Long userId, Event event, List<MissionTemplate> templates, UserEventProfile profile) {
-        EventMissionResponse.TargetContext ctx = buildTargetContext(templates);
+        MissionResponse.TargetContext ctx = buildTargetContext(templates);
         Map<UUID, List<UserMission>> byTemplate = userMissionRepository.findByUserAndEvent(userId, event.getId())
                 .stream().collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         Instant now = Instant.now();
@@ -375,8 +374,8 @@ public class EventMissionService {
                     .reduce((a, b) -> b).orElse(null);
             long completions = rows.stream().filter(m -> m.getStatus() == MissionStatus.completed).count();
             return EventProgressResponse.EventMissionProgressResponse.builder()
-                    .mission(EventMissionResponse.from(t, event, now, ctx))
-                    .current(current != null ? UserMissionResponse.from(current) : null)
+                    .mission(MissionResponse.fromTemplate(t, event, now, ctx))
+                    .current(current != null ? MissionResponse.from(current) : null)
                     .completions(completions)
                     .completed(completions > 0)
                     .weekLocked(weekLocked)
@@ -402,7 +401,7 @@ public class EventMissionService {
                 .toList();
     }
 
-    private EventMissionResponse.TargetContext buildTargetContext(List<MissionTemplate> templates) {
+    private MissionResponse.TargetContext buildTargetContext(List<MissionTemplate> templates) {
         Set<UUID> categoryIds = new LinkedHashSet<>();
         Set<UUID> mapDifficultyIds = new LinkedHashSet<>();
         Set<Long> playerIds = new LinkedHashSet<>();
@@ -431,7 +430,7 @@ public class EventMissionService {
         Map<Long, User> players = playerIds.isEmpty() ? Map.of()
                 : userRepository.findAllById(playerIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u));
-        return new EventMissionResponse.TargetContext(categories, mapDifficulties, players);
+        return new MissionResponse.TargetContext(categories, mapDifficulties, players);
     }
 
     private UserMission buildUserMission(Long userId, MissionTemplate template, Event event) {

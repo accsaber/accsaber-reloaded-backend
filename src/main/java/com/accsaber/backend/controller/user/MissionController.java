@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.UnauthorizedException;
-import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.security.PlayerUserDetails;
@@ -30,24 +30,24 @@ public class MissionController {
 
     @Operation(summary = "List the authenticated player's active missions")
     @GetMapping
-    public ResponseEntity<List<UserMissionResponse>> listMine(
+    public ResponseEntity<List<MissionResponse>> listMine(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @RequestParam(required = false) MissionPool pool) {
         Long userId = requirePrincipal(principal).getUserId();
         List<UserMission> missions = pool == null
                 ? missionQueryService.listActive(userId)
                 : missionQueryService.listActiveByPool(userId, pool);
-        return ResponseEntity.ok(missions.stream().map(UserMissionResponse::from).toList());
+        return ResponseEntity.ok(missions.stream().map(MissionResponse::from).toList());
     }
 
     @Operation(summary = "List the authenticated player's completed missions")
     @GetMapping("/completed")
-    public ResponseEntity<List<UserMissionResponse>> listCompleted(
+    public ResponseEntity<List<MissionResponse>> listCompleted(
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long userId = requirePrincipal(principal).getUserId();
         return ResponseEntity.ok(
                 missionQueryService.listCompleted(userId).stream()
-                        .map(UserMissionResponse::from).toList());
+                        .map(MissionResponse::from).toList());
     }
 
     private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {

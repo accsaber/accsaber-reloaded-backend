@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.mission.MissionTemplateRequest;
 import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
-import com.accsaber.backend.model.dto.response.mission.UserMissionResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.mission.MissionQueryService;
@@ -71,29 +71,29 @@ public class AdminMissionController {
     @Operation(summary = "Regenerate missions for a user",
             description = "Pool optional. Omit to regenerate both daily and weekly; specify to refresh only that pool.")
     @PostMapping("/users/{userId}/regenerate")
-    public ResponseEntity<List<UserMissionResponse>> regenerate(@PathVariable Long userId,
+    public ResponseEntity<List<MissionResponse>> regenerate(@PathVariable Long userId,
             @RequestParam(required = false) MissionPool pool) {
         return ResponseEntity.ok(
                 assignmentService.regenerateForUser(userId, pool).stream()
-                        .map(UserMissionResponse::from).toList());
+                        .map(MissionResponse::from).toList());
     }
 
     @Operation(summary = "List active missions for any user")
     @GetMapping("/users/{userId}")
-    public ResponseEntity<List<UserMissionResponse>> listForUser(@PathVariable Long userId,
+    public ResponseEntity<List<MissionResponse>> listForUser(@PathVariable Long userId,
             @RequestParam(required = false) MissionPool pool) {
         var missions = pool == null
                 ? queryService.listActive(userId)
                 : queryService.listActiveByPool(userId, pool);
-        return ResponseEntity.ok(missions.stream().map(UserMissionResponse::from).toList());
+        return ResponseEntity.ok(missions.stream().map(MissionResponse::from).toList());
     }
 
     @Operation(summary = "List completed missions for any user")
     @GetMapping("/users/{userId}/completed")
-    public ResponseEntity<List<UserMissionResponse>> listCompletedForUser(@PathVariable Long userId) {
+    public ResponseEntity<List<MissionResponse>> listCompletedForUser(@PathVariable Long userId) {
         return ResponseEntity.ok(
                 queryService.listCompleted(userId).stream()
-                        .map(UserMissionResponse::from).toList());
+                        .map(MissionResponse::from).toList());
     }
 
     @Operation(summary = "Force a fresh mission rollout for ALL eligible users",

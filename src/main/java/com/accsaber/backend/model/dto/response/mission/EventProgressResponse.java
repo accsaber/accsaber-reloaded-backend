@@ -22,8 +22,8 @@ public class EventProgressResponse {
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class EventMissionProgressResponse {
-        private EventMissionResponse mission;
-        private UserMissionResponse current;
+        private MissionResponse mission;
+        private MissionResponse current;
         private long completions;
         private boolean completed;
         private boolean weekLocked;

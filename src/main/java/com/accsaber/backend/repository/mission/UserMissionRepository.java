@@ -19,13 +19,13 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
 
         @EntityGraph(attributePaths = {
                         "template", "category", "targetMapDifficulty", "targetMapDifficulty.map",
-                        "targetPlayer", "itemReward"
+                        "targetPlayer", "itemReward", "itemReward.type"
         })
         List<UserMission> findByUser_IdAndStatus(Long userId, MissionStatus status);
 
         @EntityGraph(attributePaths = {
                         "template", "category", "targetMapDifficulty", "targetMapDifficulty.map",
-                        "targetPlayer", "itemReward"
+                        "targetPlayer", "itemReward", "itemReward.type"
         })
         List<UserMission> findByUser_IdAndPoolAndStatus(Long userId, MissionPool pool, MissionStatus status);
 
@@ -50,7 +50,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH m.targetMapDifficulty d
                         LEFT JOIN FETCH d.map
                         LEFT JOIN FETCH m.targetPlayer
-                        LEFT JOIN FETCH m.itemReward
+                        LEFT JOIN FETCH m.itemReward ir
+                        LEFT JOIN FETCH ir.type
                         WHERE m.user.id = :userId
                           AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                         """)
@@ -63,7 +64,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH m.targetMapDifficulty d
                         LEFT JOIN FETCH d.map
                         LEFT JOIN FETCH m.targetPlayer
-                        LEFT JOIN FETCH m.itemReward
+                        LEFT JOIN FETCH m.itemReward ir
+                        LEFT JOIN FETCH ir.type
                         WHERE m.user.id = :userId
                           AND (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                                OR (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
@@ -78,7 +80,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH m.targetMapDifficulty d
                         LEFT JOIN FETCH d.map
                         LEFT JOIN FETCH m.targetPlayer
-                        LEFT JOIN FETCH m.itemReward
+                        LEFT JOIN FETCH m.itemReward ir
+                        LEFT JOIN FETCH ir.type
                         WHERE m.user.id = :userId
                           AND m.pool = :pool
                           AND (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
@@ -160,7 +163,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH m.targetMapDifficulty d
                         LEFT JOIN FETCH d.map
                         LEFT JOIN FETCH m.targetPlayer
-                        LEFT JOIN FETCH m.itemReward
+                        LEFT JOIN FETCH m.itemReward ir
+                        LEFT JOIN FETCH ir.type
                         WHERE m.user.id = :userId
                           AND t.event.id = :eventId
                         ORDER BY m.assignedAt ASC
