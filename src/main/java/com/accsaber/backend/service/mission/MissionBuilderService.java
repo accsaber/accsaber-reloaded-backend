@@ -473,9 +473,7 @@ public class MissionBuilderService {
             capped = targetService.applyLeaderboardDensityDampener(capped, band, candidate, cache, userCurrentAp);
             if (capped.compareTo(userCurrentAp) <= 0)
                 return null;
-            BigDecimal cappedApCap = targetService.capExtremeAtTopAp(capped.multiply(snipeSlack(band)), band,
-                    skill, skillLevel);
-            return new SnipeTarget(capped, cappedApCap, snipeMinAp(capped, userCurrentAp, band));
+            return new SnipeTarget(capped, capped, userCurrentAp);
         }
         BigDecimal mapTarget = targetService.mapAwareTarget(candidate.difficulty().getId(), category.getId(),
                 userSkillVal, null, band);
@@ -486,7 +484,7 @@ public class MissionBuilderService {
         if (target == null)
             return null;
         BigDecimal apCap = targetService.capExtremeAtTopAp(target.multiply(snipeSlack(band)), band, skill, skillLevel);
-        return new SnipeTarget(target, apCap, snipeMinAp(target, null, band));
+        return new SnipeTarget(target, apCap, snipeMinAp(target, band));
     }
 
     private BigDecimal snipeSlack(MissionBand band) {
@@ -498,11 +496,8 @@ public class MissionBuilderService {
         };
     }
 
-    private BigDecimal snipeMinAp(BigDecimal targetAp, BigDecimal userCurrentAp, MissionBand band) {
-        BigDecimal floor = targetAp.multiply(snipeFloorFraction(band));
-        if (userCurrentAp != null && userCurrentAp.signum() > 0)
-            floor = floor.max(userCurrentAp);
-        return floor;
+    private BigDecimal snipeMinAp(BigDecimal targetAp, MissionBand band) {
+        return targetAp.multiply(snipeFloorFraction(band));
     }
 
     private BigDecimal snipeFloorFraction(MissionBand band) {
