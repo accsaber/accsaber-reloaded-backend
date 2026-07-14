@@ -29,10 +29,10 @@ public class ScoreSaberClient {
         this.webClient = webClient;
     }
 
-    public Optional<ScoreSaberPlayerResponse> getPlayer(String steamId) {
+    public Optional<ScoreSaberPlayerResponse> getPlayer(String playerId) {
         try {
             return Optional.ofNullable(webClient.get()
-                    .uri("/v2/players/{id}/basic", steamId)
+                    .uri("/v2/players/{id}/basic", playerId)
                     .retrieve()
                     .bodyToMono(ScoreSaberPlayerResponse.class)
                     .retryWhen(rateLimitRetrySpec())
@@ -40,7 +40,7 @@ public class ScoreSaberClient {
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
         } catch (Exception e) {
-            log.error("Failed to fetch ScoreSaber player {}: {}", steamId, e.getMessage());
+            log.error("Failed to fetch ScoreSaber player {}: {}", playerId, e.getMessage());
             return Optional.empty();
         }
     }

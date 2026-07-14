@@ -34,10 +34,10 @@ public class BeatLeaderClient {
         this.properties = properties;
     }
 
-    public Optional<BeatLeaderPlayerResponse> getPlayer(String steamId) {
+    public Optional<BeatLeaderPlayerResponse> getPlayer(String playerId) {
         try {
             return Optional.ofNullable(webClient.get()
-                    .uri("/player/{id}", steamId)
+                    .uri("/player/{id}", playerId)
                     .retrieve()
                     .bodyToMono(BeatLeaderPlayerResponse.class)
                     .retryWhen(retrySpec())
@@ -45,7 +45,7 @@ public class BeatLeaderClient {
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
         } catch (Exception e) {
-            log.error("Failed to fetch BeatLeader player {}: {}", steamId, e.getMessage());
+            log.error("Failed to fetch BeatLeader player {}: {}", playerId, e.getMessage());
             return Optional.empty();
         }
     }

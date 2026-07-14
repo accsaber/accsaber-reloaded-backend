@@ -59,7 +59,7 @@ public class PlaylistController {
                         + "Use category 'overall' for all categories. Path-only URL so the syncURL works with standalone Beat Saber.")
         @GetMapping(value = "/missing/{userId}/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getMissingPlaylistByPath(
-                        @Parameter(description = "Steam ID of the player") @PathVariable Long userId,
+                        @Parameter(description = "User ID of the player") @PathVariable Long userId,
                         @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc, overall)") @PathVariable String category) {
                 return buildMissingPlaylistResponse(category, userId);
         }
@@ -77,16 +77,16 @@ public class PlaylistController {
                         + "Playlist image is the target player's avatar. Path-only URL so the syncURL works with standalone Beat Saber.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylist(
-                        @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId) {
+                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
+                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId) {
                 return buildSnipePlaylistResponse(sniperId, targetId, 0, null);
         }
 
         @Operation(summary = "Download snipe playlist (custom size)", description = "Same as the base snipe playlist but capped at the requested map count (1+). Pass 0 for unlimited. Path-only URL, standalone-compatible.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}/{size}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylistBySize(
-                        @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId,
+                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
+                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
                         @Parameter(description = "Map count cap (0 = unlimited)") @PathVariable int size) {
                 return buildSnipePlaylistResponse(sniperId, targetId, size, null);
         }
@@ -94,8 +94,8 @@ public class PlaylistController {
         @Operation(summary = "Download snipe playlist (custom size + category)", description = "Snipe playlist filtered to a single category (e.g. true_acc, standard_acc, tech_acc, overall). Pass size=0 for unlimited. Path-only URL, standalone-compatible.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}/{size}/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylistBySizeAndCategory(
-                        @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId,
+                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
+                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
                         @Parameter(description = "Map count cap (0 = unlimited)") @PathVariable int size,
                         @Parameter(description = "Category code") @PathVariable String category) {
                 return buildSnipePlaylistResponse(sniperId, targetId, size, category);

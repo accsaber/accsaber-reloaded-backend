@@ -168,7 +168,7 @@ public class MissionTemplateService {
             try {
                 playerId = targets.playerIdAsLong();
             } catch (NumberFormatException e) {
-                throw new ValidationException("targets.playerId", "must be a numeric Steam ID");
+                throw new ValidationException("targets.playerId", "must be a numeric user ID");
             }
             if (!userRepository.existsById(playerId)) {
                 throw new ResourceNotFoundException("User", playerId);

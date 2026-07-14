@@ -49,7 +49,7 @@ public class AdminSupporterController {
                 "type", event.getType().name()));
     }
 
-    @Operation(summary = "Claim an existing (unclaimed) Ko-fi event for a user by Steam id - applies the tier/balance and seeds the event's email so future renewals auto-claim")
+    @Operation(summary = "Claim an existing (unclaimed) Ko-fi event for a user by user id - applies the tier/balance and seeds the event's email so future renewals auto-claim")
     @PostMapping("/claim")
     public ResponseEntity<Void> claim(@Valid @RequestBody ClaimSupporterEventRequest request) {
         supporterService.claimByAdmin(request.getKofiTransactionId(), request.getUserId());

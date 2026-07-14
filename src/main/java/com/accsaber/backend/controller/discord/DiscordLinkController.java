@@ -42,7 +42,7 @@ public class DiscordLinkController {
         return ResponseEntity.ok(discordLinkService.findByDiscordId(discordId));
     }
 
-    @Operation(summary = "Get link by user Steam ID")
+    @Operation(summary = "Get link by user ID")
     @GetMapping("/user/{userId}")
     public ResponseEntity<DiscordLinkResponse> getByUserId(@PathVariable Long userId) {
         return ResponseEntity.ok(discordLinkService.findByUserId(userId));

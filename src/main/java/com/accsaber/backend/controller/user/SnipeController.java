@@ -33,8 +33,8 @@ public class SnipeController {
             + "Use `category` to limit results to a category (e.g. true_acc, standard_acc, tech_acc, overall).")
     @GetMapping("/{sniperId}/closest-to/{targetId}")
     public ResponseEntity<Page<SnipeComparisonResponse>> getClosestScores(
-            @Parameter(description = "Steam ID of the sniping player") @PathVariable Long sniperId,
-            @Parameter(description = "Steam ID of the target player") @PathVariable Long targetId,
+            @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
+            @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "Optional category code; omit for all categories") @RequestParam(required = false) String category) {
