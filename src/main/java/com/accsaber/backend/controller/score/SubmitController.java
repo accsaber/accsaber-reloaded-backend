@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.ConflictException;
+import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.exception.ValidationException;
@@ -23,6 +24,7 @@ import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.staff.JwtService;
 import com.accsaber.backend.service.score.SubmitNonceService;
 import com.accsaber.backend.service.score.SubmitRateLimitService;
 import com.accsaber.backend.util.PlatformScoreMapper;
@@ -48,6 +50,10 @@ public class SubmitController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         if (principal == null) {
             throw new UnauthorizedException("Player authentication required");
+        }
+        if (JwtService.SCOPE_WEB.equals(principal.getTokenScope())) {
+            throw new ForbiddenException(
+                    "Score submission requires a game session; website tokens cannot submit scores");
         }
         validateModifiers(body.getModifierCodes());
         if (!nonceService.tryConsume(principal.getUserId(), body.getNonce())) {

@@ -41,6 +41,9 @@ public class OauthSession {
     @JoinColumn(name = "connection_id", nullable = false)
     private OauthConnection connection;
 
+    @Column(name = "token_scope")
+    private String tokenScope;
+
     @Column(name = "refresh_token", nullable = false, unique = true)
     private String refreshToken;
 

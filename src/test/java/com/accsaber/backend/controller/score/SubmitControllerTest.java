@@ -18,9 +18,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ConflictException;
+import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.service.staff.JwtService;
 import com.accsaber.backend.model.dto.request.score.PluginSubmitRequest;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.user.User;
@@ -67,6 +69,15 @@ class SubmitControllerTest {
     void rejectsWhenPrincipalIsNull() {
         assertThatThrownBy(() -> controller.submit(baseRequest(), null))
                 .isInstanceOf(UnauthorizedException.class);
+        verify(scoreService, never()).submit(any());
+    }
+
+    @Test
+    void rejectsWebScopeToken() {
+        User user = User.builder().id(USER_ID).name("Player").active(true).banned(false).build();
+        PlayerUserDetails webPrincipal = new PlayerUserDetails(user, null, null, JwtService.SCOPE_WEB);
+        assertThatThrownBy(() -> controller.submit(baseRequest(), webPrincipal))
+                .isInstanceOf(ForbiddenException.class);
         verify(scoreService, never()).submit(any());
     }
 

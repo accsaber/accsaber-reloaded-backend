@@ -13,9 +13,7 @@ import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.user.User;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
-@RequiredArgsConstructor
 public class PlayerUserDetails implements UserDetails {
 
     private final User user;
@@ -26,8 +24,18 @@ public class PlayerUserDetails implements UserDetails {
     @Getter
     private final StaffRole staffRole;
 
+    @Getter
+    private final String tokenScope;
+
     public PlayerUserDetails(User user) {
-        this(user, null, null);
+        this(user, null, null, null);
+    }
+
+    public PlayerUserDetails(User user, UUID staffId, StaffRole staffRole, String tokenScope) {
+        this.user = user;
+        this.staffId = staffId;
+        this.staffRole = staffRole;
+        this.tokenScope = tokenScope;
     }
 
     public User getUser() {

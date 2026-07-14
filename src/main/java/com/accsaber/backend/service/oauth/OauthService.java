@@ -84,7 +84,7 @@ public class OauthService {
             rejectIfBanned(user);
             OauthConnection conn = addOrRefreshConnection(user, PROVIDER_DISCORD, identity.getId(),
                     identity.displayName(), identity.avatarUrl());
-            return new DiscordCallbackOutcome.Session(issueSession(conn));
+            return new DiscordCallbackOutcome.Session(issueSession(conn, JwtService.SCOPE_WEB));
         }
 
         if (pendingLinkToken != null) {
@@ -98,7 +98,7 @@ public class OauthService {
                     conn.setProviderUsername(identity.displayName());
                     conn.setProviderAvatarUrl(identity.avatarUrl());
                     oauthConnectionRepository.save(conn);
-                    return (DiscordCallbackOutcome) new DiscordCallbackOutcome.Session(issueSession(conn));
+                    return (DiscordCallbackOutcome) new DiscordCallbackOutcome.Session(issueSession(conn, JwtService.SCOPE_WEB));
                 })
                 .orElseGet(() -> new DiscordCallbackOutcome.PendingLink(stateService.createPendingLinkToken(
                         identity.getId(), identity.displayName(), identity.avatarUrl(), returnTo)));
@@ -106,16 +106,18 @@ public class OauthService {
 
     @Transactional
     public PlayerAuthResponse handleBeatLeaderCallback(String code, Long linkUserId, String pendingLinkToken) {
-        return loginViaBeatLeader(beatLeaderClient.exchangeCode(code), linkUserId, pendingLinkToken);
+        return loginViaBeatLeader(beatLeaderClient.exchangeCode(code), linkUserId, pendingLinkToken,
+                JwtService.SCOPE_WEB);
     }
 
     @Transactional
     public PlayerAuthResponse handleIngameTicket(String provider, String ticket) {
-        return loginViaBeatLeader(beatLeaderClient.verifyTicketAndFetchIdentity(provider, ticket), null, null);
+        return loginViaBeatLeader(beatLeaderClient.verifyTicketAndFetchIdentity(provider, ticket), null, null,
+                JwtService.SCOPE_GAME);
     }
 
     private PlayerAuthResponse loginViaBeatLeader(BeatLeaderIdentity identity, Long linkUserId,
-            String pendingLinkToken) {
+            String pendingLinkToken, String scope) {
         long beatLeaderId;
         try {
             beatLeaderId = Long.parseLong(identity.getId());
@@ -124,7 +126,7 @@ public class OauthService {
         }
         User user = requireUser(duplicateUserService.resolvePrimaryUserId(beatLeaderId));
         return completeProviderLogin(user, PROVIDER_BEATLEADER, identity.getId(), identity.getName(),
-                identity.getAvatar(), linkUserId, pendingLinkToken);
+                identity.getAvatar(), linkUserId, pendingLinkToken, scope);
     }
 
     @Transactional
@@ -135,7 +137,7 @@ public class OauthService {
         User user = requireUser(userId);
 
         return completeProviderLogin(user, PROVIDER_STEAM, String.valueOf(rawSteamId), user.getName(),
-                user.getAvatarUrl(), linkUserId, pendingLinkToken);
+                user.getAvatarUrl(), linkUserId, pendingLinkToken, JwtService.SCOPE_WEB);
     }
 
     @Transactional
@@ -145,6 +147,10 @@ public class OauthService {
         if (session.getRefreshTokenExpiresAt().isBefore(Instant.now())) {
             oauthSessionRepository.delete(session);
             throw new UnauthorizedException("Refresh token expired");
+        }
+        if (session.getConnection() == null || !session.getConnection().isActive()) {
+            oauthSessionRepository.delete(session);
+            throw new UnauthorizedException("The linked account for this session was removed");
         }
         rejectIfBanned(session.getUser());
         return rotateSession(session);
@@ -198,10 +204,12 @@ public class OauthService {
 
         conn.setActive(false);
         oauthConnectionRepository.save(conn);
+        oauthSessionRepository.deleteByConnection_Id(conn.getId());
     }
 
     private PlayerAuthResponse completeProviderLogin(User user, String provider, String providerUserId,
-            String providerUsername, String providerAvatarUrl, Long linkUserId, String pendingLinkToken) {
+            String providerUsername, String providerAvatarUrl, Long linkUserId, String pendingLinkToken,
+            String scope) {
         if (linkUserId != null && !linkUserId.equals(user.getId())) {
             throw new ForbiddenException("Provider account belongs to a different player");
         }
@@ -216,7 +224,7 @@ public class OauthService {
                     pending.discordAvatarUrl());
         }
 
-        return issueSession(providerConn);
+        return issueSession(providerConn, scope);
     }
 
     private OauthConnection addOrRefreshConnection(User user, String provider, String providerUserId,
@@ -240,11 +248,12 @@ public class OauthService {
         return oauthConnectionRepository.save(conn);
     }
 
-    private PlayerAuthResponse issueSession(OauthConnection anchor) {
+    private PlayerAuthResponse issueSession(OauthConnection anchor, String scope) {
         Instant now = Instant.now();
         OauthSession session = OauthSession.builder()
                 .user(anchor.getUser())
                 .connection(anchor)
+                .tokenScope(scope)
                 .refreshToken(UUID.randomUUID().toString())
                 .refreshTokenExpiresAt(now.plusSeconds(playerRefreshTokenTtl))
                 .lastUsedAt(now)
@@ -271,9 +280,10 @@ public class OauthService {
                 .min(HIGHEST_ROLE_FIRST)
                 .orElse(null);
 
+        String scope = session.getTokenScope();
         String accessToken = oauthStaff != null
-                ? jwtService.generatePlayerAccessToken(userId, oauthStaff.getId(), oauthStaff.getRole())
-                : jwtService.generatePlayerAccessToken(userId);
+                ? jwtService.generatePlayerAccessToken(userId, oauthStaff.getId(), oauthStaff.getRole(), scope)
+                : jwtService.generatePlayerAccessToken(userId, scope);
 
         return PlayerAuthResponse.builder()
                 .accessToken(accessToken)

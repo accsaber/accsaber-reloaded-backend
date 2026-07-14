@@ -91,7 +91,7 @@ public class ScoreService {
         public ScoreResponse submit(SubmitScoreRequest request) {
                 acquireSubmitLock(request.getUserId(), request.getMapDifficultyId());
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
-                validateScoreBounds(request, difficulty);
+                validateScoreBounds(request, difficulty, true);
                 User user = loadActiveUser(request.getUserId());
 
                 Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
@@ -213,7 +213,7 @@ public class ScoreService {
 
         private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, BigDecimal complexity) {
                 acquireSubmitLock(request.getUserId(), difficulty.getId());
-                validateScoreBounds(request, difficulty);
+                validateScoreBounds(request, difficulty, false);
                 User user = loadUserForBackfill(request.getUserId());
 
                 Optional<Score> playMatch = findRecentMatchingPlay(user.getId(), difficulty.getId(),
@@ -705,13 +705,17 @@ public class ScoreService {
                 }
         }
 
-        private void validateScoreBounds(SubmitScoreRequest request, MapDifficulty difficulty) {
+        private void validateScoreBounds(SubmitScoreRequest request, MapDifficulty difficulty,
+                        boolean enforceScoreCeiling) {
                 Integer max = difficulty.getMaxScore();
                 if (max == null || max <= 0) {
                         return;
                 }
                 if (request.getScoreNoMods() != null && request.getScoreNoMods() > max) {
                         throw new ValidationException("scoreNoMods exceeds the map's maxScore");
+                }
+                if (enforceScoreCeiling && request.getScore() != null && request.getScore() > max) {
+                        throw new ValidationException("score exceeds the map's maxScore");
                 }
         }
 

@@ -405,6 +405,19 @@ class ScoreServiceTest {
                 }
 
                 @Test
+                void scoreExceedingMaxScore_throwsValidationException() {
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
+                                        .thenReturn(Optional.of(rankedDifficulty));
+
+                        SubmitScoreRequest req = buildRequest(rankedDifficulty.getMaxScore());
+                        req.setScore(rankedDifficulty.getMaxScore() + 1);
+
+                        assertThatThrownBy(() -> scoreService.submit(req))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("score exceeds");
+                }
+
+                @Test
                 void unrankedDifficulty_throwsValidationException() {
                         rankedDifficulty.setStatus(MapDifficultyStatus.QUEUE);
                         when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))

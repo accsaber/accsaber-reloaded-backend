@@ -26,6 +26,9 @@ public class JwtService {
     public static final String TYPE_STAFF = "staff";
     public static final String TYPE_PLAYER = "player";
 
+    public static final String SCOPE_GAME = "game";
+    public static final String SCOPE_WEB = "web";
+
     @Value("${accsaber.jwt.secret}")
     private String secret;
 
@@ -48,11 +51,11 @@ public class JwtService {
                 .compact();
     }
 
-    public String generatePlayerAccessToken(Long userId) {
-        return generatePlayerAccessToken(userId, null, null);
+    public String generatePlayerAccessToken(Long userId, String scope) {
+        return generatePlayerAccessToken(userId, null, null, scope);
     }
 
-    public String generatePlayerAccessToken(Long userId, UUID staffId, StaffRole staffRole) {
+    public String generatePlayerAccessToken(Long userId, UUID staffId, StaffRole staffRole, String scope) {
         if (userId == null) {
             throw new IllegalArgumentException("userId must not be null");
         }
@@ -69,7 +72,14 @@ public class JwtService {
             builder.claim("staffId", staffId.toString());
             builder.claim("role", staffRole.name());
         }
+        if (scope != null) {
+            builder.claim("scope", scope);
+        }
         return builder.signWith(getSigningKey()).compact();
+    }
+
+    public String extractPlayerScope(String token) {
+        return parseClaims(token).get("scope", String.class);
     }
 
     public UUID extractPlayerStaffId(String token) {

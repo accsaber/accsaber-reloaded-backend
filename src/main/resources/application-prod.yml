@@ -27,7 +27,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: when_authorized
@@ -35,4 +35,4 @@ management:
 accsaber:
   cdn:
     storage-path: ${CDN_STORAGE_PATH:/var/cdn}
-    base-url: ${CDN_BASE_URL:http://localhost:8080/cdn}
+    base-url: ${CDN_BASE_URL:https://cdn.accsaberreloaded.com}

@@ -93,13 +93,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String type = jwtService.extractTokenType(token);
         if (JwtService.TYPE_PLAYER.equals(type)) {
             Long userId = jwtService.extractPlayerId(token);
+            String scope = jwtService.extractPlayerScope(token);
             return userRepository.findByIdAndActiveTrue(userId)
                     .map(user -> {
                         StaffUser staff = surfaceStaffRole(userId, surfacedRoles);
                         return new PlayerUserDetails(
                                 user,
                                 staff != null ? staff.getId() : null,
-                                staff != null ? staff.getRole() : null);
+                                staff != null ? staff.getRole() : null,
+                                scope);
                     })
                     .orElse(null);
         }

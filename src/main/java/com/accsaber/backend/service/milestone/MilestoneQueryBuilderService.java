@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -547,6 +548,18 @@ public class MilestoneQueryBuilderService {
         if (transform.argument() == null) {
             throw new ValidationException("Transform argument must not be null");
         }
+        String argument = String.valueOf(transform.argument()).trim();
+        switch (transform.function()) {
+            case "MOD" -> parseModArgument(argument);
+            case "INTERVAL_SUBTRACT" -> {
+                if (!INTERVAL_ARGUMENT.matcher(argument).matches()) {
+                    throw new ValidationException(
+                            "INTERVAL_SUBTRACT argument must look like '<n> <unit>' (e.g. '7 days')");
+                }
+            }
+            default -> {
+            }
+        }
     }
 
     private void validateFilter(FilterSpec filter, Map<String, ColumnDef> columns, String table) {
@@ -792,12 +805,34 @@ public class MilestoneQueryBuilderService {
                 subAlias.substring(0, subAlias.indexOf('_')) + ".", subAlias + ".");
     }
 
+    private static final Pattern INTERVAL_ARGUMENT = Pattern.compile(
+            "^\\d{1,9} (second|minute|hour|day|week|month|year)s?$");
+
     private String applyTransform(String colExpr, MilestoneQuerySpec.TransformSpec transform) {
+        String argument = String.valueOf(transform.argument()).trim();
         return switch (transform.function()) {
-            case "MOD" -> "MOD(" + colExpr + ", " + transform.argument() + ")";
-            case "INTERVAL_SUBTRACT" -> colExpr + " - INTERVAL '" + transform.argument() + "'";
+            case "MOD" -> "MOD(" + colExpr + ", " + parseModArgument(argument) + ")";
+            case "INTERVAL_SUBTRACT" -> {
+                if (!INTERVAL_ARGUMENT.matcher(argument).matches()) {
+                    throw new ValidationException(
+                            "INTERVAL_SUBTRACT argument must look like '<n> <unit>' (e.g. '7 days')");
+                }
+                yield colExpr + " - INTERVAL '" + argument + "'";
+            }
             default -> colExpr;
         };
+    }
+
+    private long parseModArgument(String argument) {
+        try {
+            long value = Long.parseLong(argument);
+            if (value <= 0) {
+                throw new NumberFormatException();
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new ValidationException("MOD transform argument must be a positive integer");
+        }
     }
 
     private static final Map<String, String> JPQL_TO_SQL = new HashMap<>();
