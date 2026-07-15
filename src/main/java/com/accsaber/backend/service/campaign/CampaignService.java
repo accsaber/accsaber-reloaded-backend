@@ -1102,7 +1102,8 @@ public class CampaignService {
             result.add(BarrierProgressResponse.builder()
                     .barrier(toBarrierResponse(b, prereqs, affected,
                             ctx.itemsByNode.getOrDefault(b.getId(), List.of())))
-                    .currentValue(computeBarrierCurrentValue(b, affected, bestsByMapDifficulty, mapDifficultyByNode))
+                    .currentValue(computeBarrierCurrentValue(b, affected, completedIds, bestsByMapDifficulty,
+                            mapDifficultyByNode))
                     .satisfied(completedIds.contains(b.getId()))
                     .unlocked(unlocked)
                     .build());
@@ -1224,6 +1225,8 @@ public class CampaignService {
             throw new ValidationException("Barriers cannot be added to a progression-agnostic campaign");
         }
         validateBarrierCondition(request.getConditionType(), request.getConditionValue());
+        validateCompletionTarget(request.getConditionType(), request.getConditionValue(),
+                (int) safePrereqIds(request.getAffectedCampaignDifficultyIds()).stream().distinct().count());
         if (campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
                 campaignId, request.getPositionX(), request.getPositionY())) {
             throw new ValidationException("A node already occupies that grid position");
@@ -1353,6 +1356,9 @@ public class CampaignService {
         if (request.getAffectedCampaignDifficultyIds() != null) {
             replaceAffectedNodes(barrier, request.getAffectedCampaignDifficultyIds());
         }
+        List<UUID> affectedIds = loadBarrierAffectedIds(barrier.getId());
+        validateCompletionTarget(barrier.getBarrierConditionType(), barrier.getBarrierConditionValue(),
+                affectedIds.size());
 
         barrier = campaignDifficultyRepository.save(barrier);
         if (conditionChanged && barrier.getCampaign().getStatus() != CampaignStatus.DRAFT) {
@@ -1363,8 +1369,7 @@ public class CampaignService {
                 .findByCampaignDifficulty_IdAndActiveTrue(barrier.getId()).stream()
                 .map(p -> p.getComesFromCampaignDifficulty().getId())
                 .toList();
-        return toBarrierResponse(barrier, prereqIds, loadBarrierAffectedIds(barrier.getId()),
-                loadDifficultyItems(barrier.getId()));
+        return toBarrierResponse(barrier, prereqIds, affectedIds, loadDifficultyItems(barrier.getId()));
     }
 
     private void validateBarrierCondition(BarrierConditionType type, BigDecimal value) {
@@ -1373,6 +1378,23 @@ public class CampaignService {
         }
         if (type != BarrierConditionType.FC && value == null) {
             throw new ValidationException("conditionValue", "is required for this condition");
+        }
+        if (type == BarrierConditionType.COMPLETION_COUNT) {
+            if (value.stripTrailingZeros().scale() > 0) {
+                throw new ValidationException("conditionValue", "must be a whole number of maps");
+            }
+            if (value.compareTo(BigDecimal.ONE) < 0) {
+                throw new ValidationException("conditionValue", "must be at least 1");
+            }
+        }
+    }
+
+    private void validateCompletionTarget(BarrierConditionType type, BigDecimal value, int affectedCount) {
+        if (type != BarrierConditionType.COMPLETION_COUNT || affectedCount == 0) {
+            return;
+        }
+        if (value.compareTo(BigDecimal.valueOf(affectedCount)) > 0) {
+            throw new ValidationException("conditionValue", "cannot exceed the number of affected nodes");
         }
     }
 
@@ -1858,10 +1880,14 @@ public class CampaignService {
     }
 
     private BigDecimal computeBarrierCurrentValue(CampaignDifficulty barrier, List<UUID> affected,
-            Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty, Map<UUID, UUID> mapDifficultyByNode) {
+            Set<UUID> completedIds, Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty,
+            Map<UUID, UUID> mapDifficultyByNode) {
         BarrierConditionType type = barrier.getBarrierConditionType();
         if (type == null || affected.isEmpty()) {
             return null;
+        }
+        if (type == BarrierConditionType.COMPLETION_COUNT) {
+            return BigDecimal.valueOf(affected.stream().filter(completedIds::contains).count());
         }
         List<BigDecimal> values = new ArrayList<>(affected.size());
         boolean allFullCombo = true;

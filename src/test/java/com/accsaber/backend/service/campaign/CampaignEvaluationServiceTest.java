@@ -265,6 +265,75 @@ class CampaignEvaluationServiceTest {
         }
 
         @Test
+        void completionCountBarrierBreaksWhenEnoughAffectedNodesComplete() {
+                CampaignDifficulty bar = stubCompletionCountBarrier(new BigDecimal("2"));
+
+                ArgumentCaptor<UserCampaignScore> captor = ArgumentCaptor.forClass(UserCampaignScore.class);
+                verify(userCampaignScoreRepository, atLeastOnce()).save(captor.capture());
+                assertThat(captor.getAllValues())
+                                .anyMatch(u -> u.getCampaignDifficulty().getId().equals(bar.getId())
+                                                && u.getScore() == null);
+        }
+
+        @Test
+        void completionCountBarrierNotBrokenBelowTarget() {
+                CampaignDifficulty bar = stubCompletionCountBarrier(new BigDecimal("3"));
+
+                ArgumentCaptor<UserCampaignScore> captor = ArgumentCaptor.forClass(UserCampaignScore.class);
+                verify(userCampaignScoreRepository, atLeastOnce()).save(captor.capture());
+                assertThat(captor.getAllValues())
+                                .noneMatch(u -> u.getCampaignDifficulty().getId().equals(bar.getId()));
+        }
+
+        private CampaignDifficulty stubCompletionCountBarrier(BigDecimal target) {
+                campaign.setStatus(CampaignStatus.PUBLISHED);
+                MapDifficulty mdA = mapDifficulty(1_000_000);
+                a.setMapDifficulty(mdA);
+                a.setRequirementType(CampaignRequirementType.ACC);
+                a.setRequirementValue(new BigDecimal("0.80"));
+                CampaignDifficulty c = CampaignDifficulty.builder()
+                                .id(UUID.randomUUID()).campaign(campaign).active(true)
+                                .mapDifficulty(mapDifficulty(1_000_000))
+                                .requirementType(CampaignRequirementType.ACC)
+                                .requirementValue(new BigDecimal("0.80")).build();
+                CampaignDifficulty d = CampaignDifficulty.builder()
+                                .id(UUID.randomUUID()).campaign(campaign).active(true)
+                                .mapDifficulty(mapDifficulty(1_000_000))
+                                .requirementType(CampaignRequirementType.ACC)
+                                .requirementValue(new BigDecimal("0.80")).build();
+                CampaignDifficulty bar = CampaignDifficulty.builder()
+                                .id(UUID.randomUUID()).campaign(campaign).active(true).barrier(true)
+                                .barrierConditionType(BarrierConditionType.COMPLETION_COUNT)
+                                .barrierConditionValue(target)
+                                .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
+                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
+                                .score(950000).scoreNoMods(950000).build();
+                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
+                                .status(UserCampaignStatus.IN_PROGRESS).build();
+
+                when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
+                                UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
+                when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
+                                mdA.getId())).thenReturn(Optional.of(a));
+                when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of(a, c, d, bar));
+                when(campaignDifficultyPathRepository
+                                .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of(edge(a, bar)));
+                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
+                                campaign.getId())).thenReturn(List.of(progress(c)));
+                when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
+                                .thenReturn(Optional.empty());
+                when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
+                                .thenReturn(List.of(affected(bar, a), affected(bar, c), affected(bar, d)));
+                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(bests(mdA, 950000)));
+
+                service.evaluateAfterScore(user.getId(), score);
+                return bar;
+        }
+
+        @Test
         void andBarrierNotBrokenUntilAllAffectedComplete() {
                 campaign.setStatus(CampaignStatus.PUBLISHED);
                 MapDifficulty mdA = mapDifficulty(1_000_000);

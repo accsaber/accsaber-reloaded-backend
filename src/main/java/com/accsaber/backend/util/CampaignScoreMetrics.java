@@ -65,7 +65,7 @@ public final class CampaignScoreMetrics {
             case AVERAGE_AP, AP_MAX -> bests.bestAp();
             case STREAK_115_AVERAGE, STREAK_115_MAX -> toDecimal(bests.bestStreak115());
             case AVERAGE_RANK, MAX_RANK -> toDecimal(bests.bestRank());
-            case FC -> null;
+            case FC, COMPLETION_COUNT -> null;
         };
     }
 

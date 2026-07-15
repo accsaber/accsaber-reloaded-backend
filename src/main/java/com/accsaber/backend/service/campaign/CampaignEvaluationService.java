@@ -408,6 +408,17 @@ public class CampaignEvaluationService {
     private boolean barrierBroken(CampaignDifficulty barrier, List<UUID> affected, CampaignPrerequisiteMode mode,
             Set<UUID> completedIds, Map<UUID, UUID> mapDifficultyByNode,
             Map<UUID, UserMapDifficultyBests> bestsByMapDifficulty) {
+        if (barrier == null) {
+            return false;
+        }
+        if (barrier.getBarrierConditionType() == BarrierConditionType.COMPLETION_COUNT) {
+            BigDecimal target = barrier.getBarrierConditionValue();
+            if (target == null) {
+                return false;
+            }
+            long completed = affected.stream().filter(completedIds::contains).count();
+            return BigDecimal.valueOf(completed).compareTo(target) >= 0;
+        }
         if (mode == CampaignPrerequisiteMode.OR) {
             for (UUID nodeId : affected) {
                 if (!completedIds.contains(nodeId)) {

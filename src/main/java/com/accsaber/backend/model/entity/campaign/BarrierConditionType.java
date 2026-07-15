@@ -9,7 +9,8 @@ public enum BarrierConditionType {
     STREAK_115_MAX,
     FC,
     AVERAGE_RANK,
-    MAX_RANK;
+    MAX_RANK,
+    COMPLETION_COUNT;
 
     public boolean isLowerBetter() {
         return this == AVERAGE_RANK || this == MAX_RANK;
