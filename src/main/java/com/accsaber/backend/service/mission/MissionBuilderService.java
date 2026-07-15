@@ -443,9 +443,13 @@ public class MissionBuilderService {
         if (pick == null || target == null)
             return failBuild("no-snipe-candidate-within-band");
 
-        BigDecimal effectiveUserAp = mine.map(s -> skillService.ageAdjustedUserAp(s, skill.getTopAp()))
-                .orElse(BigDecimal.ZERO);
-        BigDecimal snipeDistance = target.getAp().subtract(effectiveUserAp).max(BigDecimal.ZERO);
+        BigDecimal snipeDistance;
+        if (mine.isPresent()) {
+            BigDecimal effectiveUserAp = skillService.ageAdjustedUserAp(mine.get(), skill.getTopAp());
+            snipeDistance = target.getAp().subtract(effectiveUserAp).max(BigDecimal.ZERO);
+        } else {
+            snipeDistance = bandEquivalentClimb(target.getAp(), pick.complexity(), scoreCurve, band);
+        }
         BigDecimal targetAcc = snipeTargetAcc(target, pick.maxScore());
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category), band,
                 snipeDistance);
@@ -487,6 +491,14 @@ public class MissionBuilderService {
             return null;
         BigDecimal apCap = targetService.capExtremeAtTopAp(target.multiply(snipeSlack(band)), band, skill, skillLevel);
         return new SnipeTarget(target, apCap, snipeMinAp(target, band));
+    }
+
+    private BigDecimal bandEquivalentClimb(BigDecimal targetAp, BigDecimal complexity, Curve scoreCurve,
+            MissionBand band) {
+        BigDecimal lifted = calibrationService.bandLiftedFloorAp(targetAp, complexity, scoreCurve, band);
+        if (lifted == null)
+            return BigDecimal.ZERO;
+        return lifted.subtract(targetAp).max(BigDecimal.ZERO);
     }
 
     private BigDecimal snipeSlack(MissionBand band) {

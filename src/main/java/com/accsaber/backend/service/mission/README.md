@@ -106,6 +106,13 @@ The two branches get **different** `minAp` floors, on purpose:
 
 The reason the has-score branch can't take a >1.0 floor: its `apCap` *is* the target, so a floor above 1.0 empties the window and every such snipe fails forever. That's a real trap - if you ever want a floor there, give it `snipeSlack` first.
 
+`snipeDistance` (the XP boost input, `1 + min(distance/500, 0.5)`) is also computed per branch, for the same reason - it means "how far you're being asked to climb", and on a map you've never played there is no "from":
+
+- **Has-score**: `target.ap - ageAdjustedUserAp(yourScore)` - a real climb off your own PB.
+- **No-score**: `bandEquivalentClimb` = `bandLiftedFloorAp(target, ...) - target`, i.e. the lift *this band would have asked for* if the target were your PB. Same quantity the has-score branch produces, same machinery, so the two branches pay comparable XP for comparable work.
+
+Do **not** go back to `effectiveUserAp = ZERO` on the no-score branch. That makes `snipeDistance` the target's *entire* AP (600-900), which blows past the boost's saturation point (250) every single time, so **every** no-score snipe silently pays the maximum 1.5x - a no-score easy paid 1.5x while a has-score extreme paid 1.148x. Easiest missions, biggest multiplier.
+
 ---
 
 ## 3. Helper map + how to balance
