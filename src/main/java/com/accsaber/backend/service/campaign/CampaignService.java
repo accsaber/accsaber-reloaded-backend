@@ -1224,8 +1224,11 @@ public class CampaignService {
         if (campaign.isProgressionAgnostic()) {
             throw new ValidationException("Barriers cannot be added to a progression-agnostic campaign");
         }
-        validateBarrierCondition(request.getConditionType(), request.getConditionValue());
-        validateCompletionTarget(request.getConditionType(), request.getConditionValue(),
+        BigDecimal conditionValue = request.getConditionType() == BarrierConditionType.FC
+                ? null
+                : request.getConditionValue();
+        validateBarrierCondition(request.getConditionType(), conditionValue);
+        validateCompletionTarget(request.getConditionType(), conditionValue,
                 (int) safePrereqIds(request.getAffectedCampaignDifficultyIds()).stream().distinct().count());
         if (campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
                 campaignId, request.getPositionX(), request.getPositionY())) {
@@ -1235,7 +1238,7 @@ public class CampaignService {
                 .campaign(campaign)
                 .barrier(true)
                 .barrierConditionType(request.getConditionType())
-                .barrierConditionValue(request.getConditionValue())
+                .barrierConditionValue(conditionValue)
                 .prerequisiteMode(request.getPrerequisiteMode() != null
                         ? request.getPrerequisiteMode()
                         : CampaignPrerequisiteMode.AND)
@@ -1291,7 +1294,9 @@ public class CampaignService {
             barrier.setBarrierConditionType(request.getConditionType());
             conditionChanged = true;
         }
-        if (request.getConditionValue() != null
+        if (barrier.getBarrierConditionType() == BarrierConditionType.FC) {
+            barrier.setBarrierConditionValue(null);
+        } else if (request.getConditionValue() != null
                 && (barrier.getBarrierConditionValue() == null
                         || barrier.getBarrierConditionValue().compareTo(request.getConditionValue()) != 0)) {
             barrier.setBarrierConditionValue(request.getConditionValue());
@@ -1889,25 +1894,23 @@ public class CampaignService {
         if (type == BarrierConditionType.COMPLETION_COUNT) {
             return BigDecimal.valueOf(affected.stream().filter(completedIds::contains).count());
         }
+        if (type == BarrierConditionType.FC) {
+            return BigDecimal.valueOf(affected.stream()
+                    .map(nodeId -> bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId)))
+                    .filter(bests -> bests != null && bests.hasFullCombo())
+                    .count());
+        }
         List<BigDecimal> values = new ArrayList<>(affected.size());
-        boolean allFullCombo = true;
         for (UUID nodeId : affected) {
             UserMapDifficultyBests bests = bestsByMapDifficulty.get(mapDifficultyByNode.get(nodeId));
             if (bests == null) {
                 return null;
-            }
-            if (type == BarrierConditionType.FC) {
-                allFullCombo = allFullCombo && bests.hasFullCombo();
-                continue;
             }
             BigDecimal v = CampaignScoreMetrics.barrierMetric(bests, type);
             if (v == null) {
                 return null;
             }
             values.add(v);
-        }
-        if (type == BarrierConditionType.FC) {
-            return allFullCombo ? BigDecimal.ONE : BigDecimal.ZERO;
         }
         if (values.isEmpty()) {
             return null;
