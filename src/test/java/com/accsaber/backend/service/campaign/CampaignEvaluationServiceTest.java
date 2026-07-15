@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
@@ -42,6 +44,7 @@ import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.repository.campaign.CampaignBarrierAffectedDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
@@ -79,6 +82,8 @@ class CampaignEvaluationServiceTest {
         private ItemService itemService;
         @Mock
         private MissionProgressService missionProgressService;
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
 
         @InjectMocks
         private CampaignEvaluationService service;
@@ -709,5 +714,61 @@ class CampaignEvaluationServiceTest {
                 assertThat(captor.getAllValues())
                                 .anyMatch(u -> u.getCampaignDifficulty().getId().equals(a.getId())
                                                 && u.getScore() == active);
+        }
+
+        private UserCampaign singleNodeCompletingFixture(UserCampaignStatus initialStatus) {
+                campaign.setStatus(CampaignStatus.PUBLISHED);
+                MapDifficulty mdA = mapDifficulty(1_000_000);
+                a.setMapDifficulty(mdA);
+                a.setRequirementType(CampaignRequirementType.RANK);
+                a.setRequirementValue(new BigDecimal("100"));
+                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
+                                .status(initialStatus).completionRewardsPaid(false).build();
+
+                when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
+                                UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
+                when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
+                                mdA.getId())).thenReturn(Optional.of(a));
+                when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of(a));
+                when(campaignDifficultyPathRepository
+                                .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of());
+                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
+                                campaign.getId())).thenReturn(List.of());
+                when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
+                                .thenReturn(Optional.empty());
+                return uc;
+        }
+
+        private Score rankQualifyingScore() {
+                return Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(a.getMapDifficulty())
+                                .score(900000).scoreNoMods(900000).rank(50).build();
+        }
+
+        @Test
+        void completingCampaignPublishesCampaignCompletedEventOnce() {
+                UserCampaign uc = singleNodeCompletingFixture(UserCampaignStatus.IN_PROGRESS);
+
+                service.evaluateAfterScore(user.getId(), rankQualifyingScore());
+
+                assertThat(uc.getStatus()).isEqualTo(UserCampaignStatus.COMPLETED);
+                ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+                verify(eventPublisher, times(1)).publishEvent(captor.capture());
+                assertThat(captor.getValue()).isInstanceOfSatisfying(CampaignCompletedEvent.class, e -> {
+                        assertThat(e.userId()).isEqualTo(user.getId());
+                        assertThat(e.campaignId()).isEqualTo(campaign.getId());
+                        assertThat(e.campaignStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                        assertThat(e.completedAt()).isNotNull();
+                });
+        }
+
+        @Test
+        void reEvaluatingAnAlreadyCompletedCampaignDoesNotRepublish() {
+                singleNodeCompletingFixture(UserCampaignStatus.COMPLETED);
+
+                service.evaluateAfterScore(user.getId(), rankQualifyingScore());
+
+                verify(eventPublisher, never()).publishEvent(any(CampaignCompletedEvent.class));
         }
 }

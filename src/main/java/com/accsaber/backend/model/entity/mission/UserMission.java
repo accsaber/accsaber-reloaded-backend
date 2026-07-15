@@ -86,6 +86,12 @@ public class UserMission {
     @Column(name = "target_streak")
     private Integer targetStreak;
 
+    @Column(name = "target_ranked_before")
+    private Instant targetRankedBefore;
+
+    @Column(name = "target_curated_only")
+    private Boolean targetCuratedOnly;
+
     @Column(name = "snipe_distance", precision = 20, scale = 6)
     private BigDecimal snipeDistance;
 
@@ -97,6 +103,10 @@ public class UserMission {
     @Column(name = "progress_count", nullable = false)
     @Builder.Default
     private Integer progressCount = 0;
+
+    @Column(name = "progress_ap", nullable = false, precision = 20, scale = 6)
+    @Builder.Default
+    private BigDecimal progressAp = BigDecimal.ZERO;
 
     @Column(name = "xp_reward", nullable = false)
     @Builder.Default

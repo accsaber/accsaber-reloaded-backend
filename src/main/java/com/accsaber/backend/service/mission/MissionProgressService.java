@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,17 +19,27 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import com.accsaber.backend.model.dto.response.mission.MissionCompletedResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.model.entity.map.Batch;
+import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
+import com.accsaber.backend.model.entity.mission.MissionTrigger;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserRelationType;
+import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
+import com.accsaber.backend.repository.map.BatchRepository;
+import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
+import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -49,6 +60,10 @@ public class MissionProgressService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventMissionService eventMissionService;
+    private final UserCategoryStatisticsRepository statisticsRepository;
+    private final BatchRepository batchRepository;
+    private final MapDifficultyRepository mapDifficultyRepository;
+    private final UserRelationRepository userRelationRepository;
 
     @Value("${accsaber.missions.enabled:false}")
     private boolean missionsEnabled;
@@ -64,27 +79,136 @@ public class MissionProgressService {
         evaluateAllForUser(userId, score);
     }
 
-    private void evaluateAllForUser(Long userId, ScoreResponse latestScore) {
-        List<UserMission> active = userMissionRepository.findAllActiveByUser(userId);
-        if (active.isEmpty())
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onCampaignCompleted(CampaignCompletedEvent event) {
+        if (!missionsEnabled) {
             return;
-
-        Instant now = Instant.now();
-        for (UserMission mission : active) {
+        }
+        for (UserMission mission : openMissionsFor(event.userId(), MissionTrigger.CAMPAIGN)) {
             if (mission.getStatus() != MissionStatus.active)
                 continue;
-            if (mission.getExpiresAt() != null && mission.getExpiresAt().isBefore(now))
+            if (evalCampaignComplete(mission, event)) {
+                completeMission(mission, event.userId(),
+                        event.completedAt() != null ? event.completedAt() : Instant.now());
+            }
+        }
+    }
+
+    private List<UserMission> openMissionsFor(Long userId, MissionTrigger trigger) {
+        Instant now = Instant.now();
+        return userMissionRepository.findAllActiveByUser(userId).stream()
+                .filter(m -> m.getStatus() == MissionStatus.active)
+                .filter(m -> m.getExpiresAt() == null || !m.getExpiresAt().isBefore(now))
+                .filter(m -> m.getTemplate().getType().getTrigger() == trigger)
+                .toList();
+    }
+
+    private void evaluateAllForUser(Long userId, ScoreResponse latestScore) {
+        EvalContext ctx = new EvalContext(userId);
+        for (UserMission mission : openMissionsFor(userId, MissionTrigger.SCORE)) {
+            if (mission.getStatus() != MissionStatus.active)
                 continue;
-            if (evaluate(mission, latestScore)) {
+            if (evaluate(mission, latestScore, ctx)) {
                 completeMission(mission, userId,
                         latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
             }
         }
     }
 
-    private boolean evaluate(UserMission mission, ScoreResponse score) {
+    private boolean evalCampaignComplete(UserMission mission, CampaignCompletedEvent event) {
+        if (Boolean.TRUE.equals(mission.getTargetCuratedOnly())
+                && event.campaignStatus() != CampaignStatus.CURATED) {
+            return false;
+        }
+        return addProgress(mission, 1);
+    }
+
+    private boolean evalSnipeRivalAnyMap(UserMission mission, ScoreResponse score, EvalContext ctx) {
+        if (!matchesCategoryScope(mission, score))
+            return false;
+        if (!score.isActive() || score.getScore() == null)
+            return false;
+        List<Long> rivalIds = ctx.rivals();
+        if (rivalIds.isEmpty())
+            return false;
+        if (!scoreRepository.existsRivalScoreBelow(score.getMapDifficultyId(), rivalIds, score.getScore()))
+            return false;
+        return addProgress(mission, 1);
+    }
+
+    private boolean evalApGainOverall(UserMission mission, ScoreResponse score, EvalContext ctx) {
+        if (!score.isActive() || mission.getTargetAp() == null)
+            return false;
+        BigDecimal gained = statisticsRepository
+                .findActiveApGainOverPrevious(ctx.userId, OVERALL_CODE)
+                .orElse(BigDecimal.ZERO);
+        if (gained.signum() <= 0)
+            return false;
+        mission.setProgressAp(mission.getProgressAp().add(gained));
+        return mission.getProgressAp().compareTo(mission.getTargetAp()) >= 0;
+    }
+
+    private boolean evalBatchPlayN(UserMission mission, ScoreResponse score, EvalContext ctx) {
+        if (!matchesCategoryScope(mission, score))
+            return false;
+        UUID latestBatchId = ctx.latestReleasedBatchId();
+        if (latestBatchId == null)
+            return false;
+        if (!mapDifficultyRepository.existsByIdAndBatch_Id(score.getMapDifficultyId(), latestBatchId))
+            return false;
+        return addProgress(mission, 1);
+    }
+
+    private boolean evalPbRankedBefore(UserMission mission, ScoreResponse score) {
+        if (!matchesCategoryScope(mission, score))
+            return false;
+        if (!score.isActive() || mission.getTargetRankedBefore() == null)
+            return false;
+        if (!mapDifficultyRepository.existsByIdAndRankedAtBefore(score.getMapDifficultyId(),
+                mission.getTargetRankedBefore()))
+            return false;
+        return addProgress(mission, 1);
+    }
+
+    private final class EvalContext {
+        private final Long userId;
+        private List<Long> rivals;
+        private UUID latestReleasedBatchId;
+        private boolean latestReleasedBatchResolved;
+
+        private EvalContext(Long userId) {
+            this.userId = userId;
+        }
+
+        private List<Long> rivals() {
+            if (rivals == null) {
+                rivals = userRelationRepository.findActiveTargetUserIdsByTypes(userId,
+                        List.of(UserRelationType.rival));
+            }
+            return rivals;
+        }
+
+        private UUID latestReleasedBatchId() {
+            if (!latestReleasedBatchResolved) {
+                latestReleasedBatchId = batchRepository
+                        .findFirstByStatusOrderByReleasedAtDesc(BatchStatus.RELEASED)
+                        .map(Batch::getId).orElse(null);
+                latestReleasedBatchResolved = true;
+            }
+            return latestReleasedBatchId;
+        }
+    }
+
+    private boolean evaluate(UserMission mission, ScoreResponse score, EvalContext ctx) {
         MissionType type = mission.getTemplate().getType();
         return switch (type) {
+            case CAMPAIGN_COMPLETE_N -> throw new IllegalStateException(
+                    "Non-score-triggered mission type reached score evaluation: " + type);
+            case SNIPE_RIVAL_ANY_MAP -> evalSnipeRivalAnyMap(mission, score, ctx);
+            case AP_GAIN_OVERALL -> evalApGainOverall(mission, score, ctx);
+            case BATCH_PLAY_N -> evalBatchPlayN(mission, score, ctx);
+            case PB_RANKED_BEFORE_N -> evalPbRankedBefore(mission, score);
             case PLAY_N_MAPS -> evalPlayN(mission, score);
             case XP_IN_WINDOW -> evalXpWindow(mission, score);
             case ACC_ON_MAP -> evalAccOnMap(mission, score);
@@ -105,8 +229,7 @@ public class MissionProgressService {
             return false;
         if (!matchesCategoryScope(mission, score))
             return false;
-        mission.setProgressCount(mission.getProgressCount() + 1);
-        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
+        return addProgress(mission, 1);
     }
 
     private boolean evalStreakNInCategory(UserMission mission, ScoreResponse score) {
@@ -117,8 +240,7 @@ public class MissionProgressService {
         Integer streak = score.getStreak115();
         if (streak == null || streak < mission.getTargetStreak())
             return false;
-        mission.setProgressCount(mission.getProgressCount() + 1);
-        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
+        return addProgress(mission, 1);
     }
 
     private boolean evalStreakSum(UserMission mission, ScoreResponse score) {
@@ -127,7 +249,11 @@ public class MissionProgressService {
         Integer streak = score.getStreak115();
         if (streak == null || streak <= 0)
             return false;
-        mission.setProgressCount(mission.getProgressCount() + streak);
+        return addProgress(mission, streak);
+    }
+
+    private boolean addProgress(UserMission mission, int amount) {
+        mission.setProgressCount(mission.getProgressCount() + amount);
         return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
     }
 
@@ -151,8 +277,7 @@ public class MissionProgressService {
     private boolean evalPlayN(UserMission mission, ScoreResponse score) {
         if (!matchesCategoryScope(mission, score))
             return false;
-        mission.setProgressCount(mission.getProgressCount() + 1);
-        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
+        return addProgress(mission, 1);
     }
 
     private boolean evalXpWindow(UserMission mission, ScoreResponse score) {
@@ -202,8 +327,7 @@ public class MissionProgressService {
             return false;
         if (score.getAp().compareTo(priorAp) <= 0)
             return false;
-        mission.setProgressCount(mission.getProgressCount() + 1);
-        return mission.getTargetCount() != null && mission.getProgressCount() >= mission.getTargetCount();
+        return addProgress(mission, 1);
     }
 
     private boolean evalSnipe(UserMission mission, ScoreResponse score) {
@@ -264,13 +388,8 @@ public class MissionProgressService {
     private void creditXpToWindowMissions(Long userId, int xpAmount, Instant completedAt) {
         if (xpAmount <= 0)
             return;
-        Instant now = Instant.now();
-        for (UserMission window : userMissionRepository.findAllActiveByUser(userId)) {
-            if (window.getStatus() != MissionStatus.active)
-                continue;
+        for (UserMission window : openMissionsFor(userId, MissionTrigger.SCORE)) {
             if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW)
-                continue;
-            if (window.getExpiresAt() != null && window.getExpiresAt().isBefore(now))
                 continue;
             window.setProgressCount(window.getProgressCount() + xpAmount);
             if (window.getTargetXp() != null && window.getProgressCount() >= window.getTargetXp()) {

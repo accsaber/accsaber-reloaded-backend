@@ -286,4 +286,8 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("userId") Long userId,
                         @Param("apMin") BigDecimal apMin,
                         @Param("categoryId") UUID categoryId);
+
+        boolean existsByIdAndBatch_Id(UUID id, UUID batchId);
+
+        boolean existsByIdAndRankedAtBefore(UUID id, java.time.Instant rankedBefore);
 }

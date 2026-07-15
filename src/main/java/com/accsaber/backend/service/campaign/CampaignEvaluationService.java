@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +46,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.service.mission.MissionProgressService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
 
@@ -66,6 +68,7 @@ public class CampaignEvaluationService {
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
     private final MissionProgressService missionProgressService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void evaluateAfterScore(Long userId, Score score) {
@@ -526,7 +529,8 @@ public class CampaignEvaluationService {
             return;
         }
 
-        if (uc.getStatus() != UserCampaignStatus.COMPLETED) {
+        boolean newlyCompleted = uc.getStatus() != UserCampaignStatus.COMPLETED;
+        if (newlyCompleted) {
             uc.setStatus(UserCampaignStatus.COMPLETED);
             uc.setCompletedAt(Instant.now());
         }
@@ -535,6 +539,11 @@ public class CampaignEvaluationService {
             uc.setCompletionRewardsPaid(true);
         }
         userCampaignRepository.save(uc);
+
+        if (newlyCompleted) {
+            eventPublisher.publishEvent(new CampaignCompletedEvent(uc.getUser().getId(), campaign.getId(),
+                    campaign.getStatus(), uc.getCompletedAt()));
+        }
     }
 
     private static boolean isMilestone(CampaignDifficulty difficulty) {

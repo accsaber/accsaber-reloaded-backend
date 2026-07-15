@@ -27,7 +27,7 @@ public interface MissionTemplateRepository extends JpaRepository<MissionTemplate
             LEFT JOIN FETCH t.awardsItem
             WHERE t.event.id = :eventId
               AND t.active = true
-            ORDER BY t.unlocksAt ASC NULLS FIRST
+            ORDER BY t.unlocksAt ASC NULLS FIRST, t.createdAt ASC
             """)
     List<MissionTemplate> findActiveByEvent(@Param("eventId") UUID eventId);
 

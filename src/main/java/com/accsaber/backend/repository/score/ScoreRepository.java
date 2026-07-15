@@ -802,4 +802,18 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId,
                         @Param("overallOnly") boolean overallOnly,
                         Pageable pageable);
+
+        @Query("""
+                        SELECT COUNT(s) > 0 FROM Score s
+                        JOIN s.user u
+                        WHERE s.mapDifficulty.id = :mapDifficultyId
+                          AND s.user.id IN :rivalIds
+                          AND s.active = true
+                          AND u.active = true AND u.banned = false
+                          AND s.score < :score
+                        """)
+        boolean existsRivalScoreBelow(
+                        @Param("mapDifficultyId") UUID mapDifficultyId,
+                        @Param("rivalIds") java.util.Collection<Long> rivalIds,
+                        @Param("score") Integer score);
 }

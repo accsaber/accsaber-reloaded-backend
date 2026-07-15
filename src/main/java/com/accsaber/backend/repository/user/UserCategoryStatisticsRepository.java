@@ -33,6 +33,16 @@ public interface UserCategoryStatisticsRepository extends JpaRepository<UserCate
 
         Optional<UserCategoryStatistics> findByUser_IdAndCategory_CodeAndActiveTrue(Long userId, String categoryCode);
 
+        @Query("""
+                        SELECT s.ap - COALESCE(p.ap, 0) FROM UserCategoryStatistics s
+                        LEFT JOIN s.supersedes p
+                        WHERE s.user.id = :userId
+                          AND s.category.code = :categoryCode
+                          AND s.active = true
+                        """)
+        Optional<java.math.BigDecimal> findActiveApGainOverPrevious(@Param("userId") Long userId,
+                        @Param("categoryCode") String categoryCode);
+
         @Query(value = """
                         SELECT * FROM (
                             SELECT ucs.id, ucs.user_id, ucs.category_id,

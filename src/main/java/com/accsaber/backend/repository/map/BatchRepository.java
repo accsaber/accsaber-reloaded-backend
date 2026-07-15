@@ -15,6 +15,8 @@ public interface BatchRepository extends JpaRepository<Batch, UUID> {
 
         Page<Batch> findByStatus(BatchStatus status, Pageable pageable);
 
+        java.util.Optional<Batch> findFirstByStatusOrderByReleasedAtDesc(BatchStatus status);
+
         @Query(value = """
                         SELECT b FROM Batch b
                         WHERE LOWER(b.name) LIKE LOWER(CONCAT('%', :search, '%'))

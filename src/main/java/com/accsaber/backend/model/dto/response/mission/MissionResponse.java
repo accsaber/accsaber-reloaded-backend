@@ -50,8 +50,11 @@ public class MissionResponse {
     private Integer targetXp;
     private BigDecimal targetThresholdAp;
     private Integer targetStreak;
+    private Instant targetRankedBefore;
+    private Boolean targetCuratedOnly;
 
     private Integer progressCount;
+    private BigDecimal progressAp;
     private Integer xpReward;
     private ItemResponse itemReward;
 
@@ -94,7 +97,10 @@ public class MissionResponse {
                 .targetXp(m.getTargetXp())
                 .targetThresholdAp(roundAp(m.getTargetThresholdAp()))
                 .targetStreak(m.getTargetStreak())
+                .targetRankedBefore(m.getTargetRankedBefore())
+                .targetCuratedOnly(m.getTargetCuratedOnly())
                 .progressCount(m.getProgressCount())
+                .progressAp(roundProgressAp(m.getProgressAp()))
                 .xpReward(m.getXpReward())
                 .itemReward(m.getItemReward() != null ? ItemMapper.toItemResponse(m.getItemReward()) : null)
                 .assignedAt(m.getAssignedAt())
@@ -131,6 +137,8 @@ public class MissionResponse {
                 .targetXp(targets != null ? targets.xp() : null)
                 .targetThresholdAp(targets != null ? roundAp(targets.thresholdAp()) : null)
                 .targetStreak(targets != null ? targets.streak() : null)
+                .targetRankedBefore(targets != null ? targets.rankedBefore() : null)
+                .targetCuratedOnly(targets != null ? targets.curatedOnly() : null)
                 .xpReward(t.getFixedXp())
                 .itemReward(t.getAwardsItem() != null ? ItemMapper.toItemResponse(t.getAwardsItem()) : null)
                 .unlocksAt(unlocksAt)
@@ -150,6 +158,10 @@ public class MissionResponse {
 
     private static BigDecimal roundAp(BigDecimal ap) {
         return ap == null ? null : ap.setScale(0, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal roundProgressAp(BigDecimal ap) {
+        return ap == null ? null : ap.setScale(2, RoundingMode.HALF_UP);
     }
 
     public static String renderDescription(UserMission m) {

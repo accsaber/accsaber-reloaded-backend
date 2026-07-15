@@ -1,6 +1,7 @@
 package com.accsaber.backend.model.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -16,7 +17,9 @@ public record EventMissionTargets(
         Integer count,
         Integer xp,
         BigDecimal thresholdAp,
-        Integer streak) {
+        Integer streak,
+        Instant rankedBefore,
+        Boolean curatedOnly) {
 
     public Long playerIdAsLong() {
         return playerId == null ? null : Long.valueOf(playerId);

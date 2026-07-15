@@ -23,7 +23,6 @@ import com.accsaber.backend.model.dto.response.mission.EventResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
 import com.accsaber.backend.service.media.MediaFormat;
 import com.accsaber.backend.service.media.MediaProcessingService;
-import com.accsaber.backend.service.mission.EventMissionService;
 import com.accsaber.backend.service.mission.EventService;
 import com.accsaber.backend.service.mission.MissionTemplateService;
 
@@ -43,7 +42,6 @@ public class AdminEventController {
     private static final String EVENT_ICON_SUBDIR = "event-icons";
 
     private final EventService eventService;
-    private final EventMissionService eventMissionService;
     private final MissionTemplateService templateService;
     private final MediaProcessingService mediaProcessingService;
 
@@ -87,14 +85,6 @@ public class AdminEventController {
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         eventService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "Roll out event missions to all eligible users",
-            description = "Async. Creates missing user missions for every currently unlocked mission of the event.")
-    @PostMapping("/{id}/rollout")
-    public ResponseEntity<Void> rollout(@PathVariable UUID id) {
-        eventMissionService.rolloutEvent(id);
-        return ResponseEntity.accepted().build();
     }
 
     @Operation(summary = "Upload (or replace) the background image for an event")

@@ -85,20 +85,38 @@ public class EventMissionService {
             }
         });
 
-        Set<UUID> eventIds = new LinkedHashSet<>();
-        for (Event event : eventRepository.findLive(to)) {
-            if (event.getStartsAt().isAfter(from)) {
-                eventIds.add(event.getId());
-            }
-        }
-        eventIds.addAll(templateRepository.findEventIdsWithUnlocksBetween(from, to));
-
-        for (UUID eventId : eventIds) {
+        for (UUID eventId : templateRepository.findEventIdsWithUnlocksBetween(from, to)) {
             try {
-                rolloutEvent(eventId);
+                rolloutNewlyUnlocked(eventId);
             } catch (Exception e) {
                 log.error("Event unlock rollout failed for event {}: {}", eventId, e.getMessage());
             }
+        }
+    }
+
+    private void rolloutNewlyUnlocked(UUID eventId) {
+        Event event = eventRepository.findByIdAndActiveTrue(eventId).orElse(null);
+        if (event == null || !event.isLive(Instant.now())) {
+            return;
+        }
+        List<MissionTemplate> templates = templateRepository.findActiveByEvent(eventId);
+        if (templates.isEmpty()) {
+            return;
+        }
+        List<Long> participants = profileRepository.findUserIdsByEvent(eventId);
+        log.info("Rolling out newly unlocked '{}' missions for {} participants",
+                event.getTitle(), participants.size());
+
+        for (Long userId : participants) {
+            backfillExecutor.execute(() -> {
+                try {
+                    transactionTemplate.executeWithoutResult(
+                            status -> ensureForUserAndEvent(userId, event, templates));
+                } catch (Exception e) {
+                    log.error("Event mission assignment failed for user {} event {}: {}",
+                            userId, eventId, e.getMessage());
+                }
+            });
         }
     }
 
@@ -125,32 +143,6 @@ public class EventMissionService {
         }
         ensureAssignments(userId, event, templates, profile);
         return buildProgress(userId, event, templates);
-    }
-
-    public void rolloutEvent(UUID eventId) {
-        Event event = eventRepository.findByIdAndActiveTrue(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("Event", eventId));
-        if (!event.isLive(Instant.now())) {
-            throw new ValidationException("Event is not live");
-        }
-        List<MissionTemplate> templates = templateRepository.findActiveByEvent(eventId);
-        if (templates.isEmpty()) {
-            return;
-        }
-        List<Long> participants = profileRepository.findUserIdsByEvent(eventId);
-        log.info("Rolling out event '{}' missions for {} participants", event.getTitle(), participants.size());
-
-        for (Long userId : participants) {
-            backfillExecutor.execute(() -> {
-                try {
-                    transactionTemplate.executeWithoutResult(
-                            status -> ensureForUserAndEvent(userId, event, templates));
-                } catch (Exception e) {
-                    log.error("Event mission assignment failed for user {} event {}: {}",
-                            userId, eventId, e.getMessage());
-                }
-            });
-        }
     }
 
     public void ensureForUser(Long userId) {
@@ -458,7 +450,9 @@ public class EventMissionService {
                     .targetCount(targets.count())
                     .targetXp(targets.xp())
                     .targetThresholdAp(targets.thresholdAp())
-                    .targetStreak(targets.streak());
+                    .targetStreak(targets.streak())
+                    .targetRankedBefore(targets.rankedBefore())
+                    .targetCuratedOnly(targets.curatedOnly());
         }
         return builder.build();
     }

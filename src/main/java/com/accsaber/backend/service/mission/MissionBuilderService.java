@@ -145,7 +145,9 @@ public class MissionBuilderService {
             case SNIPE_PLAYER_ON_MAP -> buildSnipe(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_ON_MAP -> buildStreakOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_N_IN_CATEGORY -> buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case STREAK_SUM_N -> failBuild("event-only-type");
+            case STREAK_SUM_N, SNIPE_RIVAL_ANY_MAP, AP_GAIN_OVERALL, BATCH_PLAY_N, PB_RANKED_BEFORE_N,
+                    CAMPAIGN_COMPLETE_N ->
+                failBuild("event-only-type");
             case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
             case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
         };
