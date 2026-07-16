@@ -2,13 +2,13 @@ package com.accsaber.backend.model.dto.request.campaign;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.UUID;
 
 import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.validation.CleanText;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -54,6 +54,7 @@ public class UpdateCampaignDifficultyRequest {
     private Integer positionY;
     private BigDecimal xp;
 
+    @Valid
     @Size(max = 25)
-    private List<UUID> prerequisiteCampaignDifficultyIds;
+    private List<CampaignConnectionRequest> prerequisites;
 }

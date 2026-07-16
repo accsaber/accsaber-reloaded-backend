@@ -42,6 +42,9 @@ public class CampaignDifficultyPath {
     @JoinColumn(name = "comes_from_campaign_difficulty_id", nullable = false)
     private CampaignDifficulty comesFromCampaignDifficulty;
 
+    @Column(name = "color")
+    private String color;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

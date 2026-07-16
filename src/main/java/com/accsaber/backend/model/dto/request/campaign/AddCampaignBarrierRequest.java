@@ -9,6 +9,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.validation.CleanText;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -62,8 +63,9 @@ public class AddCampaignBarrierRequest {
 
     private BigDecimal xp;
 
+    @Valid
     @Size(max = 25)
-    private List<UUID> prerequisiteCampaignDifficultyIds;
+    private List<CampaignConnectionRequest> prerequisites;
 
     @Size(max = 100)
     private List<UUID> affectedCampaignDifficultyIds;

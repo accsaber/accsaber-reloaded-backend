@@ -31,7 +31,7 @@ public class CampaignBarrierResponse {
     private Integer positionX;
     private Integer positionY;
     private BigDecimal xp;
-    private List<UUID> prerequisiteCampaignDifficultyIds;
+    private List<CampaignConnectionResponse> prerequisites;
     private List<UUID> affectedCampaignDifficultyIds;
     private List<CampaignItemAwardResponse> items;
 }

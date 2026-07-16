@@ -17,6 +17,11 @@ public class CampaignDifficultyResponse {
 
     private UUID id;
     private UUID mapDifficultyId;
+    private UUID mapId;
+    private UUID categoryId;
+    private BigDecimal complexity;
+    private String beatsaverCode;
+    private Integer maxScore;
     private String songName;
     private String songAuthor;
     private String mapAuthor;
@@ -39,6 +44,6 @@ public class CampaignDifficultyResponse {
     private Integer positionX;
     private Integer positionY;
     private BigDecimal xp;
-    private List<UUID> prerequisiteCampaignDifficultyIds;
+    private List<CampaignConnectionResponse> prerequisites;
     private List<CampaignItemAwardResponse> items;
 }

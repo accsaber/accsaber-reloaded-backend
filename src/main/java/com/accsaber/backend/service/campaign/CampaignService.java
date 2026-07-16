@@ -24,6 +24,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
+import com.accsaber.backend.model.dto.request.campaign.CampaignConnectionRequest;
 import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignTagRequest;
@@ -33,6 +34,7 @@ import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyR
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
 import com.accsaber.backend.model.dto.response.campaign.BarrierProgressResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
+import com.accsaber.backend.model.dto.response.campaign.CampaignConnectionResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDetailResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyProgressResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
@@ -66,6 +68,7 @@ import com.accsaber.backend.model.entity.campaign.UserCampaignScore;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
@@ -85,6 +88,7 @@ import com.accsaber.backend.repository.campaign.CampaignVoteRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -125,6 +129,7 @@ public class CampaignService {
     private final CampaignVoteRepository campaignVoteRepository;
     private final UserRepository userRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
+    private final MapDifficultyComplexityRepository mapDifficultyComplexityRepository;
     private final ScoreRepository scoreRepository;
     private final ItemRepository itemRepository;
     private final CategoryRepository categoryRepository;
@@ -623,12 +628,13 @@ public class CampaignService {
                 .build();
 
         difficulty = campaignDifficultyRepository.save(difficulty);
-        createPrerequisitePaths(difficulty, request.getPrerequisiteCampaignDifficultyIds());
+        createPrerequisitePaths(difficulty, request.getPrerequisites());
         playlistService.evictCampaignPlaylist(campaignId);
 
         return toCampaignDifficultyResponse(difficulty,
-                safePrereqIds(request.getPrerequisiteCampaignDifficultyIds()),
-                List.of());
+                echoConnections(request.getPrerequisites()),
+                List.of(),
+                loadComplexity(mapDifficulty.getId()));
     }
 
     @Transactional
@@ -706,8 +712,8 @@ public class CampaignService {
             difficulty.setXp(request.getXp());
         }
 
-        if (request.getPrerequisiteCampaignDifficultyIds() != null) {
-            replacePrerequisitePaths(difficulty, request.getPrerequisiteCampaignDifficultyIds());
+        if (request.getPrerequisites() != null) {
+            replacePrerequisitePaths(difficulty, request.getPrerequisites());
         }
 
         difficulty = campaignDifficultyRepository.save(difficulty);
@@ -715,12 +721,11 @@ public class CampaignService {
             campaignEvaluationService.recomputeAfterRequirementChange(difficulty.getCampaign(),
                     Set.of(difficulty.getId()));
         }
-        List<UUID> currentPrereqIds = campaignDifficultyPathRepository
-                .findByCampaignDifficulty_IdAndActiveTrue(difficulty.getId()).stream()
-                .map(p -> p.getComesFromCampaignDifficulty().getId())
-                .toList();
+        List<CampaignConnectionResponse> currentConnections = toConnections(campaignDifficultyPathRepository
+                .findByCampaignDifficulty_IdAndActiveTrue(difficulty.getId()));
         List<CampaignItemAwardResponse> items = loadDifficultyItems(difficulty.getId());
-        return toCampaignDifficultyResponse(difficulty, currentPrereqIds, items);
+        return toCampaignDifficultyResponse(difficulty, currentConnections, items,
+                loadComplexity(difficulty.getMapDifficulty().getId()));
     }
 
     @Transactional
@@ -982,10 +987,10 @@ public class CampaignService {
 
         List<CampaignDifficultyPath> paths = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(campaignIds);
-        Map<UUID, List<UUID>> prereqsByDifficulty = paths.stream()
+        Map<UUID, List<CampaignConnectionResponse>> prereqsByDifficulty = paths.stream()
                 .collect(Collectors.groupingBy(
                         p -> p.getCampaignDifficulty().getId(),
-                        Collectors.mapping(p -> p.getComesFromCampaignDifficulty().getId(), Collectors.toList())));
+                        Collectors.mapping(CampaignService::toConnection, Collectors.toList())));
 
         Map<UUID, UserCampaign> userCampaignByCampaign = userCampaignRepository
                 .findByUser_IdAndCampaign_IdInAndActiveTrue(resolvedUserId, campaignIds).stream()
@@ -1020,10 +1025,11 @@ public class CampaignService {
         difficulties.forEach(d -> nodeIds.add(d.getId()));
         nodeIds.addAll(barrierIds);
         Map<UUID, List<CampaignItemAwardResponse>> itemsByNode = loadDifficultyItemsBulk(nodeIds);
+        Map<UUID, BigDecimal> complexityByMapDifficulty = loadComplexitiesBulk(difficulties);
 
         return new ProgressContext(difficultiesByCampaign, barriersByCampaign, prereqsByDifficulty,
                 campaignScoreByDifficulty, userCampaignByCampaign, completedByCampaign, tagsByCampaign,
-                affectedByBarrier, itemsByNode);
+                affectedByBarrier, itemsByNode, complexityByMapDifficulty);
     }
 
     private CampaignProgressResponse buildProgress(Campaign campaign, Long resolvedUserId, ProgressContext ctx) {
@@ -1043,7 +1049,7 @@ public class CampaignService {
 
         List<CampaignDifficultyProgressResponse> progress = new ArrayList<>(difficulties.size());
         for (CampaignDifficulty d : difficulties) {
-            List<UUID> prereqs = ctx.prereqsByDifficulty.getOrDefault(d.getId(), List.of());
+            List<CampaignConnectionResponse> prereqs = ctx.prereqsByDifficulty.getOrDefault(d.getId(), List.of());
             CampaignPrerequisiteMode mode = d.getPrerequisiteMode() != null
                     ? d.getPrerequisiteMode()
                     : CampaignPrerequisiteMode.OR;
@@ -1056,7 +1062,8 @@ public class CampaignService {
             Integer userScore = score != null ? score.getScore() : null;
             progress.add(CampaignDifficultyProgressResponse.builder()
                     .node(toCampaignDifficultyResponse(d, prereqs,
-                            ctx.itemsByNode.getOrDefault(d.getId(), List.of())))
+                            ctx.itemsByNode.getOrDefault(d.getId(), List.of()),
+                            ctx.complexityByMapDifficulty.get(d.getMapDifficulty().getId())))
                     .userValue(userValue)
                     .userScore(userScore)
                     .completed(completedIds.contains(d.getId()))
@@ -1093,7 +1100,7 @@ public class CampaignService {
         }
         List<BarrierProgressResponse> result = new ArrayList<>(barriers.size());
         for (CampaignDifficulty b : barriers) {
-            List<UUID> prereqs = ctx.prereqsByDifficulty.getOrDefault(b.getId(), List.of());
+            List<CampaignConnectionResponse> prereqs = ctx.prereqsByDifficulty.getOrDefault(b.getId(), List.of());
             CampaignPrerequisiteMode mode = b.getPrerequisiteMode() != null
                     ? b.getPrerequisiteMode()
                     : CampaignPrerequisiteMode.OR;
@@ -1127,16 +1134,21 @@ public class CampaignService {
                 .collect(Collectors.toMap(UserMapDifficultyBests::mapDifficultyId, b -> b));
     }
 
-    private static boolean prereqsSatisfied(List<UUID> prereqs, CampaignPrerequisiteMode mode,
+    private static boolean prereqsSatisfied(List<CampaignConnectionResponse> prereqs, CampaignPrerequisiteMode mode,
             Set<UUID> completedIds) {
         if (prereqs.isEmpty()) {
             return true;
         }
         if (mode == CampaignPrerequisiteMode.AND) {
-            return completedIds.containsAll(prereqs);
+            for (CampaignConnectionResponse p : prereqs) {
+                if (!completedIds.contains(p.getComesFromCampaignDifficultyId())) {
+                    return false;
+                }
+            }
+            return true;
         }
-        for (UUID p : prereqs) {
-            if (completedIds.contains(p)) {
+        for (CampaignConnectionResponse p : prereqs) {
+            if (completedIds.contains(p.getComesFromCampaignDifficultyId())) {
                 return true;
             }
         }
@@ -1154,13 +1166,14 @@ public class CampaignService {
     private record ProgressContext(
             Map<UUID, List<CampaignDifficulty>> difficultiesByCampaign,
             Map<UUID, List<CampaignDifficulty>> barriersByCampaign,
-            Map<UUID, List<UUID>> prereqsByDifficulty,
+            Map<UUID, List<CampaignConnectionResponse>> prereqsByDifficulty,
             Map<UUID, Map<UUID, Score>> campaignScoreByDifficulty,
             Map<UUID, UserCampaign> userCampaignByCampaign,
             Map<UUID, Set<UUID>> completedByCampaign,
             Map<UUID, List<CampaignTagResponse>> tagsByCampaign,
             Map<UUID, List<UUID>> affectedByBarrier,
-            Map<UUID, List<CampaignItemAwardResponse>> itemsByNode) {
+            Map<UUID, List<CampaignItemAwardResponse>> itemsByNode,
+            Map<UUID, BigDecimal> complexityByMapDifficulty) {
     }
 
     public List<CampaignTagResponse> listTags() {
@@ -1256,10 +1269,10 @@ public class CampaignService {
                 .xp(request.getXp() != null ? request.getXp() : BigDecimal.ZERO)
                 .build();
         barrier = campaignDifficultyRepository.save(barrier);
-        createPrerequisitePaths(barrier, request.getPrerequisiteCampaignDifficultyIds());
+        createPrerequisitePaths(barrier, request.getPrerequisites());
         replaceAffectedNodes(barrier, request.getAffectedCampaignDifficultyIds());
         return toBarrierResponse(barrier,
-                safePrereqIds(request.getPrerequisiteCampaignDifficultyIds()),
+                echoConnections(request.getPrerequisites()),
                 safePrereqIds(request.getAffectedCampaignDifficultyIds()),
                 List.of());
     }
@@ -1355,8 +1368,8 @@ public class CampaignService {
             }
             barrier.setXp(request.getXp());
         }
-        if (request.getPrerequisiteCampaignDifficultyIds() != null) {
-            replacePrerequisitePaths(barrier, request.getPrerequisiteCampaignDifficultyIds());
+        if (request.getPrerequisites() != null) {
+            replacePrerequisitePaths(barrier, request.getPrerequisites());
         }
         if (request.getAffectedCampaignDifficultyIds() != null) {
             replaceAffectedNodes(barrier, request.getAffectedCampaignDifficultyIds());
@@ -1370,11 +1383,9 @@ public class CampaignService {
             campaignEvaluationService.recomputeAfterRequirementChange(barrier.getCampaign(),
                     Set.of(barrier.getId()));
         }
-        List<UUID> prereqIds = campaignDifficultyPathRepository
-                .findByCampaignDifficulty_IdAndActiveTrue(barrier.getId()).stream()
-                .map(p -> p.getComesFromCampaignDifficulty().getId())
-                .toList();
-        return toBarrierResponse(barrier, prereqIds, affectedIds, loadDifficultyItems(barrier.getId()));
+        List<CampaignConnectionResponse> prereqConnections = toConnections(campaignDifficultyPathRepository
+                .findByCampaignDifficulty_IdAndActiveTrue(barrier.getId()));
+        return toBarrierResponse(barrier, prereqConnections, affectedIds, loadDifficultyItems(barrier.getId()));
     }
 
     private void validateBarrierCondition(BarrierConditionType type, BigDecimal value) {
@@ -1603,11 +1614,12 @@ public class CampaignService {
         }
     }
 
-    private void createPrerequisitePaths(CampaignDifficulty difficulty, List<UUID> prerequisiteIds) {
-        if (prerequisiteIds == null || prerequisiteIds.isEmpty()) {
+    private void createPrerequisitePaths(CampaignDifficulty difficulty, List<CampaignConnectionRequest> prerequisites) {
+        if (prerequisites == null || prerequisites.isEmpty()) {
             return;
         }
-        for (UUID prereqId : prerequisiteIds) {
+        for (CampaignConnectionRequest connection : prerequisites) {
+            UUID prereqId = connection.getComesFromCampaignDifficultyId();
             CampaignDifficulty prerequisite = campaignDifficultyRepository.findByIdAndActiveTrue(prereqId)
                     .orElseThrow(() -> new ResourceNotFoundException("CampaignDifficulty (prerequisite)", prereqId));
             if (!prerequisite.getCampaign().getId().equals(difficulty.getCampaign().getId())) {
@@ -1619,15 +1631,16 @@ public class CampaignService {
             CampaignDifficultyPath path = CampaignDifficultyPath.builder()
                     .campaignDifficulty(difficulty)
                     .comesFromCampaignDifficulty(prerequisite)
+                    .color(connection.getColor())
                     .build();
             campaignDifficultyPathRepository.save(path);
         }
     }
 
-    private void replacePrerequisitePaths(CampaignDifficulty difficulty, List<UUID> prerequisiteIds) {
+    private void replacePrerequisitePaths(CampaignDifficulty difficulty, List<CampaignConnectionRequest> prerequisites) {
         campaignDifficultyPathRepository.deleteAllByCampaignDifficultyId(difficulty.getId());
         campaignDifficultyPathRepository.flush();
-        createPrerequisitePaths(difficulty, prerequisiteIds);
+        createPrerequisitePaths(difficulty, prerequisites);
     }
 
     private void replaceTagLinks(Campaign campaign, List<UUID> tagIds) {
@@ -1671,19 +1684,21 @@ public class CampaignService {
         UUID campaignId = campaign.getId();
         List<CampaignDifficulty> difficulties = campaignDifficultyRepository
                 .findActiveWithMapByCampaignId(campaignId);
-        Map<UUID, List<UUID>> prereqsByDifficultyId = campaignDifficultyPathRepository
+        Map<UUID, List<CampaignConnectionResponse>> prereqsByDifficultyId = campaignDifficultyPathRepository
                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaignId).stream()
                 .collect(Collectors.groupingBy(
                         p -> p.getCampaignDifficulty().getId(),
-                        Collectors.mapping(p -> p.getComesFromCampaignDifficulty().getId(), Collectors.toList())));
+                        Collectors.mapping(CampaignService::toConnection, Collectors.toList())));
         Map<UUID, List<CampaignItemAwardResponse>> itemsByDifficultyId = loadDifficultyItemsBulk(
                 difficulties.stream().map(CampaignDifficulty::getId).toList());
+        Map<UUID, BigDecimal> complexityByMapDifficulty = loadComplexitiesBulk(difficulties);
 
         List<CampaignDifficultyResponse> difficultyResponses = new ArrayList<>(difficulties.size());
         for (CampaignDifficulty d : difficulties) {
             difficultyResponses.add(toCampaignDifficultyResponse(d,
                     prereqsByDifficultyId.getOrDefault(d.getId(), List.of()),
-                    itemsByDifficultyId.getOrDefault(d.getId(), List.of())));
+                    itemsByDifficultyId.getOrDefault(d.getId(), List.of()),
+                    complexityByMapDifficulty.get(d.getMapDifficulty().getId())));
         }
 
         List<CampaignDifficulty> barriers = campaignDifficultyRepository
@@ -1766,6 +1781,28 @@ public class CampaignService {
                         Collectors.mapping(CampaignService::toItemAward, Collectors.toList())));
     }
 
+    private Map<UUID, BigDecimal> loadComplexitiesBulk(Collection<CampaignDifficulty> difficulties) {
+        List<UUID> mapDifficultyIds = difficulties.stream()
+                .filter(d -> !d.isBarrier())
+                .map(d -> d.getMapDifficulty().getId())
+                .distinct()
+                .toList();
+        if (mapDifficultyIds.isEmpty()) {
+            return Map.of();
+        }
+        return mapDifficultyComplexityRepository.findActiveByMapDifficultyIdIn(mapDifficultyIds).stream()
+                .collect(Collectors.toMap(
+                        c -> c.getMapDifficulty().getId(),
+                        MapDifficultyComplexity::getComplexity,
+                        (a, b) -> a));
+    }
+
+    private BigDecimal loadComplexity(UUID mapDifficultyId) {
+        return mapDifficultyComplexityRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId)
+                .map(MapDifficultyComplexity::getComplexity)
+                .orElse(null);
+    }
+
     private CampaignResponse toCampaignResponse(Campaign campaign) {
         return toCampaignResponse(campaign,
                 loadTagResponses(campaign.getId()),
@@ -1812,13 +1849,42 @@ public class CampaignService {
                 .build();
     }
 
+    private static CampaignConnectionResponse toConnection(CampaignDifficultyPath path) {
+        return CampaignConnectionResponse.builder()
+                .comesFromCampaignDifficultyId(path.getComesFromCampaignDifficulty().getId())
+                .color(path.getColor())
+                .build();
+    }
+
+    private static List<CampaignConnectionResponse> toConnections(List<CampaignDifficultyPath> paths) {
+        return paths.stream().map(CampaignService::toConnection).toList();
+    }
+
+    private static List<CampaignConnectionResponse> echoConnections(List<CampaignConnectionRequest> prerequisites) {
+        if (prerequisites == null) {
+            return List.of();
+        }
+        return prerequisites.stream()
+                .map(c -> CampaignConnectionResponse.builder()
+                        .comesFromCampaignDifficultyId(c.getComesFromCampaignDifficultyId())
+                        .color(c.getColor())
+                        .build())
+                .toList();
+    }
+
     private CampaignDifficultyResponse toCampaignDifficultyResponse(CampaignDifficulty difficulty,
-            List<UUID> prerequisiteIds,
-            List<CampaignItemAwardResponse> items) {
+            List<CampaignConnectionResponse> prerequisites,
+            List<CampaignItemAwardResponse> items,
+            BigDecimal complexity) {
         MapDifficulty md = difficulty.getMapDifficulty();
         return CampaignDifficultyResponse.builder()
                 .id(difficulty.getId())
                 .mapDifficultyId(md.getId())
+                .mapId(md.getMap().getId())
+                .categoryId(md.getCategory() != null ? md.getCategory().getId() : null)
+                .complexity(complexity)
+                .beatsaverCode(md.getMap().getBeatsaverCode())
+                .maxScore(md.getMaxScore())
                 .songName(md.getMap().getSongName())
                 .songAuthor(md.getMap().getSongAuthor())
                 .mapAuthor(md.getMap().getMapAuthor())
@@ -1841,12 +1907,13 @@ public class CampaignService {
                 .positionX(difficulty.getPositionX())
                 .positionY(difficulty.getPositionY())
                 .xp(difficulty.getXp())
-                .prerequisiteCampaignDifficultyIds(prerequisiteIds)
+                .prerequisites(prerequisites)
                 .items(items)
                 .build();
     }
 
-    private static CampaignBarrierResponse toBarrierResponse(CampaignDifficulty barrier, List<UUID> prereqIds,
+    private static CampaignBarrierResponse toBarrierResponse(CampaignDifficulty barrier,
+            List<CampaignConnectionResponse> prerequisites,
             List<UUID> affectedIds, List<CampaignItemAwardResponse> items) {
         return CampaignBarrierResponse.builder()
                 .id(barrier.getId())
@@ -1865,7 +1932,7 @@ public class CampaignService {
                 .positionX(barrier.getPositionX())
                 .positionY(barrier.getPositionY())
                 .xp(barrier.getXp())
-                .prerequisiteCampaignDifficultyIds(prereqIds)
+                .prerequisites(prerequisites)
                 .affectedCampaignDifficultyIds(affectedIds)
                 .items(items)
                 .build();

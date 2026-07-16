@@ -9,6 +9,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.validation.CleanText;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -64,8 +65,9 @@ public class AddCampaignDifficultyRequest {
 
     private BigDecimal xp;
 
+    @Valid
     @Size(max = 25)
-    private List<UUID> prerequisiteCampaignDifficultyIds;
+    private List<CampaignConnectionRequest> prerequisites;
 
     private CampaignPrerequisiteMode prerequisiteMode;
 }
