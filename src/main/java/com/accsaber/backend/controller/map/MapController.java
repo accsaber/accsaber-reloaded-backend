@@ -81,13 +81,6 @@ public class MapController {
         return ResponseEntity.ok(mapService.findAllRankedDifficulties());
     }
 
-    @Operation(summary = "Batch get difficulties by ID", description = "Returns public map metadata for the given difficulty IDs in a single call, so callers that need many difficulties (e.g. campaign node enrichment) avoid one request per ID. Unknown or inactive IDs are omitted.")
-    @GetMapping("/difficulties/batch")
-    public ResponseEntity<List<PublicMapDifficultyResponse>> getDifficultiesBatch(
-            @RequestParam List<UUID> ids) {
-        return ResponseEntity.ok(List.copyOf(mapService.getDifficultyResponsesPublic(ids).values()));
-    }
-
     @Operation(summary = "Get difficulty by ID", description = "Returns a single map difficulty with public metadata; complexity is only included for RANKED difficulties, vote counts and criteria status only for non-RANKED")
     @GetMapping("/difficulties/{difficultyId}")
     public ResponseEntity<PublicMapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
