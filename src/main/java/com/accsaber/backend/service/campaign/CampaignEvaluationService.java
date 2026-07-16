@@ -503,7 +503,8 @@ public class CampaignEvaluationService {
         BigDecimal aggregate = CampaignScoreMetrics.isMaxAggregate(type)
                 ? CampaignScoreMetrics.max(values)
                 : CampaignScoreMetrics.average(values);
-        int cmp = aggregate.compareTo(target);
+        int cmp = CampaignScoreMetrics.toDisplayPrecision(aggregate, type)
+                .compareTo(CampaignScoreMetrics.toDisplayPrecision(target, type));
         return type.isLowerBetter() ? cmp <= 0 : cmp >= 0;
     }
 
@@ -727,8 +728,10 @@ public class CampaignEvaluationService {
         if (value == null) {
             return false;
         }
-        int cmp = value.compareTo(difficulty.getRequirementValue());
-        return difficulty.getRequirementType() == CampaignRequirementType.RANK ? cmp <= 0 : cmp >= 0;
+        CampaignRequirementType type = difficulty.getRequirementType();
+        int cmp = CampaignScoreMetrics.toDisplayPrecision(value, type)
+                .compareTo(CampaignScoreMetrics.toDisplayPrecision(difficulty.getRequirementValue(), type));
+        return type == CampaignRequirementType.RANK ? cmp <= 0 : cmp >= 0;
     }
 
     private boolean isBetterScore(Score candidate, Score current) {

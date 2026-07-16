@@ -73,6 +73,20 @@ public final class CampaignScoreMetrics {
         return value != null ? BigDecimal.valueOf(value) : null;
     }
 
+    public static BigDecimal toDisplayPrecision(BigDecimal value, CampaignRequirementType type) {
+        return type == CampaignRequirementType.ACC ? displayAcc(value) : value;
+    }
+
+    public static BigDecimal toDisplayPrecision(BigDecimal value, BarrierConditionType type) {
+        return type == BarrierConditionType.AVERAGE_ACC || type == BarrierConditionType.ACC_MAX
+                ? displayAcc(value)
+                : value;
+    }
+
+    private static BigDecimal displayAcc(BigDecimal acc) {
+        return acc == null ? null : acc.setScale(4, RoundingMode.HALF_UP);
+    }
+
     public static boolean isMaxAggregate(BarrierConditionType type) {
         return type == BarrierConditionType.AP_MAX
                 || type == BarrierConditionType.ACC_MAX

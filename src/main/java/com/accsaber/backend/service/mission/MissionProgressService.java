@@ -296,7 +296,11 @@ public class MissionProgressService {
         if (!score.isActive())
             return false;
         return score.getAccuracy() != null && mission.getTargetAcc() != null
-                && score.getAccuracy().compareTo(mission.getTargetAcc()) >= 0;
+                && displayedAcc(score.getAccuracy()).compareTo(displayedAcc(mission.getTargetAcc())) >= 0;
+    }
+
+    private static BigDecimal displayedAcc(BigDecimal acc) {
+        return acc.setScale(4, RoundingMode.HALF_UP);
     }
 
     private boolean evalApOnMap(UserMission mission, ScoreResponse score) {
