@@ -612,10 +612,6 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(mapDifficulty));
                         when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
                                         campaign.getId(), 2, 1)).thenReturn(false);
-                        when(campaignDifficultyRepository
-                                        .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                                        mapDifficulty.getId()))
-                                        .thenReturn(Optional.empty());
                         when(campaignDifficultyRepository.save(any(CampaignDifficulty.class))).thenAnswer(inv -> {
                                 CampaignDifficulty d = inv.getArgument(0);
                                 d.setId(UUID.randomUUID());

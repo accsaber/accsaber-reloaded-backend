@@ -599,12 +599,6 @@ public class CampaignService {
             throw new ValidationException("A difficulty already occupies that grid position");
         }
 
-        if (campaignDifficultyRepository
-                .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaignId, mapDifficulty.getId())
-                .isPresent()) {
-            throw new ValidationException("Map difficulty is already part of this campaign");
-        }
-
         CampaignDifficulty difficulty = CampaignDifficulty.builder()
                 .campaign(campaign)
                 .mapDifficulty(mapDifficulty)

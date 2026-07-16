@@ -29,7 +29,7 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
 
         Optional<CampaignDifficulty> findByIdAndActiveTrue(UUID id);
 
-        Optional<CampaignDifficulty> findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(UUID campaignId,
+        List<CampaignDifficulty> findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(UUID campaignId,
                         UUID mapDifficultyId);
 
         boolean existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(UUID campaignId, Integer positionX,

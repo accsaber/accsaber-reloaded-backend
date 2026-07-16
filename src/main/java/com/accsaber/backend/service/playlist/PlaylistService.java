@@ -120,6 +120,7 @@ public class PlaylistService {
                 .stream()
                 .filter(cd -> !cd.isBarrier())
                 .map(CampaignDifficulty::getMapDifficulty)
+                .distinct()
                 .toList();
 
         String image = campaign.getIconUrl() != null && !campaign.getIconUrl().isBlank()

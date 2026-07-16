@@ -88,10 +88,11 @@ public class CampaignEvaluationService {
             if (!campaign.isActive() || campaign.getStatus() == CampaignStatus.DRAFT) {
                 continue;
             }
-            CampaignDifficulty difficulty = campaignDifficultyRepository
-                    .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(), mapDifficultyId)
-                    .orElse(null);
-            if (difficulty == null || difficulty.isBarrier()) {
+            List<CampaignDifficulty> nodes = campaignDifficultyRepository
+                    .findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(), mapDifficultyId).stream()
+                    .filter(d -> !d.isBarrier())
+                    .toList();
+            if (nodes.isEmpty()) {
                 continue;
             }
             if (scoreTime != null && uc.getStartedAt() != null && scoreTime.isBefore(uc.getStartedAt())) {
@@ -99,14 +100,34 @@ public class CampaignEvaluationService {
             }
             Graph graph = loadGraph(campaign.getId());
             Set<UUID> completedIds = loadCompletedIds(uc.getUser().getId(), campaign.getId());
-            boolean alreadyCompleted = completedIds.contains(difficulty.getId());
-            if (meetsRequirement(difficulty, score)
-                    && (alreadyCompleted || campaign.isProgressionAgnostic()
-                            || prereqsCompleted(difficulty.getId(), graph, completedIds))) {
-                recordQualifyingScore(uc, difficulty, score, graph, completedIds);
-                completedIds.add(difficulty.getId());
+            Set<UUID> recorded = new HashSet<>();
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (CampaignDifficulty difficulty : nodes) {
+                    if (recorded.contains(difficulty.getId()) || !meetsRequirement(difficulty, score)) {
+                        continue;
+                    }
+                    boolean alreadyCompleted = completedIds.contains(difficulty.getId());
+                    if (alreadyCompleted || campaign.isProgressionAgnostic()
+                            || prereqsCompleted(difficulty.getId(), graph, completedIds)) {
+                        recordQualifyingScore(uc, difficulty, score, graph, completedIds);
+                        recorded.add(difficulty.getId());
+                        if (!alreadyCompleted) {
+                            completedIds.add(difficulty.getId());
+                            changed = true;
+                        }
+                    }
+                }
+                int beforeBarrier = completedIds.size();
+                sweepBarriers(uc, graph, completedIds);
+                if (completedIds.size() > beforeBarrier) {
+                    changed = true;
+                }
+                if (campaign.isProgressionAgnostic()) {
+                    break;
+                }
             }
-            sweepBarriers(uc, graph, completedIds);
             sweepMilestonePayouts(uc, graph, completedIds);
             evaluateCampaignCompletion(uc, graph, completedIds);
         }

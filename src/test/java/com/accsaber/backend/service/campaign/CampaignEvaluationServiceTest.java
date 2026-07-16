@@ -191,7 +191,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, bar));
                 when(campaignDifficultyPathRepository
@@ -240,7 +240,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, c, bar));
                 when(campaignDifficultyPathRepository
@@ -314,7 +314,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, c, d, bar));
                 when(campaignDifficultyPathRepository
@@ -358,7 +358,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, c, bar));
                 when(campaignDifficultyPathRepository
@@ -405,7 +405,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, b, bar));
                 when(campaignDifficultyPathRepository
@@ -453,7 +453,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, gate1, gate2));
                 when(campaignDifficultyPathRepository
@@ -493,7 +493,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
@@ -532,7 +532,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, bar));
                 when(campaignDifficultyPathRepository
@@ -570,7 +570,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
@@ -604,7 +604,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
@@ -638,7 +638,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
@@ -675,7 +675,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
@@ -717,7 +717,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a, bar));
                 when(campaignDifficultyPathRepository
@@ -797,7 +797,7 @@ class CampaignEvaluationServiceTest {
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findByCampaign_IdAndMapDifficulty_IdAndActiveTrue(campaign.getId(),
-                                mdA.getId())).thenReturn(Optional.of(a));
+                                mdA.getId())).thenReturn(List.of(a));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
