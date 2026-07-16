@@ -32,9 +32,12 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
+import com.accsaber.backend.model.entity.campaign.CampaignStatus;
+import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.repository.ModifierRepository;
+import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -77,6 +80,7 @@ public class ScoreImportService {
     private final RankingService rankingService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final CampaignEvaluationService campaignEvaluationService;
+    private final UserCampaignRepository userCampaignRepository;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
@@ -491,10 +495,37 @@ public class ScoreImportService {
 
         coalescedRecalcAfterBatchBackfill(imported, false);
 
+        Set<Long> settledUsers = imported.values().stream()
+                .flatMap(Set::stream)
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+        recoverCampaignsForInProgressUsers(settledUsers);
+
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel gap-fill complete for {} difficulties in {}s", ranked.size(), elapsed / 1000);
         log.info("Running post-gap-fill rank repair");
         scoreRankingService.reassignAllRanks();
+    }
+
+    private void recoverCampaignsForInProgressUsers(Set<Long> alreadySettled) {
+        List<Long> pending = userCampaignRepository
+                .findUserIdsByStatusAndCampaignReleased(UserCampaignStatus.IN_PROGRESS, CampaignStatus.DRAFT).stream()
+                .filter(userId -> !alreadySettled.contains(userId))
+                .toList();
+        if (pending.isEmpty()) {
+            return;
+        }
+        log.info("Re-settling campaigns for {} in-progress users not covered by gap-fill imports", pending.size());
+        List<CompletableFuture<Void>> futures = pending.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        campaignEvaluationService.evaluateInProgressForUser(userId);
+                    } catch (Exception e) {
+                        log.error("Campaign re-settle failed for user {} during gap-fill recovery: {}",
+                                userId, e.getMessage());
+                    }
+                }, backfillExecutor))
+                .toList();
+        futures.forEach(CompletableFuture::join);
     }
 
     private Set<Long> startupGapFillImport(MapDifficulty difficulty, Instant since) {

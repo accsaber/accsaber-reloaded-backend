@@ -91,6 +91,8 @@ class ScoreImportServiceTest {
         @Mock
         private CampaignEvaluationService campaignEvaluationService;
         @Mock
+        private com.accsaber.backend.repository.campaign.UserCampaignRepository userCampaignRepository;
+        @Mock
         private MapDifficultyStatisticsService mapDifficultyStatisticsService;
         @Mock
         private ScoreRankingService scoreRankingService;
@@ -114,7 +116,7 @@ class ScoreImportServiceTest {
                                 mapDifficultyRepository, mapComplexityService, scoreRepository,
                                 scoreModifierLinkRepository, modifierRepository, userRepository,
                                 modifierCacheService, statisticsService, overallStatisticsService, rankingService,
-                                milestoneEvaluationService, campaignEvaluationService,
+                                milestoneEvaluationService, campaignEvaluationService, userCampaignRepository,
                                 mapDifficultyStatisticsService, scoreRankingService,
                                 duplicateUserService, skillService, songSuggestService, levelUpAwardService);
 

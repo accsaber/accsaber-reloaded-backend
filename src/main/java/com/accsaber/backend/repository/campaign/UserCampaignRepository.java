@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 
@@ -34,4 +35,12 @@ public interface UserCampaignRepository extends JpaRepository<UserCampaign, UUID
             @Param("excludedStatus") UserCampaignStatus excludedStatus, Pageable pageable);
 
     List<UserCampaign> findByUser_IdAndStatusAndActiveTrue(Long userId, UserCampaignStatus status);
+
+    @Query("""
+            SELECT DISTINCT uc.user.id FROM UserCampaign uc
+            WHERE uc.active = true AND uc.status = :status
+              AND uc.campaign.active = true AND uc.campaign.status <> :excludedCampaignStatus
+            """)
+    List<Long> findUserIdsByStatusAndCampaignReleased(@Param("status") UserCampaignStatus status,
+            @Param("excludedCampaignStatus") CampaignStatus excludedCampaignStatus);
 }
