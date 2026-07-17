@@ -1,6 +1,7 @@
 package com.accsaber.backend.controller.stats;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,10 +13,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.dto.response.statistics.BiggestTraderResponse;
+import com.accsaber.backend.model.dto.response.statistics.CollectionCompletionResponse;
 import com.accsaber.backend.model.dto.response.statistics.DistributionEntryResponse;
+import com.accsaber.backend.model.dto.response.statistics.EssenceEarnedResponse;
+import com.accsaber.backend.model.dto.response.statistics.FirstEditionsResponse;
+import com.accsaber.backend.model.dto.response.statistics.InventoryValueResponse;
+import com.accsaber.backend.model.dto.response.statistics.ItemScarcityResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapAvgApResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapRetryResponse;
 import com.accsaber.backend.model.dto.response.statistics.MilestoneCollectorResponse;
+import com.accsaber.backend.model.dto.response.statistics.MostCratesOpenedResponse;
+import com.accsaber.backend.model.dto.response.statistics.MostItemsResponse;
+import com.accsaber.backend.model.dto.response.statistics.RarestUnboxedResponse;
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserImprovementsResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserMapImprovementsResponse;
@@ -102,6 +112,80 @@ public class SiteStatisticsController {
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(siteStatisticsService.getMilestoneCollectors(country, pageable));
+    }
+
+    @Operation(summary = "Most items owned", description = "Users ranked by total quantity of tradeable items owned. Untradeable items never count. Optional item type key, modifier key, and country filters.")
+    @GetMapping("/leaderboards/most-items")
+    public ResponseEntity<Page<MostItemsResponse>> getMostItems(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String modifier,
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getMostItems(type, modifier, country, pageable));
+    }
+
+    @Operation(summary = "Most crates opened", description = "Users ranked by number of crates opened. Optional crate item id and country filters.")
+    @GetMapping("/leaderboards/most-crates-opened")
+    public ResponseEntity<Page<MostCratesOpenedResponse>> getMostCratesOpened(
+            @RequestParam(required = false) UUID crateId,
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getMostCratesOpened(crateId, country, pageable));
+    }
+
+    @Operation(summary = "Rarest items unboxed", description = "Tradeable item instances pulled from crates, ranked by modifier count then rarity. Optional country filter.")
+    @GetMapping("/leaderboards/rarest-unboxed")
+    public ResponseEntity<Page<RarestUnboxedResponse>> getRarestUnboxed(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getRarestUnboxed(country, pageable));
+    }
+
+    @Operation(summary = "Most valuable inventory", description = "Users ranked by liquidation value of tradeable items plus item essence balance. Optional country filter.")
+    @GetMapping("/leaderboards/most-valuable-inventory")
+    public ResponseEntity<Page<InventoryValueResponse>> getMostValuableInventory(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getMostValuableInventory(country, pageable));
+    }
+
+    @Operation(summary = "First editions", description = "Users ranked by number of serial #1 tradeable items owned. Optional country filter.")
+    @GetMapping("/leaderboards/first-editions")
+    public ResponseEntity<Page<FirstEditionsResponse>> getFirstEditions(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getFirstEditions(country, pageable));
+    }
+
+    @Operation(summary = "Most complete collection", description = "Users ranked by percentage of the tradeable catalog owned. Optional country filter.")
+    @GetMapping("/leaderboards/most-complete-collection")
+    public ResponseEntity<Page<CollectionCompletionResponse>> getMostCompleteCollection(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getMostCompleteCollection(country, pageable));
+    }
+
+    @Operation(summary = "Item scarcity", description = "Tradeable catalog items ranked by fewest distinct owners.")
+    @GetMapping("/leaderboards/rarest-items")
+    public ResponseEntity<Page<ItemScarcityResponse>> getItemScarcity(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getItemScarcity(pageable));
+    }
+
+    @Operation(summary = "Biggest traders", description = "Users ranked by number of accepted trades participated in. Optional country filter.")
+    @GetMapping("/leaderboards/biggest-traders")
+    public ResponseEntity<Page<BiggestTraderResponse>> getBiggestTraders(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getBiggestTraders(country, pageable));
+    }
+
+    @Operation(summary = "Most essence earned", description = "Users ranked by total item essence gained from disintegrating tradeable items. Optional country filter.")
+    @GetMapping("/leaderboards/most-essence-earned")
+    public ResponseEntity<Page<EssenceEarnedResponse>> getMostEssenceEarned(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getMostEssenceEarned(country, pageable));
     }
 
     @Operation(summary = "New players per day", description = "Count of new player registrations over a time range. "

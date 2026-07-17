@@ -17,10 +17,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
+import com.accsaber.backend.model.dto.response.statistics.BiggestTraderResponse;
+import com.accsaber.backend.model.dto.response.statistics.CollectionCompletionResponse;
 import com.accsaber.backend.model.dto.response.statistics.DistributionEntryResponse;
+import com.accsaber.backend.model.dto.response.statistics.EssenceEarnedResponse;
+import com.accsaber.backend.model.dto.response.statistics.FirstEditionsResponse;
+import com.accsaber.backend.model.dto.response.statistics.InventoryValueResponse;
+import com.accsaber.backend.model.dto.response.statistics.ItemScarcityResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapAvgApResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapRetryResponse;
 import com.accsaber.backend.model.dto.response.statistics.MilestoneCollectorResponse;
+import com.accsaber.backend.model.dto.response.statistics.MostCratesOpenedResponse;
+import com.accsaber.backend.model.dto.response.statistics.MostItemsResponse;
+import com.accsaber.backend.model.dto.response.statistics.RarestUnboxedResponse;
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserImprovementsResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserMapImprovementsResponse;
@@ -403,6 +412,314 @@ public class SiteStatisticsService {
                                 ORDER BY cnt DESC
                                 """;
                 return executeDistributionQuery(sql, Map.of());
+        }
+
+        @Cacheable(value = "statistics", key = "'mostitems:' + #type + ':' + #modifier + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<MostItemsResponse> getMostItems(String type, String modifier, String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, SUM(l.quantity) AS item_count
+                                FROM user_item_links l
+                                JOIN items i ON i.id = l.item_id
+                                JOIN item_types t ON t.id = i.type_id
+                                JOIN users u ON u.id = l.user_id
+                                WHERE i.tradeable = true AND u.active = true AND u.banned = false
+                                """;
+                if (type != null)
+                        sql += " AND t.key = :type";
+                if (modifier != null)
+                        sql += " AND EXISTS (SELECT 1 FROM user_item_link_modifiers lm" +
+                                        " JOIN item_modifiers im ON im.id = lm.modifier_id" +
+                                        " WHERE lm.user_item_link_id = l.id AND im.key = :modifier)";
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY item_count DESC, u.name ASC";
+
+                Map<String, Object> params = new LinkedHashMap<>();
+                if (type != null)
+                        params.put("type", type);
+                if (modifier != null)
+                        params.put("modifier", modifier);
+                if (normalizedCountry != null)
+                        params.put("country", normalizedCountry);
+
+                return executePagedNativeQuery(sql, params, pageable, row -> MostItemsResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .itemCount(((Number) row[5]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'mostcrates:' + #crateId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<MostCratesOpenedResponse> getMostCratesOpened(UUID crateId, String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS crate_count
+                                FROM user_crate_opens o
+                                JOIN users u ON u.id = o.user_id
+                                WHERE u.active = true AND u.banned = false
+                                """;
+                if (crateId != null)
+                        sql += " AND o.crate_item_id = :crateId";
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY crate_count DESC, u.name ASC";
+
+                Map<String, Object> params = new LinkedHashMap<>();
+                if (crateId != null)
+                        params.put("crateId", crateId);
+                if (normalizedCountry != null)
+                        params.put("country", normalizedCountry);
+
+                return executePagedNativeQuery(sql, params, pageable, row -> MostCratesOpenedResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .crateCount(((Number) row[5]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'rarestunboxed:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<RarestUnboxedResponse> getRarestUnboxed(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT l.id, u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
+                                        i.id, i.name, i.icon_url, i.rarity, t.key, l.serial_number,
+                                        COUNT(lm.modifier_id) AS modifier_count,
+                                        STRING_AGG(DISTINCT im.key, ',') AS modifier_keys,
+                                        ue.name AS unusual_effect
+                                FROM user_item_links l
+                                JOIN items i ON i.id = l.item_id
+                                JOIN item_types t ON t.id = i.type_id
+                                JOIN users u ON u.id = l.user_id
+                                LEFT JOIN user_item_link_modifiers lm ON lm.user_item_link_id = l.id
+                                LEFT JOIN item_modifiers im ON im.id = lm.modifier_id
+                                LEFT JOIN unusual_effects ue ON ue.id = l.unusual_effect_id
+                                WHERE l.source = 'crate_drop' AND i.tradeable = true
+                                        AND u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY l.id, u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
+                                " i.id, i.name, i.icon_url, i.rarity, t.key, l.serial_number, ue.name" +
+                                " ORDER BY modifier_count DESC, " + rarityRank("i.rarity") + " DESC," +
+                                " l.serial_number ASC NULLS LAST";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> RarestUnboxedResponse.builder()
+                                .linkId((UUID) row[0])
+                                .userId(String.valueOf(((Number) row[1]).longValue()))
+                                .userName((String) row[2])
+                                .avatarUrl((String) row[3])
+                                .cdnAvatarUrl((String) row[4])
+                                .country((String) row[5])
+                                .itemId((UUID) row[6])
+                                .itemName((String) row[7])
+                                .iconUrl((String) row[8])
+                                .rarity((String) row[9])
+                                .typeKey((String) row[10])
+                                .serialNumber(row[11] != null ? ((Number) row[11]).longValue() : null)
+                                .modifierCount(((Number) row[12]).longValue())
+                                .modifiers(splitKeys((String) row[13]))
+                                .unusualEffect((String) row[14])
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'valuableinventory:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<InventoryValueResponse> getMostValuableInventory(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
+                                        COALESCE(SUM(i.worth * l.quantity), 0) AS items_value,
+                                        u.item_essence AS essence,
+                                        COALESCE(SUM(i.worth * l.quantity), 0) + u.item_essence AS total_value
+                                FROM users u
+                                LEFT JOIN user_item_links l ON l.user_id = u.id
+                                LEFT JOIN items i ON i.id = l.item_id AND i.tradeable = true
+                                WHERE u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, u.item_essence" +
+                                " ORDER BY total_value DESC, u.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> InventoryValueResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .itemsValue((BigDecimal) row[5])
+                                .essenceBalance((BigDecimal) row[6])
+                                .totalValue((BigDecimal) row[7])
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'firsteditions:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<FirstEditionsResponse> getFirstEditions(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS first_edition_count
+                                FROM user_item_links l
+                                JOIN items i ON i.id = l.item_id
+                                JOIN users u ON u.id = l.user_id
+                                WHERE l.serial_number = 1 AND i.tradeable = true
+                                        AND u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY first_edition_count DESC, u.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> FirstEditionsResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .firstEditionCount(((Number) row[5]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'completecollection:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<CollectionCompletionResponse> getMostCompleteCollection(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String catalog = "(SELECT COUNT(*) FROM items ci WHERE ci.tradeable = true" +
+                                " AND ci.active = true AND ci.visible = true AND ci.deprecated = false)";
+                String sql = "SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
+                                " COUNT(DISTINCT i.id) AS owned_count," +
+                                " " + catalog + " AS catalog_total," +
+                                " ROUND(100.0 * COUNT(DISTINCT i.id) / NULLIF(" + catalog + ", 0), 2) AS completion_percent" +
+                                " FROM user_item_links l" +
+                                " JOIN items i ON i.id = l.item_id AND i.tradeable = true" +
+                                " AND i.active = true AND i.visible = true AND i.deprecated = false" +
+                                " JOIN users u ON u.id = l.user_id" +
+                                " WHERE u.active = true AND u.banned = false";
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY owned_count DESC, u.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> CollectionCompletionResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .ownedCount(((Number) row[5]).longValue())
+                                .catalogTotal(((Number) row[6]).longValue())
+                                .completionPercent((BigDecimal) row[7])
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'itemscarcity:' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<ItemScarcityResponse> getItemScarcity(Pageable pageable) {
+                String sql = """
+                                SELECT i.id, i.name, i.icon_url, i.rarity, t.key, COUNT(DISTINCT u.id) AS owner_count
+                                FROM items i
+                                JOIN item_types t ON t.id = i.type_id
+                                LEFT JOIN user_item_links l ON l.item_id = i.id
+                                LEFT JOIN users u ON u.id = l.user_id AND u.active = true AND u.banned = false
+                                WHERE i.tradeable = true AND i.active = true AND i.visible = true AND i.deprecated = false
+                                GROUP BY i.id, i.name, i.icon_url, i.rarity, t.key
+                                """;
+                sql += " ORDER BY owner_count ASC, " + rarityRank("i.rarity") + " DESC, i.name ASC";
+
+                return executePagedNativeQuery(sql, Map.of(), pageable, row -> ItemScarcityResponse.builder()
+                                .itemId((UUID) row[0])
+                                .itemName((String) row[1])
+                                .iconUrl((String) row[2])
+                                .rarity((String) row[3])
+                                .typeKey((String) row[4])
+                                .ownerCount(((Number) row[5]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'biggesttraders:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<BiggestTraderResponse> getBiggestTraders(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
+                                        COUNT(DISTINCT parties.trade_id) AS trade_count,
+                                        COALESCE(SUM(ti.quantity), 0) AS items_traded
+                                FROM (
+                                        SELECT from_user_id AS user_id, id AS trade_id FROM user_item_trades WHERE status = 'accepted'
+                                        UNION ALL
+                                        SELECT to_user_id AS user_id, id AS trade_id FROM user_item_trades WHERE status = 'accepted'
+                                ) parties
+                                JOIN users u ON u.id = parties.user_id
+                                JOIN user_item_trade_items ti ON ti.trade_id = parties.trade_id
+                                WHERE u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY trade_count DESC, items_traded DESC, u.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> BiggestTraderResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .tradeCount(((Number) row[5]).longValue())
+                                .itemsTraded(((Number) row[6]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'essenceearned:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<EssenceEarnedResponse> getMostEssenceEarned(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
+                                        COALESCE(SUM(d.essence_gained), 0) AS essence_earned
+                                FROM user_item_disintegrations d
+                                JOIN items i ON i.id = d.item_id
+                                JOIN users u ON u.id = d.user_id
+                                WHERE i.tradeable = true AND u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " ORDER BY essence_earned DESC, u.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> EssenceEarnedResponse.builder()
+                                .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .userName((String) row[1])
+                                .avatarUrl((String) row[2])
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .essenceEarned((BigDecimal) row[5])
+                                .build());
+        }
+
+        private static String rarityRank(String column) {
+                return "CASE " + column + " WHEN 'mythic' THEN 6 WHEN 'legendary' THEN 5 WHEN 'epic' THEN 4" +
+                                " WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 WHEN 'common' THEN 1 ELSE 0 END";
+        }
+
+        private static List<String> splitKeys(String aggregated) {
+                if (aggregated == null || aggregated.isBlank())
+                        return List.of();
+                return List.of(aggregated.split(","));
         }
 
         private static String normalizeCountry(String country) {
