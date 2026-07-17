@@ -185,6 +185,10 @@ public class EventMissionService {
         if (profile == null) {
             return;
         }
+        Set<UUID> completedIds = new HashSet<>(
+                userMissionRepository.findCompletedTemplateIdsForEvent(userId, event.getId()));
+        recomputeProgression(profile, event, templates, completedIds);
+        profileRepository.save(profile);
         ensureAssignments(userId, event, templates, profile);
     }
 
@@ -257,20 +261,27 @@ public class EventMissionService {
 
     private boolean recomputeProgression(UserEventProfile profile, Event event,
             List<MissionTemplate> templates, Set<UUID> completedIds) {
+        Instant now = Instant.now();
         Map<Integer, List<UUID>> idsByWeek = templates.stream()
                 .collect(Collectors.groupingBy(t -> t.weekOf(event),
                         Collectors.mapping(MissionTemplate::getId, Collectors.toList())));
+        Map<Integer, Instant> unlockByWeek = templates.stream()
+                .collect(Collectors.toMap(t -> t.weekOf(event), t -> t.unlockInstant(event),
+                        (a, b) -> a.isBefore(b) ? a : b));
         List<Integer> weeks = idsByWeek.keySet().stream().sorted().toList();
 
-        int unlockedWeek = weeks.isEmpty() ? 1 : weeks.get(weeks.size() - 1);
+        int unlockedWeek = weeks.isEmpty() ? 1 : weeks.get(0);
         boolean allComplete = !weeks.isEmpty();
         for (int week : weeks) {
-            if (completedIds.containsAll(idsByWeek.get(week))) {
-                continue;
+            if (unlockByWeek.get(week).isAfter(now)) {
+                allComplete = false;
+                break;
             }
             unlockedWeek = week;
-            allComplete = false;
-            break;
+            if (!completedIds.containsAll(idsByWeek.get(week))) {
+                allComplete = false;
+                break;
+            }
         }
         profile.setUnlockedWeek(unlockedWeek);
         profile.setMissionsCompleted(completedIds.size());

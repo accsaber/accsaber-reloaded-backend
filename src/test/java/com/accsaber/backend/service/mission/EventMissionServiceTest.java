@@ -215,7 +215,8 @@ class EventMissionServiceTest {
                 }
 
                 @Test
-                void oneCompletionOfARepeatableUnlocksTheNextWeek() {
+                void oneCompletionOfARepeatableUnlocksTheNextWeekOnceItsTimeHasCome() {
+                        event.setStartsAt(Instant.now().minus(9, ChronoUnit.DAYS));
                         MissionTemplate weekTwo = template(MissionType.SCORES_N, false);
                         weekTwo.setUnlocksAt(event.getStartsAt().plus(7, ChronoUnit.DAYS));
                         when(templateRepository.findActiveByEvent(event.getId()))
@@ -230,6 +231,24 @@ class EventMissionServiceTest {
                         service.onEventMissionCompleted(completedMission(repeatable), USER_ID);
 
                         assertThat(profile.getUnlockedWeek()).isEqualTo(2);
+                }
+
+                @Test
+                void completingWeekOneDoesNotUnlockAStillTimeLockedWeekTwo() {
+                        MissionTemplate weekTwo = template(MissionType.SCORES_N, false);
+                        weekTwo.setUnlocksAt(event.getStartsAt().plus(7, ChronoUnit.DAYS));
+                        when(templateRepository.findActiveByEvent(event.getId()))
+                                        .thenReturn(List.of(repeatable, weekTwo));
+                        lenient().when(userMissionRepository.countByUser_IdAndTemplate_IdAndStatus(anyLong(),
+                                        any(), any())).thenReturn(1L);
+                        when(userMissionRepository.findCompletedTemplateIdsForEvent(USER_ID, event.getId()))
+                                        .thenReturn(List.of(repeatable.getId()));
+                        lenient().when(userMissionRepository.findTemplateStatusesByUserAndEvent(USER_ID,
+                                        event.getId())).thenReturn(List.of());
+
+                        service.onEventMissionCompleted(completedMission(repeatable), USER_ID);
+
+                        assertThat(profile.getUnlockedWeek()).isEqualTo(1);
                 }
         }
 }
