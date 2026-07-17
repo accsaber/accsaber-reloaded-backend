@@ -368,9 +368,9 @@ public class MapService {
                 .toList();
     }
 
-    @Cacheable(value = "rankedDifficulties", key = "#rankedBefore")
-    public List<RankedDifficultyResponse> findAllRankedDifficulties(Instant rankedBefore) {
-        return mapDifficultyRepository.findAllRankedWithComplexity(rankedBefore).stream()
+    @Cacheable(value = "rankedDifficulties")
+    public List<RankedDifficultyResponse> findAllRankedDifficulties() {
+        return mapDifficultyRepository.findAllRankedWithComplexity().stream()
                 .map(row -> RankedDifficultyResponse.builder()
                         .id((UUID) row[0])
                         .songHash((String) row[1])
@@ -380,6 +380,7 @@ public class MapService {
                         .categoryCode((String) row[5])
                         .ssLeaderboardId((String) row[6])
                         .blLeaderboardId((String) row[7])
+                        .rankedAt((Instant) row[8])
                         .build())
                 .toList();
     }

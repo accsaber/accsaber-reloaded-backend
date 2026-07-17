@@ -1,7 +1,6 @@
 package com.accsaber.backend.repository.map;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -184,15 +183,14 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("statuses") List<MapDifficultyStatus> statuses);
 
         @Query("""
-                        SELECT d.id, d.map.songHash, d.map.songName, d.difficulty, c.complexity, d.category.code, d.ssLeaderboardId, d.blLeaderboardId
+                        SELECT d.id, d.map.songHash, d.map.songName, d.difficulty, c.complexity, d.category.code, d.ssLeaderboardId, d.blLeaderboardId, d.rankedAt
                         FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         WHERE d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
                         AND d.active = true
-                        AND (:rankedBefore IS NULL OR d.rankedAt < :rankedBefore)
                         ORDER BY d.map.songHash, d.difficulty
                         """)
-        List<Object[]> findAllRankedWithComplexity(@Param("rankedBefore") Instant rankedBefore);
+        List<Object[]> findAllRankedWithComplexity();
 
         @Query("""
                         SELECT d, c.complexity FROM MapDifficulty d
