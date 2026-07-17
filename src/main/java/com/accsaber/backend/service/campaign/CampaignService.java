@@ -2077,6 +2077,7 @@ public class CampaignService {
                 .cdnCoverUrl(md.getMap().getCdnCoverUrl())
                 .difficulty(md.getDifficulty().name())
                 .characteristic(md.getCharacteristic())
+                .mapDifficultyStatus(md.getStatus())
                 .requirementType(difficulty.getRequirementType())
                 .requirementValue(difficulty.getRequirementValue())
                 .prerequisiteMode(difficulty.getPrerequisiteMode())
