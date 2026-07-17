@@ -69,6 +69,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -110,6 +111,8 @@ class CampaignServiceTest {
         private CampaignVoteRepository campaignVoteRepository;
         @Mock
         private ScoreRepository scoreRepository;
+        @Mock
+        private ScoreModifierLinkRepository scoreModifierLinkRepository;
         @Mock
         private UserRepository userRepository;
         @Mock

@@ -6,5 +6,6 @@ public enum CampaignRequirementType {
     SCORE,
     STREAK_115,
     FC,
-    RANK
+    RANK,
+    PASS
 }

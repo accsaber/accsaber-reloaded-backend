@@ -92,6 +92,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -133,6 +134,7 @@ public class CampaignService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyComplexityRepository mapDifficultyComplexityRepository;
     private final ScoreRepository scoreRepository;
+    private final ScoreModifierLinkRepository scoreModifierLinkRepository;
     private final ItemRepository itemRepository;
     private final CategoryRepository categoryRepository;
     private final DuplicateUserService duplicateUserService;
@@ -1121,6 +1123,7 @@ public class CampaignService {
         Map<UUID, Instant> completionTimes = ctx.completionTimesByCampaign.getOrDefault(campaignId, Map.of());
         Instant since = progressSince(campaign, uc);
         Map<UUID, List<Score>> rowsByMap = loadProgressRows(uc, difficulties, resolvedUserId, since);
+        Set<UUID> nfScoreIds = nfScoreIds(rowsByMap.values().stream().flatMap(List::stream).toList());
 
         Map<UUID, UserMapDifficultyBests> bestsByNode = new HashMap<>();
         List<CampaignDifficultyProgressResponse> progress = new ArrayList<>(difficulties.size());
@@ -1137,7 +1140,7 @@ public class CampaignService {
                         .filter(r -> withinWindow(CampaignScoreMetrics.effectiveTime(r), window))
                         .toList();
                 bests = CampaignScoreMetrics.reduceBests(d.getMapDifficulty().getId(),
-                        d.getMapDifficulty().getMaxScore(), rows);
+                        d.getMapDifficulty().getMaxScore(), rows, nfScoreIds);
             }
             if (bests != null) {
                 bestsByNode.put(d.getId(), bests);
@@ -1215,6 +1218,14 @@ public class CampaignService {
             return uc.getStartedAt();
         }
         return uc.getCreatedAt() != null ? uc.getCreatedAt() : Instant.EPOCH;
+    }
+
+    private Set<UUID> nfScoreIds(Collection<Score> rows) {
+        List<UUID> ids = rows.stream().map(Score::getId).filter(id -> id != null).toList();
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(scoreModifierLinkRepository.findScoreIdsWithModifierCode(ids, "NF"));
     }
 
     private Map<UUID, List<Score>> loadProgressRows(UserCampaign uc, List<CampaignDifficulty> difficulties,
@@ -1372,7 +1383,7 @@ public class CampaignService {
         if (campaign.isProgressionAgnostic()) {
             throw new ValidationException("Barriers cannot be added to a progression-agnostic campaign");
         }
-        BigDecimal conditionValue = request.getConditionType() == BarrierConditionType.FC
+        BigDecimal conditionValue = isValuelessCondition(request.getConditionType())
                 ? null
                 : request.getConditionValue();
         validateBarrierCondition(request.getConditionType(), conditionValue);
@@ -1442,7 +1453,7 @@ public class CampaignService {
             barrier.setBarrierConditionType(request.getConditionType());
             conditionChanged = true;
         }
-        if (barrier.getBarrierConditionType() == BarrierConditionType.FC) {
+        if (isValuelessCondition(barrier.getBarrierConditionType())) {
             barrier.setBarrierConditionValue(null);
         } else if (request.getConditionValue() != null
                 && (barrier.getBarrierConditionValue() == null
@@ -1524,11 +1535,15 @@ public class CampaignService {
         return toBarrierResponse(barrier, prereqConnections, affectedIds, loadDifficultyItems(barrier.getId()));
     }
 
+    private static boolean isValuelessCondition(BarrierConditionType type) {
+        return type == BarrierConditionType.FC || type == BarrierConditionType.PASS;
+    }
+
     private void validateBarrierCondition(BarrierConditionType type, BigDecimal value) {
         if (type == null) {
             throw new ValidationException("conditionType", "is required");
         }
-        if (type != BarrierConditionType.FC && value == null) {
+        if (!isValuelessCondition(type) && value == null) {
             throw new ValidationException("conditionValue", "is required for this condition");
         }
         if (type == BarrierConditionType.COMPLETION_COUNT) {
@@ -2134,6 +2149,12 @@ public class CampaignService {
             return BigDecimal.valueOf(affected.stream()
                     .map(bestsByNode::get)
                     .filter(bests -> bests != null && bests.hasFullCombo())
+                    .count());
+        }
+        if (type == BarrierConditionType.PASS) {
+            return BigDecimal.valueOf(affected.stream()
+                    .map(bestsByNode::get)
+                    .filter(bests -> bests != null && bests.hasNoNfPass())
                     .count());
         }
         List<BigDecimal> values = new ArrayList<>(affected.size());

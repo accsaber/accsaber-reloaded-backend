@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
@@ -43,6 +44,7 @@ import com.accsaber.backend.repository.campaign.CampaignDifficultyPathRepository
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -65,6 +67,7 @@ public class CampaignEvaluationService {
     private final CampaignDifficultyItemRepository campaignDifficultyItemRepository;
     private final CampaignCompletionItemRepository campaignCompletionItemRepository;
     private final ScoreRepository scoreRepository;
+    private final ScoreModifierLinkRepository scoreModifierLinkRepository;
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
     private final MissionProgressService missionProgressService;
@@ -83,6 +86,7 @@ public class CampaignEvaluationService {
         }
 
         Instant scoreTime = effectiveTime(score);
+        Set<UUID> nfScoreIds = nfScoreIds(List.of(score));
         for (UserCampaign uc : inProgress) {
             Campaign campaign = uc.getCampaign();
             if (!campaign.isActive() || campaign.getStatus() == CampaignStatus.DRAFT) {
@@ -107,7 +111,7 @@ public class CampaignEvaluationService {
             while (changed) {
                 changed = false;
                 for (CampaignDifficulty difficulty : nodes) {
-                    if (recorded.contains(difficulty.getId()) || !meetsRequirement(difficulty, score)) {
+                    if (recorded.contains(difficulty.getId()) || !meetsRequirement(difficulty, score, nfScoreIds)) {
                         continue;
                     }
                     boolean alreadyCompleted = completionTimes.containsKey(difficulty.getId());
@@ -392,6 +396,7 @@ public class CampaignEvaluationService {
         if (rowsByMap.isEmpty()) {
             return;
         }
+        Set<UUID> nfScoreIds = nfScoreIds(rowsByMap.values().stream().flatMap(List::stream).toList());
         Graph graph = loadGraph(campaign.getId());
         boolean agnostic = campaign.isProgressionAgnostic();
         Map<UUID, Instant> completionTimes = loadCompletionTimes(uc.getUser().getId(), campaign.getId());
@@ -412,7 +417,7 @@ public class CampaignEvaluationService {
                 List<Score> qualifying = new ArrayList<>();
                 for (Score row : rows) {
                     if (countsFor(CampaignScoreMetrics.effectiveTime(row), window)
-                            && rowMeetsRequirement(difficulty, row)) {
+                            && rowMeetsRequirement(difficulty, row, nfScoreIds)) {
                         qualifying.add(row);
                     }
                 }
@@ -446,7 +451,7 @@ public class CampaignEvaluationService {
         evaluateCampaignCompletion(uc, graph, completionTimes.keySet());
     }
 
-    private boolean rowMeetsRequirement(CampaignDifficulty difficulty, Score row) {
+    private boolean rowMeetsRequirement(CampaignDifficulty difficulty, Score row, Set<UUID> nfScoreIds) {
         if (difficulty.getRequirementType() == CampaignRequirementType.RANK) {
             if (!row.isActive() || row.getRank() == null || row.getRankWhenSet() == null) {
                 return false;
@@ -454,7 +459,7 @@ public class CampaignEvaluationService {
             return requirementMet(difficulty,
                     BigDecimal.valueOf(Math.min(row.getRank(), row.getRankWhenSet())));
         }
-        return meetsRequirement(difficulty, row);
+        return meetsRequirement(difficulty, row, nfScoreIds);
     }
 
     private void recordQualifyingScore(UserCampaign uc, CampaignDifficulty difficulty, Score score,
@@ -564,6 +569,7 @@ public class CampaignEvaluationService {
                 .findEligibleCampaignRows(uc.getUser().getId(), mapDifficultyByNode.values(), campaignSince)
                 .stream()
                 .collect(Collectors.groupingBy(s -> s.getMapDifficulty().getId()));
+        Set<UUID> nfScoreIds = nfScoreIds(rowsByMap.values().stream().flatMap(List::stream).toList());
         Map<UUID, UserMapDifficultyBests> nodeBests = new HashMap<>();
         for (Map.Entry<UUID, UUID> entry : mapDifficultyByNode.entrySet()) {
             UUID nodeId = entry.getKey();
@@ -581,7 +587,7 @@ public class CampaignEvaluationService {
                     .toList();
             CampaignDifficulty node = graph.byId.get(nodeId);
             UserMapDifficultyBests bests = CampaignScoreMetrics.reduceBests(mapDifficultyId,
-                    node.getMapDifficulty().getMaxScore(), windowed);
+                    node.getMapDifficulty().getMaxScore(), windowed, nfScoreIds);
             if (bests != null) {
                 nodeBests.put(nodeId, bests);
             }
@@ -668,6 +674,9 @@ public class CampaignEvaluationService {
         }
         if (type == BarrierConditionType.FC) {
             return bests.stream().allMatch(UserMapDifficultyBests::hasFullCombo);
+        }
+        if (type == BarrierConditionType.PASS) {
+            return bests.stream().allMatch(UserMapDifficultyBests::hasNoNfPass);
         }
         BigDecimal target = barrier.getBarrierConditionValue();
         if (target == null) {
@@ -897,8 +906,17 @@ public class CampaignEvaluationService {
         }
     }
 
-    private boolean meetsRequirement(CampaignDifficulty difficulty, Score score) {
-        return requirementMet(difficulty, CampaignScoreMetrics.requirementValue(score, difficulty.getRequirementType()));
+    private boolean meetsRequirement(CampaignDifficulty difficulty, Score score, Set<UUID> nfScoreIds) {
+        return requirementMet(difficulty,
+                CampaignScoreMetrics.requirementValue(score, difficulty.getRequirementType(), nfScoreIds));
+    }
+
+    private Set<UUID> nfScoreIds(Collection<Score> rows) {
+        List<UUID> ids = rows.stream().map(Score::getId).filter(id -> id != null).toList();
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(scoreModifierLinkRepository.findScoreIdsWithModifierCode(ids, "NF"));
     }
 
     private boolean meetsRequirement(CampaignDifficulty difficulty, UserMapDifficultyBests bests) {

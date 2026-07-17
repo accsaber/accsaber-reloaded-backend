@@ -51,6 +51,7 @@ import com.accsaber.backend.repository.campaign.CampaignDifficultyPathRepository
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
+import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -79,6 +80,8 @@ class CampaignEvaluationServiceTest {
         private CampaignCompletionItemRepository campaignCompletionItemRepository;
         @Mock
         private ScoreRepository scoreRepository;
+        @Mock
+        private ScoreModifierLinkRepository scoreModifierLinkRepository;
         @Mock
         private LevelUpAwardService levelUpAwardService;
         @Mock

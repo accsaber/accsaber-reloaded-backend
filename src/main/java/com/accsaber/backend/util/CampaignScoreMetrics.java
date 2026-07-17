@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
@@ -32,7 +33,7 @@ public final class CampaignScoreMetrics {
                 && score.getMisses() == 0 && score.getBadCuts() == 0;
     }
 
-    public static BigDecimal requirementValue(Score score, CampaignRequirementType type) {
+    public static BigDecimal requirementValue(Score score, CampaignRequirementType type, Set<UUID> nfScoreIds) {
         return switch (type) {
             case ACC -> accuracy(score);
             case AP -> score.getAp();
@@ -40,6 +41,7 @@ public final class CampaignScoreMetrics {
             case STREAK_115 -> score.getStreak115() != null ? BigDecimal.valueOf(score.getStreak115()) : null;
             case FC -> isFullCombo(score) ? BigDecimal.ONE : BigDecimal.ZERO;
             case RANK -> score.getRank() != null ? BigDecimal.valueOf(score.getRank()) : null;
+            case PASS -> nfScoreIds.contains(score.getId()) ? BigDecimal.ZERO : BigDecimal.ONE;
         };
     }
 
@@ -59,6 +61,7 @@ public final class CampaignScoreMetrics {
             case STREAK_115 -> toDecimal(bests.bestStreak115());
             case FC -> bests.hasFullCombo() ? BigDecimal.ONE : BigDecimal.ZERO;
             case RANK -> toDecimal(bests.bestRank());
+            case PASS -> bests.hasNoNfPass() ? BigDecimal.ONE : BigDecimal.ZERO;
         };
     }
 
@@ -68,7 +71,7 @@ public final class CampaignScoreMetrics {
             case AVERAGE_AP, AP_MAX -> bests.bestAp();
             case STREAK_115_AVERAGE, STREAK_115_MAX -> toDecimal(bests.bestStreak115());
             case AVERAGE_RANK, MAX_RANK -> toDecimal(bests.bestRank());
-            case FC, COMPLETION_COUNT -> null;
+            case FC, COMPLETION_COUNT, PASS -> null;
         };
     }
 
@@ -120,7 +123,7 @@ public final class CampaignScoreMetrics {
     }
 
     public static UserMapDifficultyBests reduceBests(UUID mapDifficultyId, Integer maxScore,
-            Collection<Score> rows) {
+            Collection<Score> rows, Set<UUID> nfScoreIds) {
         if (rows.isEmpty()) {
             return null;
         }
@@ -130,6 +133,7 @@ public final class CampaignScoreMetrics {
         Integer bestStreak115 = null;
         Integer bestRank = null;
         int fcFlag = 0;
+        int noNfFlag = 0;
         for (Score s : rows) {
             bestScore = maxOf(bestScore, s.getScore());
             bestScoreNoMods = maxOf(bestScoreNoMods, s.getScoreNoMods());
@@ -146,9 +150,12 @@ public final class CampaignScoreMetrics {
             if (isFullCombo(s)) {
                 fcFlag = 1;
             }
+            if (!nfScoreIds.contains(s.getId())) {
+                noNfFlag = 1;
+            }
         }
         return new UserMapDifficultyBests(mapDifficultyId, maxScore, bestScore, bestScoreNoMods,
-                bestAp, bestStreak115, bestRank, fcFlag);
+                bestAp, bestStreak115, bestRank, fcFlag, noNfFlag);
     }
 
     private static Integer maxOf(Integer current, Integer candidate) {
