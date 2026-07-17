@@ -368,9 +368,9 @@ public class MapService {
                 .toList();
     }
 
-    @Cacheable(value = "rankedDifficulties")
-    public List<RankedDifficultyResponse> findAllRankedDifficulties() {
-        return mapDifficultyRepository.findAllRankedWithComplexity().stream()
+    @Cacheable(value = "rankedDifficulties", key = "#rankedBefore")
+    public List<RankedDifficultyResponse> findAllRankedDifficulties(Instant rankedBefore) {
+        return mapDifficultyRepository.findAllRankedWithComplexity(rankedBefore).stream()
                 .map(row -> RankedDifficultyResponse.builder()
                         .id((UUID) row[0])
                         .songHash((String) row[1])

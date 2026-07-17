@@ -1,6 +1,7 @@
 package com.accsaber.backend.controller.map;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -75,10 +76,11 @@ public class MapController {
                         complexityMax, search, null, pageable));
     }
 
-    @Operation(summary = "All ranked difficulties", description = "Returns a flat list of all ranked difficulties with song hash, difficulty level, and current complexity. Cached until ranked difficulties change.")
+    @Operation(summary = "All ranked difficulties", description = "Returns a flat list of all ranked difficulties with song hash, difficulty level, and current complexity. Optionally filter to difficulties ranked before a given instant (ISO-8601, e.g. 2026-01-01T00:00:00Z). Cached until ranked difficulties change.")
     @GetMapping("/difficulties/all")
-    public ResponseEntity<List<RankedDifficultyResponse>> getAllRankedDifficulties() {
-        return ResponseEntity.ok(mapService.findAllRankedDifficulties());
+    public ResponseEntity<List<RankedDifficultyResponse>> getAllRankedDifficulties(
+            @RequestParam(required = false) Instant rankedBefore) {
+        return ResponseEntity.ok(mapService.findAllRankedDifficulties(rankedBefore));
     }
 
     @Operation(summary = "Get difficulty by ID", description = "Returns a single map difficulty with public metadata; complexity is only included for RANKED difficulties, vote counts and criteria status only for non-RANKED")
