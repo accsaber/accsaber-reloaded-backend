@@ -17,6 +17,7 @@ import com.accsaber.backend.model.dto.response.statistics.BiggestTraderResponse;
 import com.accsaber.backend.model.dto.response.statistics.CollectionCompletionResponse;
 import com.accsaber.backend.model.dto.response.statistics.DistributionEntryResponse;
 import com.accsaber.backend.model.dto.response.statistics.EssenceEarnedResponse;
+import com.accsaber.backend.model.dto.response.statistics.FirstEditionHolderResponse;
 import com.accsaber.backend.model.dto.response.statistics.FirstEditionsResponse;
 import com.accsaber.backend.model.dto.response.statistics.InventoryValueResponse;
 import com.accsaber.backend.model.dto.response.statistics.ItemScarcityResponse;
@@ -155,6 +156,14 @@ public class SiteStatisticsController {
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(siteStatisticsService.getFirstEditions(country, pageable));
+    }
+
+    @Operation(summary = "First edition holders", description = "For each tradeable item, the owner of its serial #1. Optional country filter (on the holder).")
+    @GetMapping("/leaderboards/first-edition-holders")
+    public ResponseEntity<Page<FirstEditionHolderResponse>> getFirstEditionHolders(
+            @RequestParam(required = false) String country,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(siteStatisticsService.getFirstEditionHolders(country, pageable));
     }
 
     @Operation(summary = "Most complete collection", description = "Users ranked by percentage of the tradeable catalog owned. Optional country filter.")

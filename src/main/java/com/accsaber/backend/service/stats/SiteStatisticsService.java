@@ -21,6 +21,7 @@ import com.accsaber.backend.model.dto.response.statistics.BiggestTraderResponse;
 import com.accsaber.backend.model.dto.response.statistics.CollectionCompletionResponse;
 import com.accsaber.backend.model.dto.response.statistics.DistributionEntryResponse;
 import com.accsaber.backend.model.dto.response.statistics.EssenceEarnedResponse;
+import com.accsaber.backend.model.dto.response.statistics.FirstEditionHolderResponse;
 import com.accsaber.backend.model.dto.response.statistics.FirstEditionsResponse;
 import com.accsaber.backend.model.dto.response.statistics.InventoryValueResponse;
 import com.accsaber.backend.model.dto.response.statistics.ItemScarcityResponse;
@@ -590,6 +591,41 @@ public class SiteStatisticsService {
                                 .cdnAvatarUrl((String) row[3])
                                 .country((String) row[4])
                                 .firstEditionCount(((Number) row[5]).longValue())
+                                .build());
+        }
+
+        @Cacheable(value = "statistics", key = "'firsteditionholders:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<FirstEditionHolderResponse> getFirstEditionHolders(String country, Pageable pageable) {
+                String normalizedCountry = normalizeCountry(country);
+                String sql = """
+                                SELECT i.id, i.name, i.icon_url, i.rarity, t.key, l.id, l.serial_number,
+                                        u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country
+                                FROM user_item_links l
+                                JOIN items i ON i.id = l.item_id
+                                JOIN item_types t ON t.id = i.type_id
+                                JOIN users u ON u.id = l.user_id
+                                WHERE l.serial_number = 1 AND i.tradeable = true
+                                        AND u.active = true AND u.banned = false
+                                """;
+                if (normalizedCountry != null)
+                        sql += " AND LOWER(u.country) = LOWER(:country)";
+                sql += " ORDER BY " + rarityRank("i.rarity") + " DESC, i.name ASC";
+
+                Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
+
+                return executePagedNativeQuery(sql, params, pageable, row -> FirstEditionHolderResponse.builder()
+                                .itemId((UUID) row[0])
+                                .itemName((String) row[1])
+                                .iconUrl((String) row[2])
+                                .rarity((String) row[3])
+                                .typeKey((String) row[4])
+                                .linkId((UUID) row[5])
+                                .serialNumber(row[6] != null ? ((Number) row[6]).longValue() : null)
+                                .userId(String.valueOf(((Number) row[7]).longValue()))
+                                .userName((String) row[8])
+                                .avatarUrl((String) row[9])
+                                .cdnAvatarUrl((String) row[10])
+                                .country((String) row[11])
                                 .build());
         }
 
