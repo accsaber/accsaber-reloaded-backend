@@ -363,7 +363,10 @@ public class EventMissionService {
             List<UserMission> rows = weekLocked ? List.of() : byTemplate.getOrDefault(t.getId(), List.of());
             UserMission current = rows.stream()
                     .filter(m -> m.getStatus() == MissionStatus.active)
-                    .reduce((a, b) -> b).orElse(null);
+                    .reduce((a, b) -> b)
+                    .orElseGet(() -> rows.stream()
+                            .filter(m -> m.getStatus() == MissionStatus.completed)
+                            .reduce((a, b) -> b).orElse(null));
             long completions = rows.stream().filter(m -> m.getStatus() == MissionStatus.completed).count();
             return EventProgressResponse.EventMissionProgressResponse.builder()
                     .mission(MissionResponse.fromTemplate(t, event, now, ctx))
