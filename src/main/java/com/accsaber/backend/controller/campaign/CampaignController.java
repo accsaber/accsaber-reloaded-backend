@@ -34,6 +34,7 @@ import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
+import com.accsaber.backend.model.dto.request.map.ImportCampaignMapRequest;
 import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDetailResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
@@ -44,12 +45,15 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignVoteResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.map.MapImportService;
+import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.media.MediaFormat;
 import com.accsaber.backend.service.media.MediaProcessingService;
 
@@ -69,6 +73,7 @@ public class CampaignController {
     private static final String CAMPAIGN_CHECKPOINT_SUBDIR = "campaign-checkpoints";
 
     private final CampaignService campaignService;
+    private final MapImportService mapImportService;
     private final MediaProcessingService mediaProcessingService;
 
     private static Long viewerId(Authentication authentication) {
@@ -254,6 +259,16 @@ public class CampaignController {
                 campaignService.submitForCurationAsPlayer(principal.getUserId(), campaignId, seeking));
     }
 
+    @Operation(summary = "Import an external map difficulty for use in campaigns")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/maps/import")
+    public ResponseEntity<PublicMapDifficultyResponse> importCampaignMap(
+            @Valid @RequestBody ImportCampaignMapRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(MapService.toPublicDifficultyResponse(
+                mapImportService.importCampaignMap(principal.getUserId(), request)));
+    }
+
     @Operation(summary = "Add a difficulty to a draft campaign the authenticated player owns")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/difficulties")
@@ -274,6 +289,17 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
                 campaignService.updateDifficultyAsPlayer(principal.getUserId(), campaignDifficultyId, request));
+    }
+
+    @Operation(summary = "Point a node on a draft campaign the authenticated player can edit at different leaderboard IDs")
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/difficulties/{campaignDifficultyId}/map")
+    public ResponseEntity<CampaignDifficultyResponse> updateDifficultyMapOnMyCampaign(
+            @PathVariable UUID campaignDifficultyId,
+            @Valid @RequestBody ImportCampaignMapRequest request,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(
+                campaignService.updateDifficultyMapAsPlayer(principal.getUserId(), campaignDifficultyId, request));
     }
 
     @Operation(summary = "Remove a difficulty from a draft campaign the authenticated player owns")

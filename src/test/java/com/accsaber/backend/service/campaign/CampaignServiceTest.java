@@ -123,6 +123,10 @@ class CampaignServiceTest {
         @Mock
         private CampaignEvaluationService campaignEvaluationService;
         @Mock
+        private com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
+        @Mock
+        private com.accsaber.backend.service.map.MapImportService mapImportService;
+        @Mock
         private PlaylistService playlistService;
         @Mock
         private CdnProperties cdnProperties;
@@ -697,11 +701,12 @@ class CampaignServiceTest {
                                         .positionX(0).positionY(0).xp(BigDecimal.ZERO).active(true).build();
                         Score score = Score.builder()
                                         .id(UUID.randomUUID()).user(creator).mapDifficulty(mapDifficulty)
-                                        .score(950000).scoreNoMods(950000).build();
+                                        .score(950000).scoreNoMods(950000)
+                                        .timeSet(java.time.Instant.ofEpochSecond(2_000)).build();
                         com.accsaber.backend.model.entity.campaign.UserCampaign uc = com.accsaber.backend.model.entity.campaign.UserCampaign
                                         .builder().id(UUID.randomUUID()).user(creator).campaign(campaign)
                                         .status(com.accsaber.backend.model.entity.campaign.UserCampaignStatus.IN_PROGRESS)
-                                        .startedAt(java.time.Instant.now()).active(true).build();
+                                        .startedAt(java.time.Instant.ofEpochSecond(1_000)).active(true).build();
                         com.accsaber.backend.model.entity.campaign.UserCampaignScore ucs = com.accsaber.backend.model.entity.campaign.UserCampaignScore
                                         .builder().id(UUID.randomUUID()).user(creator).campaign(campaign)
                                         .campaignDifficulty(d).score(score).active(true).build();
@@ -719,10 +724,9 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
                                         .thenReturn(List.of());
-                        when(scoreRepository.findBestsByUserAndMapDifficulties(eq(creator.getId()), anyCollection(),
+                        when(scoreRepository.findEligibleCampaignRows(eq(creator.getId()), anyCollection(),
                                         any()))
-                                        .thenReturn(List.of(new UserMapDifficultyBests(mapDifficulty.getId(),
-                                                        1000000, 950000, 950000, null, null, null, 0)));
+                                        .thenReturn(List.of(score));
                         CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
                                         campaign.getId());
 

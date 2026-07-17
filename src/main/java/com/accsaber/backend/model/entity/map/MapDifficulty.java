@@ -43,7 +43,7 @@ public class MapDifficulty {
     private Map map;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = "category_id")
     private Category category;
 
     @Column(nullable = false)
@@ -77,6 +77,9 @@ public class MapDifficulty {
 
     @Column(name = "created_by")
     private UUID createdBy;
+
+    @Column(name = "imported_by")
+    private Long importedBy;
 
     @Column(name = "last_updated_by")
     private UUID lastUpdatedBy;

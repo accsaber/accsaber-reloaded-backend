@@ -63,7 +63,7 @@ public class SubmitController {
             throw new TooManyRequestsException("Submitting too fast; wait 60s between scores");
         }
         SubmitScoreRequest request = toServiceRequest(body, principal.getUserId());
-        return ResponseEntity.ok(scoreService.submit(request));
+        return ResponseEntity.ok(scoreService.submitPlayer(request));
     }
 
     private void validateModifiers(List<String> codes) {

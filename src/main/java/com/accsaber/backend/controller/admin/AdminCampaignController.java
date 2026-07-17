@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +27,7 @@ import com.accsaber.backend.model.dto.request.campaign.CreateCampaignTagRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
+import com.accsaber.backend.model.dto.request.map.ImportCampaignMapRequest;
 import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
@@ -130,6 +132,14 @@ public class AdminCampaignController {
             @PathVariable UUID campaignDifficultyId,
             @Valid @RequestBody UpdateCampaignDifficultyRequest request) {
         return ResponseEntity.ok(campaignService.updateDifficulty(campaignDifficultyId, request));
+    }
+
+    @Operation(summary = "Point a campaign node at different leaderboard IDs")
+    @PutMapping("/difficulties/{campaignDifficultyId}/map")
+    public ResponseEntity<CampaignDifficultyResponse> updateDifficultyMap(
+            @PathVariable UUID campaignDifficultyId,
+            @Valid @RequestBody ImportCampaignMapRequest request) {
+        return ResponseEntity.ok(campaignService.updateDifficultyMap(campaignDifficultyId, request));
     }
 
     @Operation(summary = "Remove a difficulty from a campaign")

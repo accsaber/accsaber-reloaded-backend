@@ -2,7 +2,10 @@ package com.accsaber.backend.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
@@ -110,5 +113,48 @@ public final class CampaignScoreMetrics {
             sum = sum.add(v);
         }
         return sum.divide(BigDecimal.valueOf(values.size()), 6, RoundingMode.HALF_UP);
+    }
+
+    public static Instant effectiveTime(Score score) {
+        return score.getTimeSet() != null ? score.getTimeSet() : score.getCreatedAt();
+    }
+
+    public static UserMapDifficultyBests reduceBests(UUID mapDifficultyId, Integer maxScore,
+            Collection<Score> rows) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Integer bestScore = null;
+        Integer bestScoreNoMods = null;
+        BigDecimal bestAp = null;
+        Integer bestStreak115 = null;
+        Integer bestRank = null;
+        int fcFlag = 0;
+        for (Score s : rows) {
+            bestScore = maxOf(bestScore, s.getScore());
+            bestScoreNoMods = maxOf(bestScoreNoMods, s.getScoreNoMods());
+            if (s.getAp() != null && (bestAp == null || s.getAp().compareTo(bestAp) > 0)) {
+                bestAp = s.getAp();
+            }
+            bestStreak115 = maxOf(bestStreak115, s.getStreak115());
+            if (s.isActive() && s.getRank() != null && s.getRankWhenSet() != null) {
+                int rank = Math.min(s.getRank(), s.getRankWhenSet());
+                if (bestRank == null || rank < bestRank) {
+                    bestRank = rank;
+                }
+            }
+            if (isFullCombo(s)) {
+                fcFlag = 1;
+            }
+        }
+        return new UserMapDifficultyBests(mapDifficultyId, maxScore, bestScore, bestScoreNoMods,
+                bestAp, bestStreak115, bestRank, fcFlag);
+    }
+
+    private static Integer maxOf(Integer current, Integer candidate) {
+        if (candidate == null) {
+            return current;
+        }
+        return current == null || candidate > current ? candidate : current;
     }
 }

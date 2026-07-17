@@ -70,6 +70,7 @@ public class MapService {
     private final StaffUserRepository staffUserRepository;
     private final StaffMapVoteRepository voteRepository;
     private final ScoreIngestionService scoreIngestionService;
+    private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
     private final PlaylistService playlistService;
 
     record StaffInfo(String username, String avatarUrl) {
@@ -414,6 +415,10 @@ public class MapService {
                 throw new ConflictException(
                         "A difficulty with the same leaderboard IDs already exists for this map");
             }
+            if (previousVersion.getStatus() == MapDifficultyStatus.CAMPAIGN) {
+                throw new ConflictException(
+                        "A campaign-imported difficulty already exists for this map; promote it instead of importing a new one");
+            }
             if (previousVersion.getStatus() != MapDifficultyStatus.RANKED) {
                 previousVersion.setActive(false);
                 previousVersion.setLastUpdatedBy(staffId);
@@ -471,6 +476,13 @@ public class MapService {
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
 
         MapDifficultyStatus oldStatus = difficulty.getStatus();
+        if (request.getStatus() == MapDifficultyStatus.CAMPAIGN) {
+            throw new ValidationException("Campaign status can only be set through campaign map import");
+        }
+        if (oldStatus == MapDifficultyStatus.CAMPAIGN && difficulty.getCategory() == null) {
+            throw new ValidationException(
+                    "Assign a category before promoting a campaign-imported difficulty");
+        }
         if (request.getStatus() == MapDifficultyStatus.RANKED
                 && complexityService.findActiveComplexity(difficultyId).isEmpty()) {
             throw new ValidationException("Cannot rank a difficulty without an active complexity");
@@ -483,6 +495,9 @@ public class MapService {
         if (oldStatus != request.getStatus()
                 && (oldStatus == MapDifficultyStatus.RANKED || request.getStatus() == MapDifficultyStatus.RANKED)) {
             scoreIngestionService.refreshRankedLeaderboardIds();
+        }
+        if (oldStatus != request.getStatus()) {
+            campaignScoreGate.refresh();
         }
 
         BigDecimal complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
@@ -735,7 +750,7 @@ public class MapService {
                 .coverUrl(map.getCoverUrl())
                 .cdnCoverUrl(map.getCdnCoverUrl())
                 .beatsaverCode(map.getBeatsaverCode())
-                .categoryId(d.getCategory().getId())
+                .categoryId(d.getCategory() != null ? d.getCategory().getId() : null)
                 .difficulty(d.getDifficulty())
                 .characteristic(d.getCharacteristic())
                 .active(d.isActive())

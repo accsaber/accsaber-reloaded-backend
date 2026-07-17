@@ -114,8 +114,10 @@ public class OgService {
             title = map.getSongAuthor() + " - " + map.getSongName()
                     + " [" + diff.getDifficulty().getDbValue() + "] | " + SITE_NAME;
 
-            desc.append("\n").append(diff.getDifficulty().getDbValue())
-                    .append(" \u00b7 ").append(diff.getCategory().getName());
+            desc.append("\n").append(diff.getDifficulty().getDbValue());
+            if (diff.getCategory() != null) {
+                desc.append(" \u00b7 ").append(diff.getCategory().getName());
+            }
 
             complexityRepository.findByMapDifficultyIdAndActiveTrue(diff.getId())
                     .ifPresent(c -> desc.append("\nComplexity: ")

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.client.ScoreSaberClient;
 import com.accsaber.backend.config.PlatformProperties;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
@@ -49,6 +50,7 @@ public class ScoreIngestionService {
     private final MetricsService metricsService;
     private final DuplicateUserService duplicateUserService;
     private final ScoreSaberClient scoreSaberClient;
+    private final CampaignScoreGate campaignScoreGate;
 
     private final ConcurrentHashMap<String, ScheduledFuture<?>> pendingSsScores = new ConcurrentHashMap<>();
     private volatile Set<String> rankedBlIds = Set.of();
@@ -64,7 +66,8 @@ public class ScoreIngestionService {
             @Qualifier("ingestionScheduler") ScheduledExecutorService ingestionScheduler,
             MetricsService metricsService,
             DuplicateUserService duplicateUserService,
-            ScoreSaberClient scoreSaberClient) {
+            ScoreSaberClient scoreSaberClient,
+            CampaignScoreGate campaignScoreGate) {
         this.scoreService = scoreService;
         this.playerImportService = playerImportService;
         this.mapDifficultyRepository = mapDifficultyRepository;
@@ -75,6 +78,7 @@ public class ScoreIngestionService {
         this.metricsService = metricsService;
         this.duplicateUserService = duplicateUserService;
         this.scoreSaberClient = scoreSaberClient;
+        this.campaignScoreGate = campaignScoreGate;
     }
 
     @PostConstruct
@@ -83,7 +87,8 @@ public class ScoreIngestionService {
     }
 
     public void handleBeatLeaderScore(BeatLeaderScoreResponse blScore) {
-        if (!rankedBlIds.contains(blScore.getLeaderboardId())) {
+        boolean ranked = rankedBlIds.contains(blScore.getLeaderboardId());
+        if (!ranked && !campaignScoreGate.matchesBlLeaderboard(blScore.getLeaderboardId())) {
             return;
         }
 
@@ -100,14 +105,18 @@ public class ScoreIngestionService {
                 return;
             }
 
+            Long userId = duplicateUserService.resolvePrimaryUserId(
+                    Long.parseLong(blScore.getPlayer().getId()));
+            if (!ranked && !campaignScoreGate.isParticipant(userId)) {
+                return;
+            }
+
             Optional<MapDifficulty> diffOpt = mapDifficultyRepository
                     .findByBlLeaderboardId(blScore.getLeaderboardId());
             if (diffOpt.isEmpty())
                 return;
             MapDifficulty difficulty = diffOpt.get();
 
-            Long userId = duplicateUserService.resolvePrimaryUserId(
-                    Long.parseLong(blScore.getPlayer().getId()));
             String playKey = userId + "_" + difficulty.getId();
 
             ScheduledFuture<?> pending = pendingSsScores.remove(playKey);
@@ -116,21 +125,38 @@ public class ScoreIngestionService {
                 log.debug("Cancelled pending SS score for play key {}", playKey);
             }
 
-            playerImportService.ensurePlayerExists(userId);
             SubmitScoreRequest request = PlatformScoreMapper.fromBeatLeader(
                     blScore, difficulty.getId(), userId, modifierCacheService.getModifierCodeToId());
-            metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
-            metricsService.getBlScoresIngested().increment();
-            log.info("Ingested BL score for player {} on difficulty {}", userId, difficulty.getId());
+            if (ranked) {
+                playerImportService.ensurePlayerExists(userId);
+                metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
+                metricsService.getBlScoresIngested().increment();
+                log.info("Ingested BL score for player {} on difficulty {}", userId, difficulty.getId());
+            } else {
+                submitCampaignScoreQuietly(request, "BL", userId, difficulty.getId());
+            }
         } catch (Exception e) {
             log.error("Error handling BL score: {}", e.getMessage());
+        }
+    }
+
+    private void submitCampaignScoreQuietly(SubmitScoreRequest request, String platform, Long userId,
+            java.util.UUID difficultyId) {
+        try {
+            scoreService.submitCampaignScore(request);
+            log.info("Ingested {} campaign score for player {} on difficulty {}", platform, userId, difficultyId);
+        } catch (ValidationException e) {
+            log.debug("Dropped {} campaign score for player {} on difficulty {}: {}", platform, userId,
+                    difficultyId, e.getMessage());
         }
     }
 
     public void handleScoreSaberScore(ScoreSaberScoreResponse ssScore, ScoreSaberScoreStats scoreStats,
             Long userId, String ssLeaderboardId) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
-        if (!rankedSsIds.contains(ssLeaderboardId)) {
+        boolean ranked = rankedSsIds.contains(ssLeaderboardId);
+        if (!ranked && (!campaignScoreGate.matchesSsLeaderboard(ssLeaderboardId)
+                || !campaignScoreGate.isParticipant(resolvedUserId))) {
             return;
         }
 
@@ -152,14 +178,19 @@ public class ScoreIngestionService {
             ScheduledFuture<?> future = ingestionScheduler.schedule(() -> {
                 try {
                     pendingSsScores.remove(playKey);
-                    playerImportService.ensurePlayerExists(resolvedUserId);
                     ScoreSaberScoreStats effectiveStats = resolveScoreStats(ssScore, scoreStats);
                     SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(
                             ssScore, effectiveStats, difficulty.getId(), resolvedUserId,
                             modifierCacheService.getModifierCodeToId());
-                    metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
-                    metricsService.getSsScoresIngested().increment();
-                    log.info("Ingested SS score for player {} on difficulty {}", resolvedUserId, difficulty.getId());
+                    if (ranked) {
+                        playerImportService.ensurePlayerExists(resolvedUserId);
+                        metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
+                        metricsService.getSsScoresIngested().increment();
+                        log.info("Ingested SS score for player {} on difficulty {}", resolvedUserId,
+                                difficulty.getId());
+                    } else {
+                        submitCampaignScoreQuietly(request, "SS", resolvedUserId, difficulty.getId());
+                    }
                 } catch (Exception e) {
                     log.error("Error submitting delayed SS score: {}", e.getMessage());
                 }

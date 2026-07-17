@@ -57,13 +57,15 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                                 SELECT DISTINCT d.map.id FROM MapDifficulty d
                                 WHERE d.active = true
                                 AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                                AND (:status IS NULL OR d.status = :status)
+                                AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                                     OR d.status = :status)
                         )
                         """, countQuery = """
                         SELECT COUNT(DISTINCT d.map.id) FROM MapDifficulty d
                         WHERE d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                             OR d.status = :status)
                         """)
         Page<Map> findByDifficultyFilters(
                         @Param("categoryId") UUID categoryId,
@@ -80,7 +82,8 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                                 SELECT DISTINCT d.map.id FROM MapDifficulty d
                                 WHERE d.active = true
                                 AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                                AND (:status IS NULL OR d.status = :status)
+                                AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                                     OR d.status = :status)
                         )
                         """, countQuery = """
                         SELECT COUNT(DISTINCT d.map.id) FROM MapDifficulty d
@@ -88,7 +91,8 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         WHERE d.active = true
                         AND m.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (:status IS NULL OR d.status = :status)
+                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                             OR d.status = :status)
                         AND (LOWER(m.songName) LIKE LOWER(CONCAT('%', :search, '%'))
                              OR LOWER(m.songAuthor) LIKE LOWER(CONCAT('%', :search, '%'))
                              OR LOWER(m.mapAuthor) LIKE LOWER(CONCAT('%', :search, '%')))

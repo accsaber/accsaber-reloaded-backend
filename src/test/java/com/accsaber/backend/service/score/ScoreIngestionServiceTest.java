@@ -67,6 +67,8 @@ class ScoreIngestionServiceTest {
         private DuplicateUserService duplicateUserService;
         @Mock
         private ScoreSaberClient scoreSaberClient;
+        @Mock
+        private CampaignScoreGate campaignScoreGate;
 
         private MetricsService metricsService;
         private ScheduledExecutorService scheduler;
@@ -112,7 +114,7 @@ class ScoreIngestionServiceTest {
                                 scoreService, playerImportService, mapDifficultyRepository,
                                 scoreRepository, scoreImportService, modifierCacheService,
                                 properties, scheduler, metricsService, duplicateUserService,
-                                scoreSaberClient);
+                                scoreSaberClient, campaignScoreGate);
                 ingestionService.init();
         }
 

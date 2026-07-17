@@ -274,7 +274,7 @@ public class MapVotingService {
         boolean rankVote = type == MapVoteAction.RANK;
         boolean ranked = status == MapDifficultyStatus.RANKED;
 
-        if (rankVote && ranked) {
+        if (rankVote && status != MapDifficultyStatus.QUEUE && status != MapDifficultyStatus.QUALIFIED) {
             throw new ValidationException("RANK votes can only be cast on difficulties in QUEUE or QUALIFIED status");
         }
         if (!rankVote && !ranked) {

@@ -38,9 +38,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-    networks:
-      - accsaber-network
-
   backend:
     build:
       context: .
@@ -82,9 +79,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    networks:
-      - accsaber-network
-
   cdn:
     build:
       context: .
@@ -97,9 +91,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-    networks:
-      - accsaber-network
-
   criteria-checker:
     image: ghcr.io/tikugato/accsaber-criteria-script:latest
     pull_policy: always
@@ -110,9 +101,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
-    networks:
-      - accsaber-network
-
   prometheus:
     build:
       context: .
@@ -127,9 +115,6 @@ services:
       interval: 15s
       timeout: 10s
       retries: 3
-    networks:
-      - accsaber-network
-
   blackbox-exporter:
     build:
       context: .
@@ -140,9 +125,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    networks:
-      - accsaber-network
-
   grafana:
     build:
       context: .
@@ -162,15 +144,8 @@ services:
       interval: 15s
       timeout: 10s
       retries: 3
-    networks:
-      - accsaber-network
-
 volumes:
   postgres-data:
   prometheus-data:
   grafana-data:
   cdn-data:
-
-networks:
-  accsaber-network:
-    driver: bridge

@@ -52,6 +52,7 @@ public class BatchService {
     private final MapDifficultyStatisticsService statisticsService;
     private final ScoreImportService scoreImportService;
     private final ScoreIngestionService scoreIngestionService;
+    private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
     private final ScoreRecalculationService scoreRecalculationService;
     private final MapService mapService;
     private final PlaylistService playlistService;
@@ -158,6 +159,10 @@ public class BatchService {
         if (difficulty.getBatch() != null && !difficulty.getBatch().getId().equals(batchId)) {
             throw new ConflictException("Difficulty is already assigned to another batch");
         }
+        if (difficulty.getStatus() == MapDifficultyStatus.CAMPAIGN) {
+            throw new ValidationException(
+                    "Campaign-imported difficulties must be promoted to queue before batching");
+        }
 
         difficulty.setBatch(batch);
         mapDifficultyRepository.save(difficulty);
@@ -202,6 +207,7 @@ public class BatchService {
         });
         mapDifficultyRepository.saveAll(difficulties);
         scoreIngestionService.refreshRankedLeaderboardIds();
+        campaignScoreGate.refresh();
 
         batch.setStatus(BatchStatus.RELEASED);
         batch.setReleasedAt(releasedAt);

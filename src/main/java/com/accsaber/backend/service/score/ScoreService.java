@@ -198,6 +198,76 @@ public class ScoreService {
         }
 
         @Transactional
+        public ScoreResponse submitPlayer(SubmitScoreRequest request) {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(request.getMapDifficultyId())
+                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty",
+                                                request.getMapDifficultyId()));
+                if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
+                        return submit(request);
+                }
+                return submitCampaignScore(request);
+        }
+
+        @Transactional
+        public ScoreResponse submitCampaignScore(SubmitScoreRequest request) {
+                if (request.isPartial()) {
+                        throw new ValidationException("Partial attempts are not recorded for campaign maps");
+                }
+                acquireSubmitLock(request.getUserId(), request.getMapDifficultyId());
+                MapDifficulty difficulty = loadCampaignDifficulty(request.getMapDifficultyId());
+                validateScoreBounds(request, difficulty, true);
+                if (!campaignEvaluationService.isRecordable(request.getUserId(), difficulty.getId())) {
+                        throw new ValidationException(
+                                        "No in-progress campaign has this map difficulty unlocked");
+                }
+                User user = loadUserForBackfill(request.getUserId());
+
+                Instant since = Instant.now().minus(Duration.ofDays(1));
+                List<Score> matches = scoreRepository.findRecentCampaignAttempt(user.getId(), difficulty.getId(),
+                                request.getScoreNoMods(), since, PageRequest.of(0, 1));
+                if (!matches.isEmpty()) {
+                        Score existing = matches.get(0);
+                        if (ScorePayloadFields.mergeNullOnly(existing, request)) {
+                                scoreRepository.saveAndFlush(existing);
+                        }
+                        campaignEvaluationService.evaluateAfterScore(user.getId(), existing);
+                        return toResponse(existing,
+                                        computeAccuracy(existing.getScore(), difficulty.getMaxScore()),
+                                        loadModifierIds(existing.getId()));
+                }
+
+                List<Modifier> modifiers = resolveModifiers(request.getModifierIds());
+                Integer modifiedScore = applyModifierMultiplier(request.getScore(), modifiers);
+
+                Score attempt = buildScore(request, user, difficulty, modifiedScore, BigDecimal.ZERO, null);
+                attempt.setRank(0);
+                attempt.setRankWhenSet(0);
+                attempt.setActive(false);
+                attempt.setSupersedesReason("Campaign attempt");
+                attempt.setXpGained(BigDecimal.ZERO);
+                Score saved = scoreRepository.saveAndFlush(attempt);
+                saveModifierLinks(saved, modifiers);
+
+                campaignEvaluationService.evaluateAfterScore(user.getId(), saved);
+
+                return toResponse(saved,
+                                computeAccuracy(saved.getScore(), difficulty.getMaxScore()),
+                                loadModifierIds(saved.getId()));
+        }
+
+        private MapDifficulty loadCampaignDifficulty(UUID id) {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(id)
+                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", id));
+                if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
+                        throw new ValidationException("Ranked difficulties use the standard submission path");
+                }
+                if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
+                        throw new ValidationException("Map difficulty has no valid max score configured");
+                }
+                return difficulty;
+        }
+
+        @Transactional
         public void submitForBackfill(SubmitScoreRequest request) {
                 MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
                 BigDecimal complexity = mapComplexityService.findActiveComplexity(difficulty.getId())
@@ -338,6 +408,9 @@ public class ScoreService {
                                 .active(true)
                                 .build();
                 ScorePayloadFields.copyAll(score, recalculated);
+                if (recalculated.getTimeSet() == null) {
+                        recalculated.setTimeSet(score.getCreatedAt());
+                }
 
                 scoreRepository.saveAndFlush(recalculated);
                 copyModifierLinks(score, recalculated);
@@ -401,6 +474,9 @@ public class ScoreService {
                                 .active(true)
                                 .build();
                 ScorePayloadFields.copyAll(score, recalculated);
+                if (recalculated.getTimeSet() == null) {
+                        recalculated.setTimeSet(score.getCreatedAt());
+                }
 
                 scoreRepository.saveAndFlush(recalculated);
                 copyModifierLinks(score, recalculated);
@@ -937,7 +1013,7 @@ public class ScoreService {
                                 .cdnCoverUrl(map.getCdnCoverUrl())
                                 .difficulty(diff.getDifficulty())
                                 .characteristic(diff.getCharacteristic())
-                                .categoryId(diff.getCategory().getId())
+                                .categoryId(diff.getCategory() != null ? diff.getCategory().getId() : null)
                                 .score(s.getScore())
                                 .scoreNoMods(s.getScoreNoMods())
                                 .accuracy(accuracy)

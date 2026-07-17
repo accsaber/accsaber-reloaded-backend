@@ -57,4 +57,24 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
                         WHERE cd.campaign.id IN :campaignIds AND cd.active = true
                         """)
         List<CampaignDifficulty> findActiveWithMapByCampaignIds(@Param("campaignIds") Collection<UUID> campaignIds);
+
+        boolean existsByIdInAndMapDifficulty_StatusAndActiveTrue(Collection<UUID> ids,
+                        com.accsaber.backend.model.entity.map.MapDifficultyStatus status);
+
+        boolean existsByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId);
+
+        @Query("""
+                        SELECT DISTINCT md.blLeaderboardId, md.ssLeaderboardId FROM CampaignDifficulty cd
+                        JOIN cd.mapDifficulty md
+                        WHERE cd.active = true AND cd.barrier = false
+                          AND md.active = true
+                          AND md.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
+                          AND cd.campaign.active = true
+                          AND cd.campaign.status <> com.accsaber.backend.model.entity.campaign.CampaignStatus.DRAFT
+                          AND EXISTS (
+                                SELECT 1 FROM UserCampaign uc
+                                WHERE uc.campaign = cd.campaign AND uc.active = true
+                                  AND uc.status = com.accsaber.backend.model.entity.campaign.UserCampaignStatus.IN_PROGRESS)
+                        """)
+        List<Object[]> findCampaignIngestLeaderboardIds();
 }

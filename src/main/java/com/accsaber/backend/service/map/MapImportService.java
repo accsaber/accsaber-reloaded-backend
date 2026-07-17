@@ -2,6 +2,7 @@ package com.accsaber.backend.service.map;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
+import com.accsaber.backend.model.dto.request.map.ImportCampaignMapRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
 import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
@@ -165,13 +167,166 @@ public class MapImportService {
         return response;
     }
 
+    private static final int MAX_CAMPAIGN_IMPORTS_PER_PLAYER = 100;
+
+    @Transactional
+    public MapDifficultyResponse importCampaignMap(Long playerId, ImportCampaignMapRequest importRequest) {
+        return mapService.getDifficultyResponse(resolveCampaignMap(playerId, importRequest, null).getId());
+    }
+
+    @Transactional
+    public MapDifficulty resolveCampaignMap(Long playerId, ImportCampaignMapRequest importRequest,
+            UUID previousVersionId) {
+        String blId = importRequest.getBlLeaderboardId().trim();
+        String ssId = importRequest.getSsLeaderboardId() != null && !importRequest.getSsLeaderboardId().isBlank()
+                ? importRequest.getSsLeaderboardId().trim()
+                : null;
+
+        Optional<MapDifficulty> existingByBl = mapDifficultyRepository.findByBlLeaderboardId(blId);
+        if (existingByBl.isPresent()) {
+            MapDifficulty existing = existingByBl.get();
+            if (existing.isActive()) {
+                return existing;
+            }
+            if (existing.getStatus() != MapDifficultyStatus.CAMPAIGN
+                    || mapDifficultyRepository.findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
+                            existing.getMap().getId(), existing.getDifficulty(),
+                            existing.getCharacteristic()).isPresent()) {
+                throw new ConflictException(
+                        "This leaderboard belongs to a difficulty that was removed from the system");
+            }
+            existing.setActive(true);
+            if (existing.getImportedBy() == null) {
+                existing.setImportedBy(playerId);
+            }
+            return mapDifficultyRepository.save(existing);
+        }
+        if (ssId != null && mapDifficultyRepository.findBySsLeaderboardId(ssId).isPresent()) {
+            throw new ConflictException(
+                    "ScoreSaber leaderboard ID '" + ssId + "' is already used by another difficulty");
+        }
+
+        if (playerId != null && mapDifficultyRepository.countByImportedByAndStatusAndActiveTrue(playerId,
+                MapDifficultyStatus.CAMPAIGN) >= MAX_CAMPAIGN_IMPORTS_PER_PLAYER) {
+            throw new ValidationException("You have reached the maximum of "
+                    + MAX_CAMPAIGN_IMPORTS_PER_PLAYER + " imported campaign maps");
+        }
+
+        BeatLeaderLeaderboardResponse blLeaderboard = beatLeaderClient.getLeaderboard(blId)
+                .orElseThrow(() -> new ValidationException(
+                        "BeatLeader leaderboard not found for ID: " + blId));
+        if (blLeaderboard.getSong() == null || blLeaderboard.getSong().getHash() == null
+                || blLeaderboard.getDifficulty() == null) {
+            throw new ValidationException("BeatLeader leaderboard is missing song or difficulty data");
+        }
+        Integer maxScore = blLeaderboard.getDifficulty().getMaxScore();
+        if (maxScore == null || maxScore <= 0) {
+            throw new ValidationException("BeatLeader leaderboard has no valid max score");
+        }
+        Difficulty difficulty = parseDifficulty(blLeaderboard.getDifficulty().getDifficultyName());
+        String characteristic = blLeaderboard.getDifficulty().getModeName();
+        if (characteristic == null || characteristic.isBlank()) {
+            throw new ValidationException("BeatLeader leaderboard has no characteristic");
+        }
+
+        String songHash = blLeaderboard.getSong().getHash();
+        String songName = blLeaderboard.getSong().getName();
+        String songSubName = blLeaderboard.getSong().getSubName();
+        String songAuthor = blLeaderboard.getSong().getAuthor();
+        String mapAuthor = blLeaderboard.getSong().getMapper();
+        String beatsaverCode = null;
+        String coverUrl = null;
+
+        BeatSaverMapResponse beatSaverMap = beatSaverClient.getMapByHash(songHash).orElse(null);
+        if (beatSaverMap != null) {
+            beatsaverCode = beatSaverMap.getId();
+            if (beatSaverMap.getMetadata() != null) {
+                if (beatSaverMap.getMetadata().getSongName() != null) {
+                    songName = beatSaverMap.getMetadata().getSongName();
+                }
+                if (beatSaverMap.getMetadata().getSongSubName() != null) {
+                    songSubName = beatSaverMap.getMetadata().getSongSubName();
+                }
+                if (beatSaverMap.getMetadata().getSongAuthorName() != null) {
+                    songAuthor = beatSaverMap.getMetadata().getSongAuthorName();
+                }
+                if (beatSaverMap.getMetadata().getLevelAuthorName() != null) {
+                    mapAuthor = beatSaverMap.getMetadata().getLevelAuthorName();
+                }
+            }
+            if (beatSaverMap.getVersions() != null && !beatSaverMap.getVersions().isEmpty()) {
+                coverUrl = beatSaverMap.getVersions().get(0).getCoverURL();
+            }
+        }
+
+        final String finalSongName = songName;
+        final String finalSongSubName = songSubName;
+        final String finalSongAuthor = songAuthor;
+        final String finalMapAuthor = mapAuthor;
+        final String finalBeatsaverCode = beatsaverCode;
+        final String finalCoverUrl = coverUrl;
+        Map map = mapRepository.findBySongHashAndActiveTrue(songHash)
+                .orElseGet(() -> mapRepository.save(Map.builder()
+                        .songName(finalSongName)
+                        .songSubName(finalSongSubName)
+                        .songAuthor(finalSongAuthor)
+                        .songHash(songHash)
+                        .mapAuthor(finalMapAuthor)
+                        .beatsaverCode(finalBeatsaverCode)
+                        .coverUrl(finalCoverUrl)
+                        .active(true)
+                        .build()));
+
+        Optional<MapDifficulty> samePosition = mapDifficultyRepository
+                .findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(map.getId(), difficulty, characteristic);
+        if (samePosition.isPresent()) {
+            return samePosition.get();
+        }
+
+        MapDifficulty previousVersion = previousVersionId != null
+                ? mapDifficultyRepository.findById(previousVersionId).orElse(null)
+                : null;
+
+        MapDifficulty created = mapDifficultyRepository.save(MapDifficulty.builder()
+                .map(map)
+                .difficulty(difficulty)
+                .characteristic(characteristic)
+                .ssLeaderboardId(ssId)
+                .blLeaderboardId(blId)
+                .maxScore(maxScore)
+                .status(MapDifficultyStatus.CAMPAIGN)
+                .importedBy(playerId)
+                .previousVersion(previousVersion)
+                .active(true)
+                .build());
+
+        log.info("Player {} imported campaign map difficulty: {} ({}) - BL:{} SS:{}", playerId, songName,
+                difficulty, blId, ssId);
+
+        scheduleMapCoverMirror(map.getId());
+
+        return created;
+    }
+
+    private Difficulty parseDifficulty(String difficultyName) {
+        if (difficultyName == null) {
+            throw new ValidationException("BeatLeader leaderboard has no difficulty name");
+        }
+        try {
+            return Difficulty.fromDbValue(difficultyName);
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("Unsupported difficulty: " + difficultyName);
+        }
+    }
+
     @Transactional
     public MapDifficultyResponse refreshMapDifficulty(UUID difficultyId, RefreshMapDifficultyRequest request,
             UUID staffId) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
 
-        if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
+        if (difficulty.getStatus() != MapDifficultyStatus.QUEUE
+                && difficulty.getStatus() != MapDifficultyStatus.QUALIFIED) {
             throw new ValidationException(
                     "Refresh is only allowed on QUEUE or QUALIFIED difficulties");
         }

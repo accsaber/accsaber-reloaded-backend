@@ -3,7 +3,8 @@ package com.accsaber.backend.model.entity.map;
 public enum MapDifficultyStatus {
     QUEUE("queue"),
     QUALIFIED("qualified"),
-    RANKED("ranked");
+    RANKED("ranked"),
+    CAMPAIGN("campaign");
 
     private final String dbValue;
 

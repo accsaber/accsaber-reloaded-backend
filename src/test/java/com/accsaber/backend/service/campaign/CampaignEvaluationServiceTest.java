@@ -28,7 +28,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.campaign.BarrierConditionType;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignBarrierAffectedDifficulty;
@@ -59,6 +58,10 @@ import com.accsaber.backend.service.mission.MissionProgressService;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignEvaluationServiceTest {
+
+        private static final Instant STARTED = Instant.ofEpochSecond(1_000);
+        private static final Instant EARLIER_PLAY = Instant.ofEpochSecond(1_500);
+        private static final Instant PLAYED = Instant.ofEpochSecond(2_000);
 
         @Mock
         private UserCampaignRepository userCampaignRepository;
@@ -166,9 +169,19 @@ class CampaignEvaluationServiceTest {
                 return CampaignBarrierAffectedDifficulty.builder().barrier(barrier).affectedDifficulty(node).build();
         }
 
-        private UserMapDifficultyBests bests(MapDifficulty md, int bestScoreNoMods) {
-                return new UserMapDifficultyBests(md.getId(), md.getMaxScore(), bestScoreNoMods, bestScoreNoMods,
-                                null, null, null, 0);
+        private UserCampaign inProgressCampaign() {
+                return UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
+                                .status(UserCampaignStatus.IN_PROGRESS).startedAt(STARTED).build();
+        }
+
+        private Score row(MapDifficulty md, int scoreNoMods, Instant timeSet) {
+                return Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(md)
+                                .score(scoreNoMods).scoreNoMods(scoreNoMods).timeSet(timeSet).build();
+        }
+
+        private void stubEmptyProgress() {
+                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
+                                List.of(campaign.getId()))).thenReturn(List.of());
         }
 
         @Test
@@ -183,10 +196,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.90"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -197,14 +208,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -232,10 +242,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.90"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -246,14 +254,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar), edge(c, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a), affected(bar, c)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -306,10 +313,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.COMPLETION_COUNT)
                                 .barrierConditionValue(target)
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -320,14 +325,12 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(progress(c)));
+                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
+                                List.of(campaign.getId()))).thenReturn(List.of(progress(c)));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a), affected(bar, c), affected(bar, d)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
 
                 service.evaluateAfterScore(user.getId(), score);
                 return bar;
@@ -350,10 +353,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.90"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.AND).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -364,14 +365,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar), edge(c, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a), affected(bar, c)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -397,10 +397,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.85"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -411,14 +409,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, b), edge(b, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a), affected(bar, b)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -445,10 +442,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.90"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -459,14 +454,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, gate1), edge(gate1, gate2)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(gate1, a), affected(gate2, a)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -485,10 +479,8 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.ACC);
                 a.setRequirementValue(new BigDecimal("0.80"));
                 a.setXp(new BigDecimal("250"));
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -499,8 +491,7 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrueAndRewardsPaidFalse(
@@ -524,10 +515,8 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionType(BarrierConditionType.AVERAGE_ACC)
                                 .barrierConditionValue(new BigDecimal("0.99"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
-                Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(950000).scoreNoMods(950000).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                Score score = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -538,14 +527,13 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(row(mdA, 950000, PLAYED)));
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -563,9 +551,8 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.RANK);
                 a.setRequirementValue(new BigDecimal("100"));
                 Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(900000).scoreNoMods(900000).rank(50).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                                .score(900000).scoreNoMods(900000).rank(50).timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -576,8 +563,7 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
 
@@ -597,9 +583,8 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.RANK);
                 a.setRequirementValue(new BigDecimal("100"));
                 Score score = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(900000).scoreNoMods(900000).rank(200).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                                .score(900000).scoreNoMods(900000).rank(200).timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -610,8 +595,7 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
 
                 service.evaluateAfterScore(user.getId(), score);
 
@@ -626,11 +610,12 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.ACC);
                 a.setRequirementValue(new BigDecimal("0.80"));
                 Score oldScore = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0")).build();
+                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0"))
+                                .timeSet(EARLIER_PLAY).build();
                 Score betterScore = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(960000).scoreNoMods(960000).ap(new BigDecimal("8.0")).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                                .score(960000).scoreNoMods(960000).ap(new BigDecimal("8.0"))
+                                .timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
                 UserCampaignScore existing = UserCampaignScore.builder().id(UUID.randomUUID())
                                 .user(user).campaign(campaign).campaignDifficulty(a).score(oldScore).active(true)
                                 .build();
@@ -644,8 +629,8 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(existing));
+                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
+                                List.of(campaign.getId()))).thenReturn(List.of(existing));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(user.getId(),
                                 a.getId())).thenReturn(Optional.of(existing));
 
@@ -663,11 +648,12 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.ACC);
                 a.setRequirementValue(new BigDecimal("0.80"));
                 Score goodScore = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(980000).scoreNoMods(980000).ap(new BigDecimal("8.0")).build();
+                                .score(980000).scoreNoMods(980000).ap(new BigDecimal("8.0"))
+                                .timeSet(EARLIER_PLAY).build();
                 Score worseScore = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0")).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0"))
+                                .timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
                 UserCampaignScore existing = UserCampaignScore.builder().id(UUID.randomUUID())
                                 .user(user).campaign(campaign).campaignDifficulty(a).score(goodScore).active(true)
                                 .build();
@@ -681,8 +667,8 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(existing));
+                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
+                                List.of(campaign.getId()))).thenReturn(List.of(existing));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(user.getId(),
                                 a.getId())).thenReturn(Optional.of(existing));
 
@@ -705,11 +691,12 @@ class CampaignEvaluationServiceTest {
                                 .barrierConditionValue(new BigDecimal("0.95"))
                                 .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
                 Score mediocre = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0")).build();
+                                .score(850000).scoreNoMods(850000).ap(new BigDecimal("5.0"))
+                                .timeSet(EARLIER_PLAY).build();
                 Score improved = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
-                                .score(960000).scoreNoMods(960000).ap(new BigDecimal("8.0")).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS).build();
+                                .score(960000).scoreNoMods(960000).ap(new BigDecimal("8.0"))
+                                .timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
                 UserCampaignScore existing = UserCampaignScore.builder().id(UUID.randomUUID())
                                 .user(user).campaign(campaign).campaignDifficulty(a).score(mediocre).active(true)
                                 .build();
@@ -723,16 +710,16 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(edge(a, bar)));
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of(existing));
+                when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
+                                List.of(campaign.getId()))).thenReturn(List.of(existing));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(user.getId(),
                                 a.getId())).thenReturn(Optional.of(existing));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(user.getId(),
                                 bar.getId())).thenReturn(Optional.empty());
                 when(barrierAffectedRepository.findByBarrier_IdIn(anyList()))
                                 .thenReturn(List.of(affected(bar, a)));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 960000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(improved));
 
                 service.evaluateAfterScore(user.getId(), improved);
 
@@ -753,26 +740,21 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementValue(new BigDecimal("0.80"));
                 Score active = Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(mdA)
                                 .score(950000).scoreNoMods(950000).ap(new BigDecimal("8.0"))
-                                .timeSet(Instant.ofEpochSecond(2000)).build();
-                UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(UserCampaignStatus.IN_PROGRESS)
-                                .startedAt(Instant.ofEpochSecond(1000)).build();
+                                .timeSet(PLAYED).build();
+                UserCampaign uc = inProgressCampaign();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
                 when(campaignDifficultyRepository.findActiveWithMapByCampaignId(campaign.getId()))
                                 .thenReturn(List.of(a));
-                when(scoreRepository.findByUser_IdAndMapDifficulty_IdInAndActiveTrue(user.getId(),
-                                List.of(mdA.getId()))).thenReturn(List.of(active));
-                when(scoreRepository.findBestsByUserAndMapDifficulties(eq(user.getId()), any(), any()))
-                                .thenReturn(List.of(bests(mdA, 950000)));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(active));
                 when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of(a));
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(user.getId(),
                                 a.getId())).thenReturn(Optional.empty());
 
@@ -785,6 +767,45 @@ class CampaignEvaluationServiceTest {
                                                 && u.getScore() == active);
         }
 
+        @Test
+        void settleIgnoresScoresSetBeforeNodeUnlock() {
+                campaign.setStatus(CampaignStatus.PUBLISHED);
+                MapDifficulty mdA = mapDifficulty(1_000_000);
+                MapDifficulty mdB = mapDifficulty(1_000_000);
+                a.setMapDifficulty(mdA);
+                a.setRequirementType(CampaignRequirementType.ACC);
+                a.setRequirementValue(new BigDecimal("0.80"));
+                b.setMapDifficulty(mdB);
+                b.setRequirementType(CampaignRequirementType.ACC);
+                b.setRequirementValue(new BigDecimal("0.80"));
+                Score playedBeforeUnlock = row(mdB, 990000, EARLIER_PLAY);
+                Score unlockingScore = row(mdA, 950000, PLAYED);
+                UserCampaign uc = inProgressCampaign();
+
+                when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
+                                UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
+                when(campaignDifficultyRepository.findActiveWithMapByCampaignId(campaign.getId()))
+                                .thenReturn(List.of(a, b));
+                when(scoreRepository.findEligibleCampaignRows(eq(user.getId()), any(), any()))
+                                .thenReturn(List.of(playedBeforeUnlock, unlockingScore));
+                when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of(a, b));
+                when(campaignDifficultyPathRepository
+                                .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
+                                .thenReturn(List.of(edge(a, b)));
+                stubEmptyProgress();
+                when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
+                                .thenReturn(Optional.empty());
+
+                service.evaluateInProgressForUser(user.getId());
+
+                ArgumentCaptor<UserCampaignScore> captor = ArgumentCaptor.forClass(UserCampaignScore.class);
+                verify(userCampaignScoreRepository, atLeastOnce()).save(captor.capture());
+                assertThat(captor.getAllValues())
+                                .anyMatch(u -> u.getCampaignDifficulty().getId().equals(a.getId()))
+                                .noneMatch(u -> u.getCampaignDifficulty().getId().equals(b.getId()));
+        }
+
         private UserCampaign singleNodeCompletingFixture(UserCampaignStatus initialStatus) {
                 campaign.setStatus(CampaignStatus.PUBLISHED);
                 MapDifficulty mdA = mapDifficulty(1_000_000);
@@ -792,7 +813,7 @@ class CampaignEvaluationServiceTest {
                 a.setRequirementType(CampaignRequirementType.RANK);
                 a.setRequirementValue(new BigDecimal("100"));
                 UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID()).user(user).campaign(campaign)
-                                .status(initialStatus).completionRewardsPaid(false).build();
+                                .status(initialStatus).completionRewardsPaid(false).startedAt(STARTED).build();
 
                 when(userCampaignRepository.findByUser_IdAndStatusAndActiveTrue(user.getId(),
                                 UserCampaignStatus.IN_PROGRESS)).thenReturn(List.of(uc));
@@ -803,8 +824,7 @@ class CampaignEvaluationServiceTest {
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
                                 .thenReturn(List.of());
-                when(userCampaignScoreRepository.findByUser_IdAndCampaign_IdAndActiveTrue(user.getId(),
-                                campaign.getId())).thenReturn(List.of());
+                stubEmptyProgress();
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))
                                 .thenReturn(Optional.empty());
                 return uc;
@@ -812,7 +832,7 @@ class CampaignEvaluationServiceTest {
 
         private Score rankQualifyingScore() {
                 return Score.builder().id(UUID.randomUUID()).user(user).mapDifficulty(a.getMapDifficulty())
-                                .score(900000).scoreNoMods(900000).rank(50).build();
+                                .score(900000).scoreNoMods(900000).rank(50).timeSet(PLAYED).build();
         }
 
         @Test

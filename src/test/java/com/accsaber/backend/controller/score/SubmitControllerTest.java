@@ -88,13 +88,13 @@ class SubmitControllerTest {
         assertThatThrownBy(() -> controller.submit(r, principal))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Banned modifier");
-        verify(scoreService, never()).submit(any());
+        verify(scoreService, never()).submitPlayer(any());
     }
 
     @Test
     void rejectsDuplicateNonce() {
         PluginSubmitRequest r = baseRequest();
-        when(scoreService.submit(any())).thenReturn(ScoreResponse.builder().build());
+        when(scoreService.submitPlayer(any())).thenReturn(ScoreResponse.builder().build());
 
         controller.submit(r, principal);
 
@@ -105,7 +105,7 @@ class SubmitControllerTest {
 
     @Test
     void rejectsSecondSubmissionWithinRateLimitWindow() {
-        when(scoreService.submit(any())).thenReturn(ScoreResponse.builder().build());
+        when(scoreService.submitPlayer(any())).thenReturn(ScoreResponse.builder().build());
 
         controller.submit(baseRequest(), principal);
 
@@ -118,7 +118,7 @@ class SubmitControllerTest {
     @Test
     void acceptsHappyPath_passesUserIdFromPrincipal() {
         PluginSubmitRequest r = baseRequest();
-        when(scoreService.submit(any())).thenAnswer(inv -> {
+        when(scoreService.submitPlayer(any())).thenAnswer(inv -> {
             var req = (com.accsaber.backend.model.dto.request.score.SubmitScoreRequest) inv.getArgument(0);
             assertThat(req.getUserId()).isEqualTo(USER_ID);
             return ScoreResponse.builder().build();

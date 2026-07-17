@@ -69,6 +69,8 @@ class MapServiceTest {
 
         @Mock
         private ScoreIngestionService scoreIngestionService;
+        @Mock
+        private com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
 
         @Mock
         private PlaylistService playlistService;
