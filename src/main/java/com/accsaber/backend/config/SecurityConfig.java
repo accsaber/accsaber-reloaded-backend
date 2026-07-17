@@ -1,10 +1,12 @@
 package com.accsaber.backend.config;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.accsaber.backend.security.BannedUserWriteFilter;
 import com.accsaber.backend.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -42,15 +44,18 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${accsaber.domains}") List<String> domains) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "https://accsaberreloaded.com",
-                "https://www.accsaberreloaded.com",
-                "https://*.accsaberreloaded.com",
-                "http://localhost:*",
-                "http://*.localhost:*",
-                "http://127.0.0.1:*"));
+        List<String> patterns = new ArrayList<>();
+        for (String domain : domains) {
+            patterns.add("https://" + domain);
+            patterns.add("https://*." + domain);
+        }
+        patterns.add("http://localhost:*");
+        patterns.add("http://*.localhost:*");
+        patterns.add("http://127.0.0.1:*");
+        config.setAllowedOriginPatterns(patterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("X-Correlation-Id", "X-Rate-Limit-Remaining"));

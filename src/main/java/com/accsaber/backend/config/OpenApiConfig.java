@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,10 +16,10 @@ import java.util.List;
 public class OpenApiConfig {
 
         @Bean
-        public OpenAPI openAPI() {
+        public OpenAPI openAPI(@Value("${accsaber.domains}") List<String> domains) {
                 String baseUrl = System.getenv("SPRING_PROFILES_ACTIVE") != null &&
                                 System.getenv("SPRING_PROFILES_ACTIVE").equalsIgnoreCase("prod")
-                                                ? "https://accsaberreloaded.com"
+                                                ? "https://" + domains.get(0)
                                                 : "https://localhost:8080";
 
                 return new OpenAPI()

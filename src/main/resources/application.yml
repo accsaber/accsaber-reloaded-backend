@@ -74,6 +74,7 @@ springdoc:
     path: /v1/api-docs
 
 accsaber:
+  domains: ${ACCSABER_DOMAINS:accsaber.com,accsaberreloaded.com}
   missions:
     enabled: true
   voting:

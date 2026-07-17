@@ -41,12 +41,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "ranking", List.of(StaffRole.RANKING_HEAD, StaffRole.RANKING),
             "creatives", List.of(StaffRole.CREATIVE));
 
+    private static volatile List<String> accsaberDomains = List.of("accsaber.com", "accsaberreloaded.com");
+
     private final JwtService jwtService;
     private final StaffUserRepository staffUserRepository;
     private final UserRepository userRepository;
 
     @Value("${accsaber.service.api-key}")
     private String serviceApiKey;
+
+    @Value("${accsaber.domains}")
+    void setAccsaberDomains(List<String> domains) {
+        accsaberDomains = domains.stream().map(d -> d.toLowerCase(Locale.ROOT)).toList();
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -155,8 +162,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private static boolean isAccsaberHost(String host) {
-        return host.equals("accsaberreloaded.com") || host.endsWith(".accsaberreloaded.com")
-                || host.equals("localhost") || host.endsWith(".localhost");
+        if (host.equals("localhost") || host.endsWith(".localhost")) {
+            return true;
+        }
+        for (String domain : accsaberDomains) {
+            if (host.equals(domain) || host.endsWith("." + domain)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static class ServiceAuthentication extends AbstractAuthenticationToken {

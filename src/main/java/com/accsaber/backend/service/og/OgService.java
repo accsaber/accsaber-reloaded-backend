@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,8 +36,14 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class OgService {
 
-    private static final String BASE_URL = "https://accsaberreloaded.com";
     private static final String SITE_NAME = "AccSaber Reloaded";
+
+    @Value("${accsaber.domains}")
+    private List<String> domains;
+
+    private String baseUrl() {
+        return "https://" + domains.get(0);
+    }
 
     private final UserRepository userRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
@@ -51,10 +58,10 @@ public class OgService {
     public String buildPlayerOg(Long userId) {
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) {
-            return buildDefaultHtml(BASE_URL + "/players/" + userId);
+            return buildDefaultHtml(baseUrl() + "/players/" + userId);
         }
 
-        String url = BASE_URL + "/players/" + userId;
+        String url = baseUrl() + "/players/" + userId;
         String image = user.getAvatarUrl();
         String title = user.getName() + " | " + SITE_NAME;
         String description = user.getName();
@@ -98,11 +105,11 @@ public class OgService {
             Difficulty difficulty, String characteristic) {
         Map map = resolveMap(mapIdOrCode);
         if (map == null) {
-            return buildDefaultHtml(BASE_URL + "/maps/" + mapIdOrCode);
+            return buildDefaultHtml(baseUrl() + "/maps/" + mapIdOrCode);
         }
 
         String canonical = map.getBeatsaverCode() != null ? map.getBeatsaverCode() : map.getId().toString();
-        String url = BASE_URL + "/maps/" + canonical;
+        String url = baseUrl() + "/maps/" + canonical;
         String image = map.getCdnCoverUrl() != null ? map.getCdnCoverUrl() : map.getCoverUrl();
 
         MapDifficulty diff = resolveDifficulty(map, legacyDifficultyId, difficulty, characteristic);
@@ -140,10 +147,10 @@ public class OgService {
     public String buildCampaignOg(String campaignIdOrSlug) {
         Campaign campaign = resolveCampaign(campaignIdOrSlug);
         if (campaign == null || campaign.getStatus() == CampaignStatus.DRAFT) {
-            return buildDefaultHtml(BASE_URL + "/campaigns/" + campaignIdOrSlug);
+            return buildDefaultHtml(baseUrl() + "/campaigns/" + campaignIdOrSlug);
         }
 
-        String url = BASE_URL + "/campaigns/" + campaign.getSlug();
+        String url = baseUrl() + "/campaigns/" + campaign.getSlug();
         String image = campaign.getIconUrl() != null ? campaign.getIconUrl() : campaign.getBackgroundUrl();
         String title = campaign.getName() + " | " + SITE_NAME;
 
