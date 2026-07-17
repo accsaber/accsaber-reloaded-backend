@@ -41,6 +41,7 @@ public class CampaignResponse {
     private double voteScore;
     private CampaignVoteDirection myVote;
     private List<CampaignTagResponse> tags;
+    private List<CampaignItemAwardResponse> completionItems;
     private Instant submittedAt;
     private Instant curatedAt;
     private Instant publishedAt;

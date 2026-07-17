@@ -172,16 +172,18 @@ public class CampaignService {
 
     private Page<CampaignResponse> paginateAsResponses(Page<Campaign> page, Long resolvedViewerId) {
         if (!page.hasContent()) {
-            return page.map(c -> toCampaignResponse(c, List.of(), 0));
+            return page.map(c -> toCampaignResponse(c, List.of(), 0, List.of()));
         }
         List<UUID> ids = page.getContent().stream().map(Campaign::getId).distinct().toList();
         Map<UUID, List<CampaignTagResponse>> tagsByCampaign = loadTagsByCampaignIds(ids);
         Map<UUID, Integer> diffCountByCampaign = countMap(campaignDifficultyRepository.countActiveByCampaignIds(ids));
         Map<UUID, CampaignVoteDirection> votesByCampaign = loadViewerVotes(resolvedViewerId, ids);
+        Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign = loadCompletionItemsBulk(ids);
         return page.map(c -> toCampaignResponse(c,
                 tagsByCampaign.getOrDefault(c.getId(), List.of()),
                 diffCountByCampaign.getOrDefault(c.getId(), 0),
-                votesByCampaign.get(c.getId())));
+                votesByCampaign.get(c.getId()),
+                completionItemsByCampaign.getOrDefault(c.getId(), List.of())));
     }
 
     private Map<UUID, CampaignVoteDirection> loadViewerVotes(Long resolvedViewerId, Collection<UUID> campaignIds) {
@@ -1000,11 +1002,13 @@ public class CampaignService {
                 campaignIds.isEmpty()
                         ? List.<Object[]>of()
                         : userCampaignScoreRepository.countActiveByUserAndCampaignIds(resolvedUserId, campaignIds));
+        Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign = loadCompletionItemsBulk(campaignIds);
         return page.map(uc -> {
             UUID cid = uc.getCampaign().getId();
             CampaignResponse campaign = toCampaignResponse(uc.getCampaign(),
                     tagsByCampaign.getOrDefault(cid, List.of()),
-                    totalByCampaign.getOrDefault(cid, 0));
+                    totalByCampaign.getOrDefault(cid, 0),
+                    completionItemsByCampaign.getOrDefault(cid, List.of()));
             return toUserCampaignResponse(uc, campaign, completedByCampaign.getOrDefault(cid, 0));
         });
     }
@@ -1093,6 +1097,7 @@ public class CampaignService {
         }
 
         Map<UUID, List<CampaignTagResponse>> tagsByCampaign = loadTagsByCampaignIds(campaignIds);
+        Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign = loadCompletionItemsBulk(campaignIds);
 
         List<UUID> barrierIds = barriers.stream().map(CampaignDifficulty::getId).toList();
         Map<UUID, List<UUID>> affectedByBarrier = barrierIds.isEmpty()
@@ -1109,7 +1114,7 @@ public class CampaignService {
 
         return new ProgressContext(difficultiesByCampaign, barriersByCampaign, prereqsByDifficulty,
                 campaignScoreByDifficulty, userCampaignByCampaign, completedByCampaign, completionTimesByCampaign,
-                tagsByCampaign, affectedByBarrier, itemsByNode, complexityByMapDifficulty);
+                tagsByCampaign, completionItemsByCampaign, affectedByBarrier, itemsByNode, complexityByMapDifficulty);
     }
 
     private CampaignProgressResponse buildProgress(Campaign campaign, Long resolvedUserId, ProgressContext ctx) {
@@ -1167,7 +1172,8 @@ public class CampaignService {
         int completedMapNodes = (int) completedIds.stream().filter(mapNodeIds::contains).count();
 
         CampaignResponse campaignResponse = toCampaignResponse(campaign,
-                ctx.tagsByCampaign.getOrDefault(campaignId, List.of()), difficulties.size());
+                ctx.tagsByCampaign.getOrDefault(campaignId, List.of()), difficulties.size(),
+                ctx.completionItemsByCampaign.getOrDefault(campaignId, List.of()));
 
         return CampaignProgressResponse.builder()
                 .id(uc != null ? uc.getId() : null)
@@ -1279,6 +1285,7 @@ public class CampaignService {
             Map<UUID, Set<UUID>> completedByCampaign,
             Map<UUID, Map<UUID, Instant>> completionTimesByCampaign,
             Map<UUID, List<CampaignTagResponse>> tagsByCampaign,
+            Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign,
             Map<UUID, List<UUID>> affectedByBarrier,
             Map<UUID, List<CampaignItemAwardResponse>> itemsByNode,
             Map<UUID, BigDecimal> complexityByMapDifficulty) {
@@ -1956,6 +1963,16 @@ public class CampaignService {
                         Collectors.mapping(link -> toTagResponse(link.getCampaignTag()), Collectors.toList())));
     }
 
+    private Map<UUID, List<CampaignItemAwardResponse>> loadCompletionItemsBulk(Collection<UUID> campaignIds) {
+        if (campaignIds.isEmpty()) {
+            return Map.of();
+        }
+        return campaignCompletionItemRepository.findByCampaign_IdIn(campaignIds).stream()
+                .collect(Collectors.groupingBy(
+                        link -> link.getCampaign().getId(),
+                        Collectors.mapping(CampaignService::toItemAward, Collectors.toList())));
+    }
+
     private Map<UUID, List<CampaignItemAwardResponse>> loadDifficultyItemsBulk(Collection<UUID> difficultyIds) {
         if (difficultyIds.isEmpty()) {
             return Map.of();
@@ -1991,16 +2008,18 @@ public class CampaignService {
     private CampaignResponse toCampaignResponse(Campaign campaign) {
         return toCampaignResponse(campaign,
                 loadTagResponses(campaign.getId()),
-                (int) campaignDifficultyRepository.countByCampaign_IdAndBarrierFalseAndActiveTrue(campaign.getId()));
+                (int) campaignDifficultyRepository.countByCampaign_IdAndBarrierFalseAndActiveTrue(campaign.getId()),
+                loadCompletionItems(campaign.getId()));
     }
 
     private CampaignResponse toCampaignResponse(Campaign campaign, List<CampaignTagResponse> tags,
-            int difficultyCount) {
-        return toCampaignResponse(campaign, tags, difficultyCount, null);
+            int difficultyCount, List<CampaignItemAwardResponse> completionItems) {
+        return toCampaignResponse(campaign, tags, difficultyCount, null, completionItems);
     }
 
     private CampaignResponse toCampaignResponse(Campaign campaign, List<CampaignTagResponse> tags,
-            int difficultyCount, CampaignVoteDirection myVote) {
+            int difficultyCount, CampaignVoteDirection myVote,
+            List<CampaignItemAwardResponse> completionItems) {
         return CampaignResponse.builder()
                 .id(campaign.getId())
                 .creatorId(campaign.getCreator() != null ? campaign.getCreator().getId() : null)
@@ -2027,6 +2046,7 @@ public class CampaignService {
                 .voteScore(campaign.getVoteScore())
                 .myVote(myVote)
                 .tags(tags)
+                .completionItems(completionItems)
                 .submittedAt(campaign.getSubmittedAt())
                 .curatedAt(campaign.getCuratedAt())
                 .publishedAt(campaign.getPublishedAt())
