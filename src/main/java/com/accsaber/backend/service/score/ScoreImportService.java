@@ -28,6 +28,7 @@ import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.entity.Modifier;
+import com.accsaber.backend.model.entity.map.LeaderboardPlatform;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.milestone.Milestone;
@@ -123,13 +124,15 @@ public class ScoreImportService {
         int ssImported = 0;
 
         if (difficulty.getBlLeaderboardId() != null) {
-            Set<Long> blUsers = backfillFromBeatLeader(difficulty, complexity, modifiers);
+            Set<Long> blUsers = backfillFromBeatLeader(difficulty, difficulty.getBlLeaderboardId(), complexity,
+                    modifiers);
             blImported = blUsers.size();
             affectedUserIds.addAll(blUsers);
         }
 
         if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
-            Set<Long> ssUsers = backfillFromScoreSaber(difficulty, complexity, modifiers);
+            Set<Long> ssUsers = backfillFromScoreSaber(difficulty, difficulty.getSsLeaderboardId(), complexity,
+                    modifiers);
             ssImported = ssUsers.size();
             affectedUserIds.addAll(ssUsers);
         }
@@ -150,6 +153,33 @@ public class ScoreImportService {
             return;
         }
         backfillDifficulty(difficulty);
+    }
+
+    @Async("taskExecutor")
+    public void backfillLeaderboardAsync(UUID mapDifficultyId, LeaderboardPlatform platform, String leaderboardId) {
+        if (platform == LeaderboardPlatform.SCORESABER && !scoreSaberBackfillEnabled) {
+            log.info("ScoreSaber backfill disabled - skipping alias backfill for leaderboard {}", leaderboardId);
+            return;
+        }
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(mapDifficultyId)
+                .orElse(null);
+        if (difficulty == null) {
+            log.warn("Cannot backfill alias leaderboard {}: difficulty {} not found or inactive",
+                    leaderboardId, mapDifficultyId);
+            return;
+        }
+        BigDecimal complexity = mapComplexityService.findActiveComplexity(mapDifficultyId).orElse(null);
+        if (complexity == null) {
+            log.warn("No active complexity for difficulty {} - skipping alias backfill", mapDifficultyId);
+            return;
+        }
+        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        Set<Long> affectedUserIds = platform == LeaderboardPlatform.BEATLEADER
+                ? backfillFromBeatLeader(difficulty, leaderboardId, complexity, modifiers)
+                : backfillFromScoreSaber(difficulty, leaderboardId, complexity, modifiers);
+        log.info("Alias backfill imported {} scores from {} leaderboard {} into difficulty {}",
+                affectedUserIds.size(), platform, leaderboardId, mapDifficultyId);
+        batchRecalculateAfterBackfill(difficulty, affectedUserIds, false);
     }
 
     @Async("taskExecutor")
@@ -869,7 +899,7 @@ public class ScoreImportService {
         }
     }
 
-    private Set<Long> backfillFromBeatLeader(MapDifficulty difficulty, BigDecimal complexity,
+    private Set<Long> backfillFromBeatLeader(MapDifficulty difficulty, String blLeaderboardId, BigDecimal complexity,
             Map<String, UUID> modifiers) {
         Set<Long> affected = new HashSet<>();
         int page = 1;
@@ -879,7 +909,7 @@ public class ScoreImportService {
             List<BeatLeaderScoreResponse> scores;
             try {
                 scores = beatLeaderClient.getLeaderboardScores(
-                        difficulty.getBlLeaderboardId(), page, pageSize);
+                        blLeaderboardId, page, pageSize);
             } catch (Exception e) {
                 log.error("BL backfill failed on page {} for difficulty {}: {}",
                         page, difficulty.getId(), e.getMessage());
@@ -906,7 +936,7 @@ public class ScoreImportService {
         return affected;
     }
 
-    private Set<Long> backfillFromScoreSaber(MapDifficulty difficulty, BigDecimal complexity,
+    private Set<Long> backfillFromScoreSaber(MapDifficulty difficulty, String ssLeaderboardId, BigDecimal complexity,
             Map<String, UUID> modifiers) {
         Set<Long> affected = new HashSet<>();
         int page = 1;
@@ -916,7 +946,7 @@ public class ScoreImportService {
             ScoreSaberScoresPage scoresPage;
             try {
                 scoresPage = scoreSaberClient.getLeaderboardScores(
-                        difficulty.getSsLeaderboardId(), page);
+                        ssLeaderboardId, page);
             } catch (Exception e) {
                 log.error("SS backfill failed on page {} for difficulty {}: {}",
                         page, difficulty.getId(), e.getMessage());

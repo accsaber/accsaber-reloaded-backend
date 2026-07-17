@@ -94,9 +94,23 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         List<MapDifficulty> findByBatchIdAndActiveTrueWithCategory(@Param("batchId") UUID batchId);
 
-        Optional<MapDifficulty> findByBlLeaderboardId(String blLeaderboardId);
+        @Query("""
+                        SELECT d FROM MapDifficulty d
+                        WHERE d.blLeaderboardId = CAST(:leaderboardId AS string)
+                           OR d.id IN (
+                                SELECT a.mapDifficulty.id FROM MapDifficultyLeaderboardAlias a
+                                WHERE a.blLeaderboardId = CAST(:leaderboardId AS string))
+                        """)
+        Optional<MapDifficulty> findByBlLeaderboardId(@Param("leaderboardId") String leaderboardId);
 
-        Optional<MapDifficulty> findBySsLeaderboardId(String ssLeaderboardId);
+        @Query("""
+                        SELECT d FROM MapDifficulty d
+                        WHERE d.ssLeaderboardId = CAST(:leaderboardId AS string)
+                           OR d.id IN (
+                                SELECT a.mapDifficulty.id FROM MapDifficultyLeaderboardAlias a
+                                WHERE a.ssLeaderboardId = CAST(:leaderboardId AS string))
+                        """)
+        Optional<MapDifficulty> findBySsLeaderboardId(@Param("leaderboardId") String leaderboardId);
 
         List<MapDifficulty> findByActiveFalseOrderByUpdatedAtDesc();
 

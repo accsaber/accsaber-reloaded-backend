@@ -10,7 +10,7 @@ class JwtAuthenticationFilterRealmTest {
 
     @Test
     void explicitRealmHeaderTakesPrecedence() {
-        assertThat(JwtAuthenticationFilter.playerRolesFor("creatives", "https://ranking.accsaberreloaded.com", null))
+        assertThat(JwtAuthenticationFilter.playerRolesFor("creatives", "https://ranking.accsaber.com", null))
                 .containsExactly(StaffRole.CREATIVE);
     }
 
@@ -22,13 +22,13 @@ class JwtAuthenticationFilterRealmTest {
 
     @Test
     void unknownRealmHeaderFallsThroughToOrigin() {
-        assertThat(JwtAuthenticationFilter.playerRolesFor("bogus", "https://ranking.accsaberreloaded.com", null))
+        assertThat(JwtAuthenticationFilter.playerRolesFor("bogus", "https://ranking.accsaber.com", null))
                 .containsExactly(StaffRole.RANKING_HEAD, StaffRole.RANKING);
     }
 
     @Test
     void creativesOriginSurfacesOnlyCreative() {
-        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://creatives.accsaberreloaded.com", null))
+        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://creatives.accsaber.com", null))
                 .containsExactly(StaffRole.CREATIVE);
     }
 
@@ -41,20 +41,20 @@ class JwtAuthenticationFilterRealmTest {
     @Test
     void originWinsOverReferer() {
         assertThat(JwtAuthenticationFilter.playerRolesFor(
-                null, "https://ranking.accsaberreloaded.com", "https://creatives.accsaberreloaded.com"))
+                null, "https://ranking.accsaber.com", "https://creatives.accsaber.com"))
                 .containsExactly(StaffRole.RANKING_HEAD, StaffRole.RANKING);
     }
 
     @Test
     void adminOriginSurfacesNothing() {
-        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://admin.accsaberreloaded.com", null))
+        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://admin.accsaber.com", null))
                 .isEmpty();
     }
 
     @Test
     void apexAndWwwSurfaceNothing() {
-        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://accsaberreloaded.com", null)).isEmpty();
-        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://www.accsaberreloaded.com", null)).isEmpty();
+        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://accsaber.com", null)).isEmpty();
+        assertThat(JwtAuthenticationFilter.playerRolesFor(null, "https://www.accsaber.com", null)).isEmpty();
     }
 
     @Test

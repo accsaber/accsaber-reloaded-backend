@@ -37,6 +37,7 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.map.MapDifficultyLeaderboardAliasRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
@@ -57,6 +58,8 @@ class ScoreIngestionServiceTest {
         private PlayerImportService playerImportService;
         @Mock
         private MapDifficultyRepository mapDifficultyRepository;
+        @Mock
+        private MapDifficultyLeaderboardAliasRepository aliasRepository;
         @Mock
         private ModifierCacheService modifierCacheService;
         @Mock
@@ -109,10 +112,12 @@ class ScoreIngestionServiceTest {
 
                 when(mapDifficultyRepository.findByStatusAndActiveTrue(MapDifficultyStatus.RANKED))
                                 .thenReturn(java.util.List.of(difficulty));
+                when(aliasRepository.findRankedBlLeaderboardIds()).thenReturn(java.util.List.of());
+                when(aliasRepository.findRankedSsLeaderboardIds()).thenReturn(java.util.List.of());
 
                 ingestionService = new ScoreIngestionService(
                                 scoreService, playerImportService, mapDifficultyRepository,
-                                scoreRepository, scoreImportService, modifierCacheService,
+                                aliasRepository, scoreRepository, scoreImportService, modifierCacheService,
                                 properties, scheduler, metricsService, duplicateUserService,
                                 scoreSaberClient, campaignScoreGate);
                 ingestionService.init();

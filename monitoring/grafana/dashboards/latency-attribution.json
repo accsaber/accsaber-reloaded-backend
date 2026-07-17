@@ -13,8 +13,8 @@
       "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
       "targets": [
         { "expr": "probe_duration_seconds{target_kind=\"internal\"}", "legendFormat": "internal (JVM only)" },
-        { "expr": "probe_duration_seconds{target_kind=\"api_via_cf\"}", "legendFormat": "api.accsaberreloaded.com (CF + JVM)" },
-        { "expr": "probe_duration_seconds{target_kind=\"frontend_zone_via_cf\"}", "legendFormat": "accsaberreloaded.com (CF + JVM)" }
+        { "expr": "probe_duration_seconds{target_kind=\"api_via_cf\"}", "legendFormat": "api.accsaber.com (CF + JVM)" },
+        { "expr": "probe_duration_seconds{target_kind=\"frontend_zone_via_cf\"}", "legendFormat": "accsaber.com (CF + JVM)" }
       ],
       "fieldConfig": {
         "defaults": { "unit": "s" }
@@ -34,7 +34,7 @@
       }
     },
     {
-      "title": "Phase durations: api.accsaberreloaded.com",
+      "title": "Phase durations: api.accsaber.com",
       "type": "timeseries",
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
       "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
@@ -50,7 +50,7 @@
       }
     },
     {
-      "title": "Phase durations: accsaberreloaded.com",
+      "title": "Phase durations: accsaber.com",
       "type": "timeseries",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
       "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },

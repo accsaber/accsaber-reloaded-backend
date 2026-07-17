@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,14 +19,17 @@ import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
+import com.accsaber.backend.model.dto.request.map.LinkLeaderboardAliasRequest;
 import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
+import com.accsaber.backend.model.dto.response.map.LeaderboardAliasResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.AutoCriteriaService;
+import com.accsaber.backend.service.map.MapDifficultyLeaderboardAliasService;
 import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.map.ReweightService;
@@ -46,6 +51,7 @@ public class RankingMapDifficultyController {
         private final ReweightService reweightService;
         private final UnrankService unrankService;
         private final AutoCriteriaService autoCriteriaService;
+        private final MapDifficultyLeaderboardAliasService leaderboardAliasService;
 
         @Operation(summary = "Update difficulty status", description = "Manually transition a map difficulty status (ranking_head/admin only)")
         @PatchMapping("/{difficultyId}/status")
@@ -161,5 +167,33 @@ public class RankingMapDifficultyController {
         @PreAuthorize("hasRole('RANKING')")
         public ResponseEntity<AutoCriteriaCheckResponse> runAutoCriteriaCheck(@PathVariable UUID difficultyId) {
                 return ResponseEntity.ok(autoCriteriaService.runCheck(difficultyId));
+        }
+
+        @Operation(summary = "List leaderboard aliases", description = "Lists alternate BeatLeader/ScoreSaber leaderboard IDs (alternate map uploads) that resolve to this difficulty for scoring and stats.")
+        @GetMapping("/{difficultyId}/leaderboard-aliases")
+        @PreAuthorize("hasRole('RANKING')")
+        public ResponseEntity<List<LeaderboardAliasResponse>> listLeaderboardAliases(@PathVariable UUID difficultyId) {
+                return ResponseEntity.ok(leaderboardAliasService.list(difficultyId));
+        }
+
+        @Operation(summary = "Link an alternate leaderboard to a difficulty", description = "Attaches an alternate map upload (a note-identical BeatLeader leaderboard, optionally its ScoreSaber counterpart) so scores on either version count toward this one difficulty. Rejected if the alternate's max score differs. Triggers a one-time backfill of the alternate's existing scores.")
+        @PostMapping("/{difficultyId}/leaderboard-aliases")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<List<LeaderboardAliasResponse>> linkLeaderboardAlias(
+                        @PathVariable UUID difficultyId,
+                        @Valid @RequestBody LinkLeaderboardAliasRequest request,
+                        Authentication authentication) {
+                return ResponseEntity.ok(leaderboardAliasService.linkAlias(difficultyId, request,
+                                StaffPrincipals.staffIdOf(authentication)));
+        }
+
+        @Operation(summary = "Unlink a leaderboard alias", description = "Removes an alternate leaderboard mapping. Already-imported scores stay on the difficulty; only future routing of that leaderboard's scores stops.")
+        @DeleteMapping("/{difficultyId}/leaderboard-aliases/{aliasId}")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<Void> unlinkLeaderboardAlias(
+                        @PathVariable UUID difficultyId,
+                        @PathVariable UUID aliasId) {
+                leaderboardAliasService.unlinkAlias(difficultyId, aliasId);
+                return ResponseEntity.noContent().build();
         }
 }

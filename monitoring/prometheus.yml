@@ -31,11 +31,11 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - https://api.accsaberreloaded.com/v1/health/ping
+          - https://api.accsaber.com/v1/health/ping
         labels:
           target_kind: api_via_cf
       - targets:
-          - https://accsaberreloaded.com/v1/health/ping
+          - https://accsaber.com/v1/health/ping
         labels:
           target_kind: frontend_zone_via_cf
     relabel_configs:

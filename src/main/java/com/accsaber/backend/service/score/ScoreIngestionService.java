@@ -2,6 +2,7 @@ package com.accsaber.backend.service.score;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +25,7 @@ import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.repository.map.MapDifficultyLeaderboardAliasRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
@@ -42,6 +44,7 @@ public class ScoreIngestionService {
     private final ScoreService scoreService;
     private final PlayerImportService playerImportService;
     private final MapDifficultyRepository mapDifficultyRepository;
+    private final MapDifficultyLeaderboardAliasRepository aliasRepository;
     private final ScoreImportService scoreImportService;
     private final ModifierCacheService modifierCacheService;
     private final PlatformProperties properties;
@@ -59,6 +62,7 @@ public class ScoreIngestionService {
     public ScoreIngestionService(ScoreService scoreService,
             PlayerImportService playerImportService,
             MapDifficultyRepository mapDifficultyRepository,
+            MapDifficultyLeaderboardAliasRepository aliasRepository,
             ScoreRepository scoreRepository,
             ScoreImportService scoreImportService,
             ModifierCacheService modifierCacheService,
@@ -71,6 +75,7 @@ public class ScoreIngestionService {
         this.scoreService = scoreService;
         this.playerImportService = playerImportService;
         this.mapDifficultyRepository = mapDifficultyRepository;
+        this.aliasRepository = aliasRepository;
         this.scoreImportService = scoreImportService;
         this.modifierCacheService = modifierCacheService;
         this.properties = properties;
@@ -216,15 +221,19 @@ public class ScoreIngestionService {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrue(MapDifficultyStatus.RANKED);
 
-        rankedBlIds = ranked.stream()
+        Set<String> blIds = ranked.stream()
                 .map(MapDifficulty::getBlLeaderboardId)
                 .filter(id -> id != null)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(HashSet::new));
+        blIds.addAll(aliasRepository.findRankedBlLeaderboardIds());
+        rankedBlIds = blIds;
 
-        rankedSsIds = ranked.stream()
+        Set<String> ssIds = ranked.stream()
                 .map(MapDifficulty::getSsLeaderboardId)
                 .filter(id -> id != null)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(HashSet::new));
+        ssIds.addAll(aliasRepository.findRankedSsLeaderboardIds());
+        rankedSsIds = ssIds;
 
         log.info("Refreshed ranked leaderboard IDs: {} BL, {} SS", rankedBlIds.size(), rankedSsIds.size());
     }
