@@ -61,11 +61,11 @@ public class MapController {
                 .ok(mapService.findAllPublic(categoryService.resolveId(categoryId), status, search, pageable));
     }
 
-    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category (UUID or code), status, complexity range, and/or search (matches song name, song author, or mapper)")
+    @Operation(summary = "List difficulties", description = "Paginated difficulty list with map metadata, filterable by category (UUID or code), status, complexity range, and/or search (matches song name, song author, or mapper). The status filter accepts multiple values (e.g. status=QUEUE,QUALIFIED)")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<PublicMapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) String categoryId,
-            @RequestParam(required = false) MapDifficultyStatus status,
+            @RequestParam(required = false) List<MapDifficultyStatus> status,
             @RequestParam(required = false) BigDecimal complexityMin,
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,

@@ -216,7 +216,7 @@ public class UserController {
     public ResponseEntity<Page<PublicMapDifficultyResponse>> getMissingMaps(
             @PathVariable Long userId,
             @RequestParam(required = false) String categoryId,
-            @RequestParam(required = false) MapDifficultyStatus status,
+            @RequestParam(required = false) List<MapDifficultyStatus> status,
             @RequestParam(required = false) BigDecimal complexityMin,
             @RequestParam(required = false) BigDecimal complexityMax,
             @RequestParam(required = false) String search,

@@ -88,9 +88,9 @@ public class MapService {
         return findAll(categoryId, status, search, pageable).map(MapService::toPublicMapResponse);
     }
 
-    public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId, MapDifficultyStatus status,
+    public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId,
+            Collection<MapDifficultyStatus> statuses,
             BigDecimal complexityMin, BigDecimal complexityMax, String search, Long excludeUserId, Pageable pageable) {
-        Collection<MapDifficultyStatus> statuses = status == null ? null : List.of(status);
         return findDifficulties(categoryId, null, statuses, complexityMin, complexityMax, search, excludeUserId,
                 pageable)
                 .map(MapService::toPublicDifficultyResponse);
