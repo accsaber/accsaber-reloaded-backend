@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.EquipItemRequest;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
+import com.accsaber.backend.model.dto.request.item.ItemHolderSort;
 import com.accsaber.backend.model.dto.request.item.ItemPreviewRequest;
 import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
 import com.accsaber.backend.model.dto.response.item.EssenceBalanceResponse;
@@ -31,6 +32,7 @@ import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
 import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
+import com.accsaber.backend.model.dto.response.statistics.ItemHolderResponse;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.security.PlayerUserDetails;
@@ -38,6 +40,7 @@ import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
 import com.accsaber.backend.service.item.UnusualEffectService;
+import com.accsaber.backend.service.stats.SiteStatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,6 +56,7 @@ public class ItemController {
     private final ItemService itemService;
     private final ItemTypeService itemTypeService;
     private final UnusualEffectService unusualEffectService;
+    private final SiteStatisticsService siteStatisticsService;
 
     @Operation(summary = "List all visible item types")
     @GetMapping("/item-types")
@@ -91,6 +95,23 @@ public class ItemController {
     @GetMapping("/items/{id}")
     public ResponseEntity<ItemResponse> getItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.findById(id)));
+    }
+
+    @Operation(summary = "List the holders of an item", description = "Players who own the given item, aggregated one row per holder."
+            + " Filter by modifier keys (a holder qualifies only via instances carrying ALL requested modifiers) and by holder"
+            + " name search. Sort by RECENT (most recently acquired), RANK (best overall AccSaber rank), or FOLLOWING"
+            + " (players the authenticated viewer follows first — requires login).")
+    @GetMapping("/items/{id}/holders")
+    public ResponseEntity<Page<ItemHolderResponse>> getItemHolders(
+            @PathVariable UUID id,
+            @RequestParam(required = false) List<String> modifier,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "RECENT") ItemHolderSort sort,
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PageableDefault(size = 20) Pageable pageable) {
+        itemService.findById(id);
+        Long viewerId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(siteStatisticsService.getItemHolders(id, modifier, search, sort, viewerId, pageable));
     }
 
     @Operation(summary = "Preview an item, modifier, and unusual effect combo exactly as it renders equipped")

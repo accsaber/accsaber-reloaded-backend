@@ -1003,11 +1003,13 @@ public class CampaignService {
                         ? List.<Object[]>of()
                         : userCampaignScoreRepository.countActiveByUserAndCampaignIds(resolvedUserId, campaignIds));
         Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign = loadCompletionItemsBulk(campaignIds);
+        Map<UUID, CampaignVoteDirection> votesByCampaign = loadViewerVotes(resolvedUserId, campaignIds);
         return page.map(uc -> {
             UUID cid = uc.getCampaign().getId();
             CampaignResponse campaign = toCampaignResponse(uc.getCampaign(),
                     tagsByCampaign.getOrDefault(cid, List.of()),
                     totalByCampaign.getOrDefault(cid, 0),
+                    votesByCampaign.get(cid),
                     completionItemsByCampaign.getOrDefault(cid, List.of()));
             return toUserCampaignResponse(uc, campaign, completedByCampaign.getOrDefault(cid, 0));
         });

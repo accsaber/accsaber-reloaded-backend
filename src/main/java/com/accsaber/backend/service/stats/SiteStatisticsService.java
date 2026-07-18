@@ -16,6 +16,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.model.dto.request.item.ItemHolderSort;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.statistics.BiggestTraderResponse;
 import com.accsaber.backend.model.dto.response.statistics.CollectionCompletionResponse;
@@ -24,6 +26,7 @@ import com.accsaber.backend.model.dto.response.statistics.EssenceEarnedResponse;
 import com.accsaber.backend.model.dto.response.statistics.FirstEditionHolderResponse;
 import com.accsaber.backend.model.dto.response.statistics.FirstEditionsResponse;
 import com.accsaber.backend.model.dto.response.statistics.InventoryValueResponse;
+import com.accsaber.backend.model.dto.response.statistics.ItemHolderResponse;
 import com.accsaber.backend.model.dto.response.statistics.ItemScarcityResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapAvgApResponse;
 import com.accsaber.backend.model.dto.response.statistics.MapRetryResponse;
@@ -688,7 +691,91 @@ public class SiteStatisticsService {
                                 .build());
         }
 
-        @Cacheable(value = "statistics", key = "'biggesttraders:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<ItemHolderResponse> getItemHolders(UUID itemId, List<String> modifiers, String search,
+                    ItemHolderSort sort, Long viewerId, Pageable pageable) {
+            List<String> modifierKeys = normalizeModifiers(modifiers);
+            boolean hasViewer = viewerId != null;
+            if (sort == ItemHolderSort.FOLLOWING && !hasViewer) {
+                    throw new UnauthorizedException("Log in to sort holders by players you follow");
+            }
+            String followingSelect = hasViewer ? "BOOL_OR(ur.id IS NOT NULL)" : "false";
+            String followingJoin = hasViewer
+                            ? " LEFT JOIN user_relations ur ON ur.target_user_id = u.id AND ur.user_id = :viewerId"
+                                            + " AND ur.type = 'follower' AND ur.active = true"
+                            : "";
+
+            String sql = "SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,"
+                            + " SUM(l.quantity) AS quantity, MIN(l.serial_number) AS lowest_serial,"
+                            + " MAX(l.awarded_at) AS acquired_at,"
+                            + " (SELECT STRING_AGG(DISTINCT im.key, ',') FROM user_item_links l2"
+                            + " JOIN user_item_link_modifiers lm ON lm.user_item_link_id = l2.id"
+                            + " JOIN item_modifiers im ON im.id = lm.modifier_id"
+                            + " WHERE l2.item_id = :itemId AND l2.user_id = u.id) AS modifier_keys,"
+                            + " MIN(ucs.ranking) AS ranking, " + followingSelect + " AS following"
+                            + " FROM user_item_links l"
+                            + " JOIN users u ON u.id = l.user_id AND u.active = true AND u.banned = false"
+                            + " LEFT JOIN user_category_statistics ucs ON ucs.user_id = u.id AND ucs.active = true"
+                            + " AND ucs.category_id = (SELECT id FROM categories WHERE code = 'overall' AND active = true LIMIT 1)"
+                            + followingJoin
+                            + " WHERE l.item_id = :itemId";
+            if (!modifierKeys.isEmpty()) {
+                    sql += " AND (SELECT COUNT(DISTINCT im.key) FROM user_item_link_modifiers lm"
+                                    + " JOIN item_modifiers im ON im.id = lm.modifier_id"
+                                    + " WHERE lm.user_item_link_id = l.id AND im.key IN (:modifiers)) = :modifierCount";
+            }
+            if (search != null && !search.isBlank()) {
+                    sql += " AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))";
+            }
+            sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country ORDER BY " + holderOrderBy(sort);
+
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("itemId", itemId);
+            if (!modifierKeys.isEmpty()) {
+                    params.put("modifiers", modifierKeys);
+                    params.put("modifierCount", (long) modifierKeys.size());
+            }
+            if (search != null && !search.isBlank()) {
+                    params.put("search", search.trim());
+            }
+            if (hasViewer) {
+                    params.put("viewerId", viewerId);
+            }
+
+            return executePagedNativeQuery(sql, params, pageable, row -> ItemHolderResponse.builder()
+                            .userId(String.valueOf(((Number) row[0]).longValue()))
+                            .userName((String) row[1])
+                            .avatarUrl((String) row[2])
+                            .cdnAvatarUrl((String) row[3])
+                            .country((String) row[4])
+                            .quantity(((Number) row[5]).longValue())
+                            .lowestSerial(row[6] != null ? ((Number) row[6]).longValue() : null)
+                            .acquiredAt(row[7] != null ? (Instant) row[7] : null)
+                            .modifiers(splitKeys((String) row[8]))
+                            .ranking(row[9] != null ? ((Number) row[9]).intValue() : null)
+                            .following(row[10] != null && (Boolean) row[10])
+                            .build());
+    }
+
+    private static String holderOrderBy(ItemHolderSort sort) {
+            return switch (sort == null ? ItemHolderSort.RECENT : sort) {
+                    case RANK -> "ranking ASC NULLS LAST, acquired_at DESC NULLS LAST, u.name ASC";
+                    case FOLLOWING -> "following DESC, ranking ASC NULLS LAST, u.name ASC";
+                    case RECENT -> "acquired_at DESC NULLS LAST, u.name ASC";
+            };
+    }
+
+    private static List<String> normalizeModifiers(List<String> modifiers) {
+            if (modifiers == null || modifiers.isEmpty()) {
+                    return List.of();
+            }
+            return modifiers.stream()
+                            .filter(m -> m != null && !m.isBlank())
+                            .map(String::trim)
+                            .distinct()
+                            .toList();
+    }
+
+    @Cacheable(value = "statistics", key = "'biggesttraders:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<BiggestTraderResponse> getBiggestTraders(String country, Pageable pageable) {
                 String normalizedCountry = normalizeCountry(country);
                 String sql = """
