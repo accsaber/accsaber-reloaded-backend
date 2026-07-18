@@ -33,6 +33,7 @@ public class ScoreResponse {
     private Difficulty difficulty;
     private String characteristic;
     private UUID categoryId;
+    private BigDecimal complexity;
     private Integer score;
     private Integer scoreNoMods;
     private BigDecimal accuracy;

@@ -517,8 +517,14 @@ public class ScoreService {
 
                 java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
                                 scores.getContent().stream().map(Score::getId).toList());
+                java.util.Map<UUID, BigDecimal> complexities = mapComplexityService
+                                .findActiveComplexitiesForDifficulties(scores.getContent().stream()
+                                                .map(s -> s.getMapDifficulty().getId()).distinct().toList());
                 return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
-                                modifierIds.getOrDefault(s.getId(), List.of())));
+                                modifierIds.getOrDefault(s.getId(), List.of()))
+                                .toBuilder()
+                                .complexity(complexities.get(s.getMapDifficulty().getId()))
+                                .build());
         }
 
         public List<UserScoreSummaryResponse> findAllSummariesByUser(Long userId) {
