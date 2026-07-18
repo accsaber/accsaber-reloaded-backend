@@ -665,7 +665,8 @@ public class SiteStatisticsService {
         @Cacheable(value = "statistics", key = "'itemscarcity:' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<ItemScarcityResponse> getItemScarcity(Pageable pageable) {
                 String sql = """
-                                SELECT i.id, i.name, i.icon_url, i.rarity, t.key, COUNT(DISTINCT u.id) AS owner_count
+                                SELECT i.id, i.name, i.icon_url, i.rarity, t.key, COUNT(DISTINCT u.id) AS owner_count,
+                                        COALESCE(SUM(CASE WHEN u.id IS NOT NULL THEN l.quantity END), 0) AS instance_count
                                 FROM items i
                                 JOIN item_types t ON t.id = i.type_id
                                 LEFT JOIN user_item_links l ON l.item_id = i.id
@@ -673,7 +674,7 @@ public class SiteStatisticsService {
                                 WHERE i.tradeable = true AND i.active = true AND i.visible = true AND i.deprecated = false
                                 GROUP BY i.id, i.name, i.icon_url, i.rarity, t.key
                                 """;
-                sql += " ORDER BY owner_count ASC, " + rarityRank("i.rarity") + " DESC, i.name ASC";
+                sql += " ORDER BY instance_count ASC, owner_count ASC, " + rarityRank("i.rarity") + " DESC, i.name ASC";
 
                 return executePagedNativeQuery(sql, Map.of(), pageable, row -> ItemScarcityResponse.builder()
                                 .itemId((UUID) row[0])
@@ -682,6 +683,7 @@ public class SiteStatisticsService {
                                 .rarity((String) row[3])
                                 .typeKey((String) row[4])
                                 .ownerCount(((Number) row[5]).longValue())
+                                .instanceCount(((Number) row[6]).longValue())
                                 .build());
         }
 

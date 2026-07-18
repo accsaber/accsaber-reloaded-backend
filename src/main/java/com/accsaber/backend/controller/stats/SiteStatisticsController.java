@@ -174,7 +174,7 @@ public class SiteStatisticsController {
         return ResponseEntity.ok(siteStatisticsService.getMostCompleteCollection(country, pageable));
     }
 
-    @Operation(summary = "Item scarcity", description = "Tradeable catalog items ranked by fewest distinct owners.")
+    @Operation(summary = "Item scarcity", description = "Tradeable catalog items ranked by fewest live instances in existence, with distinct owner and instance counts.")
     @GetMapping("/leaderboards/rarest-items")
     public ResponseEntity<Page<ItemScarcityResponse>> getItemScarcity(
             @PageableDefault(size = 20) Pageable pageable) {

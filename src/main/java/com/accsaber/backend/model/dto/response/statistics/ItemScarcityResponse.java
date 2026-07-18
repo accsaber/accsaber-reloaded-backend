@@ -15,4 +15,5 @@ public class ItemScarcityResponse {
     private String rarity;
     private String typeKey;
     private long ownerCount;
+    private long instanceCount;
 }
