@@ -160,7 +160,7 @@ public class CampaignService {
         String searchArg = search != null && !search.isBlank() ? search.trim() : null;
         Long resolvedViewerId = viewerId != null ? duplicateUserService.resolvePrimaryUserId(viewerId) : null;
         return paginateAsResponses(
-                campaignRepository.findFiltered(true, statusArg, creatorId, hasTags, tagArg,
+                campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
                         CampaignCollaboratorStatus.ACCEPTED, searchArg, official, pageable),
                 resolvedViewerId);
