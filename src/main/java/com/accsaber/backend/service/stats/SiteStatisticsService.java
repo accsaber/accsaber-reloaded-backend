@@ -550,6 +550,7 @@ public class SiteStatisticsService {
                 if (normalizedCountry != null)
                         sql += " AND LOWER(u.country) = LOWER(:country)";
                 sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, u.item_essence" +
+                                " HAVING COALESCE(SUM(i.worth * l.quantity), 0) + u.item_essence > 0" +
                                 " ORDER BY total_value DESC, u.name ASC";
 
                 Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
@@ -735,6 +736,7 @@ public class SiteStatisticsService {
                 if (normalizedCountry != null)
                         sql += " AND LOWER(u.country) = LOWER(:country)";
                 sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
+                                " HAVING COALESCE(SUM(d.essence_gained), 0) > 0" +
                                 " ORDER BY essence_earned DESC, u.name ASC";
 
                 Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
