@@ -954,6 +954,9 @@ public class ScoreService {
 
         private static final String ACCURACY_SORT_EXPRESSION = "CAST(s.score AS double) / s.mapDifficulty.maxScore";
 
+        private static final String COMPLEXITY_SORT_EXPRESSION = "(SELECT mdc.complexity FROM MapDifficultyComplexity mdc "
+                        + "WHERE mdc.mapDifficulty = s.mapDifficulty AND mdc.active = true)";
+
         private Pageable resolveSort(Pageable pageable, Sort defaultSort) {
                 Sort resolved;
                 if (!pageable.getSort().isSorted()) {
@@ -968,6 +971,13 @@ public class ScoreService {
                                                                                         + ") IS NULL THEN 1 ELSE 0 END)"))
                                                         .and(JpaSort.unsafe(order.getDirection(),
                                                                         ACCURACY_SORT_EXPRESSION));
+                                } else if ("complexity".equalsIgnoreCase(order.getProperty())) {
+                                        resolved = resolved
+                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
+                                                                        "(CASE WHEN (" + COMPLEXITY_SORT_EXPRESSION
+                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
+                                                        .and(JpaSort.unsafe(order.getDirection(),
+                                                                        COMPLEXITY_SORT_EXPRESSION));
                                 } else {
                                         resolved = resolved.and(Sort.by(
                                                         new Sort.Order(order.getDirection(), order.getProperty(),
