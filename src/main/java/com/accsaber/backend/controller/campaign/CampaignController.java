@@ -364,7 +364,8 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString(),
+                MediaFormat.PNG);
         return ResponseEntity.ok(
                 campaignService.setBackgroundUrlAsPlayer(principal.getUserId(), campaignId, url));
     }

@@ -215,7 +215,8 @@ public class AdminCampaignController {
     public ResponseEntity<CampaignResponse> uploadBackground(
             @PathVariable UUID campaignId,
             @RequestPart("file") MultipartFile file) {
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
+        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString(),
+                MediaFormat.PNG);
         return ResponseEntity.ok(campaignService.setBackgroundUrl(campaignId, url));
     }
 
