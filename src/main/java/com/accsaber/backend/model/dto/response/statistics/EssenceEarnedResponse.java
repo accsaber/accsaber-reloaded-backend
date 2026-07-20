@@ -1,7 +1,5 @@
 package com.accsaber.backend.model.dto.response.statistics;
 
-import java.math.BigDecimal;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,5 +12,5 @@ public class EssenceEarnedResponse {
     private String avatarUrl;
     private String cdnAvatarUrl;
     private String country;
-    private BigDecimal essenceEarned;
+    private Long essenceEarned;
 }

@@ -754,16 +754,15 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         void hardDeleteByIds(@Param("scoreIds") List<UUID> scoreIds);
 
         @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.map m
-                        JOIN FETCH d.category c
+                        SELECT s.id FROM Score s
+                        JOIN s.user u
+                        JOIN s.mapDifficulty d
                         WHERE s.streak115 IS NOT NULL
                         AND (s.active = true OR s.supersedesReason = 'Score improved')
                         AND u.active = true AND u.banned = false
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
+                        ORDER BY s.streak115 DESC, s.ap DESC, s.score DESC
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
@@ -774,19 +773,18 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """)
-        Page<Score> findTopStreaks(@Param("categoryId") UUID categoryId, @Param("country") String country,
+        Page<UUID> findTopStreakIds(@Param("categoryId") UUID categoryId, @Param("country") String country,
                         Pageable pageable);
 
         @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.map m
-                        JOIN FETCH d.category c
+                        SELECT s.id FROM Score s
+                        JOIN s.user u
+                        JOIN s.mapDifficulty d
                         WHERE s.active = true
                         AND u.active = true AND u.banned = false
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
+                        ORDER BY s.ap DESC, s.score DESC
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
@@ -796,8 +794,18 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
                         """)
-        Page<Score> findTopByAp(@Param("categoryId") UUID categoryId, @Param("country") String country,
+        Page<UUID> findTopApIds(@Param("categoryId") UUID categoryId, @Param("country") String country,
                         Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Score s
+                        JOIN FETCH s.user u
+                        JOIN FETCH s.mapDifficulty d
+                        JOIN FETCH d.map m
+                        JOIN FETCH d.category c
+                        WHERE s.id IN :ids
+                        """)
+        List<Score> findDetailedByIds(@Param("ids") List<UUID> ids);
 
         @Query(value = """
                         SELECT s_b, s_a

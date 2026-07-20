@@ -1,7 +1,5 @@
 package com.accsaber.backend.model.dto.response.statistics;
 
-import java.math.BigDecimal;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,7 +12,7 @@ public class InventoryValueResponse {
     private String avatarUrl;
     private String cdnAvatarUrl;
     private String country;
-    private BigDecimal itemsValue;
-    private BigDecimal essenceBalance;
-    private BigDecimal totalValue;
+    private Long itemsValue;
+    private Long essenceBalance;
+    private Long totalValue;
 }

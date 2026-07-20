@@ -5,14 +5,15 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,21 +60,29 @@ public class SiteStatisticsService {
 
         @Cacheable(value = "statistics", key = "'streaks:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<ScoreResponse> getTopStreaks(UUID categoryId, String country, Pageable pageable) {
-                Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                                Sort.by(Sort.Direction.DESC, "streak115")
-                                                .and(Sort.by(Sort.Direction.DESC, "ap"))
-                                                .and(Sort.by(Sort.Direction.DESC, "score")));
-                return scoreRepository.findTopStreaks(categoryId, normalizeCountry(country), effective)
-                                .map(scoreService::mapToResponse);
+                Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+                return hydrateScorePage(scoreRepository.findTopStreakIds(categoryId, normalizeCountry(country),
+                                effective));
         }
 
         @Cacheable(value = "statistics", key = "'maxap:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<ScoreResponse> getTopByAp(UUID categoryId, String country, Pageable pageable) {
-                Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                                Sort.by(Sort.Direction.DESC, "ap")
-                                                .and(Sort.by(Sort.Direction.DESC, "score")));
-                return scoreRepository.findTopByAp(categoryId, normalizeCountry(country), effective)
-                                .map(scoreService::mapToResponse);
+                Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+                return hydrateScorePage(scoreRepository.findTopApIds(categoryId, normalizeCountry(country), effective));
+        }
+
+        private Page<ScoreResponse> hydrateScorePage(Page<UUID> ids) {
+                if (ids.isEmpty())
+                        return new PageImpl<>(List.of(), ids.getPageable(), ids.getTotalElements());
+
+                Map<UUID, Score> byId = scoreRepository.findDetailedByIds(ids.getContent()).stream()
+                                .collect(Collectors.toMap(Score::getId, s -> s));
+                List<ScoreResponse> content = ids.getContent().stream()
+                                .map(byId::get)
+                                .filter(Objects::nonNull)
+                                .map(scoreService::mapToResponse)
+                                .toList();
+                return new PageImpl<>(content, ids.getPageable(), ids.getTotalElements());
         }
 
         @Cacheable(value = "statistics", key = "'highavgweightedap:' + #categoryId + ':' + #country + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
@@ -564,9 +573,9 @@ public class SiteStatisticsService {
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
                                 .country((String) row[4])
-                                .itemsValue((BigDecimal) row[5])
-                                .essenceBalance((BigDecimal) row[6])
-                                .totalValue((BigDecimal) row[7])
+                                .itemsValue(((Number) row[5]).longValue())
+                                .essenceBalance(((Number) row[6]).longValue())
+                                .totalValue(((Number) row[7]).longValue())
                                 .build());
         }
 
@@ -834,7 +843,7 @@ public class SiteStatisticsService {
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
                                 .country((String) row[4])
-                                .essenceEarned((BigDecimal) row[5])
+                                .essenceEarned(((Number) row[5]).longValue())
                                 .build());
         }
 
