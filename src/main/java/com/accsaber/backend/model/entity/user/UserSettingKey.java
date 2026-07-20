@@ -13,7 +13,24 @@ public enum UserSettingKey {
 
     APPEARANCE_THEME("appearance.theme", String.class, "system", false),
     APPEARANCE_COLOR_SCHEME("appearance.colorScheme", String.class, "default", false),
-    APPEARANCE_PRIMARY_REPLAY_SERVICE("appearance.primaryReplayService", String.class, "beatleader", false),
+    APPEARANCE_PRIMARY_REPLAY_SERVICE("appearance.primaryReplayService", ReplayProvider.class,
+            ReplayProvider.BEATLEADER, false),
+    APPEARANCE_FALLBACK_REPLAY_SERVICE("appearance.fallbackReplayService", ReplayProvider.class, null, false),
+    APPEARANCE_COMPLEXITY_NUMBER_STYLE("appearance.complexityNumberStyle", ComplexityNumberStyle.class,
+            ComplexityNumberStyle.COLORED, false),
+    APPEARANCE_COMPLEXITY_BAR("appearance.complexityBar", Boolean.class, true, false),
+    APPEARANCE_SCORE_ROW_FIELDS("appearance.scoreRowFields", ScoreRowField[].class,
+            new ScoreRowField[] {
+                    ScoreRowField.DIFFICULTY,
+                    ScoreRowField.ACCURACY,
+                    ScoreRowField.AP,
+                    ScoreRowField.WEIGHTED_AP,
+                    ScoreRowField.COMPLEXITY,
+                    ScoreRowField.CATEGORY,
+                    ScoreRowField.STREAK_115,
+                    ScoreRowField.DATE }, false),
+    APPEARANCE_HIDE_RELOADED_PROFILE_FEATURES("appearance.hideReloadedProfileFeatures", Boolean.class, false, false),
+    APPEARANCE_SHOW_STATISTICS_CHART("appearance.showStatisticsChart", Boolean.class, false, false),
 
     SYNC_NAME("sync.name", Boolean.class, true, false),
     SYNC_AVATAR("sync.avatar", Boolean.class, true, false),
@@ -60,6 +77,9 @@ public enum UserSettingKey {
     }
 
     public Object defaultValue() {
+        if (defaultValue instanceof Object[] array) {
+            return array.clone();
+        }
         return defaultValue;
     }
 

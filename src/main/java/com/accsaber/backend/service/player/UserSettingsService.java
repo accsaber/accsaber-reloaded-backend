@@ -119,8 +119,8 @@ public class UserSettingsService {
     private Object serializeForResponse(Object defaultValue) {
         if (defaultValue == null)
             return null;
-        if (defaultValue instanceof Enum<?> e) {
-            return MAPPER.convertValue(e, Object.class);
+        if (defaultValue instanceof Enum<?> || defaultValue instanceof Object[]) {
+            return MAPPER.convertValue(defaultValue, Object.class);
         }
         return defaultValue;
     }
