@@ -692,10 +692,14 @@ public class ScoreImportService {
     }
 
     public void gapFillDifficulty(MapDifficulty difficulty, Instant since) {
+        gapFillDifficulty(difficulty, since, null);
+    }
+
+    public void gapFillDifficulty(MapDifficulty difficulty, Instant since, LeaderboardPlatform platform) {
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
         long sinceEpoch = since.getEpochSecond();
 
-        if (difficulty.getBlLeaderboardId() != null) {
+        if (platform != LeaderboardPlatform.SCORESABER && difficulty.getBlLeaderboardId() != null) {
             List<BeatLeaderScoreResponse> blScores = beatLeaderClient.getRecentScores(
                     difficulty.getBlLeaderboardId(), sinceEpoch);
             for (BeatLeaderScoreResponse blScore : blScores) {
@@ -703,7 +707,8 @@ public class ScoreImportService {
             }
         }
 
-        if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+        if (platform != LeaderboardPlatform.BEATLEADER && scoreSaberBackfillEnabled
+                && difficulty.getSsLeaderboardId() != null) {
             int page = 1;
             outer: while (true) {
                 ScoreSaberScoresPage scoresPage;

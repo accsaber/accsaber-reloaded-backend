@@ -1,5 +1,6 @@
 package com.accsaber.backend.controller.admin;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,9 +10,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.entity.map.LeaderboardPlatform;
 import com.accsaber.backend.service.score.ScoreImportService;
+import com.accsaber.backend.service.score.ScoreIngestionService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminImportController {
 
     private final ScoreImportService scoreImportService;
+    private final ScoreIngestionService scoreIngestionService;
 
     @Operation(summary = "Backfill all ranked difficulties")
     @PostMapping("/scores/backfill-all")
@@ -58,6 +64,19 @@ public class AdminImportController {
     @PostMapping("/scores/backfill-users")
     public ResponseEntity<Void> backfillUsers(@RequestBody List<Long> userIds) {
         scoreImportService.backfillUsersAsync(userIds);
+        return ResponseEntity.accepted().build();
+    }
+
+    @Operation(summary = "Gap fill all ranked difficulties from a point in time", description = "Walks each ranked difficulty's recent scores back until the given instant, merging any missing platform data onto existing score rows. "
+            + "Omit platform to sweep both; pass SCORESABER to fetch only the ScoreSaber half.")
+    @PostMapping("/scores/gap-fill")
+    public ResponseEntity<Void> gapFillSince(
+            @RequestParam Instant since,
+            @RequestParam(required = false) LeaderboardPlatform platform) {
+        if (since.isAfter(Instant.now())) {
+            throw new ValidationException("since must be in the past");
+        }
+        scoreIngestionService.gapFillSince(since, platform);
         return ResponseEntity.accepted().build();
     }
 

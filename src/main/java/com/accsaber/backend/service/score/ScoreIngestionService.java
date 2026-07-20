@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreRespons
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
+import com.accsaber.backend.model.entity.map.LeaderboardPlatform;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyLeaderboardAliasRepository;
@@ -254,19 +255,31 @@ public class ScoreIngestionService {
                     gap.getSeconds(), properties.getGapFillWindowSeconds(), platform);
             return;
         }
+        runGapFill(platform, disconnectedAt, "beatleader".equals(platform)
+                ? LeaderboardPlatform.BEATLEADER
+                : LeaderboardPlatform.SCORESABER);
+    }
 
+    @Async("backfillExecutor")
+    public void gapFillSince(Instant since, LeaderboardPlatform platform) {
+        String label = platform == null ? "all platforms" : platform.name().toLowerCase();
+        runGapFill(label, since, platform);
+    }
+
+    private void runGapFill(String label, Instant since, LeaderboardPlatform platform) {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrue(MapDifficultyStatus.RANKED);
-        log.info("Starting {} gap fill across {} ranked difficulties", platform, ranked.size());
+        log.info("Starting {} gap fill from {} across {} ranked difficulties", label, since, ranked.size());
 
-        int throttleMs = "scoresaber".equals(platform) ? 160 : 0;
+        int throttleMs = platform == LeaderboardPlatform.BEATLEADER ? 0 : 160;
         for (MapDifficulty difficulty : ranked) {
-            boolean relevant = "beatleader".equals(platform)
-                    ? difficulty.getBlLeaderboardId() != null
-                    : difficulty.getSsLeaderboardId() != null;
+            boolean relevant = (platform != LeaderboardPlatform.SCORESABER
+                    && difficulty.getBlLeaderboardId() != null)
+                    || (platform != LeaderboardPlatform.BEATLEADER
+                            && difficulty.getSsLeaderboardId() != null);
             if (relevant) {
                 try {
-                    scoreImportService.gapFillDifficulty(difficulty, disconnectedAt);
+                    scoreImportService.gapFillDifficulty(difficulty, since, platform);
                 } catch (Exception e) {
                     log.error("Gap fill error for difficulty {}: {}", difficulty.getId(), e.getMessage());
                 }
@@ -280,6 +293,6 @@ public class ScoreIngestionService {
                 }
             }
         }
-        log.info("{} gap fill complete", platform);
+        log.info("{} gap fill complete", label);
     }
 }
