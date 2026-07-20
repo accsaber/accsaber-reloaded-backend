@@ -67,7 +67,8 @@ public class AdminImportController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Gap fill all ranked difficulties from a point in time", description = "Walks each ranked difficulty's recent scores back until the given instant, merging any missing platform data onto existing score rows. "
+    @Operation(summary = "Enrich active scores from a point in time", description = "Walks each ranked difficulty's recent scores back until the given instant, merging missing platform data onto the matching active score row. "
+            + "Never creates or supersedes scores: a fetched score with no matching active row is skipped. "
             + "Omit platform to sweep both; pass SCORESABER to fetch only the ScoreSaber half.")
     @PostMapping("/scores/gap-fill")
     public ResponseEntity<Void> gapFillSince(

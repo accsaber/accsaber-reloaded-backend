@@ -692,10 +692,11 @@ public class ScoreImportService {
     }
 
     public void gapFillDifficulty(MapDifficulty difficulty, Instant since) {
-        gapFillDifficulty(difficulty, since, null);
+        gapFillDifficulty(difficulty, since, null, false);
     }
 
-    public void gapFillDifficulty(MapDifficulty difficulty, Instant since, LeaderboardPlatform platform) {
+    public void gapFillDifficulty(MapDifficulty difficulty, Instant since, LeaderboardPlatform platform,
+            boolean enrichOnly) {
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
         long sinceEpoch = since.getEpochSecond();
 
@@ -703,7 +704,7 @@ public class ScoreImportService {
             List<BeatLeaderScoreResponse> blScores = beatLeaderClient.getRecentScores(
                     difficulty.getBlLeaderboardId(), sinceEpoch);
             for (BeatLeaderScoreResponse blScore : blScores) {
-                importBeatLeaderScore(blScore, difficulty, modifiers);
+                importBeatLeaderScore(blScore, difficulty, modifiers, enrichOnly);
             }
         }
 
@@ -735,7 +736,7 @@ public class ScoreImportService {
                     if (ts <= sinceEpoch) {
                         break outer;
                     }
-                    importScoreSaberScore(ssScore, difficulty, modifiers);
+                    importScoreSaberScore(ssScore, difficulty, modifiers, enrichOnly);
                 }
                 if (scoresPage.getData().size() < 100)
                     break;
@@ -982,12 +983,17 @@ public class ScoreImportService {
     }
 
     private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
-            Map<String, UUID> modifiers) {
-        return importBeatLeaderScore(blScore, difficulty, null, modifiers, false);
+            Map<String, UUID> modifiers, boolean enrichOnly) {
+        return importBeatLeaderScore(blScore, difficulty, null, modifiers, false, enrichOnly);
     }
 
     private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
             BigDecimal complexity, Map<String, UUID> modifiers, boolean forBackfill) {
+        return importBeatLeaderScore(blScore, difficulty, complexity, modifiers, forBackfill, false);
+    }
+
+    private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
+            BigDecimal complexity, Map<String, UUID> modifiers, boolean forBackfill, boolean enrichOnly) {
         try {
             if (PlatformScoreMapper.hasBannedModifier(blScore.getModifiers()))
                 return null;
@@ -1002,6 +1008,9 @@ public class ScoreImportService {
                     return null;
                 }
                 enrichWithBeatLeaderData(existingScore.get(), blScore);
+                return null;
+            }
+            if (enrichOnly) {
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
@@ -1076,12 +1085,17 @@ public class ScoreImportService {
     }
 
     private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
-            Map<String, UUID> modifiers) {
-        return importScoreSaberScore(ssScore, difficulty, null, modifiers, false);
+            Map<String, UUID> modifiers, boolean enrichOnly) {
+        return importScoreSaberScore(ssScore, difficulty, null, modifiers, false, enrichOnly);
     }
 
     private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
             BigDecimal complexity, Map<String, UUID> modifiers, boolean forBackfill) {
+        return importScoreSaberScore(ssScore, difficulty, complexity, modifiers, forBackfill, false);
+    }
+
+    private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
+            BigDecimal complexity, Map<String, UUID> modifiers, boolean forBackfill, boolean enrichOnly) {
         try {
             if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods()))
                 return null;
@@ -1094,6 +1108,9 @@ public class ScoreImportService {
             if (existingScore.isPresent()
                     && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getUnmodifiedScore())) {
                 enrichExistingScoreSaberScore(existingScore.get(), ssScore, difficulty, userId, modifiers);
+                return null;
+            }
+            if (enrichOnly) {
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);

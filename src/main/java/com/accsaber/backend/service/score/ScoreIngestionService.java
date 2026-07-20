@@ -257,16 +257,16 @@ public class ScoreIngestionService {
         }
         runGapFill(platform, disconnectedAt, "beatleader".equals(platform)
                 ? LeaderboardPlatform.BEATLEADER
-                : LeaderboardPlatform.SCORESABER);
+                : LeaderboardPlatform.SCORESABER, false);
     }
 
     @Async("backfillExecutor")
     public void gapFillSince(Instant since, LeaderboardPlatform platform) {
         String label = platform == null ? "all platforms" : platform.name().toLowerCase();
-        runGapFill(label, since, platform);
+        runGapFill(label, since, platform, true);
     }
 
-    private void runGapFill(String label, Instant since, LeaderboardPlatform platform) {
+    private void runGapFill(String label, Instant since, LeaderboardPlatform platform, boolean enrichOnly) {
         List<MapDifficulty> ranked = mapDifficultyRepository
                 .findByStatusAndActiveTrue(MapDifficultyStatus.RANKED);
         log.info("Starting {} gap fill from {} across {} ranked difficulties", label, since, ranked.size());
@@ -279,7 +279,7 @@ public class ScoreIngestionService {
                             && difficulty.getSsLeaderboardId() != null);
             if (relevant) {
                 try {
-                    scoreImportService.gapFillDifficulty(difficulty, since, platform);
+                    scoreImportService.gapFillDifficulty(difficulty, since, platform, enrichOnly);
                 } catch (Exception e) {
                     log.error("Gap fill error for difficulty {}: {}", difficulty.getId(), e.getMessage());
                 }
