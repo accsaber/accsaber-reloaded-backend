@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,7 +56,10 @@ public class ScoreIngestionService {
     private final ScoreSaberClient scoreSaberClient;
     private final CampaignScoreGate campaignScoreGate;
 
-    private final ConcurrentHashMap<String, ScheduledFuture<?>> pendingSsScores = new ConcurrentHashMap<>();
+    private record PendingSsScore(ScheduledFuture<?> future, Long ssScoreId, Integer scoreNoMods) {
+    }
+
+    private final ConcurrentHashMap<String, PendingSsScore> pendingSsScores = new ConcurrentHashMap<>();
     private volatile Set<String> rankedBlIds = Set.of();
     private volatile Set<String> rankedSsIds = Set.of();
 
@@ -124,14 +128,17 @@ public class ScoreIngestionService {
 
             String playKey = userId + "_" + difficulty.getId();
 
-            ScheduledFuture<?> pending = pendingSsScores.remove(playKey);
+            PendingSsScore pending = pendingSsScores.remove(playKey);
             if (pending != null) {
-                pending.cancel(false);
+                pending.future().cancel(false);
                 log.debug("Cancelled pending SS score for play key {}", playKey);
             }
 
             SubmitScoreRequest request = PlatformScoreMapper.fromBeatLeader(
                     blScore, difficulty.getId(), userId, modifierCacheService.getModifierCodeToId());
+            if (pending != null && Objects.equals(pending.scoreNoMods(), request.getScoreNoMods())) {
+                request.setSsScoreId(pending.ssScoreId());
+            }
             if (ranked) {
                 playerImportService.ensurePlayerExists(userId);
                 metricsService.getScoreProcessingTimer().record(() -> scoreService.submit(request));
@@ -201,9 +208,10 @@ public class ScoreIngestionService {
                 }
             }, delaySeconds, TimeUnit.SECONDS);
 
-            ScheduledFuture<?> existing = pendingSsScores.put(playKey, future);
+            PendingSsScore existing = pendingSsScores.put(playKey,
+                    new PendingSsScore(future, ssScore.getId(), ssScore.getUnmodifiedScore()));
             if (existing != null) {
-                existing.cancel(false);
+                existing.future().cancel(false);
             }
         } catch (Exception e) {
             log.error("Error handling SS score: {}", e.getMessage());

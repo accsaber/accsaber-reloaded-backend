@@ -230,6 +230,58 @@ class ScoreIngestionServiceTest {
                 }
 
                 @Test
+                void carriesSsScoreId_ontoBlSubmission_whenSamePlay() throws Exception {
+                        ScoreSaberScoreResponse ssScore = buildSsScore("");
+                        ssScore.setUnmodifiedScore(900000);
+                        when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))
+                                        .thenReturn(Optional.of(difficulty));
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.empty());
+
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
+
+                        BeatLeaderScoreResponse blScore = buildBlScore("bl_123", "");
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl_123"))
+                                        .thenReturn(Optional.of(difficulty));
+                        when(playerImportService.ensurePlayerExists(STEAM_ID))
+                                        .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
+                        when(scoreService.submit(any())).thenReturn(buildScoreResponse());
+
+                        ingestionService.handleBeatLeaderScore(blScore);
+
+                        ArgumentCaptor<SubmitScoreRequest> captor = ArgumentCaptor.forClass(SubmitScoreRequest.class);
+                        verify(scoreService, times(1)).submit(captor.capture());
+                        assertThat(captor.getValue().getBlScoreId()).isEqualTo(123456L);
+                        assertThat(captor.getValue().getSsScoreId()).isEqualTo(789012L);
+                }
+
+                @Test
+                void omitsSsScoreId_ontoBlSubmission_whenDifferentPlay() throws Exception {
+                        ScoreSaberScoreResponse ssScore = buildSsScore("");
+                        when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))
+                                        .thenReturn(Optional.of(difficulty));
+                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
+                                        difficulty.getId()))
+                                        .thenReturn(Optional.empty());
+
+                        ingestionService.handleScoreSaberScore(ssScore, null, STEAM_ID, "ss_456");
+
+                        BeatLeaderScoreResponse blScore = buildBlScore("bl_123", "");
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl_123"))
+                                        .thenReturn(Optional.of(difficulty));
+                        when(playerImportService.ensurePlayerExists(STEAM_ID))
+                                        .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
+                        when(scoreService.submit(any())).thenReturn(buildScoreResponse());
+
+                        ingestionService.handleBeatLeaderScore(blScore);
+
+                        ArgumentCaptor<SubmitScoreRequest> captor = ArgumentCaptor.forClass(SubmitScoreRequest.class);
+                        verify(scoreService, times(1)).submit(captor.capture());
+                        assertThat(captor.getValue().getSsScoreId()).isNull();
+                }
+
+                @Test
                 void fetchesScoreStats_whenNull_andPopulatesFromStatsEndpoint() throws Exception {
                         ScoreSaberScoreResponse ssScore = buildSsScore("");
                         when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))

@@ -1117,13 +1117,8 @@ public class ScoreImportService {
 
     private void enrichExistingScoreSaberScore(Score score, ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
             Long userId, Map<String, UUID> modifiers) {
-        if (score.getStreak115() != null) {
-            return;
-        }
-        ScoreSaberScoreStats stats = fetchScoreSaberStats(ssScore);
-        if (stats == null) {
-            return;
-        }
+        boolean needsStats = score.getStreak115() == null || score.getBombHits() == null;
+        ScoreSaberScoreStats stats = needsStats ? fetchScoreSaberStats(ssScore) : null;
         SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, difficulty.getId(), userId,
                 modifiers);
         if (!ScorePayloadFields.mergeNullOnly(score, request)) {
@@ -1131,8 +1126,10 @@ public class ScoreImportService {
         }
         score.setMapDifficulty(difficulty);
         scoreRepository.save(score);
-        var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, score);
-        awardMilestoneXp(userId, evaluation);
-        log.debug("Enriched existing SS score {} with ScoreSaber stats and re-evaluated milestones", score.getId());
+        if (needsStats && score.getStreak115() != null) {
+            var evaluation = milestoneEvaluationService.evaluateAfterScore(userId, score);
+            awardMilestoneXp(userId, evaluation);
+        }
+        log.debug("Enriched existing score {} with ScoreSaber data", score.getId());
     }
 }
