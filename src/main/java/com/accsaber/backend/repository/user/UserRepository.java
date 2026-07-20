@@ -110,10 +110,51 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Transactional
     @Query("UPDATE User u SET u.itemEssence = u.itemEssence + :amount WHERE u.id = :id")
-    void addItemEssence(@Param("id") Long id, @Param("amount") BigDecimal amount);
+    void addItemEssence(@Param("id") Long id, @Param("amount") long amount);
 
     @Query("SELECT u.itemEssence FROM User u WHERE u.id = :id")
-    java.util.Optional<BigDecimal> findItemEssenceById(@Param("id") Long id);
+    java.util.Optional<Long> findItemEssenceById(@Param("id") Long id);
+
+    @Query("SELECT u.reservedEssence FROM User u WHERE u.id = :id")
+    java.util.Optional<Long> findReservedEssenceById(@Param("id") Long id);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE User u
+            SET u.itemEssence = u.itemEssence - :amount,
+                u.reservedEssence = u.reservedEssence + :amount
+            WHERE u.id = :id AND u.itemEssence >= :amount
+            """)
+    int reserveEssence(@Param("id") Long id, @Param("amount") long amount);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE User u
+            SET u.itemEssence = u.itemEssence + :amount,
+                u.reservedEssence = u.reservedEssence - :amount
+            WHERE u.id = :id AND u.reservedEssence >= :amount
+            """)
+    int releaseEssence(@Param("id") Long id, @Param("amount") long amount);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE User u
+            SET u.reservedEssence = u.reservedEssence - :amount
+            WHERE u.id = :id AND u.reservedEssence >= :amount
+            """)
+    int consumeReservedEssence(@Param("id") Long id, @Param("amount") long amount);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE User u
+            SET u.itemEssence = u.itemEssence - :amount
+            WHERE u.id = :id AND u.itemEssence >= :amount
+            """)
+    int debitEssence(@Param("id") Long id, @Param("amount") long amount);
 
     @Modifying
     @Transactional

@@ -59,6 +59,14 @@ public class UserItemTrade {
     @Builder.Default
     private TradeStatus status = TradeStatus.pending;
 
+    @Column(name = "offered_essence", nullable = false)
+    @Builder.Default
+    private long offeredEssence = 0L;
+
+    @Column(name = "requested_essence", nullable = false)
+    @Builder.Default
+    private long requestedEssence = 0L;
+
     private String message;
 
     @CreationTimestamp

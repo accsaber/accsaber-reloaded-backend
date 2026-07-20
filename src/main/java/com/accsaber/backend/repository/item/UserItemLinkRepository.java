@@ -24,11 +24,11 @@ import jakarta.persistence.LockModeType;
 @Repository
 public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID> {
 
-        List<UserItemLink> findByUser_Id(Long userId);
+        List<UserItemLink> findByUser_IdAndEscrowedFalse(Long userId);
 
-        List<UserItemLink> findByUser_IdAndItem_Type_Key(Long userId, String typeKey);
+        List<UserItemLink> findByUser_IdAndItem_Type_KeyAndEscrowedFalse(Long userId, String typeKey);
 
-        List<UserItemLink> findByUser_IdAndItem_Id(Long userId, UUID itemId);
+        List<UserItemLink> findByUser_IdAndItem_IdAndEscrowedFalse(Long userId, UUID itemId);
 
         @Query("""
                         SELECT l FROM UserItemLink l
@@ -36,6 +36,7 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         JOIN i.type t
                         LEFT JOIN t.parentType pt
                         WHERE l.user.id = :userId
+                        AND l.escrowed = FALSE
                         AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
                         AND (:rarities IS NULL OR i.rarity IN :rarities)
                         AND (:modifierKeys IS NULL OR EXISTS (
@@ -66,7 +67,7 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         SELECT l FROM UserItemLink l
                         JOIN FETCH l.item i
                         JOIN FETCH i.type t
-                        WHERE l.user.id = :userId AND t.key IN :typeKeys
+                        WHERE l.user.id = :userId AND t.key IN :typeKeys AND l.escrowed = FALSE
                         """)
         List<UserItemLink> findOwnedByTypeKeys(
                         @Param("userId") Long userId,

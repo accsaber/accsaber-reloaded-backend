@@ -1,6 +1,5 @@
 package com.accsaber.backend.model.dto.response.item;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 import lombok.Builder;
@@ -14,6 +13,6 @@ public class DisintegrationResponse {
     private UUID itemId;
     private long quantityDisintegrated;
     private Long remainingQuantity;
-    private BigDecimal essenceGained;
-    private BigDecimal balance;
+    private long essenceGained;
+    private long balance;
 }

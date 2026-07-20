@@ -29,6 +29,7 @@ import com.accsaber.backend.model.dto.request.item.InventoryFilter;
 import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -78,6 +79,7 @@ public class ItemService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ItemValueValidator itemValueValidator;
+    private final EssenceLedgerService essenceLedgerService;
 
     public List<Item> findAllVisible() {
         return itemRepository.findByActiveTrueAndVisibleTrue();
@@ -131,12 +133,12 @@ public class ItemService {
 
     public List<UserItemLink> findUserCollection(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return userItemLinkRepository.findByUser_Id(resolved);
+        return userItemLinkRepository.findByUser_IdAndEscrowedFalse(resolved);
     }
 
     public List<UserItemLink> findUserCollectionByType(Long userId, String typeKey) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return userItemLinkRepository.findByUser_IdAndItem_Type_Key(resolved, typeKey);
+        return userItemLinkRepository.findByUser_IdAndItem_Type_KeyAndEscrowedFalse(resolved, typeKey);
     }
 
     public Page<UserItemLink> findInventory(Long userId, InventoryFilter filter, Pageable pageable) {
@@ -276,7 +278,7 @@ public class ItemService {
     public Item create(UUID typeId, String name, String description, String iconUrl,
             Object value, ItemRarity rarity, boolean tradeable,
             boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean active,
-            BigDecimal worth, String requirement, Integer unlockLevel) {
+            Long worth, String requirement, Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
         if (itemRepository.existsByType_IdAndName(typeId, name)) {
             throw new ConflictException("An item named '" + name + "' already exists for this type");
@@ -306,7 +308,7 @@ public class ItemService {
     public Item update(UUID id, String name, String description, String iconUrl,
             Object value, ItemRarity rarity,
             Boolean tradeable, Boolean visible, Boolean stackable, Boolean welcomeGrant, Boolean missionPoolable,
-            BigDecimal worth, String requirement, Integer unlockLevel) {
+            Long worth, String requirement, Integer unlockLevel) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         if (name != null && !name.equals(item.getName())) {
@@ -407,9 +409,14 @@ public class ItemService {
         return itemRepository.save(item);
     }
 
-    public BigDecimal getEssenceBalance(Long userId) {
+    public long getEssenceBalance(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return userRepository.findItemEssenceById(resolved).orElse(BigDecimal.ZERO);
+        return essenceLedgerService.balance(resolved);
+    }
+
+    public long getReservedEssence(Long userId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        return essenceLedgerService.reserved(resolved);
     }
 
     @Transactional
@@ -424,9 +431,12 @@ public class ItemService {
         if (!item.isTradeable()) {
             throw new ValidationException("linkId", "this item is not tradeable and cannot be disintegrated");
         }
-        BigDecimal worth = item.getWorth();
-        if (worth == null || worth.signum() <= 0) {
+        Long worth = item.getWorth();
+        if (worth == null || worth <= 0) {
             throw new ValidationException("linkId", "this item has no essence value and cannot be disintegrated");
+        }
+        if (link.isEscrowed()) {
+            throw new ConflictException("This item is listed on the market and cannot be disintegrated");
         }
         if (!tradeItemRepository.findLinkIdsInTradesWithStatus(List.of(linkId), TradeStatus.pending).isEmpty()) {
             throw new ConflictException("This item is part of a pending trade and cannot be disintegrated");
@@ -444,7 +454,7 @@ public class ItemService {
             throw new ValidationException("quantity", "cannot disintegrate more than you own");
         }
 
-        BigDecimal essence = worth.multiply(BigDecimal.valueOf(toDestroy));
+        long essence = worth * toDestroy;
         Long remaining;
         if (toDestroy == owned) {
             userItemLinkRepository.delete(link);
@@ -456,8 +466,8 @@ public class ItemService {
             remaining = owned - toDestroy;
         }
 
-        userRepository.addItemEssence(resolved, essence);
-        BigDecimal balance = userRepository.findItemEssenceById(resolved).orElse(BigDecimal.ZERO);
+        essenceLedgerService.credit(resolved, essence, EssenceReason.disintegration, linkId);
+        long balance = essenceLedgerService.balance(resolved);
 
         disintegrationRepository.save(UserItemDisintegration.builder()
                 .user(userRepository.getReferenceById(resolved))
@@ -476,7 +486,7 @@ public class ItemService {
                 .build();
     }
 
-    private boolean isLinkEquipped(Long userId, UUID linkId, String typeKey) {
+    public boolean isLinkEquipped(Long userId, UUID linkId, String typeKey) {
         UserSettingKey slot = UserSettingKey.forEquippedItemType(typeKey).orElse(null);
         if (slot == null) {
             return false;
@@ -673,12 +683,15 @@ public class ItemService {
     }
 
     static boolean isInstanced(UserItemLink link) {
-        return !link.getItem().isStackable() || hasPerInstanceModifier(link.getModifiers());
+        return !link.getItem().isStackable()
+                || link.getSerialNumber() != null
+                || link.getUnusualEffect() != null
+                || hasPerInstanceModifier(link.getModifiers());
     }
 
     private UserItemLink findStackableMatch(Long userId, UUID itemId, Set<ItemModifier> modifiers) {
         Set<UUID> targetIds = modifiers.stream().map(ItemModifier::getId).collect(Collectors.toSet());
-        return userItemLinkRepository.findByUser_IdAndItem_Id(userId, itemId).stream()
+        return userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(userId, itemId).stream()
                 .filter(l -> sameModifierSet(l.getModifiers(), targetIds))
                 .findFirst()
                 .orElse(null);

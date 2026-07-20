@@ -195,6 +195,7 @@ public class ItemController {
         Long me = requirePrincipal(principal).getUserId();
         return ResponseEntity.ok(EssenceBalanceResponse.builder()
                 .balance(itemService.getEssenceBalance(me))
+                .reserved(itemService.getReservedEssence(me))
                 .build());
     }
 

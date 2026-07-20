@@ -7,6 +7,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 import com.accsaber.backend.websocket.server.CampaignPresenceHandshakeInterceptor;
 import com.accsaber.backend.websocket.server.CampaignPresenceWebSocketHandler;
+import com.accsaber.backend.websocket.server.MarketFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MilestoneFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MissionFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.ScoreFeedWebSocketHandler;
@@ -23,6 +24,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         private final MissionFeedWebSocketHandler missionFeedHandler;
         private final CampaignPresenceWebSocketHandler campaignPresenceHandler;
         private final CampaignPresenceHandshakeInterceptor campaignPresenceHandshakeInterceptor;
+        private final MarketFeedWebSocketHandler marketFeedHandler;
 
         @Override
         public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
@@ -34,6 +36,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
                                 .setAllowedOriginPatterns("*");
                 registry.addHandler(campaignPresenceHandler, "/ws/campaigns/presence")
                                 .addInterceptors(campaignPresenceHandshakeInterceptor)
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(marketFeedHandler, "/ws/market")
                                 .setAllowedOriginPatterns("*");
         }
 }

@@ -9,10 +9,13 @@ import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -23,13 +26,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user_item_disintegrations")
+@Table(name = "essence_transactions", indexes = {
+        @Index(name = "idx_essence_transactions_user", columnList = "user_id, created_at"),
+        @Index(name = "idx_essence_transactions_ref", columnList = "ref_id")
+})
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserItemDisintegration {
+public class EssenceTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -39,17 +45,17 @@ public class UserItemDisintegration {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "item_id", nullable = false)
-    private Item item;
-
     @Column(nullable = false)
-    private Long quantity;
+    private long amount;
 
-    @Column(name = "essence_gained", nullable = false)
-    private long essenceGained;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EssenceReason reason;
+
+    @Column(name = "ref_id")
+    private UUID refId;
 
     @CreationTimestamp
-    @Column(name = "disintegrated_at", nullable = false, updatable = false)
-    private Instant disintegratedAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 }

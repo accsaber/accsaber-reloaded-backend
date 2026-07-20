@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.item.CreateTradeRequest;
-import com.accsaber.backend.model.entity.item.ItemModifier;
+import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.TradeItemSide;
 import com.accsaber.backend.model.entity.item.TradeStatus;
@@ -48,7 +48,8 @@ public class ItemTradeService {
     private final UserItemLinkRepository userItemLinkRepository;
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
-    private final ItemService itemService;
+    private final ItemTransferService itemTransferService;
+    private final EssenceLedgerService essenceLedgerService;
 
     public List<UserItemTrade> listIncomingPending(Long toUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(toUserId);
@@ -81,7 +82,7 @@ public class ItemTradeService {
     @Transactional
     public UserItemTrade create(Long fromUserId, Long toUserId,
             List<CreateTradeRequest.TradeItem> offered, List<CreateTradeRequest.TradeItem> requested,
-            String message) {
+            long offeredEssence, long requestedEssence, String message) {
         Long resolvedFrom = duplicateUserService.resolvePrimaryUserId(fromUserId);
         Long resolvedTo = duplicateUserService.resolvePrimaryUserId(toUserId);
         if (resolvedFrom.equals(resolvedTo)) {
@@ -90,11 +91,17 @@ public class ItemTradeService {
         if (!userRepository.existsById(resolvedTo)) {
             throw new ResourceNotFoundException("User", toUserId);
         }
+        if (offeredEssence < 0 || requestedEssence < 0) {
+            throw new ValidationException("essence", "essence amounts cannot be negative");
+        }
+        if (offeredEssence > 0 && requestedEssence > 0) {
+            throw new ValidationException("essence", "essence can only be offered by one side of a trade");
+        }
 
         Map<UUID, Long> offeredQty = sanitize("offeredItems", offered);
         Map<UUID, Long> requestedQty = sanitize("requestedItems", requested);
-        if (offeredQty.isEmpty() && requestedQty.isEmpty()) {
-            throw new ValidationException("items", "trade must contain at least one item");
+        if (offeredQty.isEmpty() && requestedQty.isEmpty() && offeredEssence == 0 && requestedEssence == 0) {
+            throw new ValidationException("items", "trade must contain at least one item or some essence");
         }
         Set<UUID> intersection = new HashSet<>(offeredQty.keySet());
         intersection.retainAll(requestedQty.keySet());
@@ -114,10 +121,16 @@ public class ItemTradeService {
                     "one or more items are already in another pending trade: " + conflicts);
         }
 
+        if (offeredEssence > 0) {
+            essenceLedgerService.reserve(resolvedFrom, offeredEssence);
+        }
+
         UserItemTrade trade = UserItemTrade.builder()
                 .fromUser(userRepository.getReferenceById(resolvedFrom))
                 .toUser(userRepository.getReferenceById(resolvedTo))
                 .status(TradeStatus.pending)
+                .offeredEssence(offeredEssence)
+                .requestedEssence(requestedEssence)
                 .message(message)
                 .items(new ArrayList<>())
                 .build();
@@ -157,20 +170,22 @@ public class ItemTradeService {
             }
         }
 
-        List<UnequipCandidate> unequipCandidates = new ArrayList<>();
+        if (trade.getRequestedEssence() > 0) {
+            essenceLedgerService.debit(receiverId, trade.getRequestedEssence(),
+                    EssenceReason.trade_payment, trade.getId());
+            essenceLedgerService.credit(senderId, trade.getRequestedEssence(),
+                    EssenceReason.trade_receipt, trade.getId());
+        }
+        if (trade.getOfferedEssence() > 0) {
+            essenceLedgerService.settleReserved(senderId, receiverId, trade.getOfferedEssence(),
+                    EssenceReason.trade_payment, EssenceReason.trade_receipt, trade.getId());
+        }
+
         for (UserItemTradeItem entry : trade.getItems()) {
             UserItemLink source = entry.getUserItemLink();
-            Long previousOwner = source.getUser().getId();
             Long newOwner = entry.getSide() == TradeItemSide.offered ? receiverId : senderId;
-            boolean linkGone = transfer(source, newOwner, entry.getQuantity());
-            if (linkGone) {
-                unequipCandidates.add(new UnequipCandidate(previousOwner, source.getId(),
-                        source.getItem().getType().getKey()));
-            }
-        }
-        userItemLinkRepository.flush();
-        for (UnequipCandidate c : unequipCandidates) {
-            itemService.clearEquippedIfLinkGone(c.userId(), c.linkId(), c.typeKey());
+            itemTransferService.transfer(source, newOwner, entry.getQuantity(),
+                    ItemSource.trade, "Received via trade");
         }
 
         trade.setStatus(TradeStatus.accepted);
@@ -186,6 +201,7 @@ public class ItemTradeService {
         if (!trade.getToUser().getId().equals(resolved)) {
             throw new ValidationException("tradeId", "only the recipient can decline this trade");
         }
+        refundOfferedEssence(trade);
         trade.setStatus(TradeStatus.declined);
         trade.setResolvedAt(Instant.now());
         return tradeRepository.save(trade);
@@ -199,6 +215,7 @@ public class ItemTradeService {
         if (!trade.getFromUser().getId().equals(resolved)) {
             throw new ValidationException("tradeId", "only the sender can cancel this trade");
         }
+        refundOfferedEssence(trade);
         trade.setStatus(TradeStatus.cancelled);
         trade.setResolvedAt(Instant.now());
         return tradeRepository.save(trade);
@@ -206,50 +223,16 @@ public class ItemTradeService {
 
     @Transactional
     public int expireOlderThan(Instant cutoff) {
+        for (UserItemTrade trade : tradeRepository.findExpiringWithReservedEssence(cutoff)) {
+            refundOfferedEssence(trade);
+        }
         return tradeRepository.expirePending(cutoff, Instant.now());
     }
 
-    private boolean transfer(UserItemLink source, Long newOwnerId, long qty) {
-        if (ItemService.isInstanced(source)) {
-            source.setUser(userRepository.getReferenceById(newOwnerId));
-            userItemLinkRepository.save(source);
-            return false;
+    private void refundOfferedEssence(UserItemTrade trade) {
+        if (trade.getOfferedEssence() > 0) {
+            essenceLedgerService.release(trade.getFromUser().getId(), trade.getOfferedEssence());
         }
-        UserItemLink existing = findIdenticalStack(newOwnerId, source.getItem().getId(), source.getModifiers());
-        if (existing != null) {
-            existing.setQuantity(existing.getQuantity() + qty);
-            userItemLinkRepository.save(existing);
-        } else {
-            UserItemLink fresh = UserItemLink.builder()
-                    .user(userRepository.getReferenceById(newOwnerId))
-                    .item(source.getItem())
-                    .modifiers(new HashSet<>(source.getModifiers()))
-                    .serialNumber(null)
-                    .quantity(qty)
-                    .source(ItemSource.trade)
-                    .reason("Received via trade")
-                    .build();
-            userItemLinkRepository.save(fresh);
-        }
-        long remaining = source.getQuantity() - qty;
-        if (remaining <= 0) {
-            userItemLinkRepository.delete(source);
-            return true;
-        }
-        source.setQuantity(remaining);
-        userItemLinkRepository.save(source);
-        return false;
-    }
-
-    private record UnequipCandidate(Long userId, UUID linkId, String typeKey) {
-    }
-
-    private UserItemLink findIdenticalStack(Long userId, UUID itemId, Set<ItemModifier> modifiers) {
-        Set<UUID> targetIds = modifiers.stream().map(ItemModifier::getId).collect(Collectors.toSet());
-        return userItemLinkRepository.findByUser_IdAndItem_Id(userId, itemId).stream()
-                .filter(l -> ItemService.sameModifierSet(l.getModifiers(), targetIds))
-                .findFirst()
-                .orElse(null);
     }
 
     private void ensurePending(UserItemTrade trade) {
@@ -297,6 +280,10 @@ public class ItemTradeService {
             if (link == null || !link.getUser().getId().equals(ownerId)) {
                 throw new ValidationException(sideLabel,
                         sideLabel + " item " + id + " is not owned by the expected user");
+            }
+            if (link.isEscrowed()) {
+                throw new ValidationException(sideLabel,
+                        "item '" + link.getItem().getName() + "' is listed on the market and cannot be traded");
             }
             if (!link.getItem().isTradeable()) {
                 throw new ValidationException(sideLabel,

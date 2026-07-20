@@ -1,4 +1,4 @@
-package com.accsaber.backend.model.entity.item;
+package com.accsaber.backend.model.entity.market;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -13,6 +13,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -23,33 +24,37 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user_item_disintegrations")
+@Table(name = "market_bids", indexes = {
+        @Index(name = "idx_market_bids_listing", columnList = "listing_id, amount"),
+        @Index(name = "idx_market_bids_bidder", columnList = "bidder_id, created_at")
+})
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserItemDisintegration {
+public class MarketBid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "listing_id", nullable = false)
+    private MarketListing listing;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "item_id", nullable = false)
-    private Item item;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bidder_id", nullable = false)
+    private User bidder;
 
     @Column(nullable = false)
-    private Long quantity;
+    private long amount;
 
-    @Column(name = "essence_gained", nullable = false)
-    private long essenceGained;
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean buyout = false;
 
     @CreationTimestamp
-    @Column(name = "disintegrated_at", nullable = false, updatable = false)
-    private Instant disintegratedAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 }

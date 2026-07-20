@@ -95,7 +95,7 @@ public class Item {
     @Builder.Default
     private boolean missionPoolable = false;
 
-    private BigDecimal worth;
+    private Long worth;
 
     private String requirement;
 

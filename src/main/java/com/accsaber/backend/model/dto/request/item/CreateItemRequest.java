@@ -30,7 +30,7 @@ public class CreateItemRequest {
     private boolean welcomeGrant = false;
     private boolean missionPoolable = false;
     private boolean active = true;
-    private BigDecimal worth;
+    private Long worth;
     private String requirement;
     private Integer unlockLevel;
 }

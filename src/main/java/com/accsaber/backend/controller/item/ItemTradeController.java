@@ -45,7 +45,8 @@ public class ItemTradeController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = requirePrincipal(principal).getUserId();
         var trade = tradeService.create(me, req.getToUserId(),
-                req.getOfferedItems(), req.getRequestedItems(), req.getMessage());
+                req.getOfferedItems(), req.getRequestedItems(),
+                req.getOfferedEssence(), req.getRequestedEssence(), req.getMessage());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toTradeResponse(trade));
     }
 

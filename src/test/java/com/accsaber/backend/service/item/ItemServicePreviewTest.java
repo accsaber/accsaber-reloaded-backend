@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -105,7 +104,7 @@ class ItemServicePreviewTest {
                 .type(ItemType.builder().id(UUID.randomUUID()).key("title").name("Title").build())
                 .name("Cool Title")
                 .rarity(ItemRarity.legendary)
-                .worth(new BigDecimal("100"))
+                .worth(100L)
                 .stackable(false)
                 .tradeable(true)
                 .build();

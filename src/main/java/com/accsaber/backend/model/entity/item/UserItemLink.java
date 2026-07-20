@@ -71,6 +71,10 @@ public class UserItemLink {
     private Long quantity = 1L;
 
     @Column(nullable = false)
+    @Builder.Default
+    private boolean escrowed = false;
+
+    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private ItemSource source;
 

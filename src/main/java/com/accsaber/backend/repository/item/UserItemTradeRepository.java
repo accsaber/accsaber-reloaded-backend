@@ -19,6 +19,14 @@ import com.accsaber.backend.model.entity.item.UserItemTrade;
 @Repository
 public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UUID> {
 
+       @Query("""
+                     SELECT t FROM UserItemTrade t
+                     WHERE t.status = com.accsaber.backend.model.entity.item.TradeStatus.pending
+                       AND t.createdAt < :cutoff
+                       AND t.offeredEssence > 0
+                     """)
+       List<UserItemTrade> findExpiringWithReservedEssence(@Param("cutoff") Instant cutoff);
+
        List<UserItemTrade> findByToUser_IdAndStatus(Long toUserId, TradeStatus status);
 
        List<UserItemTrade> findByFromUser_IdAndStatus(Long fromUserId, TradeStatus status);

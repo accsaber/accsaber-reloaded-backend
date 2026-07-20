@@ -26,7 +26,7 @@ public class ItemResponse {
     private boolean stackable;
     private boolean welcomeGrant;
     private boolean missionPoolable;
-    private BigDecimal worth;
+    private Long worth;
     private String requirement;
     private Integer unlockLevel;
     private Instant createdAt;
