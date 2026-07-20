@@ -222,8 +222,10 @@ public class MissionAssignmentService {
         List<UserCategoryStatistics> activeStats = statsRepository.findActiveByUser_IdWithCategory(userId).stream()
                 .filter(s -> s.getRankedPlays() != null && s.getRankedPlays() > 0)
                 .toList();
+        BigDecimal rollingXp = userRepository.findTotalXpById(userId).orElse(BigDecimal.ZERO)
+                .divide(BigDecimal.valueOf(365), 2, RoundingMode.HALF_UP);
         if (activeStats.isEmpty()) {
-            return new MissionAssignmentContext(userId, List.of(), Map.of(), Map.of(), BigDecimal.ZERO);
+            return new MissionAssignmentContext(userId, List.of(), Map.of(), Map.of(), rollingXp);
         }
         List<Category> active = activeStats.stream()
                 .map(UserCategoryStatistics::getCategory)
@@ -238,12 +240,6 @@ public class MissionAssignmentService {
                         s -> s.getCategory().getId(),
                         s -> s.getRankedPlays().longValue(),
                         (a, b) -> a));
-
-        BigDecimal rollingXp = activeStats.stream()
-                .map(UserCategoryStatistics::getScoreXp)
-                .filter(java.util.Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(365), 2, RoundingMode.HALF_UP);
 
         return new MissionAssignmentContext(userId, active, skills, rankedPlays, rollingXp);
     }
