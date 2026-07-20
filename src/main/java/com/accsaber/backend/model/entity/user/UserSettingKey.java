@@ -17,7 +17,7 @@ public enum UserSettingKey {
             ReplayProvider.BEATLEADER, false),
     APPEARANCE_FALLBACK_REPLAY_SERVICE("appearance.fallbackReplayService", ReplayProvider.class, null, false),
     APPEARANCE_COMPLEXITY_NUMBER_STYLE("appearance.complexityNumberStyle", ComplexityNumberStyle.class,
-            ComplexityNumberStyle.COLORED, false),
+            ComplexityNumberStyle.PLAIN, false),
     APPEARANCE_COMPLEXITY_BAR("appearance.complexityBar", Boolean.class, true, false),
     APPEARANCE_SCORE_ROW_FIELDS("appearance.scoreRowFields", ScoreRowField[].class,
             new ScoreRowField[] {
