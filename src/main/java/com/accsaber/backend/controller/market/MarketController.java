@@ -47,7 +47,7 @@ public class MarketController {
     private final MarketListingService listingService;
     private final MarketBidService bidService;
 
-    @Operation(summary = "Browse market listings", description = "Public. Defaults to active listings ending soonest. kind: auction | shop. sort: ending_soon | newest | price_asc | price_desc.")
+    @Operation(summary = "Browse market listings", description = "Public. Defaults to active listings ending soonest. kind: auction | shop. sortBy: ending_soon | newest | price_asc | price_desc.")
     @GetMapping("/listings")
     public ResponseEntity<Page<MarketListingResponse>> browse(
             @RequestParam(required = false) MarketListingStatus status,
@@ -58,10 +58,10 @@ public class MarketController {
             @RequestParam(required = false) Long minPrice,
             @RequestParam(required = false) Long maxPrice,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) MarketSortOption sort,
+            @RequestParam(required = false) MarketSortOption sortBy,
             @PageableDefault(size = 30) Pageable pageable) {
         MarketFilter filter = new MarketFilter(status, sellerId, typeKey, rarity, kind,
-                minPrice, maxPrice, search, sort);
+                minPrice, maxPrice, search, sortBy);
         return ResponseEntity.ok(listingService.browse(filter, pageable));
     }
 
