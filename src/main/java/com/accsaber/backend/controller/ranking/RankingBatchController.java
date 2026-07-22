@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.map.BatchReweightRequest;
 import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
+import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
@@ -71,6 +72,14 @@ public class RankingBatchController {
             Authentication authentication) {
         BatchResponse response = batchService.create(request, StaffPrincipals.staffIdOf(authentication));
         return ResponseEntity.created(URI.create("/v1/batches/" + response.getId())).body(response);
+    }
+
+    @Operation(summary = "Update a batch", description = "Updates the name and description of a batch. Allowed in any status, including released.")
+    @PatchMapping("/{id}")
+    public ResponseEntity<BatchResponse> updateBatch(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateBatchRequest request) {
+        return ResponseEntity.ok(batchService.update(id, request));
     }
 
     @Operation(summary = "Update batch status", description = "Transitions a batch between draft and release_ready. Use /release to publish.")

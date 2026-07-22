@@ -26,6 +26,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
+import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
@@ -161,6 +162,58 @@ class BatchServiceTest {
                         assertThat(response.getName()).isEqualTo("New Batch");
                         assertThat(response.getStatus()).isEqualTo(BatchStatus.DRAFT);
                         assertThat(response.getDifficulties()).isEmpty();
+                }
+        }
+
+        @Nested
+        class Update {
+
+                @Test
+                void updatesNameAndDescription() {
+                        Batch batch = buildBatch(BatchStatus.DRAFT);
+                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+                        when(batchRepository.save(any())).thenReturn(batch);
+                        when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
+                                        .thenReturn(List.of());
+
+                        UpdateBatchRequest request = new UpdateBatchRequest();
+                        request.setName("Renamed Batch");
+                        request.setDescription("Updated description");
+
+                        BatchResponse response = batchService.update(batch.getId(), request);
+
+                        assertThat(response.getName()).isEqualTo("Renamed Batch");
+                        assertThat(response.getDescription()).isEqualTo("Updated description");
+                        verify(batchRepository).save(batch);
+                }
+
+                @Test
+                void updatesReleasedBatch() {
+                        Batch batch = buildBatch(BatchStatus.RELEASED);
+                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+                        when(batchRepository.save(any())).thenReturn(batch);
+                        when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
+                                        .thenReturn(List.of());
+
+                        UpdateBatchRequest request = new UpdateBatchRequest();
+                        request.setName("Typo Fixed");
+
+                        BatchResponse response = batchService.update(batch.getId(), request);
+
+                        assertThat(response.getName()).isEqualTo("Typo Fixed");
+                        assertThat(response.getStatus()).isEqualTo(BatchStatus.RELEASED);
+                }
+
+                @Test
+                void throwsNotFound_whenBatchDoesNotExist() {
+                        UUID id = UUID.randomUUID();
+                        when(batchRepository.findById(id)).thenReturn(Optional.empty());
+
+                        UpdateBatchRequest request = new UpdateBatchRequest();
+                        request.setName("Nope");
+
+                        assertThatThrownBy(() -> batchService.update(id, request))
+                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
 

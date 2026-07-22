@@ -19,6 +19,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
+import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
@@ -135,6 +136,17 @@ public class BatchService {
                 .createdBy(createdBy)
                 .build());
         return toResponse(batch, List.of());
+    }
+
+    @Transactional
+    public BatchResponse update(UUID id, UpdateBatchRequest request) {
+        Batch batch = batchRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch", id));
+
+        batch.setName(request.getName());
+        batch.setDescription(request.getDescription());
+        batchRepository.save(batch);
+        return toResponse(batch, loadDifficulties(id));
     }
 
     @Transactional
