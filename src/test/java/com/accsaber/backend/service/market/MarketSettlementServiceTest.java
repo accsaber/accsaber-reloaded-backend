@@ -3,6 +3,7 @@ package com.accsaber.backend.service.market;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.service.item.EssenceLedgerService;
@@ -83,6 +85,29 @@ class MarketSettlementServiceTest {
         assertThat(listing.getStatus()).isEqualTo(MarketListingStatus.sold);
         assertThat(listing.getFinalPrice()).isEqualTo(250L);
         assertThat(listing.getWinner().getId()).isEqualTo(WINNER_ID);
+    }
+
+    @Test
+    void theWinnerOfAnAuctionIsNotifiedTheyWon() {
+        MarketListing listing = listing(user(WINNER_ID), 250L);
+        stubClaim(listing);
+
+        settlementService.settleNextDue();
+
+        verify(notificationService).notify(WINNER_ID, NotificationType.market_won, SELLER_ID,
+                "You won A thing for 250 essence", "/market/" + LISTING_ID);
+    }
+
+    @Test
+    void aBuyoutDoesNotNotifyTheBuyerTheyWon() {
+        MarketListing listing = listing(null, null);
+
+        settlementService.award(listing, user(WINNER_ID), 500L);
+
+        verify(notificationService, never()).notify(anyLong(), eq(NotificationType.market_won),
+                any(), any(), any());
+        verify(notificationService).notify(eq(SELLER_ID), eq(NotificationType.market_sold),
+                eq(WINNER_ID), any(), any());
     }
 
     @Test
