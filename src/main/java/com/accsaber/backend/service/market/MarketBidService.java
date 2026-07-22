@@ -149,6 +149,8 @@ public class MarketBidService {
             essenceLedgerService.reserve(bidderId, amount);
             essenceLedgerService.release(previousId, previousAmount);
         }
+        notificationService.notify(previousId, NotificationType.market_outbid, bidderId,
+                "You were outbid on " + listing.getTitle(), "/market/" + listing.getId());
     }
 
     private void extendIfSniping(MarketListing listing) {

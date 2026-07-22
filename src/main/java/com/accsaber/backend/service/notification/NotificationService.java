@@ -81,6 +81,7 @@ public class NotificationService {
             case trade_declined -> "Your trade offer was declined";
             case market_sold -> "Alpha Crate sold for 500 essence";
             case market_bid -> "New bid of 250 essence on Alpha Crate";
+            case market_outbid -> "You were outbid on Alpha Crate";
             case item_earned -> "You received Alpha Crate!";
             case server -> "This is a test notification";
         };
@@ -89,7 +90,7 @@ public class NotificationService {
     private static String sampleLink(NotificationType type, Long targetUserId) {
         return switch (type) {
             case trade_offer, trade_accepted, trade_declined -> "/trade-offers";
-            case market_sold, market_bid -> "/market";
+            case market_sold, market_bid, market_outbid -> "/market";
             case item_earned -> "/players/" + targetUserId;
             case server -> null;
         };

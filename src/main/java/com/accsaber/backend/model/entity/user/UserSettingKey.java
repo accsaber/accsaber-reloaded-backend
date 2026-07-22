@@ -55,6 +55,7 @@ public enum UserSettingKey {
     NOTIFICATIONS_TRADE_RESOLVED("notifications.tradeResolved", Boolean.class, true, false),
     NOTIFICATIONS_MARKET_SOLD("notifications.marketSold", Boolean.class, true, false),
     NOTIFICATIONS_MARKET_BID("notifications.marketBid", Boolean.class, true, false),
+    NOTIFICATIONS_MARKET_OUTBID("notifications.marketOutbid", Boolean.class, true, false),
     NOTIFICATIONS_ITEM_EARNED("notifications.itemEarned", Boolean.class, true, false),
     NOTIFICATIONS_SERVER("notifications.server", Boolean.class, true, false);
 
