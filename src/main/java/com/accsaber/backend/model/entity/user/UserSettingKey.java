@@ -49,12 +49,20 @@ public enum UserSettingKey {
     EQUIPPED_THEME_VARIANT("equipped.themeVariant", String.class, null, true),
     EQUIPPED_PROFILE_BACKGROUND_VARIANT("equipped.profileBackgroundVariant", String.class, null, true),
     EQUIPPED_PROFILE_THUMBNAIL_BACKGROUND_VARIANT("equipped.profileThumbnailBackgroundVariant", String.class, null, true),
-    EQUIPPED_STATISTIC_VARIANT("equipped.statisticVariant", String.class, null, true);
+    EQUIPPED_STATISTIC_VARIANT("equipped.statisticVariant", String.class, null, true),
+
+    NOTIFICATIONS_TRADE_OFFER("notifications.tradeOffer", Boolean.class, true, false),
+    NOTIFICATIONS_TRADE_RESOLVED("notifications.tradeResolved", Boolean.class, true, false),
+    NOTIFICATIONS_MARKET_SOLD("notifications.marketSold", Boolean.class, true, false),
+    NOTIFICATIONS_MARKET_BID("notifications.marketBid", Boolean.class, true, false),
+    NOTIFICATIONS_ITEM_EARNED("notifications.itemEarned", Boolean.class, true, false),
+    NOTIFICATIONS_SERVER("notifications.server", Boolean.class, true, false);
 
     public static final String GROUP_PRIVACY = "privacy";
     public static final String GROUP_APPEARANCE = "appearance";
     public static final String GROUP_EQUIPPED = "equipped";
     public static final String GROUP_SYNC = "sync";
+    public static final String GROUP_NOTIFICATIONS = "notifications";
 
     private final String key;
     private final Class<?> valueType;

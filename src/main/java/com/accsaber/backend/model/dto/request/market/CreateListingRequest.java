@@ -24,6 +24,10 @@ public class CreateListingRequest {
     @CleanText
     private String title;
 
+    @Size(max = 1000)
+    @CleanText
+    private String description;
+
     @Min(1)
     private Long startingBid;
 
@@ -33,7 +37,6 @@ public class CreateListingRequest {
     @Min(1)
     private long minIncrement = 1;
 
-    @NotNull
     @Min(1)
     private Integer durationMinutes;
 }

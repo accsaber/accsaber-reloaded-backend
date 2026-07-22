@@ -18,6 +18,7 @@ public final class MarketMapper {
         return MarketListingResponse.builder()
                 .id(listing.getId())
                 .title(listing.getTitle())
+                .description(listing.getDescription())
                 .seller(toUserRef(listing.getSeller()))
                 .item(ItemMapper.toUserItemResponse(listing.getUserItemLink()))
                 .quantity(listing.getQuantity())

@@ -98,7 +98,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/campaigns/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/events/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/crates/*/contents", "/v1/crates/*/modifiers", "/v1/crates/*/unusual-effects").permitAll()
-                .requestMatchers(HttpMethod.GET, "/v1/item-types", "/v1/item-modifiers", "/v1/unusual-effects", "/v1/items", "/v1/items/*", "/v1/items/*/holders").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/item-types", "/v1/item-modifiers", "/v1/unusual-effects", "/v1/unusual-effects/grouped", "/v1/items", "/v1/items/*", "/v1/items/*/holders").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/market/listings", "/v1/market/listings/*", "/v1/market/listings/*/bids").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/news/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/playlists/**").permitAll()

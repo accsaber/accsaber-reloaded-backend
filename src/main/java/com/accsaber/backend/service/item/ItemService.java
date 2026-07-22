@@ -28,8 +28,8 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
 import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
-import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.EssenceReason;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -38,6 +38,7 @@ import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UnusualEffect;
 import com.accsaber.backend.model.entity.item.UserItemDisintegration;
 import com.accsaber.backend.model.entity.item.UserItemLink;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.item.ItemModifierRepository;
@@ -48,6 +49,7 @@ import com.accsaber.backend.repository.item.UserItemLinkCounterRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -80,6 +82,7 @@ public class ItemService {
     private EntityManager entityManager;
     private final ItemValueValidator itemValueValidator;
     private final EssenceLedgerService essenceLedgerService;
+    private final NotificationService notificationService;
 
     public List<Item> findAllVisible() {
         return itemRepository.findByActiveTrueAndVisibleTrue();
@@ -631,7 +634,9 @@ public class ItemService {
             UserItemLink existing = findStackableMatch(userId, item.getId(), modifiers);
             if (existing != null) {
                 existing.setQuantity(existing.getQuantity() + quantity);
-                return userItemLinkRepository.save(existing);
+                UserItemLink merged = userItemLinkRepository.save(existing);
+                notifyItemEarned(userId, merged, quantity, source);
+                return merged;
             }
             return insertLink(userId, item, modifiers, null, quantity, source, sourceId, staff, reason);
         }
@@ -668,7 +673,18 @@ public class ItemService {
                 .awardedBy(staff)
                 .reason(reason)
                 .build();
-        return userItemLinkRepository.save(link);
+        UserItemLink saved = userItemLinkRepository.save(link);
+        notifyItemEarned(userId, saved, quantity, source);
+        return saved;
+    }
+
+    private void notifyItemEarned(Long userId, UserItemLink link, long quantity, ItemSource source) {
+        String name = link.getItem().getName();
+        String title = quantity > 1
+                ? "You received " + quantity + "x " + name + "!"
+                : "You received " + name + "!";
+        notificationService.notify(userId, NotificationType.item_earned, null, title,
+                "/players/" + userId + "?inventoryHighlight=" + link.getId());
     }
 
     static boolean hasPerInstanceModifier(Set<ItemModifier> modifiers) {

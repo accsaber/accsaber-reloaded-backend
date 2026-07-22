@@ -27,7 +27,8 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         SELECT l FROM MarketListing l
                         JOIN FETCH l.seller
                         LEFT JOIN FETCH l.currentBidder
-                        LEFT JOIN FETCH l.userItemLink
+                        LEFT JOIN FETCH l.userItemLink link
+                        LEFT JOIN link.unusualEffect effect
                         JOIN FETCH l.item i
                         JOIN FETCH i.type t
                         LEFT JOIN t.parentType pt
@@ -35,6 +36,9 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         AND (:sellerId IS NULL OR l.seller.id = :sellerId)
                         AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
                         AND (:rarities IS NULL OR i.rarity IN :rarities)
+                        AND (:modifierKeys IS NULL OR EXISTS (
+                                SELECT m FROM link.modifiers m WHERE m.key IN :modifierKeys))
+                        AND (:effectKeys IS NULL OR effect.key IN :effectKeys)
                         AND (:auctionsOnly = FALSE OR l.startingBid IS NOT NULL)
                         AND (:buyoutOnly = FALSE OR l.buyoutPrice IS NOT NULL)
                         AND (:minPrice IS NULL
@@ -50,6 +54,8 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         @Param("sellerId") Long sellerId,
                         @Param("typeKeys") Collection<String> typeKeys,
                         @Param("rarities") Collection<ItemRarity> rarities,
+                        @Param("modifierKeys") Collection<String> modifierKeys,
+                        @Param("effectKeys") Collection<String> effectKeys,
                         @Param("auctionsOnly") boolean auctionsOnly,
                         @Param("buyoutOnly") boolean buyoutOnly,
                         @Param("minPrice") Long minPrice,
@@ -75,7 +81,7 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
 
         @Query(value = """
                         SELECT id FROM market_listings
-                        WHERE status = 'active' AND ends_at <= :now
+                        WHERE status = 'active' AND ends_at IS NOT NULL AND ends_at <= :now
                         ORDER BY ends_at
                         FOR UPDATE SKIP LOCKED
                         LIMIT :batchSize

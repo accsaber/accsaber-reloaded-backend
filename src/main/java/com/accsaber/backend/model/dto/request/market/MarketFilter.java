@@ -10,6 +10,8 @@ public record MarketFilter(
         Long sellerId,
         List<String> typeKey,
         List<ItemRarity> rarity,
+        List<String> modifierKey,
+        List<String> effectKey,
         MarketKind kind,
         Long minPrice,
         Long maxPrice,
@@ -17,7 +19,7 @@ public record MarketFilter(
         MarketSortOption sort) {
 
     public static MarketFilter empty() {
-        return new MarketFilter(null, null, null, null, null, null, null, null, null);
+        return new MarketFilter(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public MarketListingStatus statusOrActive() {
@@ -30,6 +32,14 @@ public record MarketFilter(
 
     public List<ItemRarity> raritiesOrNull() {
         return nullIfEmpty(rarity);
+    }
+
+    public List<String> modifierKeysOrNull() {
+        return nullIfEmpty(modifierKey);
+    }
+
+    public List<String> effectKeysOrNull() {
+        return nullIfEmpty(effectKey);
     }
 
     public boolean auctionsOnly() {

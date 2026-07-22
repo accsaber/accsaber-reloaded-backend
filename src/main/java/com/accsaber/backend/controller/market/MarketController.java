@@ -31,7 +31,6 @@ import com.accsaber.backend.model.entity.market.MarketListingStatus;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.market.MarketBidService;
 import com.accsaber.backend.service.market.MarketListingService;
-import com.accsaber.backend.service.market.MarketMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,21 +46,23 @@ public class MarketController {
     private final MarketListingService listingService;
     private final MarketBidService bidService;
 
-    @Operation(summary = "Browse market listings", description = "Public. Defaults to active listings ending soonest. kind: auction | shop. sortBy: ending_soon | newest | price_asc | price_desc.")
+    @Operation(summary = "Browse market listings", description = "Public. Defaults to active listings ending soonest. kind: auction | shop. sortBy: ending_soon | newest | price_asc | price_desc. modifierKey/effectKey match the listed instance and only apply to listings whose item link still exists.")
     @GetMapping("/listings")
     public ResponseEntity<Page<MarketListingResponse>> browse(
             @RequestParam(required = false) MarketListingStatus status,
             @RequestParam(required = false) Long sellerId,
             @RequestParam(required = false) List<String> typeKey,
             @RequestParam(required = false) List<ItemRarity> rarity,
+            @RequestParam(required = false) List<String> modifierKey,
+            @RequestParam(required = false) List<String> effectKey,
             @RequestParam(required = false) MarketKind kind,
             @RequestParam(required = false) Long minPrice,
             @RequestParam(required = false) Long maxPrice,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) MarketSortOption sortBy,
             @PageableDefault(size = 30) Pageable pageable) {
-        MarketFilter filter = new MarketFilter(status, sellerId, typeKey, rarity, kind,
-                minPrice, maxPrice, search, sortBy);
+        MarketFilter filter = new MarketFilter(status, sellerId, typeKey, rarity,
+                modifierKey, effectKey, kind, minPrice, maxPrice, search, sortBy);
         return ResponseEntity.ok(listingService.browse(filter, pageable));
     }
 
@@ -74,7 +75,7 @@ public class MarketController {
     @Operation(summary = "Get the bid history for a listing")
     @GetMapping("/listings/{id}/bids")
     public ResponseEntity<List<MarketBidResponse>> bids(@PathVariable UUID id) {
-        return ResponseEntity.ok(bidService.findBids(id).stream().map(MarketMapper::toBidResponse).toList());
+        return ResponseEntity.ok(bidService.findBids(id));
     }
 
     @Operation(summary = "List an owned item on the market")
@@ -82,9 +83,7 @@ public class MarketController {
     public ResponseEntity<MarketListingResponse> create(@Valid @RequestBody CreateListingRequest req,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = requirePrincipal(principal).getUserId();
-        var listing = listingService.create(me, req);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(MarketMapper.toListingResponse(listing, 0L));
+        return ResponseEntity.status(HttpStatus.CREATED).body(listingService.create(me, req));
     }
 
     @Operation(summary = "Cancel one of my listings", description = "Only possible while the listing has no bids.")
@@ -92,7 +91,7 @@ public class MarketController {
     public ResponseEntity<MarketListingResponse> cancel(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(MarketMapper.toListingResponse(listingService.cancel(id, me), 0L));
+        return ResponseEntity.ok(listingService.cancel(id, me));
     }
 
     @Operation(summary = "Place a bid", description = "A bid at or above the buyout price completes the purchase immediately.")
@@ -130,7 +129,7 @@ public class MarketController {
             @PageableDefault(size = 30) Pageable pageable,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(bidService.findMyBids(me, pageable).map(MarketMapper::toBidResponse));
+        return ResponseEntity.ok(bidService.findMyBids(me, pageable));
     }
 
     private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {

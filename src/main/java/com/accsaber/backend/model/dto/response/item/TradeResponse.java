@@ -16,6 +16,8 @@ public class TradeResponse {
     private Long toUserId;
     private List<TradeItemRef> offeredItems;
     private List<TradeItemRef> requestedItems;
+    private long offeredEssence;
+    private long requestedEssence;
     private String status;
     private String message;
     private Instant createdAt;

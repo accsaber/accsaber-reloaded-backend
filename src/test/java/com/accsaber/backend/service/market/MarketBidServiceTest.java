@@ -35,6 +35,7 @@ import com.accsaber.backend.repository.market.MarketBidRepository;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.EssenceLedgerService;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +61,8 @@ class MarketBidServiceTest {
     private MarketSettlementService settlementService;
     @Mock
     private MarketBidRateLimitService rateLimitService;
+    @Mock
+    private NotificationService notificationService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -180,6 +183,29 @@ class MarketBidServiceTest {
         assertThatThrownBy(() -> bidService.placeBid(LISTING_ID, BIDDER_ID, 100L))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("already ended");
+    }
+
+    @Test
+    void anEndlessBuyNowListingCanStillBeBought() {
+        MarketListing listing = auction(null, 500L, null, null);
+        listing.setEndsAt(null);
+        stubListing(listing);
+
+        bidService.buyNow(LISTING_ID, BIDDER_ID);
+
+        verify(essenceLedgerService).reserve(BIDDER_ID, 500L);
+        verify(settlementService).award(any(MarketListing.class), any(User.class), anyLong());
+    }
+
+    @Test
+    void anEndlessListingIsNeverConsideredEnded() {
+        MarketListing listing = auction(null, 500L, null, null);
+        listing.setEndsAt(null);
+        stubListing(listing);
+
+        assertThatThrownBy(() -> bidService.placeBid(LISTING_ID, BIDDER_ID, 100L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("buy-now only");
     }
 
     @Test

@@ -16,9 +16,22 @@ import com.accsaber.backend.model.entity.market.MarketBid;
 @Repository
 public interface MarketBidRepository extends JpaRepository<MarketBid, UUID> {
 
-    List<MarketBid> findByListing_IdOrderByAmountDesc(UUID listingId);
+    @Query("""
+            SELECT b FROM MarketBid b
+            JOIN FETCH b.bidder
+            WHERE b.listing.id = :listingId
+            ORDER BY b.amount DESC
+            """)
+    List<MarketBid> findByListingHydrated(@Param("listingId") UUID listingId);
 
-    Page<MarketBid> findByBidder_IdOrderByCreatedAtDesc(Long bidderId, Pageable pageable);
+    @Query(value = """
+            SELECT b FROM MarketBid b
+            JOIN FETCH b.bidder
+            JOIN FETCH b.listing
+            WHERE b.bidder.id = :bidderId
+            ORDER BY b.createdAt DESC
+            """, countQuery = "SELECT COUNT(b) FROM MarketBid b WHERE b.bidder.id = :bidderId")
+    Page<MarketBid> findByBidderHydrated(@Param("bidderId") Long bidderId, Pageable pageable);
 
     long countByListing_Id(UUID listingId);
 

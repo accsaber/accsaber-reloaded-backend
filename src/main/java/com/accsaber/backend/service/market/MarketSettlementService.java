@@ -12,11 +12,13 @@ import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.MarketListingEvent;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.service.item.EssenceLedgerService;
 import com.accsaber.backend.service.item.ItemTransferService;
+import com.accsaber.backend.service.notification.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +29,7 @@ public class MarketSettlementService {
     private final MarketListingRepository listingRepository;
     private final ItemTransferService itemTransferService;
     private final EssenceLedgerService essenceLedgerService;
+    private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -61,6 +64,10 @@ public class MarketSettlementService {
         listing.setStatus(MarketListingStatus.sold);
         listing.setSettledAt(Instant.now());
         listingRepository.save(listing);
+
+        notificationService.notify(listing.getSeller().getId(), NotificationType.market_sold, winner.getId(),
+                listing.getItem().getName() + " sold for " + price + " essence",
+                "/market/" + listing.getId());
         publish(listing, "sold", price);
     }
 

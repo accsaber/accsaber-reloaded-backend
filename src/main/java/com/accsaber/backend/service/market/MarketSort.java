@@ -23,13 +23,17 @@ final class MarketSort {
 
     private static Sort resolve(MarketSortOption option) {
         if (option == null) {
-            return Sort.by(Sort.Direction.ASC, "endsAt");
+            return endingSoon();
         }
         return switch (option) {
-            case ending_soon -> Sort.by(Sort.Direction.ASC, "endsAt");
+            case ending_soon -> endingSoon();
             case newest -> Sort.by(Sort.Direction.DESC, "createdAt");
             case price_asc -> JpaSort.unsafe(Sort.Direction.ASC, PRICE_EXPRESSION);
             case price_desc -> JpaSort.unsafe(Sort.Direction.DESC, PRICE_EXPRESSION);
         };
+    }
+
+    private static Sort endingSoon() {
+        return Sort.by(Sort.Order.asc("endsAt").nullsLast());
     }
 }

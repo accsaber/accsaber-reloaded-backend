@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,10 +27,12 @@ import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 import com.accsaber.backend.model.entity.item.UserItemTradeItem;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.item.UserItemTradeRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,7 @@ public class ItemTradeService {
     private final DuplicateUserService duplicateUserService;
     private final ItemTransferService itemTransferService;
     private final EssenceLedgerService essenceLedgerService;
+    private final NotificationService notificationService;
 
     public List<UserItemTrade> listIncomingPending(Long toUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(toUserId);
@@ -94,9 +96,6 @@ public class ItemTradeService {
         if (offeredEssence < 0 || requestedEssence < 0) {
             throw new ValidationException("essence", "essence amounts cannot be negative");
         }
-        if (offeredEssence > 0 && requestedEssence > 0) {
-            throw new ValidationException("essence", "essence can only be offered by one side of a trade");
-        }
 
         Map<UUID, Long> offeredQty = sanitize("offeredItems", offered);
         Map<UUID, Long> requestedQty = sanitize("requestedItems", requested);
@@ -138,7 +137,11 @@ public class ItemTradeService {
                 .add(buildItem(trade, offeredLinks.get(linkId), TradeItemSide.offered, qty)));
         requestedQty.forEach((linkId, qty) -> trade.getItems()
                 .add(buildItem(trade, requestedLinks.get(linkId), TradeItemSide.requested, qty)));
-        return tradeRepository.save(trade);
+        UserItemTrade saved = tradeRepository.save(trade);
+
+        notificationService.notify(resolvedTo, NotificationType.trade_offer, resolvedFrom,
+                "You received a new trade offer", "/trade-offers");
+        return saved;
     }
 
     @Transactional
@@ -190,6 +193,7 @@ public class ItemTradeService {
 
         trade.setStatus(TradeStatus.accepted);
         trade.setResolvedAt(Instant.now());
+        notifyResolution(trade, NotificationType.trade_accepted, receiverId);
         return tradeRepository.save(trade);
     }
 
@@ -204,6 +208,7 @@ public class ItemTradeService {
         refundOfferedEssence(trade);
         trade.setStatus(TradeStatus.declined);
         trade.setResolvedAt(Instant.now());
+        notifyResolution(trade, NotificationType.trade_declined, resolved);
         return tradeRepository.save(trade);
     }
 
@@ -227,6 +232,13 @@ public class ItemTradeService {
             refundOfferedEssence(trade);
         }
         return tradeRepository.expirePending(cutoff, Instant.now());
+    }
+
+    private void notifyResolution(UserItemTrade trade, NotificationType type, Long actorId) {
+        String title = type == NotificationType.trade_accepted
+                ? "Your trade offer was accepted"
+                : "Your trade offer was declined";
+        notificationService.notify(trade.getFromUser().getId(), type, actorId, title, "/trade-offers");
     }
 
     private void refundOfferedEssence(UserItemTrade trade) {

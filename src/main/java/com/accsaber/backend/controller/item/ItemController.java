@@ -30,6 +30,7 @@ import com.accsaber.backend.model.dto.response.item.EssenceBalanceResponse;
 import com.accsaber.backend.model.dto.response.item.ItemModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectGroupsResponse;
 import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.dto.response.statistics.ItemHolderResponse;
@@ -80,6 +81,12 @@ public class ItemController {
         return ResponseEntity.ok(unusualEffectService.findAll(false).stream()
                 .map(ItemMapper::toUnusualEffectResponse)
                 .toList());
+    }
+
+    @Operation(summary = "List active unusual effects grouped by the crate they drop from", description = "Effects attached to more than one crate appear under each. Effects attached to no crate land in 'ungrouped'. Effects that only drop from a hidden crate are omitted entirely.")
+    @GetMapping("/unusual-effects/grouped")
+    public ResponseEntity<UnusualEffectGroupsResponse> listUnusualEffectsGrouped() {
+        return ResponseEntity.ok(unusualEffectService.findAllGrouped(false));
     }
 
     @Operation(summary = "List all visible items, optionally filtered by type")

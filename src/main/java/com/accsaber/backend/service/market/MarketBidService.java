@@ -2,6 +2,7 @@ package com.accsaber.backend.service.market;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -14,15 +15,18 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.market.MarketBidResponse;
 import com.accsaber.backend.model.entity.market.MarketBid;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.MarketListingEvent;
 import com.accsaber.backend.repository.market.MarketBidRepository;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.EssenceLedgerService;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 import lombok.RequiredArgsConstructor;
@@ -39,18 +43,21 @@ public class MarketBidService {
     private final EssenceLedgerService essenceLedgerService;
     private final MarketSettlementService settlementService;
     private final MarketBidRateLimitService rateLimitService;
+    private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${accsaber.market.anti-snipe-seconds:60}")
     private int antiSnipeSeconds;
 
-    public List<MarketBid> findBids(UUID listingId) {
-        return bidRepository.findByListing_IdOrderByAmountDesc(listingId);
+    public List<MarketBidResponse> findBids(UUID listingId) {
+        return bidRepository.findByListingHydrated(listingId).stream()
+                .map(MarketMapper::toBidResponse)
+                .toList();
     }
 
-    public Page<MarketBid> findMyBids(Long userId, Pageable pageable) {
+    public Page<MarketBidResponse> findMyBids(Long userId, Pageable pageable) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return bidRepository.findByBidder_IdOrderByCreatedAtDesc(resolved, pageable);
+        return bidRepository.findByBidderHydrated(resolved, pageable).map(MarketMapper::toBidResponse);
     }
 
     @Transactional
@@ -86,8 +93,12 @@ public class MarketBidService {
                 .buyout(false)
                 .build());
 
+        notificationService.notify(listing.getSeller().getId(), NotificationType.market_bid, bidder.getId(),
+                "New bid of " + amount + " essence on " + listing.getTitle(),
+                "/market/" + listing.getId());
+
         publish(listing, "bid", amount, bidder);
-        if (!listing.getEndsAt().equals(previousEnd)) {
+        if (!Objects.equals(listing.getEndsAt(), previousEnd)) {
             publish(listing, "extended", null, bidder);
         }
         return listing;
@@ -141,7 +152,7 @@ public class MarketBidService {
     }
 
     private void extendIfSniping(MarketListing listing) {
-        if (antiSnipeSeconds <= 0) {
+        if (antiSnipeSeconds <= 0 || listing.isEndless()) {
             return;
         }
         Instant threshold = Instant.now().plusSeconds(antiSnipeSeconds);
@@ -166,7 +177,7 @@ public class MarketBidService {
             throw new ValidationException("listingId",
                     "listing is no longer active (status: " + listing.getStatus() + ")");
         }
-        if (!listing.getEndsAt().isAfter(Instant.now())) {
+        if (!listing.isEndless() && !listing.getEndsAt().isAfter(Instant.now())) {
             throw new ValidationException("listingId", "this listing has already ended");
         }
         if (listing.getSeller().getId().equals(actorId)) {

@@ -15,6 +15,7 @@ public class MarketListingResponse {
 
     private UUID id;
     private String title;
+    private String description;
     private MarketUserRef seller;
     private UserItemResponse item;
     private long quantity;

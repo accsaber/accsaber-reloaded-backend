@@ -32,6 +32,7 @@ import com.accsaber.backend.repository.item.UserItemDisintegrationRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserSettingsService;
 
@@ -55,6 +56,8 @@ class ItemServiceDisintegrateTest {
     private UserSettingsService userSettingsService;
     @Mock
     private EssenceLedgerService essenceLedgerService;
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private ItemService itemService;

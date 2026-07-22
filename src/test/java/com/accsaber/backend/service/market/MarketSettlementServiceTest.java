@@ -32,6 +32,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.service.item.EssenceLedgerService;
 import com.accsaber.backend.service.item.ItemTransferService;
+import com.accsaber.backend.service.notification.NotificationService;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -47,6 +48,8 @@ class MarketSettlementServiceTest {
     private ItemTransferService itemTransferService;
     @Mock
     private EssenceLedgerService essenceLedgerService;
+    @Mock
+    private NotificationService notificationService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 

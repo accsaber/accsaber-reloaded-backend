@@ -1,6 +1,12 @@
 package com.accsaber.backend.service.item;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -9,7 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectGroupsResponse;
+import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
+import com.accsaber.backend.model.entity.item.CrateUnusualEffect;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.UnusualEffect;
+import com.accsaber.backend.repository.item.CrateUnusualEffectRepository;
 import com.accsaber.backend.repository.item.UnusualEffectRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -23,9 +34,50 @@ public class UnusualEffectService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final UnusualEffectRepository unusualEffectRepository;
+    private final CrateUnusualEffectRepository crateUnusualEffectRepository;
 
     public List<UnusualEffect> findAll(boolean includeInactive) {
         return includeInactive ? unusualEffectRepository.findAll() : unusualEffectRepository.findByActiveTrue();
+    }
+
+    public UnusualEffectGroupsResponse findAllGrouped(boolean includeHidden) {
+        List<CrateUnusualEffect> attachments = crateUnusualEffectRepository.findAllHydrated();
+
+        Map<UUID, List<UnusualEffect>> byCrate = new LinkedHashMap<>();
+        Map<UUID, Item> cratesById = new LinkedHashMap<>();
+        Set<UUID> attachedEffectIds = new HashSet<>();
+
+        for (CrateUnusualEffect attachment : attachments) {
+            Item crate = attachment.getCrateItem();
+            attachedEffectIds.add(attachment.getEffect().getId());
+            if (!includeHidden && !crate.isVisible()) {
+                continue;
+            }
+            cratesById.putIfAbsent(crate.getId(), crate);
+            byCrate.computeIfAbsent(crate.getId(), k -> new ArrayList<>()).add(attachment.getEffect());
+        }
+
+        List<UnusualEffectGroupsResponse.CrateGroup> groups = cratesById.values().stream()
+                .map(crate -> UnusualEffectGroupsResponse.CrateGroup.builder()
+                        .crateId(crate.getId())
+                        .crateName(crate.getName())
+                        .crateIconUrl(crate.getIconUrl())
+                        .effects(byCrate.get(crate.getId()).stream()
+                                .map(ItemMapper::toUnusualEffectResponse)
+                                .toList())
+                        .build())
+                .toList();
+
+        List<UnusualEffectResponse> ungrouped = unusualEffectRepository.findByActiveTrue().stream()
+                .filter(effect -> !attachedEffectIds.contains(effect.getId()))
+                .sorted(Comparator.comparing(UnusualEffect::getName))
+                .map(ItemMapper::toUnusualEffectResponse)
+                .toList();
+
+        return UnusualEffectGroupsResponse.builder()
+                .groups(groups)
+                .ungrouped(ungrouped)
+                .build();
     }
 
     public UnusualEffect findById(UUID id) {

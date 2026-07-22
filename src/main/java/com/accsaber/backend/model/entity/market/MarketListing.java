@@ -60,6 +60,9 @@ public class MarketListing {
     @Column(nullable = false)
     private String title;
 
+    @Column
+    private String description;
+
     @Column(nullable = false)
     private long quantity;
 
@@ -96,7 +99,7 @@ public class MarketListing {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name = "ends_at", nullable = false)
+    @Column(name = "ends_at")
     private Instant endsAt;
 
     @Column(name = "settled_at")
@@ -108,6 +111,10 @@ public class MarketListing {
 
     public boolean isAuction() {
         return startingBid != null;
+    }
+
+    public boolean isEndless() {
+        return endsAt == null;
     }
 
     public long minimumAcceptableBid() {

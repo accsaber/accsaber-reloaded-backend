@@ -60,10 +60,10 @@ public class MarketListingService {
     private int maxDurationMinutes;
 
     @Transactional
-    public MarketListing create(Long userId, CreateListingRequest req) {
+    public MarketListingResponse create(Long userId, CreateListingRequest req) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         validatePricing(req);
-        validateDuration(req.getDurationMinutes());
+        Instant endsAt = resolveEndsAt(req);
 
         if (listingRepository.countBySeller_IdAndStatus(resolved, MarketListingStatus.active) >= maxActiveListings) {
             throw new ConflictException("You already have " + maxActiveListings + " active listings");
@@ -75,21 +75,23 @@ public class MarketListingService {
 
         UserItemLink escrowed = itemTransferService.escrow(link, req.getQuantity());
 
-        return listingRepository.save(MarketListing.builder()
+        MarketListing saved = listingRepository.save(MarketListing.builder()
                 .seller(userRepository.getReferenceById(resolved))
                 .item(escrowed.getItem())
                 .userItemLink(escrowed)
                 .title(req.getTitle())
+                .description(req.getDescription())
                 .quantity(req.getQuantity())
                 .startingBid(req.getStartingBid())
                 .buyoutPrice(req.getBuyoutPrice())
                 .minIncrement(req.getMinIncrement())
-                .endsAt(Instant.now().plus(req.getDurationMinutes(), ChronoUnit.MINUTES))
+                .endsAt(endsAt)
                 .build());
+        return MarketMapper.toListingResponse(saved, 0L);
     }
 
     @Transactional
-    public MarketListing cancel(UUID listingId, Long userId) {
+    public MarketListingResponse cancel(UUID listingId, Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         MarketListing listing = listingRepository.findByIdForUpdate(listingId)
                 .orElseThrow(() -> new ResourceNotFoundException("MarketListing", listingId));
@@ -104,7 +106,7 @@ public class MarketListingService {
             throw new ConflictException("This listing already has bids and can no longer be cancelled");
         }
         settlementService.close(listing, MarketListingStatus.cancelled);
-        return listing;
+        return MarketMapper.toListingResponse(listing, bidRepository.countByListing_Id(listingId));
     }
 
     public Page<MarketListingResponse> browse(MarketFilter filter, Pageable pageable) {
@@ -114,6 +116,8 @@ public class MarketListingService {
                 f.sellerId(),
                 f.typeKeysOrNull(),
                 f.raritiesOrNull(),
+                f.modifierKeysOrNull(),
+                f.effectKeysOrNull(),
                 f.auctionsOnly(),
                 f.buyoutOnly(),
                 f.minPrice(),
@@ -160,11 +164,20 @@ public class MarketListingService {
         }
     }
 
-    private void validateDuration(int durationMinutes) {
-        if (durationMinutes < minDurationMinutes || durationMinutes > maxDurationMinutes) {
+    private Instant resolveEndsAt(CreateListingRequest req) {
+        if (req.getDurationMinutes() == null) {
+            if (req.getStartingBid() != null) {
+                throw new ValidationException("durationMinutes",
+                        "an auction must have a duration; only buy-now listings can run indefinitely");
+            }
+            return null;
+        }
+        int minutes = req.getDurationMinutes();
+        if (minutes < minDurationMinutes || minutes > maxDurationMinutes) {
             throw new ValidationException("durationMinutes",
                     "duration must be between " + minDurationMinutes + " and " + maxDurationMinutes + " minutes");
         }
+        return Instant.now().plus(minutes, ChronoUnit.MINUTES);
     }
 
     private void validateListable(UserItemLink link, Long ownerId, long quantity) {

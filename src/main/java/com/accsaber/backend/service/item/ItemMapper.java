@@ -208,6 +208,8 @@ public final class ItemMapper {
                 .toUserId(trade.getToUser().getId())
                 .offeredItems(tradeItemsForSide(trade, TradeItemSide.offered))
                 .requestedItems(tradeItemsForSide(trade, TradeItemSide.requested))
+                .offeredEssence(trade.getOfferedEssence())
+                .requestedEssence(trade.getRequestedEssence())
                 .status(trade.getStatus().name())
                 .message(trade.getMessage())
                 .createdAt(trade.getCreatedAt())

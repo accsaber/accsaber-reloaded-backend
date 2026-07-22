@@ -38,6 +38,9 @@ public class StrangeTrackingService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onScoreSubmitted(ScoreSubmittedEvent event) {
+        if (!event.score().isActive()) {
+            return;
+        }
         try {
             Long userId = Long.parseLong(event.score().getUserId());
             incrementForUser(userId, STAT_PLAY_COUNT, 1L);
