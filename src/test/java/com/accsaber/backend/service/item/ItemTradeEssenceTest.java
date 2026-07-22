@@ -66,9 +66,8 @@ class ItemTradeEssenceTest {
     void setUp() {
         when(duplicateUserService.resolvePrimaryUserId(SENDER)).thenReturn(SENDER);
         when(duplicateUserService.resolvePrimaryUserId(RECIPIENT)).thenReturn(RECIPIENT);
-        when(userRepository.existsById(RECIPIENT)).thenReturn(true);
-        when(userRepository.getReferenceById(SENDER)).thenReturn(user(SENDER));
-        when(userRepository.getReferenceById(RECIPIENT)).thenReturn(user(RECIPIENT));
+        when(userRepository.findById(SENDER)).thenReturn(Optional.of(user(SENDER)));
+        when(userRepository.findById(RECIPIENT)).thenReturn(Optional.of(user(RECIPIENT)));
         when(tradeItemRepository.findLinkIdsInTradesWithStatus(any(), any())).thenReturn(List.of());
         when(tradeRepository.save(any())).thenAnswer(invocation -> {
             UserItemTrade persisted = invocation.getArgument(0);

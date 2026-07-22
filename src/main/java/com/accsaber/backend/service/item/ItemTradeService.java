@@ -28,6 +28,7 @@ import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 import com.accsaber.backend.model.entity.item.UserItemTradeItem;
 import com.accsaber.backend.model.entity.notification.NotificationType;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.item.UserItemTradeRepository;
@@ -90,9 +91,10 @@ public class ItemTradeService {
         if (resolvedFrom.equals(resolvedTo)) {
             throw new ValidationException("toUserId", "cannot trade with yourself");
         }
-        if (!userRepository.existsById(resolvedTo)) {
-            throw new ResourceNotFoundException("User", toUserId);
-        }
+        User toUser = userRepository.findById(resolvedTo)
+                .orElseThrow(() -> new ResourceNotFoundException("User", toUserId));
+        User fromUser = userRepository.findById(resolvedFrom)
+                .orElseThrow(() -> new ResourceNotFoundException("User", fromUserId));
         if (offeredEssence < 0 || requestedEssence < 0) {
             throw new ValidationException("essence", "essence amounts cannot be negative");
         }
@@ -125,8 +127,8 @@ public class ItemTradeService {
         }
 
         UserItemTrade trade = UserItemTrade.builder()
-                .fromUser(userRepository.getReferenceById(resolvedFrom))
-                .toUser(userRepository.getReferenceById(resolvedTo))
+                .fromUser(fromUser)
+                .toUser(toUser)
                 .status(TradeStatus.pending)
                 .offeredEssence(offeredEssence)
                 .requestedEssence(requestedEssence)

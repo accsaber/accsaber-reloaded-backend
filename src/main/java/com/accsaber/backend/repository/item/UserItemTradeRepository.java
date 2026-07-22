@@ -3,10 +3,12 @@ package com.accsaber.backend.repository.item;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -27,10 +29,17 @@ public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UU
                      """)
        List<UserItemTrade> findExpiringWithReservedEssence(@Param("cutoff") Instant cutoff);
 
+       @Override
+       @EntityGraph(attributePaths = { "fromUser", "toUser" })
+       Optional<UserItemTrade> findById(UUID id);
+
+       @EntityGraph(attributePaths = { "fromUser", "toUser" })
        List<UserItemTrade> findByToUser_IdAndStatus(Long toUserId, TradeStatus status);
 
+       @EntityGraph(attributePaths = { "fromUser", "toUser" })
        List<UserItemTrade> findByFromUser_IdAndStatus(Long fromUserId, TradeStatus status);
 
+       @EntityGraph(attributePaths = { "fromUser", "toUser" })
        @Query("SELECT t FROM UserItemTrade t WHERE " +
                      "((:incoming = TRUE AND t.toUser.id = :userId) OR (:outgoing = TRUE AND t.fromUser.id = :userId)) "
                      +
