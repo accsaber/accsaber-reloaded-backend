@@ -45,7 +45,13 @@ public class MarketSettlementService {
         if (listing.getCurrentBidder() == null) {
             close(listing, MarketListingStatus.expired);
         } else {
-            award(listing, listing.getCurrentBidder(), listing.getCurrentBid());
+            User winner = listing.getCurrentBidder();
+            long price = listing.getCurrentBid();
+            award(listing, winner, price);
+            notificationService.notify(winner.getId(), NotificationType.market_won,
+                    listing.getSeller().getId(),
+                    "You won " + listing.getItem().getName() + " for " + price + " essence",
+                    "/market/" + listing.getId());
         }
         return true;
     }

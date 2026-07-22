@@ -10,6 +10,7 @@ public enum NotificationType {
     market_sold(UserSettingKey.NOTIFICATIONS_MARKET_SOLD),
     market_bid(UserSettingKey.NOTIFICATIONS_MARKET_BID),
     market_outbid(UserSettingKey.NOTIFICATIONS_MARKET_OUTBID),
+    market_won(UserSettingKey.NOTIFICATIONS_MARKET_WON),
     item_earned(UserSettingKey.NOTIFICATIONS_ITEM_EARNED),
     server(UserSettingKey.NOTIFICATIONS_SERVER);
 

@@ -32,6 +32,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.supporter.SupporterService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,6 +50,7 @@ public class MarketListingService {
     private final ItemTransferService itemTransferService;
     private final ItemService itemService;
     private final MarketSettlementService settlementService;
+    private final SupporterService supporterService;
 
     @Value("${accsaber.market.max-active-listings:20}")
     private int maxActiveListings;
@@ -65,9 +67,7 @@ public class MarketListingService {
         validatePricing(req);
         Instant endsAt = resolveEndsAt(req);
 
-        if (listingRepository.countBySeller_IdAndStatus(resolved, MarketListingStatus.active) >= maxActiveListings) {
-            throw new ConflictException("You already have " + maxActiveListings + " active listings");
-        }
+        enforceListingCap(resolved);
 
         UserItemLink link = userItemLinkRepository.findByIdForUpdate(req.getUserItemLinkId())
                 .orElseThrow(() -> new ResourceNotFoundException("UserItemLink", req.getUserItemLinkId()));
@@ -152,6 +152,17 @@ public class MarketListingService {
             counts.put((UUID) row[0], (Long) row[1]);
         }
         return page.map(l -> MarketMapper.toListingResponse(l, counts.getOrDefault(l.getId(), 0L)));
+    }
+
+    private void enforceListingCap(Long resolvedUserId) {
+        if (supporterService.isActiveSupporter(resolvedUserId)) {
+            return;
+        }
+        if (listingRepository.countBySeller_IdAndStatus(resolvedUserId,
+                MarketListingStatus.active) >= maxActiveListings) {
+            throw new ConflictException("You already have " + maxActiveListings
+                    + " active listings. Supporters get unlimited listings.");
+        }
     }
 
     private void validatePricing(CreateListingRequest req) {

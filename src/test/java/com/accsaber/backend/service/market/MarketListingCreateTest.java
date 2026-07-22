@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.market.CreateListingRequest;
 import com.accsaber.backend.model.dto.response.market.MarketListingResponse;
@@ -39,6 +42,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.supporter.SupporterService;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -65,6 +69,8 @@ class MarketListingCreateTest {
     private ItemService itemService;
     @Mock
     private MarketSettlementService settlementService;
+    @Mock
+    private SupporterService supporterService;
 
     @InjectMocks
     private MarketListingService listingService;
@@ -143,6 +149,34 @@ class MarketListingCreateTest {
         assertThatThrownBy(() -> listingService.create(SELLER_ID, request(100L, null, 20_000)))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("between 30 and 10080");
+    }
+
+    @Test
+    void aNonSupporterIsCappedAtTheConfiguredListingLimit() {
+        when(listingRepository.countBySeller_IdAndStatus(SELLER_ID, MarketListingStatus.active)).thenReturn(20L);
+
+        assertThatThrownBy(() -> listingService.create(SELLER_ID, request(null, 500L, null)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Supporters get unlimited listings");
+    }
+
+    @Test
+    void aSupporterIsNeverCapped() {
+        when(supporterService.isActiveSupporter(SELLER_ID)).thenReturn(true);
+        when(listingRepository.countBySeller_IdAndStatus(SELLER_ID, MarketListingStatus.active)).thenReturn(500L);
+
+        MarketListingResponse res = listingService.create(SELLER_ID, request(null, 500L, null));
+
+        assertThat(res).isNotNull();
+    }
+
+    @Test
+    void theCapCheckIsSkippedEntirelyForSupporters() {
+        when(supporterService.isActiveSupporter(SELLER_ID)).thenReturn(true);
+
+        listingService.create(SELLER_ID, request(null, 500L, null));
+
+        verify(listingRepository, never()).countBySeller_IdAndStatus(any(), any());
     }
 
     @Test
