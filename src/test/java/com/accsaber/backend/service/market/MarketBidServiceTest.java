@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +31,7 @@ import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.market.MarketBidRepository;
 import com.accsaber.backend.repository.market.MarketListingRepository;
@@ -97,6 +99,36 @@ class MarketBidServiceTest {
 
         verify(essenceLedgerService).release(RIVAL_ID, 100L);
         verify(essenceLedgerService).reserve(BIDDER_ID, 150L);
+    }
+
+    @Test
+    void theDisplacedBidderIsNotifiedTheyWereOutbid() {
+        stubListing(auction(100L, null, 100L, user(RIVAL_ID)));
+
+        bidService.placeBid(LISTING_ID, BIDDER_ID, 150L);
+
+        verify(notificationService).notify(RIVAL_ID, NotificationType.market_outbid, BIDDER_ID,
+                "You were outbid on A thing", "/market/" + LISTING_ID);
+    }
+
+    @Test
+    void aBuyoutAlsoNotifiesTheStandingBidderTheyLost() {
+        stubListing(auction(100L, 500L, 200L, user(RIVAL_ID)));
+
+        bidService.buyNow(LISTING_ID, BIDDER_ID);
+
+        verify(notificationService).notify(RIVAL_ID, NotificationType.market_outbid, BIDDER_ID,
+                "You were outbid on A thing", "/market/" + LISTING_ID);
+    }
+
+    @Test
+    void theFirstBidOnAListingNotifiesNobodyAboutBeingOutbid() {
+        stubListing(auction(100L, null, null, null));
+
+        bidService.placeBid(LISTING_ID, BIDDER_ID, 100L);
+
+        verify(notificationService, never()).notify(anyLong(), eq(NotificationType.market_outbid),
+                any(), any(), any());
     }
 
     @Test
