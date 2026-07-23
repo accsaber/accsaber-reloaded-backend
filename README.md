@@ -18,7 +18,7 @@ cd accsaber-backend
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
+Edit `.env` with your following required values:
 
 ```
 POSTGRES_DB=accsaber
@@ -27,24 +27,6 @@ POSTGRES_PASSWORD=your_password_here
 SPRING_PROFILES_ACTIVE=dev
 JWT_SECRET=your_jwt_secret_here
 SERVICE_API_KEY=your_api_key_here
-COMPOSE_PROFILES=docker_compose_profiles_here
-
-# OAuth (optional; required to enable Discord / BeatLeader / Steam login)
-DISCORD_OAUTH_CLIENT_ID=
-DISCORD_OAUTH_CLIENT_SECRET=
-DISCORD_OAUTH_REDIRECT_URI=http://localhost:8080/v1/auth/discord/callback
-BEATLEADER_OAUTH_CLIENT_ID=
-BEATLEADER_OAUTH_CLIENT_SECRET=
-BEATLEADER_OAUTH_REDIRECT_URI=http://localhost:8080/v1/auth/beatleader/callback
-STEAM_OPENID_REALM=http://localhost:8080
-STEAM_OPENID_RETURN_TO=http://localhost:8080/v1/auth/steam/callback
-OAUTH_ALLOWED_RETURN_ORIGINS=http://localhost:5173
-KOFI_VERIFICATION_TOKEN=
-
-# CDN (image uploads for items/campaigns)
-CDN_STORAGE_PATH=./data/cdn
-CDN_BASE_URL=http://localhost:8080/cdn
-CDN_VIPS_BINARY=vips
 ```
 
 ```bash
@@ -131,6 +113,7 @@ src/main/resources/
 | `STEAM_OPENID_REALM`      | OAuth    | Public backend origin used as the Steam OpenID realm |
 | `STEAM_OPENID_RETURN_TO`  | OAuth    | Backend callback URL for Steam (`{realm}/v1/auth/steam/callback`) |
 | `OAUTH_ALLOWED_RETURN_ORIGINS` | OAuth | Comma-separated frontend origins the OAuth flow may redirect back to |
+| `ACCSABER_DOMAINS`        | No   | Comma-separated site domains used for CORS, auth cookie scoping, OG tags, and OpenAPI server URLs. Defaults to `accsaber.com,accsaberreloaded.com`. |
 | `KOFI_VERIFICATION_TOKEN` | No   | Ko-fi webhook verification token (from `ko-fi.com/manage/webhooks`).|
 | `CDN_STORAGE_PATH`        | No   | Where encoded WebP files are written. Defaults to `./data/cdn` locally, `/var/cdn` in prod. |
 | `CDN_BASE_URL`            | No   | Public URL prefix returned in `avatarUrl`/`coverUrl`/`iconUrl`/`backgroundUrl`. |
@@ -142,6 +125,8 @@ src/main/resources/
 | `CDN_MAX_UPLOAD_BYTES`    | No   | Hard ceiling on uploaded file size in bytes. Default 10485760 (10 MB). |
 | `CDN_BACKFILL_DELAY_MS`   | No   | Throttle between tasks in the avatar/cover backfill loop. Default 0 (no throttle). Set higher to gentle the system or upstream APIs. |
 | `CDN_ENCODE_TIMEOUT_MS`   | No   | Per-encode timeout for the vips subprocess. Default 30000 (30s). |
+| `ITEM_FILES_STORAGE_PATH` | No   | Directory downloadable item files (sabers/pedestals) are served from. |
+| `ITEM_FILES_SIGNING_KEY`  | Downloads | Base64 Ed25519 private key (PKCS#8 DER) used to sign each item-file download per player. Generate with `openssl genpkey -algorithm ed25519 -outform DER \| base64 -w0`. Required only to serve downloadable items; use a separate key per environment. |
 
 > **OAuth** vars are required to run the player/staff OAuth login flow. Leave blank to disable OAuth - username/password staff login still works.
 
