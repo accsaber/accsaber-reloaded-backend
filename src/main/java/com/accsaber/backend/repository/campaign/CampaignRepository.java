@@ -50,9 +50,9 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
         @EntityGraph(attributePaths = { "creator", "campaignDifficulties" })
         Page<Campaign> findByActiveTrueAndSeekingCurationTrue(Pageable pageable);
 
-        @EntityGraph(attributePaths = { "creator", "campaignDifficulties" })
+        @EntityGraph(attributePaths = { "creator" })
         @Query("""
-                        SELECT DISTINCT c FROM Campaign c
+                        SELECT c FROM Campaign c
                         WHERE c.active = true
                           AND (:hasStatus = false OR c.status IN :statuses)
                           AND (:creatorId IS NULL OR c.creator.id = :creatorId)

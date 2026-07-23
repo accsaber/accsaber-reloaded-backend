@@ -14,7 +14,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -163,12 +166,22 @@ public class CampaignService {
         return paginateAsResponses(
                 campaignRepository.findFiltered(hasStatus, statusArg, creatorId, hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
-                        CampaignCollaboratorStatus.ACCEPTED, searchArg, official, pageable),
+                        CampaignCollaboratorStatus.ACCEPTED, searchArg, official,
+                        withPublishedAtFallback(pageable)),
                 resolvedViewerId);
     }
 
     public Page<CampaignResponse> findCurationQueue(Pageable pageable) {
         return paginateAsResponses(campaignRepository.findByActiveTrueAndSeekingCurationTrue(pageable), null);
+    }
+
+    private static Pageable withPublishedAtFallback(Pageable pageable) {
+        Sort.Order order = pageable.getSort().getOrderFor("publishedAt");
+        if (order == null) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                JpaSort.unsafe(order.getDirection(), "COALESCE(c.publishedAt, c.createdAt)"));
     }
 
     private Page<CampaignResponse> paginateAsResponses(Page<Campaign> page, Long resolvedViewerId) {
