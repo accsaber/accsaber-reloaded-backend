@@ -82,6 +82,7 @@ public class ScoreImportService {
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final CampaignEvaluationService campaignEvaluationService;
     private final UserCampaignRepository userCampaignRepository;
+    private final com.accsaber.backend.repository.campaign.CampaignDifficultyRepository campaignDifficultyRepository;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
@@ -359,6 +360,76 @@ public class ScoreImportService {
         });
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel user backfill complete for {} users in {}s", userIds.size(), elapsed / 1000);
+    }
+
+    @Async("taskExecutor")
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public void onLegacyCampaignStarted(
+            com.accsaber.backend.model.event.LegacyCampaignBackfillEvent event) {
+        backfillAndSettleLegacyCampaign(event.userId(), event.campaignId());
+    }
+
+    public void backfillAndSettleLegacyCampaign(Long userId, UUID campaignId) {
+        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
+        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        int recorded = 0;
+        for (var node : campaignDifficultyRepository.findActiveWithMapByCampaignId(campaignId)) {
+            if (node.isBarrier()) {
+                continue;
+            }
+            MapDifficulty md = node.getMapDifficulty();
+            if (md == null || md.getStatus() == MapDifficultyStatus.RANKED) {
+                continue;
+            }
+            if (!scoreRepository.findEligibleCampaignRows(resolved, List.of(md.getId()), Instant.EPOCH).isEmpty()) {
+                continue;
+            }
+            try {
+                boolean bl = recordCampaignScoreFromBeatLeader(resolved, md, modifiers);
+                boolean ss = recordCampaignScoreFromScoreSaber(resolved, md, modifiers);
+                if (bl || ss) {
+                    recorded++;
+                }
+            } catch (Exception e) {
+                log.warn("Campaign backfill failed for user={} difficulty={}: {}", resolved, md.getId(),
+                        e.getMessage());
+            }
+        }
+        log.info("Legacy campaign backfill user={} campaign={}: recorded {} platform score(s)", resolved, campaignId,
+                recorded);
+        campaignEvaluationService.importLegacyScores(resolved, campaignId);
+    }
+
+    private boolean recordCampaignScoreFromBeatLeader(Long userId, MapDifficulty md, Map<String, UUID> modifiers) {
+        if (md.getBlLeaderboardId() == null || md.getBlLeaderboardId().isBlank()) {
+            return false;
+        }
+        Optional<BeatLeaderScoreResponse> opt = beatLeaderClient
+                .getPlayerScoreOnLeaderboard(String.valueOf(userId), md.getBlLeaderboardId());
+        if (opt.isEmpty() || opt.get().getBaseScore() == null
+                || PlatformScoreMapper.hasBannedModifier(opt.get().getModifiers())) {
+            return false;
+        }
+        scoreService.recordCampaignBackfillScore(
+                PlatformScoreMapper.fromBeatLeader(opt.get(), md.getId(), userId, modifiers));
+        return true;
+    }
+
+    private boolean recordCampaignScoreFromScoreSaber(Long userId, MapDifficulty md, Map<String, UUID> modifiers) {
+        if (md.getSsLeaderboardId() == null || md.getSsLeaderboardId().isBlank()) {
+            return false;
+        }
+        Optional<ScoreSaberScoreResponse> opt = scoreSaberClient
+                .getPlayerScoreOnLeaderboard(String.valueOf(userId), md.getSsLeaderboardId());
+        if (opt.isEmpty() || opt.get().getUnmodifiedScore() == null
+                || PlatformScoreMapper.hasBannedModifier(opt.get().getMods())) {
+            return false;
+        }
+        ScoreSaberScoreStats stats = fetchScoreSaberStats(opt.get());
+        scoreService.recordCampaignBackfillScore(
+                PlatformScoreMapper.fromScoreSaber(opt.get(), stats, md.getId(), userId, modifiers));
+        return true;
     }
 
     private boolean reconcileUserScoreFromBeatLeader(Long userId, MapDifficulty difficulty,

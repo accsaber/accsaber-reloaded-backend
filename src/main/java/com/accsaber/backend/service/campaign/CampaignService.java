@@ -143,6 +143,7 @@ public class CampaignService {
     private final com.accsaber.backend.service.map.MapImportService mapImportService;
     private final PlaylistService playlistService;
     private final CdnProperties cdnProperties;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public Page<CampaignResponse> findCampaigns(Collection<CampaignStatus> statuses,
             Collection<UUID> tagIds,
@@ -910,7 +911,7 @@ public class CampaignService {
                 existing.setStartedAt(Instant.now());
                 existing.setCompletedAt(null);
                 UserCampaign revived = userCampaignRepository.save(existing);
-                campaignEvaluationService.importLegacyScores(resolvedUserId, campaignId);
+                publishLegacyBackfill(campaign, resolvedUserId, campaignId);
                 campaignScoreGate.refresh();
                 return toUserCampaignResponse(revived);
             }
@@ -924,9 +925,16 @@ public class CampaignService {
                 .startedAt(Instant.now())
                 .build();
         UserCampaign saved = userCampaignRepository.save(userCampaign);
-        campaignEvaluationService.importLegacyScores(resolvedUserId, campaignId);
+        publishLegacyBackfill(campaign, resolvedUserId, campaignId);
         campaignScoreGate.refresh();
         return toUserCampaignResponse(saved);
+    }
+
+    private void publishLegacyBackfill(Campaign campaign, Long userId, UUID campaignId) {
+        if (campaign.isLegacy()) {
+            eventPublisher.publishEvent(
+                    new com.accsaber.backend.model.event.LegacyCampaignBackfillEvent(userId, campaignId));
+        }
     }
 
     @Transactional

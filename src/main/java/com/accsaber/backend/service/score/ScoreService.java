@@ -255,6 +255,28 @@ public class ScoreService {
                                 loadModifierIds(saved.getId()));
         }
 
+        @Transactional
+        public void recordCampaignBackfillScore(SubmitScoreRequest request) {
+                if (request.isPartial()) {
+                        return;
+                }
+                MapDifficulty difficulty = loadCampaignDifficulty(request.getMapDifficultyId());
+                validateScoreBounds(request, difficulty, true);
+                User user = loadUserForBackfill(request.getUserId());
+
+                List<Modifier> modifiers = resolveModifiers(request.getModifierIds());
+                Integer modifiedScore = applyModifierMultiplier(request.getScore(), modifiers);
+
+                Score attempt = buildScore(request, user, difficulty, modifiedScore, BigDecimal.ZERO, null);
+                attempt.setRank(0);
+                attempt.setRankWhenSet(0);
+                attempt.setActive(false);
+                attempt.setSupersedesReason("Campaign attempt");
+                attempt.setXpGained(BigDecimal.ZERO);
+                Score saved = scoreRepository.saveAndFlush(attempt);
+                saveModifierLinks(saved, modifiers);
+        }
+
         private MapDifficulty loadCampaignDifficulty(UUID id) {
                 MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(id)
                                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", id));
