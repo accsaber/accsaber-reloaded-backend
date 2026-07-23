@@ -95,6 +95,14 @@ public class Item {
     @Builder.Default
     private boolean missionPoolable = false;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean downloadable = false;
+
+    @Column(name = "unique_per_user", nullable = false)
+    @Builder.Default
+    private boolean uniquePerUser = false;
+
     private Long worth;
 
     private String requirement;

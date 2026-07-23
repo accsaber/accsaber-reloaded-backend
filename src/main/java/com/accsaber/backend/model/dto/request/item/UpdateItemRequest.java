@@ -20,6 +20,8 @@ public class UpdateItemRequest {
     private Boolean stackable;
     private Boolean welcomeGrant;
     private Boolean missionPoolable;
+    private Boolean downloadable;
+    private Boolean uniquePerUser;
     private Long worth;
     private String requirement;
     private Integer unlockLevel;

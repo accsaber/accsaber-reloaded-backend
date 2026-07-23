@@ -1081,6 +1081,11 @@ public class CampaignService {
                 .collect(Collectors.groupingBy(
                         ucs -> ucs.getCampaign().getId(),
                         Collectors.mapping(ucs -> ucs.getCampaignDifficulty().getId(), Collectors.toSet())));
+        Map<UUID, Set<UUID>> rewardsPaidByCampaign = campaignScores.stream()
+                .filter(UserCampaignScore::isRewardsPaid)
+                .collect(Collectors.groupingBy(
+                        ucs -> ucs.getCampaign().getId(),
+                        Collectors.mapping(ucs -> ucs.getCampaignDifficulty().getId(), Collectors.toSet())));
         Map<UUID, Map<UUID, Score>> campaignScoreByDifficulty = new HashMap<>();
         Map<UUID, Map<UUID, Instant>> completionTimesByCampaign = new HashMap<>();
         for (UserCampaignScore ucs : campaignScores) {
@@ -1115,14 +1120,16 @@ public class CampaignService {
         Map<UUID, BigDecimal> complexityByMapDifficulty = loadComplexitiesBulk(difficulties);
 
         return new ProgressContext(difficultiesByCampaign, barriersByCampaign, prereqsByDifficulty,
-                campaignScoreByDifficulty, userCampaignByCampaign, completedByCampaign, completionTimesByCampaign,
-                tagsByCampaign, completionItemsByCampaign, affectedByBarrier, itemsByNode, complexityByMapDifficulty);
+                campaignScoreByDifficulty, userCampaignByCampaign, completedByCampaign, rewardsPaidByCampaign,
+                completionTimesByCampaign, tagsByCampaign, completionItemsByCampaign, affectedByBarrier, itemsByNode,
+                complexityByMapDifficulty);
     }
 
     private CampaignProgressResponse buildProgress(Campaign campaign, Long resolvedUserId, ProgressContext ctx) {
         UUID campaignId = campaign.getId();
         List<CampaignDifficulty> difficulties = ctx.difficultiesByCampaign.getOrDefault(campaignId, List.of());
         Set<UUID> completedIds = ctx.completedByCampaign.getOrDefault(campaignId, Set.of());
+        Set<UUID> rewardsPaidIds = ctx.rewardsPaidByCampaign.getOrDefault(campaignId, Set.of());
         Map<UUID, Score> campaignScores = ctx.campaignScoreByDifficulty.getOrDefault(campaignId, Map.of());
         UserCampaign uc = ctx.userCampaignByCampaign.get(campaignId);
         boolean agnostic = campaign.isProgressionAgnostic();
@@ -1165,6 +1172,7 @@ public class CampaignService {
                     .userScore(userScore)
                     .completed(completedIds.contains(d.getId()))
                     .unlocked(unlocked)
+                    .rewardsEarned(rewardsPaidIds.contains(d.getId()))
                     .build());
         }
 
@@ -1285,6 +1293,7 @@ public class CampaignService {
             Map<UUID, Map<UUID, Score>> campaignScoreByDifficulty,
             Map<UUID, UserCampaign> userCampaignByCampaign,
             Map<UUID, Set<UUID>> completedByCampaign,
+            Map<UUID, Set<UUID>> rewardsPaidByCampaign,
             Map<UUID, Map<UUID, Instant>> completionTimesByCampaign,
             Map<UUID, List<CampaignTagResponse>> tagsByCampaign,
             Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign,

@@ -1,0 +1,1 @@
+ALTER TABLE items ADD COLUMN unique_per_user BOOLEAN NOT NULL DEFAULT false;

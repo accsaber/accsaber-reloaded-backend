@@ -66,6 +66,8 @@ public final class ItemMapper {
                 .stackable(item.isStackable())
                 .welcomeGrant(item.isWelcomeGrant())
                 .missionPoolable(item.isMissionPoolable())
+                .downloadable(item.isDownloadable())
+                .uniquePerUser(item.isUniquePerUser())
                 .worth(item.getWorth())
                 .requirement(item.getRequirement())
                 .unlockLevel(item.getUnlockLevel())

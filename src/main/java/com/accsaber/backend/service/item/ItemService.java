@@ -53,6 +53,7 @@ import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
@@ -280,8 +281,8 @@ public class ItemService {
     @Transactional
     public Item create(UUID typeId, String name, String description, String iconUrl,
             Object value, ItemRarity rarity, boolean tradeable,
-            boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean active,
-            Long worth, String requirement, Integer unlockLevel) {
+            boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean downloadable,
+            boolean uniquePerUser, boolean active, Long worth, String requirement, Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
         if (itemRepository.existsByType_IdAndName(typeId, name)) {
             throw new ConflictException("An item named '" + name + "' already exists for this type");
@@ -299,6 +300,8 @@ public class ItemService {
                 .stackable(stackable)
                 .welcomeGrant(welcomeGrant)
                 .missionPoolable(missionPoolable)
+                .downloadable(downloadable)
+                .uniquePerUser(uniquePerUser)
                 .active(active)
                 .worth(worth)
                 .requirement(requirement)
@@ -311,7 +314,7 @@ public class ItemService {
     public Item update(UUID id, String name, String description, String iconUrl,
             Object value, ItemRarity rarity,
             Boolean tradeable, Boolean visible, Boolean stackable, Boolean welcomeGrant, Boolean missionPoolable,
-            Long worth, String requirement, Integer unlockLevel) {
+            Boolean downloadable, Boolean uniquePerUser, Long worth, String requirement, Integer unlockLevel) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         if (name != null && !name.equals(item.getName())) {
@@ -340,6 +343,10 @@ public class ItemService {
             item.setWelcomeGrant(welcomeGrant);
         if (missionPoolable != null)
             item.setMissionPoolable(missionPoolable);
+        if (downloadable != null)
+            item.setDownloadable(downloadable);
+        if (uniquePerUser != null)
+            item.setUniquePerUser(uniquePerUser);
         if (worth != null)
             item.setWorth(worth);
         if (requirement != null)
@@ -393,6 +400,27 @@ public class ItemService {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         item.setIconUrl(iconUrl);
+        return itemRepository.save(item);
+    }
+
+    @Transactional
+    public Item setUploadedImage(UUID id, String url) {
+        Item item = itemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Item", id));
+        item.setIconUrl(url);
+        JsonNode value = item.getValue();
+        if (value != null && value.path("asset").isObject()) {
+            ObjectNode root = ((ObjectNode) value).deepCopy();
+            ObjectNode asset = (ObjectNode) root.get("asset");
+            ObjectNode raster = asset.path("raster").isObject()
+                    ? (ObjectNode) asset.get("raster")
+                    : asset.putObject("raster");
+            raster.put("1x", url);
+            if (!asset.path("altText").isTextual()) {
+                asset.put("altText", item.getName());
+            }
+            item.setValue(root);
+        }
         return itemRepository.save(item);
     }
 
@@ -531,6 +559,9 @@ public class ItemService {
             return;
 
         if (!item.isStackable()) {
+            if (item.isUniquePerUser() && userItemLinkRepository.existsByUser_IdAndItem_Id(resolved, itemId)) {
+                return;
+            }
             if (userItemLinkRepository.existsByUser_IdAndItem_IdAndSourceAndSourceId(
                     resolved, itemId, source, sourceId)) {
                 return;
@@ -625,6 +656,9 @@ public class ItemService {
 
     private UserItemLink awardOrMerge(Long userId, Item item, Set<ItemModifier> explicitModifiers, long quantity,
             ItemSource source, String sourceId, StaffUser staff, String reason) {
+        if (item.isUniquePerUser() && userItemLinkRepository.existsByUser_IdAndItem_Id(userId, item.getId())) {
+            throw new ConflictException("Player already owns '" + item.getName() + "', which is a unique item");
+        }
         boolean instanced = !item.isStackable() || hasPerInstanceModifier(explicitModifiers);
 
         if (!instanced) {
@@ -662,6 +696,9 @@ public class ItemService {
 
     private UserItemLink insertLink(Long userId, Item item, Set<ItemModifier> modifiers, Long serial, long quantity,
             ItemSource source, String sourceId, StaffUser staff, String reason) {
+        if (item.isUniquePerUser() && userItemLinkRepository.existsByUser_IdAndItem_Id(userId, item.getId())) {
+            throw new ConflictException("Player already owns '" + item.getName() + "', which is a unique item");
+        }
         UserItemLink link = UserItemLink.builder()
                 .user(userRepository.getReferenceById(userId))
                 .item(item)

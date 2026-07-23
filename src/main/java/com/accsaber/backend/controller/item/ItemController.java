@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +39,7 @@ import com.accsaber.backend.model.dto.response.statistics.ItemHolderResponse;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.item.ItemFileService;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
@@ -55,6 +58,7 @@ import lombok.RequiredArgsConstructor;
 public class ItemController {
 
     private final ItemService itemService;
+    private final ItemFileService itemFileService;
     private final ItemTypeService itemTypeService;
     private final UnusualEffectService unusualEffectService;
     private final SiteStatisticsService siteStatisticsService;
@@ -183,6 +187,18 @@ public class ItemController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         itemService.unequip(requirePrincipal(principal).getUserId(), typeKey);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Download an owned downloadable item's file, signed to the requesting player")
+    @GetMapping("/users/me/items/{linkId}/download")
+    public ResponseEntity<byte[]> downloadItemFile(
+            @PathVariable UUID linkId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        var file = itemFileService.download(requirePrincipal(principal).getUserId(), linkId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(file.bytes());
     }
 
     @Operation(summary = "Disintegrate an owned item link into item essence (destroys it for its worth)")

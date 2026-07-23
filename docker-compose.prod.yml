@@ -68,9 +68,12 @@ services:
       OAUTH_ALLOWED_RETURN_ORIGINS: ${OAUTH_ALLOWED_RETURN_ORIGINS}
       CDN_STORAGE_PATH: /var/cdn
       CDN_BASE_URL: ${CDN_BASE_URL}
+      ITEM_FILES_STORAGE_PATH: /var/item-files
+      ITEM_FILES_SIGNING_KEY: ${ITEM_FILES_SIGNING_KEY}
       JAVA_OPTS: -Xms256m -Xmx768m
     volumes:
       - cdn-data:/var/cdn
+      - item-files-data:/var/item-files:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -150,3 +153,4 @@ volumes:
   prometheus-data:
   grafana-data:
   cdn-data:
+  item-files-data:

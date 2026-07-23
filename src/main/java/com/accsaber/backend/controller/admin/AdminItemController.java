@@ -113,8 +113,8 @@ public class AdminItemController {
     public ResponseEntity<ItemResponse> createItem(@Valid @RequestBody CreateItemRequest req) {
         var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
                 req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
-                req.isStackable(), req.isWelcomeGrant(), req.isMissionPoolable(), req.isActive(), req.getWorth(),
-                req.getRequirement(), req.getUnlockLevel());
+                req.isStackable(), req.isWelcomeGrant(), req.isMissionPoolable(), req.isDownloadable(),
+                req.isUniquePerUser(), req.isActive(), req.getWorth(), req.getRequirement(), req.getUnlockLevel());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
@@ -124,8 +124,8 @@ public class AdminItemController {
             @RequestBody UpdateItemRequest req) {
         var item = itemService.update(id, req.getName(), req.getDescription(), req.getIconUrl(),
                 req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible(),
-                req.getStackable(), req.getWelcomeGrant(), req.getMissionPoolable(), req.getWorth(),
-                req.getRequirement(), req.getUnlockLevel());
+                req.getStackable(), req.getWelcomeGrant(), req.getMissionPoolable(), req.getDownloadable(),
+                req.getUniquePerUser(), req.getWorth(), req.getRequirement(), req.getUnlockLevel());
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 
@@ -182,13 +182,15 @@ public class AdminItemController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Upload (or replace) the icon image for an item")
+    @Operation(summary = "Upload (or replace) the image for an item",
+            description = "Sets the catalog icon, and for render-contract items (e.g. badges) also updates the"
+                    + " rendered raster asset so the uploaded image is what players see.")
     @PostMapping(value = "/items/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ItemResponse> uploadIcon(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
         itemService.findByIdForStaff(id);
         String url = mediaProcessingService.storeImage(file, ITEM_ICON_SUBDIR, id.toString());
-        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setIconUrl(id, url)));
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setUploadedImage(id, url)));
     }
 
     @Operation(summary = "Remove the icon image for an item")

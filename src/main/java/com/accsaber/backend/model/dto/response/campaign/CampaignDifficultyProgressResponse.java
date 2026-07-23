@@ -14,4 +14,5 @@ public class CampaignDifficultyProgressResponse {
     private Integer userScore;
     private boolean completed;
     private boolean unlocked;
+    private boolean rewardsEarned;
 }
