@@ -103,6 +103,10 @@ public class Item {
     @Builder.Default
     private boolean uniquePerUser = false;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean serialized = true;
+
     private Long worth;
 
     private String requirement;

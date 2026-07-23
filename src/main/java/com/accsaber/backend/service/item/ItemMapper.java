@@ -68,6 +68,7 @@ public final class ItemMapper {
                 .missionPoolable(item.isMissionPoolable())
                 .downloadable(item.isDownloadable())
                 .uniquePerUser(item.isUniquePerUser())
+                .serialized(item.isSerialized())
                 .worth(item.getWorth())
                 .requirement(item.getRequirement())
                 .unlockLevel(item.getUnlockLevel())

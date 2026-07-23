@@ -28,6 +28,7 @@ public class ItemResponse {
     private boolean missionPoolable;
     private boolean downloadable;
     private boolean uniquePerUser;
+    private boolean serialized;
     private Long worth;
     private String requirement;
     private Integer unlockLevel;

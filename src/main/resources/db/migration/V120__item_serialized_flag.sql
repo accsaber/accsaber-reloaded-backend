@@ -1,0 +1,1 @@
+ALTER TABLE items ADD COLUMN serialized BOOLEAN NOT NULL DEFAULT true;

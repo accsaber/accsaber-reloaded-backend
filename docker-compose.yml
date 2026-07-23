@@ -42,6 +42,10 @@ services:
       STEAM_OPENID_REALM: ${STEAM_OPENID_REALM}
       STEAM_OPENID_RETURN_TO: ${STEAM_OPENID_RETURN_TO}
       OAUTH_ALLOWED_RETURN_ORIGINS: ${OAUTH_ALLOWED_RETURN_ORIGINS}
+      ITEM_FILES_STORAGE_PATH: /app/data/item-files
+      ITEM_FILES_SIGNING_KEY: ${ITEM_FILES_SIGNING_KEY}
+    volumes:
+      - ./data/item-files:/app/data/item-files:ro
     depends_on:
       - postgres
     networks:

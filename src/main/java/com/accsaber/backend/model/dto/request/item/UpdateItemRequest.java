@@ -22,6 +22,7 @@ public class UpdateItemRequest {
     private Boolean missionPoolable;
     private Boolean downloadable;
     private Boolean uniquePerUser;
+    private Boolean serialized;
     private Long worth;
     private String requirement;
     private Integer unlockLevel;

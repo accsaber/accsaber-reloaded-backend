@@ -31,6 +31,7 @@ public class CreateItemRequest {
     private boolean missionPoolable = false;
     private boolean downloadable = false;
     private boolean uniquePerUser = false;
+    private boolean serialized = true;
     private boolean active = true;
     private Long worth;
     private String requirement;

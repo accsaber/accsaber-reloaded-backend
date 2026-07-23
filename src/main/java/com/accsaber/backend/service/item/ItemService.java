@@ -282,7 +282,8 @@ public class ItemService {
     public Item create(UUID typeId, String name, String description, String iconUrl,
             Object value, ItemRarity rarity, boolean tradeable,
             boolean visible, boolean stackable, boolean welcomeGrant, boolean missionPoolable, boolean downloadable,
-            boolean uniquePerUser, boolean active, Long worth, String requirement, Integer unlockLevel) {
+            boolean uniquePerUser, boolean serialized, boolean active, Long worth, String requirement,
+            Integer unlockLevel) {
         ItemType type = itemTypeService.findByIdActive(typeId);
         if (itemRepository.existsByType_IdAndName(typeId, name)) {
             throw new ConflictException("An item named '" + name + "' already exists for this type");
@@ -302,6 +303,7 @@ public class ItemService {
                 .missionPoolable(missionPoolable)
                 .downloadable(downloadable)
                 .uniquePerUser(uniquePerUser)
+                .serialized(serialized)
                 .active(active)
                 .worth(worth)
                 .requirement(requirement)
@@ -314,7 +316,8 @@ public class ItemService {
     public Item update(UUID id, String name, String description, String iconUrl,
             Object value, ItemRarity rarity,
             Boolean tradeable, Boolean visible, Boolean stackable, Boolean welcomeGrant, Boolean missionPoolable,
-            Boolean downloadable, Boolean uniquePerUser, Long worth, String requirement, Integer unlockLevel) {
+            Boolean downloadable, Boolean uniquePerUser, Boolean serialized, Long worth, String requirement,
+            Integer unlockLevel) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", id));
         if (name != null && !name.equals(item.getName())) {
@@ -347,6 +350,8 @@ public class ItemService {
             item.setDownloadable(downloadable);
         if (uniquePerUser != null)
             item.setUniquePerUser(uniquePerUser);
+        if (serialized != null)
+            item.setSerialized(serialized);
         if (worth != null)
             item.setWorth(worth);
         if (requirement != null)
@@ -673,6 +678,13 @@ public class ItemService {
                 return merged;
             }
             return insertLink(userId, item, modifiers, null, quantity, source, sourceId, staff, reason);
+        }
+
+        if (!item.isSerialized()) {
+            Set<ItemModifier> modifiers = explicitModifiers != null
+                    ? explicitModifiers
+                    : Set.of(loadModifier(ItemModifier.NORMAL));
+            return insertLink(userId, item, modifiers, null, 1L, source, sourceId, staff, reason);
         }
 
         long serial = issueSerial(item.getId());

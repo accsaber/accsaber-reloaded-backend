@@ -114,7 +114,8 @@ public class AdminItemController {
         var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
                 req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
                 req.isStackable(), req.isWelcomeGrant(), req.isMissionPoolable(), req.isDownloadable(),
-                req.isUniquePerUser(), req.isActive(), req.getWorth(), req.getRequirement(), req.getUnlockLevel());
+                req.isUniquePerUser(), req.isSerialized(), req.isActive(), req.getWorth(), req.getRequirement(),
+                req.getUnlockLevel());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
@@ -125,7 +126,8 @@ public class AdminItemController {
         var item = itemService.update(id, req.getName(), req.getDescription(), req.getIconUrl(),
                 req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible(),
                 req.getStackable(), req.getWelcomeGrant(), req.getMissionPoolable(), req.getDownloadable(),
-                req.getUniquePerUser(), req.getWorth(), req.getRequirement(), req.getUnlockLevel());
+                req.getUniquePerUser(), req.getSerialized(), req.getWorth(), req.getRequirement(),
+                req.getUnlockLevel());
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 
