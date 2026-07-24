@@ -116,8 +116,8 @@ public class MissionSkillService {
             double multiplier = switch (band) {
                 case easy -> 0.80;
                 case medium -> 0.90;
-                case hard -> 1.00;
-                case extreme -> 1.10;
+                case hard -> 1.05;
+                case extreme -> 1.30;
             };
             return Math.max(2, (int) Math.round(median * multiplier));
         }
