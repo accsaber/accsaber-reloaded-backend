@@ -190,6 +190,16 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getUserProgress(principal.getUserId(), campaignId));
     }
 
+    @Operation(summary = "Get a player's campaign progress by campaign slug",
+            description = "Public read for integrations (e.g. the Discord bot). Includes per-node completion,"
+                    + " scores, the legacy completed-path flag per node, and the furthest reached milestone.")
+    @GetMapping("/slug/{slug}/users/{userId}/progress")
+    public ResponseEntity<CampaignProgressResponse> getUserProgressBySlug(
+            @PathVariable String slug,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(campaignService.getUserProgressBySlug(userId, slug));
+    }
+
     @Operation(summary = "Get the authenticated player's progress for multiple campaigns")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me/progress")

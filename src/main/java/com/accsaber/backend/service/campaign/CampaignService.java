@@ -43,6 +43,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyProgre
 import com.accsaber.backend.model.dto.response.campaign.CampaignDifficultyResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignItemAwardResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse;
+import com.accsaber.backend.model.dto.response.campaign.CurrentMilestoneResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
@@ -1037,13 +1038,20 @@ public class CampaignService {
     }
 
     public CampaignProgressResponse getUserProgress(Long userId, UUID campaignId) {
+        return userProgress(userId, loadActiveCampaign(campaignId));
+    }
+
+    public CampaignProgressResponse getUserProgressBySlug(Long userId, String slug) {
+        return userProgress(userId, campaignRepository.findBySlugAndActiveTrue(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", slug)));
+    }
+
+    private CampaignProgressResponse userProgress(Long userId, Campaign campaign) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
-        Campaign campaign = loadActiveCampaign(campaignId);
         if (isDraftHiddenFrom(campaign, resolvedUserId, false)) {
-            throw new ResourceNotFoundException("Campaign", campaignId);
+            throw new ResourceNotFoundException("Campaign", campaign.getId());
         }
-        List<UUID> campaignIds = List.of(campaignId);
-        ProgressContext ctx = loadProgressContext(resolvedUserId, campaignIds);
+        ProgressContext ctx = loadProgressContext(resolvedUserId, List.of(campaign.getId()));
         return buildProgress(campaign, resolvedUserId, ctx);
     }
 
@@ -1151,6 +1159,7 @@ public class CampaignService {
         List<CampaignDifficulty> difficulties = ctx.difficultiesByCampaign.getOrDefault(campaignId, List.of());
         Set<UUID> completedIds = ctx.completedByCampaign.getOrDefault(campaignId, Set.of());
         Set<UUID> rewardsPaidIds = ctx.rewardsPaidByCampaign.getOrDefault(campaignId, Set.of());
+        Set<UUID> pathCompletedIds = campaignEvaluationService.fullyReachedNodeIds(campaignId, resolvedUserId);
         Map<UUID, Score> campaignScores = ctx.campaignScoreByDifficulty.getOrDefault(campaignId, Map.of());
         UserCampaign uc = ctx.userCampaignByCampaign.get(campaignId);
         boolean agnostic = campaign.isProgressionAgnostic();
@@ -1193,6 +1202,7 @@ public class CampaignService {
                     .userScore(userScore)
                     .completed(completedIds.contains(d.getId()))
                     .unlocked(unlocked)
+                    .pathCompleted(pathCompletedIds.contains(d.getId()))
                     .rewardsEarned(rewardsPaidIds.contains(d.getId()))
                     .build());
         }
@@ -1213,9 +1223,53 @@ public class CampaignService {
                 .startedAt(uc != null ? uc.getStartedAt() : null)
                 .completedAt(uc != null ? uc.getCompletedAt() : null)
                 .completedDifficulties(completedMapNodes)
+                .currentMilestone(furthestReachedMilestone(difficulties, ctx.prereqsByDifficulty, pathCompletedIds))
                 .difficulties(progress)
                 .barriers(barrierProgress)
                 .build();
+    }
+
+    private static CurrentMilestoneResponse furthestReachedMilestone(List<CampaignDifficulty> difficulties,
+            Map<UUID, List<CampaignConnectionResponse>> prereqsByDifficulty, Set<UUID> pathCompletedIds) {
+        Map<UUID, List<UUID>> prereqs = new HashMap<>();
+        for (CampaignDifficulty d : difficulties) {
+            prereqs.put(d.getId(), prereqsByDifficulty.getOrDefault(d.getId(), List.of()).stream()
+                    .map(CampaignConnectionResponse::getComesFromCampaignDifficultyId).toList());
+        }
+        Map<UUID, Integer> depths = new HashMap<>();
+        CampaignDifficulty furthest = null;
+        int bestDepth = -1;
+        for (CampaignDifficulty d : difficulties) {
+            String label = d.getCheckpointLabel();
+            if (label == null || label.isBlank() || !pathCompletedIds.contains(d.getId())) {
+                continue;
+            }
+            int depth = nodeDepth(d.getId(), prereqs, depths);
+            if (depth > bestDepth) {
+                bestDepth = depth;
+                furthest = d;
+            }
+        }
+        return furthest == null ? null
+                : CurrentMilestoneResponse.builder()
+                        .nodeId(furthest.getId())
+                        .label(furthest.getCheckpointLabel())
+                        .depth(bestDepth)
+                        .build();
+    }
+
+    private static int nodeDepth(UUID id, Map<UUID, List<UUID>> prereqs, Map<UUID, Integer> memo) {
+        Integer cached = memo.get(id);
+        if (cached != null) {
+            return cached;
+        }
+        memo.put(id, 0);
+        int max = 0;
+        for (UUID p : prereqs.getOrDefault(id, List.of())) {
+            max = Math.max(max, 1 + nodeDepth(p, prereqs, memo));
+        }
+        memo.put(id, max);
+        return max;
     }
 
     private List<BarrierProgressResponse> buildBarrierProgress(UUID campaignId, ProgressContext ctx,

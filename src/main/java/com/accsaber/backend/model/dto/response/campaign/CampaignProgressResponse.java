@@ -19,6 +19,7 @@ public class CampaignProgressResponse {
     private Instant startedAt;
     private Instant completedAt;
     private int completedDifficulties;
+    private CurrentMilestoneResponse currentMilestone;
     private List<CampaignDifficultyProgressResponse> difficulties;
     private List<BarrierProgressResponse> barriers;
 }

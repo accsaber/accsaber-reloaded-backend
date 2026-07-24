@@ -872,6 +872,12 @@ public class CampaignEvaluationService {
         return false;
     }
 
+    @Transactional(readOnly = true)
+    public Set<UUID> fullyReachedNodeIds(UUID campaignId, Long userId) {
+        Graph graph = loadGraph(campaignId);
+        return computeFullyReached(graph, loadCompletedIds(userId, campaignId));
+    }
+
     private record Graph(
             Map<UUID, CampaignDifficulty> byId,
             Map<UUID, List<UUID>> prereqs,

@@ -35,6 +35,7 @@ public enum UserSettingKey {
     SYNC_NAME("sync.name", Boolean.class, true, false),
     SYNC_AVATAR("sync.avatar", Boolean.class, true, false),
 
+    EQUIPPED_BADGE("equipped.badge", UUID.class, null, true),
     EQUIPPED_TITLE("equipped.title", UUID.class, null, true),
     EQUIPPED_PROFILE_BORDER_SHAPE("equipped.profileBorderShape", UUID.class, null, true),
     EQUIPPED_PROFILE_BORDER_COLOR("equipped.profileBorderColor", UUID.class, null, true),
@@ -122,6 +123,7 @@ public enum UserSettingKey {
     }
 
     private static final Map<String, UserSettingKey> EQUIP_BY_TYPE_KEY = Map.of(
+            "badge", EQUIPPED_BADGE,
             "title", EQUIPPED_TITLE,
             "profile_border_shape", EQUIPPED_PROFILE_BORDER_SHAPE,
             "profile_border_color", EQUIPPED_PROFILE_BORDER_COLOR,

@@ -67,6 +67,8 @@ public class ItemService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private static final Set<String> EQUIP_NO_FALLBACK_TYPES = Set.of("badge");
+
     private final ItemRepository itemRepository;
     private final UserItemLinkRepository userItemLinkRepository;
     private final UserRepository userRepository;
@@ -210,6 +212,7 @@ public class ItemService {
         Set<String> needFallback = equippedLinkIdByType.entrySet().stream()
                 .filter(e -> e.getValue() == null)
                 .map(Map.Entry::getKey)
+                .filter(typeKey -> !EQUIP_NO_FALLBACK_TYPES.contains(typeKey))
                 .collect(Collectors.toSet());
 
         Map<String, UserItemLink> fallbacksByType = new HashMap<>();
