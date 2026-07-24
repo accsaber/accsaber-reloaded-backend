@@ -352,6 +352,25 @@ public class MissionBuilderService {
                 .build();
     }
 
+
+    private BigDecimal pbAboveThresholdAvailabilityCap(List<Score> scores, MissionBand band, BigDecimal threshold) {
+        if (band == MissionBand.easy || band == MissionBand.medium || scores.size() < 50) {
+            return threshold;
+        }
+        Score score;
+        BigDecimal ap;
+        int idx;
+        if (scores.size() > 100) {
+            double percentile = (band == MissionBand.hard ? 0.15 : 0.10);
+            idx = Math.min(scores.size() - 1, Math.max(0, (int) Math.round(scores.size() * percentile)));
+        } else {
+            idx = (band == MissionBand.hard ? 14 : 9);
+        }
+        score = scores.get(idx);
+        ap = score.getAp().setScale(0, RoundingMode.HALF_UP);
+        return (ap.compareTo(threshold) < 0 ? ap : threshold);
+    }
+
     private UserMission buildPbAboveThreshold(MissionAssignmentContext ctx, MissionTemplate template,
             Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
             MissionPoolCache cache) {
@@ -381,6 +400,7 @@ public class MissionBuilderService {
                 : targetService.applySkillAwareTopApNerf(baseHardCap, categorySkill))
                 .setScale(0, RoundingMode.HALF_UP);
         BigDecimal threshold = rawThreshold.compareTo(hardCap) > 0 ? hardCap : rawThreshold;
+        threshold = pbAboveThresholdAvailabilityCap(scores, band, threshold); // new line added
         long qualifying = scores.stream()
                 .filter(s -> s.getAp() != null && s.getAp().compareTo(threshold) >= 0)
                 .count();
