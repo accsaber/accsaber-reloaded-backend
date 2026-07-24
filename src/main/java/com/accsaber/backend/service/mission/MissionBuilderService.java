@@ -669,7 +669,7 @@ public class MissionBuilderService {
                 continue;
             }
             int reference = mapStreakReference(pick, bandAbility);
-            int targetStreak = Math.max(3, Math.min(streakTargetFor(band, reference, topTier), bandAbility + 2));
+            int targetStreak = Math.max(3, Math.min(streakTargetFor(band, reference, topTier), bandAbility + 1));
             int xp = calibrationService.computeXpReward(template, skillLvl, band, null);
             return baseBuilder(ctx, template, category, expiresAt, pool, band)
                     .targetMapDifficulty(pick.difficulty())
