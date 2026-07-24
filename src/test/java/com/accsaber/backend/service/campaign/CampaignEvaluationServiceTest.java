@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +43,7 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
+import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.repository.campaign.CampaignBarrierAffectedDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
@@ -846,11 +846,35 @@ class CampaignEvaluationServiceTest {
 
                 assertThat(uc.getStatus()).isEqualTo(UserCampaignStatus.COMPLETED);
                 ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-                verify(eventPublisher, times(1)).publishEvent(captor.capture());
-                assertThat(captor.getValue()).isInstanceOfSatisfying(CampaignCompletedEvent.class, e -> {
+                verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+                List<CampaignCompletedEvent> completed = captor.getAllValues().stream()
+                                .filter(CampaignCompletedEvent.class::isInstance)
+                                .map(CampaignCompletedEvent.class::cast)
+                                .toList();
+                assertThat(completed).singleElement().satisfies(e -> {
                         assertThat(e.userId()).isEqualTo(user.getId());
                         assertThat(e.campaignId()).isEqualTo(campaign.getId());
                         assertThat(e.campaignStatus()).isEqualTo(CampaignStatus.PUBLISHED);
+                        assertThat(e.completedAt()).isNotNull();
+                });
+        }
+
+        @Test
+        void completingNodePublishesNodeCompletedEvent() {
+                singleNodeCompletingFixture(UserCampaignStatus.IN_PROGRESS);
+
+                service.evaluateAfterScore(user.getId(), rankQualifyingScore());
+
+                ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+                verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+                List<CampaignNodeCompletedEvent> nodes = captor.getAllValues().stream()
+                                .filter(CampaignNodeCompletedEvent.class::isInstance)
+                                .map(CampaignNodeCompletedEvent.class::cast)
+                                .toList();
+                assertThat(nodes).singleElement().satisfies(e -> {
+                        assertThat(e.userId()).isEqualTo(user.getId());
+                        assertThat(e.campaignId()).isEqualTo(campaign.getId());
+                        assertThat(e.nodeId()).isEqualTo(a.getId());
                         assertThat(e.completedAt()).isNotNull();
                 });
         }

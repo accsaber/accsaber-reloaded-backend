@@ -7,6 +7,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 import com.accsaber.backend.websocket.server.CampaignPresenceHandshakeInterceptor;
 import com.accsaber.backend.websocket.server.CampaignPresenceWebSocketHandler;
+import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
 import com.accsaber.backend.websocket.server.MarketFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MilestoneFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MissionFeedWebSocketHandler;
@@ -26,6 +27,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         private final MissionFeedWebSocketHandler missionFeedHandler;
         private final CampaignPresenceWebSocketHandler campaignPresenceHandler;
         private final CampaignPresenceHandshakeInterceptor campaignPresenceHandshakeInterceptor;
+        private final CampaignProgressWebSocketHandler campaignProgressHandler;
         private final MarketFeedWebSocketHandler marketFeedHandler;
         private final NotificationWebSocketHandler notificationHandler;
         private final NotificationHandshakeInterceptor notificationHandshakeInterceptor;
@@ -40,6 +42,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
                                 .setAllowedOriginPatterns("*");
                 registry.addHandler(campaignPresenceHandler, "/ws/campaigns/presence")
                                 .addInterceptors(campaignPresenceHandshakeInterceptor)
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(campaignProgressHandler, "/ws/campaigns/progress")
                                 .setAllowedOriginPatterns("*");
                 registry.addHandler(marketFeedHandler, "/ws/market")
                                 .setAllowedOriginPatterns("*");

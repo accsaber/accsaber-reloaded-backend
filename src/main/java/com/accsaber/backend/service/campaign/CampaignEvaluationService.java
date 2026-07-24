@@ -49,6 +49,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
+import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.service.mission.MissionProgressService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
 
@@ -496,6 +497,9 @@ public class CampaignEvaluationService {
             }
         }
         userCampaignScoreRepository.save(record);
+        Instant achievedAt = CampaignScoreMetrics.effectiveTime(score);
+        eventPublisher.publishEvent(new CampaignNodeCompletedEvent(uc.getUser().getId(), uc.getCampaign().getId(),
+                difficulty.getId(), achievedAt != null ? achievedAt : record.getSubmittedAt()));
     }
 
     private void sweepBarriers(UserCampaign uc, Graph graph, Map<UUID, Instant> completionTimes,

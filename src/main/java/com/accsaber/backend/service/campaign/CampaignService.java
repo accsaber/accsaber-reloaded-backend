@@ -236,6 +236,18 @@ public class CampaignService {
         return buildDetailResponse(campaign, viewerId);
     }
 
+    public CampaignResponse getCampaignSummary(UUID campaignId) {
+        return toCampaignResponse(loadActiveCampaign(campaignId));
+    }
+
+    public CampaignDifficultyResponse getCampaignNode(UUID campaignDifficultyId) {
+        CampaignDifficulty difficulty = loadActiveDifficulty(campaignDifficultyId);
+        List<CampaignConnectionResponse> connections = toConnections(campaignDifficultyPathRepository
+                .findByCampaignDifficulty_IdAndActiveTrue(difficulty.getId()));
+        return toCampaignDifficultyResponse(difficulty, connections, loadDifficultyItems(difficulty.getId()),
+                loadComplexity(difficulty.getMapDifficulty().getId()));
+    }
+
     private boolean isDraftHiddenFrom(Campaign campaign, Long viewerId, boolean privileged) {
         if (privileged || campaign.getStatus() != CampaignStatus.DRAFT) {
             return false;
