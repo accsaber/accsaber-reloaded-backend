@@ -13,6 +13,7 @@ public class UserImprovementsResponse {
     private String userId;
     private String userName;
     private String avatarUrl;
+    private String cdnAvatarUrl;
     private String country;
     private long improvementCount;
     private UUID latestScoreId;

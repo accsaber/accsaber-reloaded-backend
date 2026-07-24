@@ -160,14 +160,6 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.deprecate(id)));
     }
 
-    @Operation(summary = "List all active item modifiers")
-    @GetMapping("/item-modifiers")
-    public ResponseEntity<List<ItemModifierResponse>> listModifiers() {
-        return ResponseEntity.ok(itemService.findAllActiveModifiers().stream()
-                .map(ItemMapper::toModifierResponse)
-                .toList());
-    }
-
     @Operation(summary = "Update an item modifier's global drop chance and season window")
     @PatchMapping("/item-modifiers/{id}")
     public ResponseEntity<ItemModifierResponse> updateModifier(@PathVariable UUID id,

@@ -290,18 +290,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId);
 
         @Query("""
-                        SELECT COUNT(s) FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        AND s.ap >= :minAp
-                        """)
-        long countActiveByUserAndCategoryWithApAtLeast(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId,
-                        @Param("minAp") java.math.BigDecimal minAp);
-
-        @Query("""
                         SELECT MAX(s.ap) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId

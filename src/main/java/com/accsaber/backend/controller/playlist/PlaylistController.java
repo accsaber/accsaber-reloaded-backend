@@ -15,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -35,16 +34,6 @@ public class PlaylistController {
         private final PlaylistService playlistService;
         private final BatchRepository batchRepository;
         private final CampaignRepository campaignRepository;
-
-        @Deprecated
-        @Operation(summary = "Download category playlist (query param)", deprecated = true, description = "Returns a Beat Saber playlist JSON file containing all ranked maps for the specified category. "
-                        + "The syncURL field allows mod managers to auto-refresh the playlist. "
-                        + "Prefer the /{category} path variant for standalone Beat Saber compatibility.")
-        @GetMapping(produces = "application/json")
-        public ResponseEntity<Map<String, Object>> getPlaylist(
-                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc)") @RequestParam String category) {
-                return buildPlaylistResponse(category);
-        }
 
         @Operation(summary = "Download category playlist", description = "Returns a Beat Saber playlist JSON file containing all ranked maps for the specified category. "
                         + "The syncURL field allows mod managers to auto-refresh the playlist. "

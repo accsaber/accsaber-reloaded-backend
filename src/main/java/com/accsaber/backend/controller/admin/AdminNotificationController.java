@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.notification.BroadcastRequest;
-import com.accsaber.backend.model.dto.request.notification.TestNotificationRequest;
 import com.accsaber.backend.service.notification.NotificationService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,15 +31,5 @@ public class AdminNotificationController {
     public ResponseEntity<Map<String, Integer>> broadcast(@Valid @RequestBody BroadcastRequest req) {
         return ResponseEntity.ok(Map.of("delivered",
                 notificationService.broadcast(req.getTitle(), req.getLinkTo())));
-    }
-
-    @Operation(summary = "Fire a single test notification at one player", description = "Verifies the delivery pipeline: preference gating, storage, and the live WebSocket push. "
-            + "Sends a real notification the target can see. Omit title/linkTo to use a representative sample for the type. "
-            + "Does NOT exercise the trade/market/item triggers themselves — only the delivery path they call into.")
-    @PostMapping("/test")
-    public ResponseEntity<NotificationService.TestFireResult> testFire(
-            @Valid @RequestBody TestNotificationRequest req) {
-        return ResponseEntity.ok(notificationService.testFire(
-                req.getUserId(), req.getType(), req.getTitle(), req.getLinkTo()));
     }
 }

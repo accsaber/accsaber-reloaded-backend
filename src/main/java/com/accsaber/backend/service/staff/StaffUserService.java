@@ -247,6 +247,7 @@ public class StaffUserService {
                 .role(staffUser.getRole())
                 .userId(staffUser.getUser() != null ? String.valueOf(staffUser.getUser().getId()) : null)
                 .avatarUrl(staffUser.getUser() != null ? staffUser.getUser().getAvatarUrl() : null)
+                .cdnAvatarUrl(staffUser.getUser() != null ? staffUser.getUser().getCdnAvatarUrl() : null)
                 .active(staffUser.isActive())
                 .build();
     }

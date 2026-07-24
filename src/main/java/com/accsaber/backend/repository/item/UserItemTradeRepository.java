@@ -34,12 +34,6 @@ public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UU
        Optional<UserItemTrade> findById(UUID id);
 
        @EntityGraph(attributePaths = { "fromUser", "toUser" }, type = EntityGraph.EntityGraphType.LOAD)
-       List<UserItemTrade> findByToUser_IdAndStatus(Long toUserId, TradeStatus status);
-
-       @EntityGraph(attributePaths = { "fromUser", "toUser" }, type = EntityGraph.EntityGraphType.LOAD)
-       List<UserItemTrade> findByFromUser_IdAndStatus(Long fromUserId, TradeStatus status);
-
-       @EntityGraph(attributePaths = { "fromUser", "toUser" }, type = EntityGraph.EntityGraphType.LOAD)
        @Query("SELECT t FROM UserItemTrade t WHERE " +
                      "((:incoming = TRUE AND t.toUser.id = :userId) OR (:outgoing = TRUE AND t.fromUser.id = :userId)) "
                      +

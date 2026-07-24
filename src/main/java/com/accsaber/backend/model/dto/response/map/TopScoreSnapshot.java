@@ -15,6 +15,7 @@ public class TopScoreSnapshot {
     String userId;
     String userName;
     String avatarUrl;
+    String cdnAvatarUrl;
     Integer score;
     BigDecimal accuracy;
     BigDecimal ap;

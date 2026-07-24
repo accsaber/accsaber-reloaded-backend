@@ -70,8 +70,6 @@ public class OpenApiConfig {
                                                                 .description("Per-player daily and weekly missions - skill-calibrated targets with XP and crate rewards. Rotates at 4AM server time (daily) and Monday 4AM (weekly)"),
                                                 new Tag().name("Site Statistics")
                                                                 .description("Site-wide statistics, leaderboards (streaks, AP, retries, improvements, milestones), and chart data (time series, distributions)"),
-                                                new Tag().name("Calculate")
-                                                                .description("Calculation utilities - compute raw and weighted values from score percentage, complexity, and category"),
                                                 new Tag().name("Open Graph")
                                                                 .description("OG meta tag endpoints for link preview embeds (Discord, Twitter, etc.)"),
 

@@ -1,14 +1,11 @@
 package com.accsaber.backend.service.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.notification.Notification;
 import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
@@ -133,69 +129,6 @@ class NotificationServiceTest {
         when(notificationRepository.broadcast("Week 2 is live", "/events/summer")).thenReturn(1234);
 
         assertThat(notificationService.broadcast("Week 2 is live", "/events/summer")).isEqualTo(1234);
-    }
-
-    @Test
-    void testFireDeliversASampleTitleAndLinkForTheType() {
-        when(userRepository.findByIdAndActiveTrue(RECIPIENT))
-                .thenReturn(Optional.of(User.builder().id(RECIPIENT).name("tester").build()));
-
-        NotificationService.TestFireResult res = notificationService.testFire(
-                RECIPIENT, NotificationType.item_earned, null, null);
-
-        assertThat(res.delivered()).isTrue();
-        assertThat(res.userName()).isEqualTo("tester");
-        assertThat(res.title()).isEqualTo("You received Alpha Crate!");
-        assertThat(res.linkTo()).isEqualTo("/players/" + RECIPIENT);
-        assertThat(res.suppressedReason()).isNull();
-        verify(notificationRepository).save(any());
-    }
-
-    @Test
-    void testFireHonoursAnExplicitTitleAndLink() {
-        when(userRepository.findByIdAndActiveTrue(RECIPIENT))
-                .thenReturn(Optional.of(User.builder().id(RECIPIENT).name("tester").build()));
-
-        NotificationService.TestFireResult res = notificationService.testFire(
-                RECIPIENT, NotificationType.server, "Custom copy", "/events/x");
-
-        assertThat(res.title()).isEqualTo("Custom copy");
-        assertThat(res.linkTo()).isEqualTo("/events/x");
-    }
-
-    @Test
-    void testFireReportsWhyNothingArrivedWhenThePlayerDisabledTheType() {
-        when(userRepository.findByIdAndActiveTrue(RECIPIENT))
-                .thenReturn(Optional.of(User.builder().id(RECIPIENT).name("tester").build()));
-        enable(false);
-
-        NotificationService.TestFireResult res = notificationService.testFire(
-                RECIPIENT, NotificationType.market_bid, null, null);
-
-        assertThat(res.delivered()).isFalse();
-        assertThat(res.suppressedReason()).contains("notifications.marketBid");
-        verify(notificationRepository, never()).save(any());
-    }
-
-    @Test
-    void testFireAgainstAnUnknownPlayerIsRejected() {
-        when(userRepository.findByIdAndActiveTrue(RECIPIENT)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> notificationService.testFire(
-                RECIPIENT, NotificationType.trade_offer, null, null))
-                .isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    @Test
-    void everyTypeHasASampleTitleSoTestFireNeverSendsAnEmptyNotification() {
-        when(userRepository.findByIdAndActiveTrue(RECIPIENT))
-                .thenReturn(Optional.of(User.builder().id(RECIPIENT).name("tester").build()));
-
-        for (NotificationType type : NotificationType.values()) {
-            NotificationService.TestFireResult res = notificationService.testFire(
-                    RECIPIENT, type, null, null);
-            assertThat(res.title()).as("sample title for %s", type).isNotBlank();
-        }
     }
 
     @Test

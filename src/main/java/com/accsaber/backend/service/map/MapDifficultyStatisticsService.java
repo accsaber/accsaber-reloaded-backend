@@ -144,6 +144,7 @@ public class MapDifficultyStatisticsService {
                 .userId(String.valueOf(user.getId()))
                 .userName(user.getName())
                 .avatarUrl(user.getAvatarUrl())
+                .cdnAvatarUrl(user.getCdnAvatarUrl())
                 .score(s.getScore())
                 .accuracy(accuracy)
                 .ap(s.getAp())

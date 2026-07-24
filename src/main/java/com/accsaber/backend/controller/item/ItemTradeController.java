@@ -74,24 +74,6 @@ public class ItemTradeController {
         return ResponseEntity.ok(ItemMapper.toTradeResponse(tradeService.cancel(id, me)));
     }
 
-    @Operation(summary = "List my pending incoming trade offers")
-    @GetMapping("/incoming")
-    public ResponseEntity<List<TradeResponse>> incoming(
-            @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(tradeService.listIncomingPending(me).stream()
-                .map(ItemMapper::toTradeResponse).toList());
-    }
-
-    @Operation(summary = "List my pending outgoing trade offers")
-    @GetMapping("/outgoing")
-    public ResponseEntity<List<TradeResponse>> outgoing(
-            @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(tradeService.listOutgoingPending(me).stream()
-                .map(ItemMapper::toTradeResponse).toList());
-    }
-
     @Operation(summary = "List my trades with filters", description = "AIO endpoint. direction: incoming | outgoing | both (default both). status: comma-separated TradeStatus values, omit for all. Sorted by createdAt desc by default.")
     @GetMapping
     public ResponseEntity<Page<TradeResponse>> listMine(

@@ -105,7 +105,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/songsuggest", "/v1/songsuggest/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/discord/links/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/staff/users-public/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/v1/calculate/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/og/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/cdn/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/cdn/limits").permitAll()

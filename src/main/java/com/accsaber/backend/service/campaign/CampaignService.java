@@ -2193,7 +2193,7 @@ public class CampaignService {
                 .mapAuthor(md.getMap().getMapAuthor())
                 .coverUrl(md.getMap().getCoverUrl())
                 .cdnCoverUrl(md.getMap().getCdnCoverUrl())
-                .difficulty(md.getDifficulty().name())
+                .difficulty(md.getDifficulty())
                 .characteristic(md.getCharacteristic())
                 .mapDifficultyStatus(md.getStatus())
                 .requirementType(difficulty.getRequirementType())

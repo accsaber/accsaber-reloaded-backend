@@ -223,6 +223,7 @@ public class UserRelationService {
                 .targetUserId(other.getId())
                 .targetName(other.getName())
                 .targetAvatarUrl(other.getAvatarUrl())
+                .targetCdnAvatarUrl(other.getCdnAvatarUrl())
                 .targetCountry(other.getCountry())
                 .type(r.getType())
                 .createdAt(r.getCreatedAt())

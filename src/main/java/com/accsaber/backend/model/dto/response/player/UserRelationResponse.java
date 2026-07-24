@@ -17,6 +17,7 @@ public class UserRelationResponse {
     Long targetUserId;
     String targetName;
     String targetAvatarUrl;
+    String targetCdnAvatarUrl;
     String targetCountry;
     UserRelationType type;
     Instant createdAt;

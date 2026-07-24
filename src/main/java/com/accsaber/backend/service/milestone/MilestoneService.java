@@ -807,7 +807,7 @@ public class MilestoneService {
                 MapDifficulty md = score.getMapDifficulty();
                 if (md != null) {
                     builder.maxScore(md.getMaxScore())
-                            .difficulty(md.getDifficulty().name());
+                            .difficulty(md.getDifficulty());
                     com.accsaber.backend.model.entity.map.Map map = md.getMap();
                     if (map != null) {
                         builder.coverUrl(map.getCoverUrl())

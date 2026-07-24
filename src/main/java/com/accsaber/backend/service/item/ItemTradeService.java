@@ -54,16 +54,6 @@ public class ItemTradeService {
     private final EssenceLedgerService essenceLedgerService;
     private final NotificationService notificationService;
 
-    public List<UserItemTrade> listIncomingPending(Long toUserId) {
-        Long resolved = duplicateUserService.resolvePrimaryUserId(toUserId);
-        return tradeRepository.findByToUser_IdAndStatus(resolved, TradeStatus.pending);
-    }
-
-    public List<UserItemTrade> listOutgoingPending(Long fromUserId) {
-        Long resolved = duplicateUserService.resolvePrimaryUserId(fromUserId);
-        return tradeRepository.findByFromUser_IdAndStatus(resolved, TradeStatus.pending);
-    }
-
     public Page<UserItemTrade> listForUser(Long userId, String direction, Collection<TradeStatus> statuses,
             Pageable pageable) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);

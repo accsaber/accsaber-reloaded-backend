@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.campaign.CampaignLabelPosition;
 import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 
 import lombok.Builder;
@@ -28,7 +29,7 @@ public class CampaignDifficultyResponse {
     private String mapAuthor;
     private String coverUrl;
     private String cdnCoverUrl;
-    private String difficulty;
+    private Difficulty difficulty;
     private String characteristic;
     private MapDifficultyStatus mapDifficultyStatus;
     private CampaignRequirementType requirementType;

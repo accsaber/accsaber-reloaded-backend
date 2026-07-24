@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
@@ -37,7 +38,7 @@ public class MilestoneCompletionResponse {
     private Integer maxScore;
     private String coverUrl;
     private String cdnCoverUrl;
-    private String difficulty;
+    private Difficulty difficulty;
     private String songName;
     private String songAuthor;
     private String mapAuthor;

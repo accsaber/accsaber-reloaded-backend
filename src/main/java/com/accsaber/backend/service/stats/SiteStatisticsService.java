@@ -191,7 +191,7 @@ public class SiteStatisticsService {
         public Page<UserImprovementsResponse> getMostImprovements(UUID categoryId, String country, Pageable pageable) {
                 String normalizedCountry = normalizeCountry(country);
                 String sql = """
-                                SELECT u.id, u.name, u.avatar_url, u.country, COUNT(*) AS improvement_count,
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS improvement_count,
                                         MAX(s.time_set) AS latest_time_set,
                                         (SELECT s2.id FROM scores s2 WHERE s2.user_id = u.id AND s2.active = true
                                                 ORDER BY s2.time_set DESC NULLS LAST LIMIT 1) AS latest_score_id
@@ -208,7 +208,7 @@ public class SiteStatisticsService {
                 if (normalizedCountry != null) {
                         sql += " AND LOWER(u.country) = LOWER(:country)";
                 }
-                sql += " GROUP BY u.id, u.name, u.avatar_url, u.country ORDER BY improvement_count DESC, u.name ASC";
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country ORDER BY improvement_count DESC, u.name ASC";
 
                 Map<String, Object> params = new LinkedHashMap<>();
                 if (categoryId != null)
@@ -220,10 +220,11 @@ public class SiteStatisticsService {
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
-                                .country((String) row[3])
-                                .improvementCount(((Number) row[4]).longValue())
-                                .latestScoreTimeSet(row[5] != null ? ((Instant) row[5]) : null)
-                                .latestScoreId(row[6] != null ? (UUID) row[6] : null)
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .improvementCount(((Number) row[5]).longValue())
+                                .latestScoreTimeSet(row[6] != null ? ((Instant) row[6]) : null)
+                                .latestScoreId(row[7] != null ? (UUID) row[7] : null)
                                 .build());
         }
 
@@ -232,7 +233,7 @@ public class SiteStatisticsService {
                         Pageable pageable) {
                 String normalizedCountry = normalizeCountry(country);
                 String sql = """
-                                SELECT u.id, u.name, u.avatar_url, u.country,
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                                         d.id AS diff_id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                                         d.difficulty, c.id AS cat_id, c.name AS cat_name,
                                         COUNT(*) AS improvement_count,
@@ -253,7 +254,7 @@ public class SiteStatisticsService {
                 if (normalizedCountry != null) {
                         sql += " AND LOWER(u.country) = LOWER(:country)";
                 }
-                sql += " GROUP BY u.id, u.name, u.avatar_url, u.country," +
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
                                 " d.id, d.map_id, m.song_name, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                                 " d.difficulty, c.id, c.name ORDER BY improvement_count DESC, u.name ASC, m.song_name ASC";
 
@@ -267,20 +268,21 @@ public class SiteStatisticsService {
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
-                                .country((String) row[3])
-                                .mapDifficultyId((UUID) row[4])
-                                .mapId((UUID) row[5])
-                                .songName((String) row[6])
-                                .songAuthor((String) row[7])
-                                .mapAuthor((String) row[8])
-                                .coverUrl((String) row[9])
-                                .cdnCoverUrl((String) row[10])
-                                .difficulty(Difficulty.fromDbValue((String) row[11]))
-                                .categoryId((UUID) row[12])
-                                .categoryName((String) row[13])
-                                .improvementCount(((Number) row[14]).longValue())
-                                .latestScoreTimeSet(row[15] != null ? ((Instant) row[15]) : null)
-                                .latestScoreId(row[16] != null ? (UUID) row[16] : null)
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .mapDifficultyId((UUID) row[5])
+                                .mapId((UUID) row[6])
+                                .songName((String) row[7])
+                                .songAuthor((String) row[8])
+                                .mapAuthor((String) row[9])
+                                .coverUrl((String) row[10])
+                                .cdnCoverUrl((String) row[11])
+                                .difficulty(Difficulty.fromDbValue((String) row[12]))
+                                .categoryId((UUID) row[13])
+                                .categoryName((String) row[14])
+                                .improvementCount(((Number) row[15]).longValue())
+                                .latestScoreTimeSet(row[16] != null ? ((Instant) row[16]) : null)
+                                .latestScoreId(row[17] != null ? (UUID) row[17] : null)
                                 .build());
         }
 
@@ -288,7 +290,7 @@ public class SiteStatisticsService {
         public Page<MilestoneCollectorResponse> getMilestoneCollectors(String country, Pageable pageable) {
                 String normalizedCountry = normalizeCountry(country);
                 String sql = """
-                                SELECT u.id, u.name, u.avatar_url, u.country, COUNT(*) AS milestone_count
+                                SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS milestone_count
                                 FROM user_milestone_links uml
                                 JOIN users u ON u.id = uml.user_id
                                 WHERE uml.completed = true AND u.active = true AND u.banned = false
@@ -296,7 +298,7 @@ public class SiteStatisticsService {
                 if (normalizedCountry != null) {
                         sql += " AND LOWER(u.country) = LOWER(:country)";
                 }
-                sql += " GROUP BY u.id, u.name, u.avatar_url, u.country" +
+                sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                                 " ORDER BY milestone_count DESC, u.name ASC";
 
                 Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
@@ -305,8 +307,9 @@ public class SiteStatisticsService {
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
-                                .country((String) row[3])
-                                .milestoneCount(((Number) row[4]).longValue())
+                                .cdnAvatarUrl((String) row[3])
+                                .country((String) row[4])
+                                .milestoneCount(((Number) row[5]).longValue())
                                 .build());
         }
 

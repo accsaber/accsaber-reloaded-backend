@@ -401,8 +401,9 @@ public class MissionBuilderService {
                 .setScale(0, RoundingMode.HALF_UP);
         BigDecimal threshold = rawThreshold.compareTo(hardCap) > 0 ? hardCap : rawThreshold;
         threshold = pbAboveThresholdAvailabilityCap(scores, band, threshold); // new line added
+        BigDecimal qualifyingThreshold = threshold;
         long qualifying = scores.stream()
-                .filter(s -> s.getAp() != null && s.getAp().compareTo(threshold) >= 0)
+                .filter(s -> s.getAp() != null && s.getAp().compareTo(qualifyingThreshold) >= 0)
                 .count();
         if (qualifying < 2)
             return failBuild("too-few-qualifying-above-threshold");
