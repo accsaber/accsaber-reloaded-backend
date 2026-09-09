@@ -194,20 +194,20 @@ public class ScoreService {
         }
 
         @Transactional
-        public ScoreResponse submitPlayer(SubmitScoreRequest request) {
+        public Optional<ScoreResponse> submitPlayer(SubmitScoreRequest request) {
                 MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(request.getMapDifficultyId())
                                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty",
                                                 request.getMapDifficultyId()));
                 if (difficulty.getStatus() == MapDifficultyStatus.RANKED && !carriesBannedModifier(request)) {
-                        return submit(request);
+                        return Optional.of(submit(request));
                 }
                 return submitCampaignScore(request);
         }
 
         @Transactional
-        public ScoreResponse submitCampaignScore(SubmitScoreRequest request) {
+        public Optional<ScoreResponse> submitCampaignScore(SubmitScoreRequest request) {
                 if (request.isPartial()) {
-                        throw new ValidationException("Partial attempts are not recorded for campaign maps");
+                        return Optional.empty();
                 }
                 acquireSubmitLock(request.getUserId(), request.getMapDifficultyId());
                 MapDifficulty difficulty = loadCampaignDifficulty(request.getMapDifficultyId(),
@@ -226,9 +226,9 @@ public class ScoreService {
                                 scoreRepository.saveAndFlush(existing);
                         }
                         campaignEvaluationService.evaluateAfterScore(user.getId(), existing);
-                        return toResponse(existing,
+                        return Optional.of(toResponse(existing,
                                         computeAccuracy(existing.getScore(), difficulty.getMaxScore()),
-                                        loadModifierIds(existing.getId()));
+                                        loadModifierIds(existing.getId())));
                 }
 
                 List<Modifier> modifiers = resolveModifiers(request.getModifierIds());
@@ -245,9 +245,9 @@ public class ScoreService {
 
                 campaignEvaluationService.evaluateAfterScore(user.getId(), saved);
 
-                return toResponse(saved,
+                return Optional.of(toResponse(saved,
                                 computeAccuracy(saved.getScore(), difficulty.getMaxScore()),
-                                loadModifierIds(saved.getId()));
+                                loadModifierIds(saved.getId())));
         }
 
         @Transactional

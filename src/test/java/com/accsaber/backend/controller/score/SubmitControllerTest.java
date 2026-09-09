@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
@@ -90,7 +92,7 @@ class SubmitControllerTest {
         when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", nfId, "NO", noId));
         PluginSubmitRequest r = baseRequest();
         r.setModifierCodes(List.of("NF", "NO"));
-        when(scoreService.submitPlayer(any())).thenReturn(ScoreResponse.builder().build());
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.of(ScoreResponse.builder().build()));
 
         controller.submit(r, principal);
 
@@ -102,7 +104,7 @@ class SubmitControllerTest {
     @Test
     void rejectsDuplicateNonce() {
         PluginSubmitRequest r = baseRequest();
-        when(scoreService.submitPlayer(any())).thenReturn(ScoreResponse.builder().build());
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.of(ScoreResponse.builder().build()));
 
         controller.submit(r, principal);
 
@@ -113,7 +115,7 @@ class SubmitControllerTest {
 
     @Test
     void rejectsSecondSubmissionWithinRateLimitWindow() {
-        when(scoreService.submitPlayer(any())).thenReturn(ScoreResponse.builder().build());
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.of(ScoreResponse.builder().build()));
 
         controller.submit(baseRequest(), principal);
 
@@ -129,10 +131,20 @@ class SubmitControllerTest {
         when(scoreService.submitPlayer(any())).thenAnswer(inv -> {
             var req = (com.accsaber.backend.model.dto.request.score.SubmitScoreRequest) inv.getArgument(0);
             assertThat(req.getUserId()).isEqualTo(USER_ID);
-            return ScoreResponse.builder().build();
+            return Optional.of(ScoreResponse.builder().build());
         });
 
         var response = controller.submit(r, principal);
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+    }
+
+    @Test
+    void discardedSubmission_returnsNoContent() {
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.empty());
+
+        var response = controller.submit(baseRequest(), principal);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
     }
 }

@@ -23,9 +23,9 @@ import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.score.ScoreService;
-import com.accsaber.backend.service.staff.JwtService;
 import com.accsaber.backend.service.score.SubmitNonceService;
 import com.accsaber.backend.service.score.SubmitRateLimitService;
+import com.accsaber.backend.service.staff.JwtService;
 
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
@@ -60,7 +60,9 @@ public class SubmitController {
             throw new TooManyRequestsException("Submitting too fast; wait 60s between scores");
         }
         SubmitScoreRequest request = toServiceRequest(body, principal.getUserId());
-        return ResponseEntity.ok(scoreService.submitPlayer(request));
+        return scoreService.submitPlayer(request)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     private SubmitScoreRequest toServiceRequest(PluginSubmitRequest body, Long userId) {

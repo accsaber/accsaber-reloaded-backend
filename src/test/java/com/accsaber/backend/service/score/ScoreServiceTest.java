@@ -888,6 +888,18 @@ class ScoreServiceTest {
                 }
 
                 @Test
+                void partialAttempt_onCampaignPath_isAcceptedAndDiscarded() {
+                        SubmitScoreRequest req = bannedRequest();
+                        req.setPartial(true);
+
+                        assertThat(scoreService.submitPlayer(req)).isEmpty();
+
+                        verify(scoreRepository, never()).saveAndFlush(any());
+                        verify(campaignEvaluationService, never()).evaluateAfterScore(any(), any());
+                        verify(campaignEvaluationService, never()).isRecordable(any(), any());
+                }
+
+                @Test
                 void zeroScore_onCampaignPath_throwsBeforeRecording() {
                         SubmitScoreRequest req = bannedRequest();
                         req.setScore(0);
