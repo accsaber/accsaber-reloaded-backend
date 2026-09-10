@@ -46,7 +46,6 @@ public final class ComplexityComparisonResponse {
         Double topAp;
         Double averageAp;
         Double averageWeightedAp;
-        Integer boardRank;
     }
 
     @Value

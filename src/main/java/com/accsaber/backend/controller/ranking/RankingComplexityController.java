@@ -27,7 +27,6 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.ComplexityComparisonService;
 import com.accsaber.backend.service.map.ComplexityDatasetService;
-import com.accsaber.backend.service.map.ComplexityScenario;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,20 +61,6 @@ public class RankingComplexityController {
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard")
     public ResponseEntity<MapLeaderboard> leaderboard(@PathVariable UUID mapDifficultyId) {
         return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId));
-    }
-
-    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with both stored scenarios on each, sorted by the chosen one. A search narrows the rows after ranking, so the positions still count the whole board. Each scenario block also carries the map's position on that scenario's board, ranked across every map that clears the score minimum and the category filter rather than the returned slice alone, with the position change against today in the deltas. A map with no complexity under a scenario, or under the score minimum, has no position there.")
-    @GetMapping("/leaderboards/highest-avg-ap")
-    public ResponseEntity<List<DifficultyRow>> highestAverageAp(
-            @RequestParam(defaultValue = "CURRENT") ComplexityScenario scenario,
-            @RequestParam(required = false) UUID categoryId,
-            @RequestParam(defaultValue = "10") int minScores,
-            @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(required = false) UUID batchId,
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(comparisonService.highestAverageAp(scenario,
-                new ComplexityComparisonService.MapFilter(categoryId, MapDifficultyStatus.RANKED, batchId, search),
-                minScores, limit));
     }
 
     @Operation(summary = "The player leaderboard under the stored scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")

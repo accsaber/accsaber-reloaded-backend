@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
@@ -84,44 +83,7 @@ public class ComplexityComparisonService {
 
     @Transactional(readOnly = true)
     public List<DifficultyRow> difficulties(MapFilter filter) {
-        return rows(difficultiesOf(filter), scenarioService.stored(), Map.of());
-    }
-
-    @Transactional(readOnly = true)
-    public List<DifficultyRow> highestAverageAp(ComplexityScenario scenario, MapFilter filter, int minScores,
-            int limit) {
-        UUID categoryId = filter.categoryId();
-        Map<ComplexityScenario, ScenarioState> states = scenarioService.stored();
-        List<UUID> candidates = states.values().stream()
-                .flatMap(state -> state.aggregates().keySet().stream())
-                .distinct()
-                .toList();
-        Map<UUID, MapDifficulty> byId = mapDifficultyRepository.findAllByIdInAndActiveTrueWithMapAndCategory(candidates)
-                .stream().collect(Collectors.toMap(MapDifficulty::getId, Function.identity()));
-        Map<ComplexityScenario, Map<UUID, Integer>> ranks = new EnumMap<>(ComplexityScenario.class);
-        states.forEach((key, state) -> ranks.put(key, boardRanks(state, byId, categoryId, minScores)));
-        List<MapDifficulty> ordered = ranks.get(scenario).keySet().stream()
-                .map(byId::get)
-                .filter(d -> inBatch(d, filter.batchId()) && matches(d, filter.search()))
-                .limit(limit)
-                .toList();
-        return rows(ordered, states, ranks);
-    }
-
-    private static Map<UUID, Integer> boardRanks(ScenarioState state, Map<UUID, MapDifficulty> byId, UUID categoryId,
-            int minScores) {
-        List<UUID> ordered = state.aggregates().entrySet().stream()
-                .filter(e -> e.getValue().scores() >= minScores)
-                .filter(e -> byId.containsKey(e.getKey()) && inCategory(byId.get(e.getKey()), categoryId))
-                .sorted(Comparator.comparing((Map.Entry<UUID, MapAggregate> e) -> e.getValue().averageWeightedAp())
-                        .reversed())
-                .map(Map.Entry::getKey)
-                .toList();
-        Map<UUID, Integer> ranks = new LinkedHashMap<>();
-        for (int i = 0; i < ordered.size(); i++) {
-            ranks.put(ordered.get(i), i + 1);
-        }
-        return ranks;
+        return rows(difficultiesOf(filter), scenarioService.stored());
     }
 
     @Transactional(readOnly = true)
@@ -129,7 +91,7 @@ public class ComplexityComparisonService {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
         Map<ComplexityScenario, ScenarioState> states = scenarioService.stored();
-        DifficultyRow header = rows(List.of(difficulty), states, Map.of()).get(0);
+        DifficultyRow header = rows(List.of(difficulty), states).get(0);
         Map<ComplexityScenario, Map<Long, Play>> playsByScenario = new EnumMap<>(ComplexityScenario.class);
         states.forEach((scenario, state) -> playsByScenario.put(scenario, state.playsByDifficulty()
                 .getOrDefault(mapDifficultyId, List.of()).stream()
@@ -161,7 +123,7 @@ public class ComplexityComparisonService {
         Map<ComplexityScenario, ScenarioState> states = previewStates(spec);
         return Preview.builder()
                 .rater(spec)
-                .difficulties(rows(difficultiesOf(filter), states, Map.of()))
+                .difficulties(rows(difficultiesOf(filter), states))
                 .players(players(states, new PlayerQuery(filter.categoryId(), playerLimit, null)))
                 .build();
     }
@@ -218,7 +180,7 @@ public class ComplexityComparisonService {
         Map<UUID, MapDifficulty> byId = mapDifficultyRepository
                 .findAllByIdInAndActiveTrueWithMapAndCategory(new ArrayList<>(shown)).stream()
                 .collect(Collectors.toMap(MapDifficulty::getId, Function.identity()));
-        Map<UUID, DifficultyRow> headers = rows(new ArrayList<>(byId.values()), states, Map.of()).stream()
+        Map<UUID, DifficultyRow> headers = rows(new ArrayList<>(byId.values()), states).stream()
                 .collect(Collectors.toMap(DifficultyRow::getMapDifficultyId, Function.identity()));
         Map<UUID, Play> current = plays.get(ComplexityScenario.CURRENT);
         List<CategoryPlays> categories = categoryRepository.findByActiveTrue().stream()
@@ -438,17 +400,16 @@ public class ComplexityComparisonService {
                 .build();
     }
 
-    private List<DifficultyRow> rows(List<MapDifficulty> difficulties, Map<ComplexityScenario, ScenarioState> states,
-            Map<ComplexityScenario, Map<UUID, Integer>> ranks) {
+    private List<DifficultyRow> rows(List<MapDifficulty> difficulties, Map<ComplexityScenario, ScenarioState> states) {
         List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
         Map<UUID, MapDifficultyComplexityEstimate> estimates = estimateService.estimatesFor(ids);
         return difficulties.stream()
-                .map(d -> difficultyRow(d, states, estimates.get(d.getId()), ranks))
+                .map(d -> difficultyRow(d, states, estimates.get(d.getId())))
                 .toList();
     }
 
     private DifficultyRow difficultyRow(MapDifficulty d, Map<ComplexityScenario, ScenarioState> states,
-            MapDifficultyComplexityEstimate estimate, Map<ComplexityScenario, Map<UUID, Integer>> ranks) {
+            MapDifficultyComplexityEstimate estimate) {
         Map<ComplexityScenario, MapValues> scenarios = new EnumMap<>(ComplexityScenario.class);
         Map<ComplexityScenario, EstimateInfo> info = new EnumMap<>(ComplexityScenario.class);
         int scores = 0;
@@ -466,7 +427,6 @@ public class ComplexityComparisonService {
                     .topAp(aggregate == null ? null : aggregate.topAp())
                     .averageAp(aggregate == null ? null : aggregate.averageAp())
                     .averageWeightedAp(aggregate == null ? null : aggregate.averageWeightedAp())
-                    .boardRank(ranks.getOrDefault(scenario, Map.of()).get(d.getId()))
                     .build());
             if (aggregate != null) {
                 scores = aggregate.scores();
@@ -514,8 +474,6 @@ public class ComplexityComparisonService {
                     .topAp(diff(v.getTopAp(), base.getTopAp()))
                     .averageAp(diff(v.getAverageAp(), base.getAverageAp()))
                     .averageWeightedAp(diff(v.getAverageWeightedAp(), base.getAverageWeightedAp()))
-                    .boardRank(v.getBoardRank() == null || base.getBoardRank() == null ? null
-                            : v.getBoardRank() - base.getBoardRank())
                     .build());
         }
         return deltas;
