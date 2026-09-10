@@ -289,9 +289,7 @@ public class MapService {
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
-        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = estimateRepository
-                .findAllByDifficultyIds(ids).stream()
-                .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
+        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
         return difficulties.map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
                 staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
@@ -572,7 +570,8 @@ public class MapService {
         StaffInfo info = resolveStaffInfo(difficulty.getLastUpdatedBy());
         Double avgComplexity = loadAvgReweightComplexity(List.of(difficultyId)).get(difficultyId);
         VoteSummary votes = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity, 0);
-        return toDifficultyResponse(difficulty, complexity, stats, info, null, votes);
+        return toDifficultyResponse(difficulty, complexity, stats, info, null, votes,
+                estimateRepository.findByMapDifficultyId(difficultyId).orElse(null));
     }
 
     private void checkLeaderboardIdConflict(String blId, String ssId) {
@@ -620,11 +619,12 @@ public class MapService {
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
+        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
         return difficulties.stream()
                 .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
                         staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY)))
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId())))
                 .toList();
     }
 
@@ -806,6 +806,12 @@ public class MapService {
                 .commentCount(votes.commentCount())
                 .statistics(stats)
                 .build();
+    }
+
+    private java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> loadEstimates(
+            List<UUID> ids) {
+        return estimateRepository.findAllByDifficultyIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
     }
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
