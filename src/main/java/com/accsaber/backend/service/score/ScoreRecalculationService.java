@@ -56,6 +56,8 @@ public class ScoreRecalculationService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final UserCategoryStatisticsRepository userCategoryStatisticsRepository;
+    private final com.accsaber.backend.service.skill.SkillService skillService;
+    private final com.accsaber.backend.repository.user.UserCategorySkillRepository userCategorySkillRepository;
     private final ScoreRankingService scoreRankingService;
     private final SongSuggestService songSuggestService;
 
@@ -87,6 +89,7 @@ public class ScoreRecalculationService {
         if (difficulty.getCategory().isCountForOverall()) {
             overallStatisticsService.updateOverallRankings();
         }
+        resweepSkills(Set.of(categoryId));
         try {
             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
         } catch (Exception e) {
@@ -357,6 +360,20 @@ public class ScoreRecalculationService {
                 overallStatisticsService.updateOverallRankings();
             } catch (Exception ex) {
                 log.error("Overall ranking update failed: {}", ex.getMessage());
+            }
+        }
+        resweepSkills(affectedByCategory.keySet());
+    }
+
+    private void resweepSkills(Set<UUID> categoryIds) {
+        for (UUID categoryId : categoryIds) {
+            try {
+                List<Long> engaged = userCategorySkillRepository.findActiveUserIdsByCategoryId(categoryId);
+                skillService.recomputeCategorySkills(categoryId, engaged);
+                log.info("Recomputed skills for {} engaged players in category {} after AP changes", engaged.size(),
+                        categoryId);
+            } catch (Exception ex) {
+                log.error("Skill resweep failed for category {}: {}", categoryId, ex.getMessage());
             }
         }
     }
