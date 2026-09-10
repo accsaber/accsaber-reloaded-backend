@@ -3,6 +3,7 @@ package com.accsaber.backend.service.map;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,6 +28,10 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     static final double[] WORST_BANDS = { 0.01, 0.02, 0.05, 0.10, 0.25 };
     private static final double ACCURACY_CEILING = 0.9999;
     private static final int MIN_NOTES = 8;
+    private static final int COMPLEXITY_SCALE = 1;
+
+    private record Terms(double mean, double worst, double reset, double dot) {
+    }
 
     private final MapZipCache zipCache;
     private final ComplexityModelClient modelClient;
@@ -68,7 +73,8 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
         if (difficulty.getCategory() == null || inputs == null || currentModelHash == null
                 || !currentModelHash.equals(inputs.path("modelHash").asText(null))
-                || !inputs.hasNonNull("meanNoteAccuracy") || !inputs.hasNonNull("worstBands")) {
+                || !inputs.hasNonNull("meanNoteAccuracy") || !inputs.hasNonNull("worstBands")
+                || !inputs.hasNonNull("resetShare") || !inputs.hasNonNull("dotShare")) {
             return Optional.empty();
         }
         return price(inputs, properties.toSpec(), difficulty.getCategory().getCode());
@@ -90,41 +96,48 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
         inputs.put("predictedNotes", sorted.size());
         inputs.put("meanNoteAccuracy", Rounding.round(mean, 6));
         inputs.put("worstBands", bands);
+        inputs.put("resetShare", Rounding.round(notes.getResetShare(), 6));
+        inputs.put("dotShare", Rounding.round(notes.getDotShare(), 6));
         ComplexityRaterSpec spec = properties.toSpec();
-        Rating priced = price(mean, worstMean(sorted, spec.getWorstShare()), spec, categoryCode, inputs);
-        return priced;
+        Terms terms = new Terms(mean, worstMean(sorted, spec.getWorstShare()), notes.getResetShare(),
+                notes.getDotShare());
+        return price(terms, spec, categoryCode, inputs);
     }
 
     public static Optional<Rating> price(JsonNode inputs, ComplexityRaterSpec spec, String categoryCode) {
-        Coefficients coefficients = spec.getCategories().get(categoryCode);
-        if (coefficients == null || inputs == null || !inputs.hasNonNull("meanNoteAccuracy")) {
+        if (!spec.getCategories().containsKey(categoryCode) || inputs == null
+                || !inputs.hasNonNull("meanNoteAccuracy")) {
             return Optional.empty();
         }
         double mean = inputs.get("meanNoteAccuracy").asDouble();
         JsonNode bands = inputs.path("worstBands");
         String key = bandKey(nearestBand(spec.getWorstShare()));
         double worst = bands.hasNonNull(key) ? bands.get(key).asDouble() : inputs.path("worstNoteAccuracy").asDouble(mean);
+        Terms terms = new Terms(mean, worst, inputs.path("resetShare").asDouble(0.0), inputs.path("dotShare").asDouble(0.0));
         Map<String, Object> carried = new LinkedHashMap<>();
         inputs.fields().forEachRemaining(entry -> carried.put(entry.getKey(), entry.getValue()));
-        return Optional.of(price(mean, worst, spec, categoryCode, carried));
+        return Optional.of(price(terms, spec, categoryCode, carried));
     }
 
-    private static Rating price(double mean, double worst, ComplexityRaterSpec spec, String categoryCode,
-            Map<String, Object> inputs) {
-        Coefficients coefficients = spec.getCategories().get(categoryCode);
-        double meanTerm = linearised(mean);
-        double worstTerm = linearised(worst);
-        double complexity = coefficients.getIntercept()
-                + coefficients.getMeanSlope() * meanTerm
-                + coefficients.getWorstSlope() * worstTerm;
+    private static Rating price(Terms terms, ComplexityRaterSpec spec, String categoryCode, Map<String, Object> inputs) {
+        Coefficients c = spec.getCategories().get(categoryCode);
+        double meanTerm = linearised(terms.mean());
+        double worstTerm = linearised(terms.worst());
+        double complexity = c.getIntercept()
+                + c.getMeanSlope() * meanTerm
+                + c.getWorstSlope() * worstTerm
+                + c.getResetSlope() * terms.reset()
+                + c.getDotSlope() * terms.dot();
         inputs.put("worstShare", spec.getWorstShare());
-        inputs.put("worstNoteAccuracy", Rounding.round(worst, 6));
+        inputs.put("worstNoteAccuracy", Rounding.round(terms.worst(), 6));
         inputs.put("meanTerm", Rounding.round(meanTerm, 6));
         inputs.put("worstTerm", Rounding.round(worstTerm, 6));
-        inputs.put("intercept", coefficients.getIntercept());
-        inputs.put("meanSlope", coefficients.getMeanSlope());
-        inputs.put("worstSlope", coefficients.getWorstSlope());
-        return new Rating(Rounding.round(Math.max(0.0, complexity), 2), inputs);
+        inputs.put("intercept", c.getIntercept());
+        inputs.put("meanSlope", c.getMeanSlope());
+        inputs.put("worstSlope", c.getWorstSlope());
+        inputs.put("resetSlope", c.getResetSlope());
+        inputs.put("dotSlope", c.getDotSlope());
+        return new Rating(Rounding.round(Math.max(0.0, complexity), COMPLEXITY_SCALE), inputs);
     }
 
     static double worstMean(List<Double> sortedAscending, double share) {
@@ -144,7 +157,7 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     }
 
     static String bandKey(double share) {
-        return String.format(java.util.Locale.ROOT, "%.2f", share);
+        return String.format(Locale.ROOT, "%.2f", share);
     }
 
     static double linearised(double accuracy) {

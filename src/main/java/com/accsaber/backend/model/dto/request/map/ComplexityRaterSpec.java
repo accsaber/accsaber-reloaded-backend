@@ -33,5 +33,9 @@ public class ComplexityRaterSpec {
 
         @NotNull
         private Double worstSlope;
+
+        private double resetSlope;
+
+        private double dotSlope;
     }
 }

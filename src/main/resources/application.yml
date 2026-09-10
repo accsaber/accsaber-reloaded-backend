@@ -156,21 +156,27 @@ accsaber:
   complexity:
     model-check-interval-ms: 300000
     rater:
-      version: note-acc-2026-09
+      version: note-acc-reset-2026-09
       worst-share: 0.05
       categories:
         true_acc:
-          intercept: 15.376
-          mean-slope: -6.496
-          worst-slope: -4.473
+          intercept: 19.970
+          mean-slope: -10.563
+          worst-slope: -2.903
+          reset-slope: -1.529
+          dot-slope: -3.002
         standard_acc:
-          intercept: 23.472
-          mean-slope: -12.366
-          worst-slope: -4.214
+          intercept: 29.355
+          mean-slope: -18.571
+          worst-slope: -2.053
+          reset-slope: 0
+          dot-slope: 0
         tech_acc:
-          intercept: 26.088
-          mean-slope: -18.052
+          intercept: 33.240
+          mean-slope: -23.591
           worst-slope: 0
+          reset-slope: 0
+          dot-slope: 0
   rate-limit:
     capacity: 400
     window-seconds: 60

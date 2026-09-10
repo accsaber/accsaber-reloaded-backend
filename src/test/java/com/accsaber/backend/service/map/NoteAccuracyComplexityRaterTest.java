@@ -75,7 +75,8 @@ class NoteAccuracyComplexityRaterTest {
         double mean = notes.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
         double expected = 40.0 - 10.0 * NoteAccuracyComplexityRater.linearised(mean)
                 - 2.0 * NoteAccuracyComplexityRater.linearised(0.9945);
-        assertThat(rating.complexity()).isCloseTo(expected, within(0.01));
+        assertThat(rating.complexity()).isCloseTo(expected, within(0.051));
+        assertThat(rating.complexity() * 10).isEqualTo(Math.rint(rating.complexity() * 10));
         assertThat(rating.inputs()).containsEntry("predictedNotes", 8).containsEntry("model", "note-acc-beatleader")
                 .containsEntry("worstShare", 0.25);
         assertThat((Double) rating.inputs().get("worstNoteAccuracy")).isCloseTo(0.9945, within(1e-6));
@@ -99,7 +100,7 @@ class NoteAccuracyComplexityRaterTest {
         properties.getCategories().get("tech_acc").setIntercept(45.0);
         Optional<ComplexityRater.Rating> repriced = rater.reprice(tech, inputs, "abc123");
         assertThat(repriced).isPresent();
-        assertThat(repriced.get().complexity()).isCloseTo(stored.complexity() + 5.0, within(0.011));
+        assertThat(repriced.get().complexity()).isCloseTo(stored.complexity() + 5.0, within(0.051));
         assertThat(repriced.get().inputs()).containsEntry("intercept", 45.0);
         verify(modelClient, never()).noteAccuracies(any(), anyString(), anyString());
     }
@@ -115,6 +116,21 @@ class NoteAccuracyComplexityRaterTest {
         ComplexityRater.Rating priced = NoteAccuracyComplexityRater.price(inputs, spec, "tech_acc").orElseThrow();
         assertThat((Double) priced.inputs().get("worstNoteAccuracy")).isCloseTo(0.99, within(1e-6));
         assertThat(NoteAccuracyComplexityRater.price(inputs, spec, "true_acc")).isEmpty();
+    }
+
+    @Test
+    void resetAndDotSharesPriceThroughTheirOwnSlopes() {
+        properties.getCategories().get("tech_acc").setResetSlope(-2.0);
+        properties.getCategories().get("tech_acc").setDotSlope(-4.0);
+        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
+        ComplexityRater.Rating plain = rater.rate(response, "tech_acc");
+        response.setResetShare(1.0);
+        response.setDotShare(0.5);
+        ComplexityRater.Rating reset = rater.rate(response, "tech_acc");
+
+        assertThat(reset.complexity()).isCloseTo(plain.complexity() - 4.0, within(0.051));
+        assertThat(reset.inputs()).containsEntry("resetShare", 1.0).containsEntry("dotShare", 0.5)
+                .containsEntry("resetSlope", -2.0).containsEntry("dotSlope", -4.0);
     }
 
     @Test

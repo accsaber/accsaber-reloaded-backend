@@ -60,7 +60,7 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId));
     }
 
-    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with all three scenarios on each, sorted by the chosen one.")
+    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with all three scenarios on each, sorted by the chosen one. Each scenario block also carries the map's position on that scenario's board, ranked across every map that clears the score minimum and the category filter rather than the returned slice alone, with the position change against today in the deltas. A map with no complexity under a scenario, or under the score minimum, has no position there.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<List<DifficultyRow>> highestAverageAp(
             @RequestParam(defaultValue = "CURRENT") ComplexityScenario scenario,

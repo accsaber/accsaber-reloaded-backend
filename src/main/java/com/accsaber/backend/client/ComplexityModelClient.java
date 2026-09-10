@@ -86,5 +86,7 @@ public class ComplexityModelClient {
         private int predictedNotes;
         private double meanAccuracy;
         private List<Double> noteAccuracies;
+        private double resetShare;
+        private double dotShare;
     }
 }
