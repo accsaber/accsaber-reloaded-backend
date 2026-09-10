@@ -44,6 +44,10 @@ class ComplexityComparisonServiceTest {
     private ComplexityRaterProperties raterProperties;
     @Mock
     private ReweightService reweightService;
+    @Mock
+    private MapService mapService;
+    @Mock
+    private MapDifficultyComplexityService complexityService;
     @InjectMocks
     private ComplexityComparisonService service;
 
@@ -127,7 +131,7 @@ class ComplexityComparisonServiceTest {
         when(scenarioService.complexitiesFor(ComplexityScenario.CURRENT)).thenReturn(Map.of(a, 5.0, b, 8.0, c, 6.0));
         when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(a, 7.0, b, 8.0, c, 4.2));
 
-        service.apply(new ComplexityComparisonService.ApplyOptions("round 1", 0.5, null), 1L, UUID.randomUUID());
+        service.apply(new ComplexityComparisonService.ApplyOptions("round 1", 0.5, null, MapDifficultyStatus.RANKED), 1L, UUID.randomUUID());
 
         org.mockito.ArgumentCaptor<List<com.accsaber.backend.model.dto.request.map.BulkReweightRequest.Item>> items = org.mockito.ArgumentCaptor
                 .captor();
@@ -183,13 +187,37 @@ class ComplexityComparisonServiceTest {
         when(mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(batchId))
                 .thenReturn(List.of(MapDifficulty.builder().id(inBatch).build()));
 
-        service.apply(new ComplexityComparisonService.ApplyOptions("july round", null, batchId), 1L, UUID.randomUUID());
+        service.apply(new ComplexityComparisonService.ApplyOptions("july round", null, batchId, null), 1L, UUID.randomUUID());
 
         org.mockito.ArgumentCaptor<List<com.accsaber.backend.model.dto.request.map.BulkReweightRequest.Item>> items = org.mockito.ArgumentCaptor
                 .captor();
         org.mockito.Mockito.verify(reweightService).bulkReweight(items.capture(), org.mockito.ArgumentMatchers.eq("july round"), any(), any());
         assertThat(items.getValue()).extracting(i -> i.getMapDifficultyId() + "=" + i.getComplexity())
                 .containsExactly(inBatch + "=7.0");
+    }
+
+    @Test
+    void applyToTheQueueSetsEachMapToTheScriptWithoutAReweight() {
+        MapDifficulty queued = difficulty("Queued", tech);
+        queued.setStatus(MapDifficultyStatus.QUEUE);
+        MapDifficulty priced = difficulty("Priced", tech);
+        priced.setStatus(MapDifficultyStatus.QUEUE);
+        when(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.QUEUE))
+                .thenReturn(List.of(queued, priced));
+        when(complexityService.findActiveComplexitiesForDifficulties(any())).thenReturn(Map.of(priced.getId(), 9.0));
+        when(estimateService.estimatesFor(any())).thenReturn(Map.of(
+                queued.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(8.5).build(),
+                priced.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(9.0).build()));
+
+        service.apply(new ComplexityComparisonService.ApplyOptions("queue pass", null, null, MapDifficultyStatus.QUEUE), 1L,
+                UUID.randomUUID());
+
+        org.mockito.ArgumentCaptor<com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest> request = org.mockito.ArgumentCaptor
+                .captor();
+        org.mockito.Mockito.verify(mapService).updateComplexity(org.mockito.ArgumentMatchers.eq(queued.getId()), request.capture(), any(), any());
+        assertThat(request.getValue().getComplexity()).isEqualTo(8.5);
+        assertThat(request.getValue().getReason()).isEqualTo("queue pass");
+        org.mockito.Mockito.verify(reweightService, org.mockito.Mockito.never()).bulkReweight(any(), any(), any(), any());
     }
 
     private static ScenarioState state(Map<UUID, MapAggregate> aggregates) {

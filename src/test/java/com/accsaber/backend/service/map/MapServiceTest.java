@@ -68,6 +68,9 @@ class MapServiceTest {
         private StaffMapVoteRepository voteRepository;
 
         @Mock
+        private com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository estimateRepository;
+
+        @Mock
         private ScoreIngestionService scoreIngestionService;
         @Mock
         private com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;

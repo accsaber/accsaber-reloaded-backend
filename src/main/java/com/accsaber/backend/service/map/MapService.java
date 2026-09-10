@@ -1,8 +1,5 @@
 package com.accsaber.backend.service.map;
 
-import com.accsaber.backend.util.Rounding;
-
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -38,7 +35,6 @@ import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.Difficulty;
-import com.accsaber.backend.util.MapDifficultyMetrics;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -53,6 +49,8 @@ import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
+import com.accsaber.backend.util.MapDifficultyMetrics;
+import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
 
@@ -71,6 +69,7 @@ public class MapService {
     private final MapDifficultyStatisticsService statisticsService;
     private final StaffUserRepository staffUserRepository;
     private final StaffMapVoteRepository voteRepository;
+    private final com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository estimateRepository;
     private final ScoreIngestionService scoreIngestionService;
     private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
     private final PlaylistService playlistService;
@@ -290,10 +289,13 @@ public class MapService {
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
+        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = estimateRepository
+                .findAllByDifficultyIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
 
         return difficulties.map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
                 staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY)));
+                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId())));
     }
 
     public MapResponse findById(UUID mapId) {
@@ -752,7 +754,8 @@ public class MapService {
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
-            StaffInfo createdByInfo, VoteSummary votes) {
+            StaffInfo createdByInfo, VoteSummary votes,
+            com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate estimate) {
         Map map = d.getMap();
         return MapDifficultyResponse.builder()
                 .id(d.getId())
@@ -778,6 +781,8 @@ public class MapService {
                 .nps(MapDifficultyMetrics.nps(d.getMetadata()))
                 .maxCombo(MapDifficultyMetrics.maxCombo(d.getMetadata()))
                 .complexity(complexity)
+                .scriptComplexity(estimate == null ? null : estimate.getComplexity())
+                .scriptVersion(estimate == null ? null : estimate.getVersion())
                 .rankedAt(d.getRankedAt())
                 .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
                 .createdAt(d.getCreatedAt())
@@ -796,7 +801,8 @@ public class MapService {
                 .reweightDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.reweightDownvotes() : 0)
                 .unrankUpvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankUpvotes() : 0)
                 .unrankDownvotes(d.getStatus() == MapDifficultyStatus.RANKED ? votes.unrankDownvotes() : 0)
-                .averageVoteComplexity(d.getStatus() == MapDifficultyStatus.RANKED ? votes.averageVoteComplexity() : null)
+                .averageVoteComplexity(
+                        d.getStatus() == MapDifficultyStatus.RANKED ? votes.averageVoteComplexity() : null)
                 .commentCount(votes.commentCount())
                 .statistics(stats)
                 .build();
@@ -804,7 +810,13 @@ public class MapService {
 
     private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo) {
-        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY);
+        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY, null);
+    }
+
+    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
+            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
+            StaffInfo createdByInfo, VoteSummary votes) {
+        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, createdByInfo, votes, null);
     }
 
     public static PublicMapResponse toPublicMapResponse(MapResponse map) {

@@ -23,6 +23,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
+import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.EstimateInfo;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.LadderValues;
@@ -71,6 +72,8 @@ public class ComplexityComparisonService {
     private final ComplexityEstimateService estimateService;
     private final ComplexityRaterProperties raterProperties;
     private final ReweightService reweightService;
+    private final MapService mapService;
+    private final MapDifficultyComplexityService complexityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public record MapFilter(UUID categoryId, MapDifficultyStatus status, UUID batchId, String search) {
@@ -308,12 +311,16 @@ public class ComplexityComparisonService {
                 .build();
     }
 
-    public record ApplyOptions(String reason, Double maxStep, UUID batchId) {
+    public record ApplyOptions(String reason, Double maxStep, UUID batchId, MapDifficultyStatus status) {
     }
 
     public void apply(ApplyOptions options, Long staffUserId, UUID staffId) {
         if (options.maxStep() != null && options.maxStep() <= 0) {
             throw new ValidationException("The step limit must be above zero");
+        }
+        if (options.status() != null && options.status() != MapDifficultyStatus.RANKED) {
+            applyToUnranked(options, staffUserId, staffId);
+            return;
         }
         Map<UUID, Double> current = scenarioService.complexitiesFor(ComplexityScenario.CURRENT);
         Map<UUID, Double> proposed = scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT);
@@ -338,6 +345,34 @@ public class ComplexityComparisonService {
             throw new ValidationException("The script matches the current complexities on every map in scope");
         }
         reweightService.bulkReweight(items, options.reason(), staffUserId, staffId);
+    }
+
+    @Transactional
+    void applyToUnranked(ApplyOptions options, Long staffUserId, UUID staffId) {
+        List<MapDifficulty> difficulties = difficultiesOf(new MapFilter(null, options.status(), options.batchId(), null));
+        List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
+        Map<UUID, Double> current = complexityService.findActiveComplexitiesForDifficulties(ids);
+        Map<UUID, MapDifficultyComplexityEstimate> estimates = estimateService.estimatesFor(ids);
+        int changed = 0;
+        for (MapDifficulty difficulty : difficulties) {
+            MapDifficultyComplexityEstimate estimate = estimates.get(difficulty.getId());
+            if (estimate == null) {
+                continue;
+            }
+            Double now = current.get(difficulty.getId());
+            double target = now == null ? estimate.getComplexity() : step(now, estimate.getComplexity(), options.maxStep());
+            if (now != null && Math.abs(now - target) < 1e-9) {
+                continue;
+            }
+            UpdateMapComplexityRequest request = new UpdateMapComplexityRequest();
+            request.setComplexity(target);
+            request.setReason(options.reason());
+            mapService.updateComplexity(difficulty.getId(), request, staffUserId, staffId);
+            changed++;
+        }
+        if (changed == 0) {
+            throw new ValidationException("The script matches the current complexities on every map in scope");
+        }
     }
 
     static double step(double now, double proposed, Double maxStep) {
