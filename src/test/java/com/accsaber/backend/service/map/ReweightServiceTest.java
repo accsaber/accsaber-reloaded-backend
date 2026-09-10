@@ -48,6 +48,9 @@ class ReweightServiceTest {
     @Mock
     private BatchRepository batchRepository;
 
+    @Mock
+    private ComplexityScenarioService scenarioService;
+
     @InjectMocks
     private ReweightService reweightService;
 
@@ -190,7 +193,7 @@ class ReweightServiceTest {
             item.setMapDifficultyId(diffId);
             item.setComplexity((double) (8.0));
 
-            when(mapDifficultyRepository.findAllById(any())).thenReturn(List.of());
+            when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of());
 
             assertThatThrownBy(() -> reweightService.bulkReweight(
                     List.of(item), "reason", null, null))
@@ -205,7 +208,7 @@ class ReweightServiceTest {
             item.setMapDifficultyId(diff.getId());
             item.setComplexity((double) (8.0));
 
-            when(mapDifficultyRepository.findAllById(any())).thenReturn(List.of(diff));
+            when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of(diff));
 
             assertThatThrownBy(() -> reweightService.bulkReweight(
                     List.of(item), "reason", null, null))
@@ -225,7 +228,7 @@ class ReweightServiceTest {
             item2.setMapDifficultyId(diff2.getId());
             item2.setComplexity((double) (9.0));
 
-            when(mapDifficultyRepository.findAllById(any())).thenReturn(List.of(diff1, diff2));
+            when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of(diff1, diff2));
 
             reweightService.bulkReweight(List.of(item1, item2), "Bulk reweight", 1L, UUID.randomUUID());
 
@@ -242,7 +245,7 @@ class ReweightServiceTest {
             item.setMapDifficultyId(diffId);
             item.setComplexity((double) (8.0));
 
-            when(mapDifficultyRepository.findAllById(any())).thenReturn(List.of());
+            when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of());
 
             assertThatThrownBy(() -> reweightService.bulkReweight(
                     List.of(item), "reason", null, null))

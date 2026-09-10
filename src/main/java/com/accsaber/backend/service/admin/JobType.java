@@ -121,6 +121,12 @@ public enum JobType {
             JobField.optional("itemId", JobFieldKind.ITEM, "Item",
                     "Leave it off to sweep every eligible item.", RunJobRequest::getItemId)),
 
+    REFRESH_COMPLEXITY_ESTIMATES(JobGroup.RECALCULATION, "Refresh complexity estimates",
+            "Reruns both complexity scripts, the old BeatLeader accuracy formula and the current note accuracy one,"
+                    + " over every ranked, qualified and queued difficulty and stores what each one says next to the"
+                    + " complexity the map carries today. Nothing on the map changes. It takes about ten minutes"
+                    + " because every difficulty is one call to BeatLeader."),
+
     REGENERATE_SONG_SUGGEST(JobGroup.MISC, "Regenerate song suggestions",
             "Rebuilds the song suggestion data from current scores.");
 

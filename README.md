@@ -104,6 +104,7 @@ src/main/resources/
 | `COMPLEXITY_TRANSFORM_SCALE` | No   | Curve transform scale parameter            |
 | `COMPLEXITY_TRANSFORM_BASE` | No    | Curve transform base parameter             |
 | `CRITERIA_CHECKER_URL`    | No       | Override for the criteria checker sidecar URL |
+| `COMPLEXITY_MODEL_URL`    | No       | Override for the complexity model sidecar URL, the service that turns a map file into per-note accuracies for the complexity script |
 | `DISCORD_OAUTH_CLIENT_ID` | OAuth    | Discord application client ID              |
 | `DISCORD_OAUTH_CLIENT_SECRET` | OAuth | Discord application client secret         |
 | `DISCORD_OAUTH_REDIRECT_URI` | OAuth | Backend callback URL for Discord (`{api}/v1/auth/discord/callback`) |

@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -33,6 +35,7 @@ public class ReweightService {
     private final MapService mapService;
     private final ScoreRecalculationService scoreRecalculationService;
     private final BatchRepository batchRepository;
+    private final ComplexityScenarioService scenarioService;
 
     @Transactional
     public MapDifficultyResponse reweight(UUID mapDifficultyId, Double complexity, String reason,
@@ -49,8 +52,9 @@ public class ReweightService {
         req.setReason(reason);
         mapService.updateComplexity(mapDifficultyId, req, staffUserId, staffId);
 
-        scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId);
+        afterCommit(() -> scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId));
         mapService.evictRankedDifficultiesCache();
+        scenarioService.evict();
 
         return mapService.getDifficultyResponse(mapDifficultyId);
     }
@@ -93,11 +97,11 @@ public class ReweightService {
             Long staffUserId, UUID staffId) {
         Map<UUID, Double> complexityByDifficulty = items.stream()
                 .collect(Collectors.toMap(BulkReweightRequest.Item::getMapDifficultyId,
-                        BulkReweightRequest.Item::getComplexity));
+                        BulkReweightRequest.Item::getComplexity, (first, second) -> second));
 
         List<MapDifficulty> difficulties = mapDifficultyRepository
-                .findAllById(complexityByDifficulty.keySet()).stream()
-                .filter(d -> d.isActive() && d.getStatus() == MapDifficultyStatus.RANKED)
+                .findAllByIdInAndActiveTrueWithCategory(List.copyOf(complexityByDifficulty.keySet())).stream()
+                .filter(d -> d.getStatus() == MapDifficultyStatus.RANKED)
                 .toList();
 
         List<UUID> foundIds = difficulties.stream().map(MapDifficulty::getId).toList();
@@ -115,8 +119,22 @@ public class ReweightService {
             mapService.updateComplexity(difficulty.getId(), req, staffUserId, staffId);
         }
 
-        scoreRecalculationService.recalculateBatchAsync(difficulties);
+        afterCommit(() -> scoreRecalculationService.recalculateBatchAsync(difficulties));
         mapService.evictRankedDifficultiesCache();
+        scenarioService.evict();
         log.info("Triggered bulk reweight for {} difficulties", difficulties.size());
+    }
+
+    private static void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

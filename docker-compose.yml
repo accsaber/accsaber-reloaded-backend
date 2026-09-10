@@ -33,6 +33,7 @@ services:
       COMPLEXITY_TRANSFORM_SCALE: ${COMPLEXITY_TRANSFORM_SCALE}
       COMPLEXITY_TRANSFORM_BASE: ${COMPLEXITY_TRANSFORM_BASE}
       CRITERIA_CHECKER_URL: http://criteria-checker:8000
+      COMPLEXITY_MODEL_URL: http://complexity-model:8000
       DISCORD_OAUTH_CLIENT_ID: ${DISCORD_OAUTH_CLIENT_ID}
       DISCORD_OAUTH_CLIENT_SECRET: ${DISCORD_OAUTH_CLIENT_SECRET}
       DISCORD_OAUTH_REDIRECT_URI: ${DISCORD_OAUTH_REDIRECT_URI}
@@ -60,6 +61,18 @@ services:
     container_name: accsaber-criteria-checker
     ports:
       - "8001:8000"
+    networks:
+      - accsaber-network
+
+  complexity-model:
+    profiles:
+      - criteria
+    build:
+      context: ../../accsaber-complexity-model
+      dockerfile: Dockerfile
+    container_name: accsaber-complexity-model
+    ports:
+      - "8002:8000"
     networks:
       - accsaber-network
 

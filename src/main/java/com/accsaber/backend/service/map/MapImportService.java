@@ -1,8 +1,6 @@
 package com.accsaber.backend.service.map;
 
-import com.accsaber.backend.util.Rounding;
 
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -29,18 +27,15 @@ import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsReq
 import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
-import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMetadata;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.playlist.PlaylistService;
-import com.accsaber.backend.service.score.APCalculationService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,28 +51,11 @@ public class MapImportService {
     private final MapDifficultyComplexityService complexityService;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapRepository mapRepository;
-    private final CurveRepository curveRepository;
-    private final APCalculationService apCalculationService;
+    private final NoteAccuracyComplexityRater complexityRater;
     private final AutoCriteriaService autoCriteriaService;
     private final PlaylistService playlistService;
     private final CdnSyncService cdnSyncService;
 
-    private static final String COMPLEXITY_CURVE_NAME = "AI Complexity Curve";
-
-    @Value("${accsaber.complexity-estimate.ap-target}")
-    private double apTarget;
-
-    @Value("${accsaber.complexity-estimate.accuracy-shift}")
-    private double accuracyShift;
-
-    @Value("${accsaber.complexity-estimate.transform-offset}")
-    private double transformOffset;
-
-    @Value("${accsaber.complexity-estimate.transform-scale}")
-    private double transformScale;
-
-    @Value("${accsaber.complexity-estimate.transform-base}")
-    private double transformBase;
 
     @Transactional
     public MapDifficultyResponse importByLeaderboardIds(ImportMapFromLeaderboardIdsRequest importRequest,
@@ -153,8 +131,7 @@ public class MapImportService {
 
         Double complexity = importRequest.getComplexity();
         if (complexity == null) {
-            complexity = estimateAiComplexity(songHash, importRequest.getDifficulty(),
-                    importRequest.getCharacteristic());
+            complexity = estimateComplexity(response.getId());
             if (complexity != null) {
                 log.info("AI complexity estimate for {} ({}): {}", songName, importRequest.getDifficulty(), complexity);
             } else {
@@ -165,7 +142,8 @@ public class MapImportService {
         if (complexity != null) {
             MapDifficulty entity = mapDifficultyRepository.findById(response.getId())
                     .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
-            String reason = importRequest.getComplexity() != null ? "Initial import" : "AI complexity estimate";
+            String reason = importRequest.getComplexity() != null ? "Initial import"
+                    : "Complexity script " + complexityRater.version();
             complexityService.setComplexity(entity, complexity, reason, null);
         }
 
@@ -487,34 +465,15 @@ public class MapImportService {
             throw new ValidationException("AI complexity is only available for RANKED difficulties");
         }
         return AiComplexityResponse.builder()
-                .complexity(estimateAiComplexity(songHash, difficulty, characteristic))
+                .complexity(estimateComplexity(entity.getId()))
                 .build();
     }
 
-    public Double estimateAiComplexity(String songHash, Difficulty difficulty, String characteristic) {
-        Double aiAcc = beatLeaderClient
-                .getAiAccuracy(songHash, characteristic, difficulty.getNumericValue())
+    public Double estimateComplexity(UUID mapDifficultyId) {
+        return mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
+                .flatMap(complexityRater::rate)
+                .map(ComplexityRater.Rating::complexity)
                 .orElse(null);
-        if (aiAcc == null)
-            return null;
-
-        Curve complexityCurve = curveRepository.findByNameAndActiveTrue(COMPLEXITY_CURVE_NAME).orElse(null);
-        if (complexityCurve == null)
-            return null;
-
-        Double shiftedAccuracy = (aiAcc + (double) (accuracyShift));
-        Double rawMultiplier = apCalculationService.interpolate(complexityCurve, shiftedAccuracy);
-
-        double transformedMultiplier = transformMultiplier(rawMultiplier,
-                transformOffset, transformScale, transformBase);
-        if (transformedMultiplier <= 0)
-            return null;
-
-        double scale = complexityCurve.getScale();
-        double shift = complexityCurve.getShift();
-        double complexity = apTarget / (transformedMultiplier * scale) + shift;
-
-        return Rounding.round((double) (complexity), 1);
     }
 
     private static MapDifficultyMetadata extractMetadata(BeatSaverMapResponse beatSaverMap, Difficulty difficulty,
@@ -575,9 +534,4 @@ public class MapImportService {
         log.info("Chart stats backfill complete: {} difficulties updated", updated);
     }
 
-    private static double transformMultiplier(double mult, double offset, double scale, double base) {
-        if (mult == 0)
-            return 0;
-        return (mult - offset) / (1 - offset) * scale + base;
-    }
 }

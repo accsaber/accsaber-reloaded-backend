@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 
 import jakarta.persistence.LockModeType;
 
@@ -28,6 +30,14 @@ public interface MapDifficultyComplexityRepository extends JpaRepository<MapDiff
                         WHERE c.mapDifficulty.id IN :difficultyIds AND c.active = true
                         """)
         List<MapDifficultyComplexity> findActiveByMapDifficultyIdIn(@Param("difficultyIds") List<UUID> difficultyIds);
+
+        @Query("""
+                        SELECT new com.accsaber.backend.model.dto.projection.ActiveComplexityRow(d.id, c.complexity)
+                        FROM MapDifficultyComplexity c
+                        JOIN c.mapDifficulty d
+                        WHERE c.active = true AND d.active = true AND d.status = :status
+                        """)
+        List<ActiveComplexityRow> findActiveRowsByDifficultyStatus(@Param("status") MapDifficultyStatus status);
 
         @Query("""
                         SELECT c FROM MapDifficultyComplexity c

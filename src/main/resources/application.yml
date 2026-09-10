@@ -153,6 +153,24 @@ accsaber:
     transform-offset: ${COMPLEXITY_TRANSFORM_OFFSET}
     transform-scale: ${COMPLEXITY_TRANSFORM_SCALE}
     transform-base: ${COMPLEXITY_TRANSFORM_BASE}
+  complexity:
+    model-check-interval-ms: 300000
+    rater:
+      version: note-acc-2026-09
+      worst-share: 0.05
+      categories:
+        true_acc:
+          intercept: 15.376
+          mean-slope: -6.496
+          worst-slope: -4.473
+        standard_acc:
+          intercept: 23.472
+          mean-slope: -12.366
+          worst-slope: -4.214
+        tech_acc:
+          intercept: 26.088
+          mean-slope: -18.052
+          worst-slope: 0
   rate-limit:
     capacity: 400
     window-seconds: 60
@@ -194,6 +212,9 @@ accsaber:
     output-path: ${SONGSUGGEST_OUTPUT_PATH:data/songsuggest/leaderboard.json}
   criteria-checker:
     base-url: ${CRITERIA_CHECKER_URL:http://criteria-checker:8000}
+    timeout-ms: 60000
+  complexity-model:
+    base-url: ${COMPLEXITY_MODEL_URL:http://complexity-model:8000}
     timeout-ms: 60000
   oauth:
     state-ttl-seconds: 600

@@ -26,6 +26,7 @@ public class WebClientConfig {
 
     private final PlatformProperties properties;
     private final CriteriaCheckerProperties criteriaCheckerProperties;
+    private final ComplexityModelProperties complexityModelProperties;
     private final MetricsService metricsService;
 
     @Bean(name = "beatLeaderWebClient")
@@ -74,6 +75,24 @@ public class WebClientConfig {
 
         return WebClient.builder()
                 .baseUrl(criteriaCheckerProperties.getBaseUrl())
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .exchangeStrategies(strategies)
+                .filter(logRequest())
+                .build();
+    }
+
+    @Bean(name = "complexityModelWebClient")
+    public WebClient complexityModelWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, complexityModelProperties.getTimeoutMs())
+                .responseTimeout(Duration.ofMillis(complexityModelProperties.getTimeoutMs()));
+
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
+                .build();
+
+        return WebClient.builder()
+                .baseUrl(complexityModelProperties.getBaseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
                 .filter(logRequest())

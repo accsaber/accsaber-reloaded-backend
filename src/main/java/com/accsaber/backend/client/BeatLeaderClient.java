@@ -1,6 +1,7 @@
 package com.accsaber.backend.client;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
+import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderNoteAccuracyResponse;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 
@@ -140,8 +142,14 @@ public class BeatLeaderClient {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public Optional<Double> getAiAccuracy(String songHash, String characteristic, int difficulty) {
+        return getNoteAccuracies(songHash, characteristic, difficulty)
+                .map(BeatLeaderNoteAccuracyResponse::aiAccuracy);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Optional<BeatLeaderNoteAccuracyResponse> getNoteAccuracies(String songHash, String characteristic,
+            int difficulty) {
         try {
             String stageBaseUrl = properties.getBeatleaderStageBaseUrl();
             Map<String, Object> response = webClient.get()
@@ -160,11 +168,21 @@ public class BeatLeaderClient {
             if (notes == null || notes.get("AIacc") == null)
                 return Optional.empty();
 
-            return Optional.of(Double.parseDouble(notes.get("AIacc").toString()));
+            List<Double> accuracies = new ArrayList<>();
+            Object rows = notes.get("rows");
+            if (rows instanceof List<?> list) {
+                for (Object row : list) {
+                    if (row instanceof List<?> cells && !cells.isEmpty() && cells.get(0) instanceof Number acc) {
+                        accuracies.add(acc.doubleValue());
+                    }
+                }
+            }
+            return Optional.of(new BeatLeaderNoteAccuracyResponse(accuracies,
+                    Double.parseDouble(notes.get("AIacc").toString())));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
         } catch (Exception e) {
-            log.error("Failed to fetch BL AI accuracy for hash={} diff={}: {}", songHash, difficulty, e.getMessage());
+            log.error("Failed to fetch BL note accuracies for hash={} diff={}: {}", songHash, difficulty, e.getMessage());
             return Optional.empty();
         }
     }

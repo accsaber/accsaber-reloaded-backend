@@ -13,8 +13,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.model.dto.projection.SimulationScoreRow;
 import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
@@ -329,6 +331,19 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("userId") Long userId,
                         @Param("categoryId") UUID categoryId,
                         @Param("before") Instant before);
+
+        @Query("""
+                        SELECT new com.accsaber.backend.model.dto.projection.SimulationScoreRow(
+                            u.id, d.id, d.category.id, s.score, d.maxScore, s.ap)
+                        FROM Score s
+                        JOIN s.user u
+                        JOIN s.mapDifficulty d
+                        WHERE s.active = true
+                          AND d.active = true
+                          AND d.status = :status
+                          AND u.active = true AND u.banned = false
+                        """)
+        List<SimulationScoreRow> findActiveRowsByDifficultyStatus(@Param("status") MapDifficultyStatus status);
 
         @Query("""
                         SELECT s.streak115 FROM Score s
