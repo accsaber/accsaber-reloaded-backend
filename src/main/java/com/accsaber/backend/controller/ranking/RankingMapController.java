@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.map.ComplexityEstimateResponse;
+import com.accsaber.backend.model.dto.response.map.LeaderboardPreviewResponse;
+import com.accsaber.backend.service.map.LeaderboardPreviewService;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -36,6 +38,7 @@ public class RankingMapController {
 
     private final MapService mapService;
     private final MapImportService mapImportService;
+    private final LeaderboardPreviewService leaderboardPreviewService;
 
     @Operation(summary = "List maps (staff)", description = "Full map list including complexity, submitter, and vote breakdowns")
     @GetMapping
@@ -54,6 +57,14 @@ public class RankingMapController {
             @RequestParam Difficulty difficulty,
             @RequestParam String characteristic) {
         return ResponseEntity.ok(mapImportService.estimateForDifficulty(songHash, difficulty, characteristic));
+    }
+
+    @Operation(summary = "Preview a difficulty's leaderboard priced our way", description = "Fetches the difficulty's BeatLeader and ScoreSaber boards live, drops plays with banned modifiers, keeps one play per player with BeatLeader winning, and prices every play with our curve at the complexity the map carries today, or at the script's estimate when the map has none yet. Nothing is stored, so a queue map's scores stay invisible to milestones and statistics until it is ranked. Players we know come back with their AccSaber name and avatar, the rest with what the platform sent. The limit caps the rows and how deep the boards are read, 500 at most.")
+    @GetMapping("/difficulties/{mapDifficultyId}/leaderboard-preview")
+    public ResponseEntity<LeaderboardPreviewResponse> leaderboardPreview(
+            @PathVariable UUID mapDifficultyId,
+            @RequestParam(defaultValue = "100") int limit) {
+        return ResponseEntity.ok(leaderboardPreviewService.preview(mapDifficultyId, limit));
     }
 
     @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and "

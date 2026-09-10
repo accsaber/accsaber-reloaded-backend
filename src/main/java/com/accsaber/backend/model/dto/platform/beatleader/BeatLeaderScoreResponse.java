@@ -30,5 +30,8 @@ public class BeatLeaderScoreResponse {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Player {
         private String id;
+        private String name;
+        private String avatar;
+        private String country;
     }
 }
