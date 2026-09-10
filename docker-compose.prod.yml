@@ -68,6 +68,7 @@ services:
       CDN_STORAGE_PATH: /var/cdn
       CDN_BASE_URL: ${CDN_BASE_URL}
       ITEM_FILES_STORAGE_PATH: /var/item-files
+      MAP_ZIP_CACHE_PATH: /var/map-zips
       ITEM_FILES_SIGNING_KEY: ${ITEM_FILES_SIGNING_KEY}
       WS_START_DELAY_SECONDS: ${WS_START_DELAY_SECONDS:-0}
       BACKFILL_STARTUP_DELAY_SECONDS: ${BACKFILL_STARTUP_DELAY_SECONDS:-20}
@@ -75,6 +76,7 @@ services:
     volumes:
       - cdn-data:/var/cdn
       - item-files-data:/var/item-files:ro
+      - map-zips-data:/var/map-zips
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,3 +167,4 @@ volumes:
   grafana-data:
   cdn-data:
   item-files-data:
+  map-zips-data:

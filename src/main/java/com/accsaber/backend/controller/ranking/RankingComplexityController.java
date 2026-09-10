@@ -11,13 +11,17 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.MapLeaderboard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerBoard;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.Preview;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.Rater;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.map.ComplexityComparisonService;
@@ -27,6 +31,7 @@ import com.accsaber.backend.service.map.ComplexityScenario;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -41,7 +46,7 @@ public class RankingComplexityController {
     private final ComplexityComparisonService comparisonService;
     private final ComplexityDatasetService datasetService;
 
-    @Operation(summary = "Every difficulty under the three complexity scenarios", description = "One row per difficulty with what it carries today, what the old BeatLeader accuracy script says, and what the current note accuracy script says, side by side. Each scenario also brings the top AP, the average AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The estimates block holds the inputs each script used, so you can see why a number came out the way it did. Filter by category, and pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet. Run the refresh complexity estimates job first if the estimate columns are empty.")
+    @Operation(summary = "Every difficulty under the three stored complexity scenarios", description = "One row per difficulty with what it carries today, what the old BeatLeader accuracy script says, and what the current note accuracy script says, side by side. Each scenario also brings the top AP, the average AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The estimates block holds the inputs each script used. That is where you look when a number surprises you. Filter by category, and pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet. Run the refresh complexity estimates job first if the estimate columns are empty.")
     @GetMapping("/difficulties")
     public ResponseEntity<List<DifficultyRow>> difficulties(
             @RequestParam(required = false) UUID categoryId,
@@ -49,13 +54,13 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.difficulties(categoryId, status));
     }
 
-    @Operation(summary = "One map's leaderboard under the three scenarios", description = "Every active score on the difficulty with the player attached, ordered by today's rank. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today, so you can see who a reweight would move and by how much. The header is the same row the difficulties list gives you.")
+    @Operation(summary = "One map's leaderboard under the three scenarios", description = "Every active score on the difficulty with the player attached, ordered by today's rank. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. The header is the same row the difficulties list gives you.")
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard")
     public ResponseEntity<MapLeaderboard> leaderboard(@PathVariable UUID mapDifficultyId) {
         return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId));
     }
 
-    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick, so you can see which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with all three scenarios on each, sorted by the chosen one.")
+    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with all three scenarios on each, sorted by the chosen one.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<List<DifficultyRow>> highestAverageAp(
             @RequestParam(defaultValue = "CURRENT") ComplexityScenario scenario,
@@ -73,7 +78,23 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.players(categoryId, limit));
     }
 
-    @Operation(summary = "Apply a scenario as a bulk reweight", description = "Turns the chosen estimate scenario into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then reprices scores, boards, statistics, rankings and XP in the background. Ranking heads only. The reason lands on every complexity history row, so put the script version in it.")
+    @Operation(summary = "The constants the note accuracy script runs with", description = "The worst share and the per category intercept and slopes the backend is configured with right now, in the same shape the preview endpoint takes as its body. A panel loads them, lets staff nudge them and sends them back. The worst bands list says which worst shares the stored estimates carry exactly. Any other worst share snaps to the nearest band in a preview.")
+    @GetMapping("/rater")
+    public ResponseEntity<Rater> rater() {
+        return ResponseEntity.ok(comparisonService.rater());
+    }
+
+    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and reprices every map that has a note accuracy estimate from the inputs that estimate already carries, then reprices every active score under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change. The answer holds the difficulties list with a CURRENT and a PREVIEW scenario per row, and the player board for the chosen category with both ladders. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
+    @PostMapping("/preview")
+    public ResponseEntity<Preview> preview(
+            @Valid @RequestBody ComplexityRaterSpec rater,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(defaultValue = "RANKED") MapDifficultyStatus status,
+            @RequestParam(defaultValue = "100") int playerLimit) {
+        return ResponseEntity.ok(comparisonService.preview(rater, categoryId, status, playerLimit));
+    }
+
+    @Operation(summary = "Apply a scenario as a bulk reweight", description = "Turns the chosen estimate scenario into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then reprices scores, boards, statistics, rankings and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it.")
     @PostMapping("/apply")
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public ResponseEntity<Void> apply(
@@ -85,7 +106,7 @@ public class RankingComplexityController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Download every score on a ranked map as CSV", description = "Streams one row per score row on every ranked difficulty, history included, so you get the improvements and the attempts and not only the active play. Each row carries the map difficulty id, the category, the raw score and the map's max score so accuracy is yours to derive, the AP the score currently pays, the miss and cut counts, the modifiers as a pipe separated list, and the player's country and banned flags. Nothing is filtered for you here on purpose.")
+    @Operation(summary = "Download every score on a ranked map as CSV", description = "Streams one row per score row on every ranked difficulty, history included. You get the improvements and the attempts as well as the active play. Each row carries the map difficulty id, the category, the raw score and the map's max score for deriving accuracy, the AP the score currently pays, the miss and cut counts, the modifiers as a pipe separated list, and the player's country and banned flags. Nothing is filtered for you here on purpose.")
     @GetMapping(value = "/dataset/scores", produces = CSV)
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public void scores(HttpServletResponse response) throws IOException {

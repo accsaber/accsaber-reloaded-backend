@@ -16,12 +16,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class ComplexityEstimateServiceTest {
@@ -36,6 +38,8 @@ class ComplexityEstimateServiceTest {
     private ComplexityRater newScript;
     @Mock
     private ComplexityScenarioService scenarioService;
+    @Mock
+    private ComplexityModelClient modelClient;
 
     @Test
     void refreshUpsertsOneEstimatePerRaterAndEvictsScenarios() {
@@ -49,6 +53,7 @@ class ComplexityEstimateServiceTest {
         when(oldScript.source()).thenReturn(ComplexityEstimateSource.OLD_SCRIPT);
         when(oldScript.version()).thenReturn("ai-acc-curve");
         when(oldScript.rate(difficulty)).thenReturn(Optional.of(new ComplexityRater.Rating(9.1, Map.of("aiAccuracy", 0.99))));
+        when(oldScript.reprice(any(), any(), any())).thenReturn(Optional.empty());
         when(newScript.source()).thenReturn(ComplexityEstimateSource.NEW_SCRIPT);
         when(newScript.version()).thenReturn("note-acc-2026-09");
         when(newScript.rate(difficulty)).thenReturn(Optional.of(new ComplexityRater.Rating(7.4, Map.of("meanNoteAccuracy", 0.9))));
@@ -60,8 +65,10 @@ class ComplexityEstimateServiceTest {
         when(estimateRepository.findByMapDifficultyIdAndSource(difficulty.getId(), ComplexityEstimateSource.NEW_SCRIPT))
                 .thenReturn(Optional.empty());
 
+        when(modelClient.health()).thenReturn(Optional.empty());
+
         ComplexityEstimateService service = new ComplexityEstimateService(mapDifficultyRepository, estimateRepository,
-                List.of(oldScript, newScript), scenarioService);
+                List.of(oldScript, newScript), modelClient, scenarioService);
         service.refreshAllAsync().join();
 
         ArgumentCaptor<MapDifficultyComplexityEstimate> saved = ArgumentCaptor.forClass(MapDifficultyComplexityEstimate.class);
@@ -83,9 +90,33 @@ class ComplexityEstimateServiceTest {
         when(newScript.rate(difficulty)).thenReturn(Optional.empty());
 
         ComplexityEstimateService service = new ComplexityEstimateService(mapDifficultyRepository, estimateRepository,
-                List.of(newScript), scenarioService);
+                List.of(newScript), modelClient, scenarioService);
 
-        assertThat(service.refresh(difficulty)).isZero();
+        assertThat(service.refresh(difficulty, null).stored()).isZero();
         verify(estimateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void repricesFromStoredInputsInsteadOfCallingTheModelWhenTheHashMatches() {
+        MapDifficulty difficulty = MapDifficulty.builder().id(UUID.randomUUID()).build();
+        MapDifficultyComplexityEstimate existing = MapDifficultyComplexityEstimate.builder()
+                .id(UUID.randomUUID()).mapDifficulty(difficulty).source(ComplexityEstimateSource.NEW_SCRIPT)
+                .complexity(7.0).version("old").inputs(new ObjectMapper().createObjectNode())
+                .build();
+        when(estimateRepository.findByMapDifficultyIdAndSource(difficulty.getId(), ComplexityEstimateSource.NEW_SCRIPT))
+                .thenReturn(Optional.of(existing));
+        when(newScript.source()).thenReturn(ComplexityEstimateSource.NEW_SCRIPT);
+        when(newScript.version()).thenReturn("note-acc-2026-09");
+        when(newScript.reprice(difficulty, existing.getInputs(), "hash"))
+                .thenReturn(Optional.of(new ComplexityRater.Rating(7.5, Map.of("meanNoteAccuracy", 0.9))));
+
+        ComplexityEstimateService service = new ComplexityEstimateService(mapDifficultyRepository, estimateRepository,
+                List.of(newScript), modelClient, scenarioService);
+        ComplexityEstimateService.Outcome outcome = service.refresh(difficulty, "hash");
+
+        assertThat(outcome.repriced()).isEqualTo(1);
+        assertThat(outcome.network()).isFalse();
+        assertThat(existing.getComplexity()).isEqualTo(7.5);
+        verify(newScript, org.mockito.Mockito.never()).rate(any());
     }
 }

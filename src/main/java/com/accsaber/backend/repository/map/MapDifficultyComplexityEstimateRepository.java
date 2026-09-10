@@ -20,6 +20,14 @@ public interface MapDifficultyComplexityEstimateRepository extends JpaRepository
     Optional<MapDifficultyComplexityEstimate> findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource source);
 
     @Query("""
+            SELECT e FROM MapDifficultyComplexityEstimate e
+            JOIN FETCH e.mapDifficulty d
+            JOIN FETCH d.category
+            WHERE e.source = :source AND d.active = true
+            """)
+    List<MapDifficultyComplexityEstimate> findAllBySourceWithCategory(@Param("source") ComplexityEstimateSource source);
+
+    @Query("""
             SELECT new com.accsaber.backend.model.dto.projection.ActiveComplexityRow(e.mapDifficulty.id, e.complexity)
             FROM MapDifficultyComplexityEstimate e
             WHERE e.source = :source

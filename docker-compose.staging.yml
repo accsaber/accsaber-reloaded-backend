@@ -68,6 +68,7 @@ services:
       CDN_BASE_URL: ${CDN_BASE_URL:-https://staging-cdn.accsaber.com}
       CDN_BACKFILL_DELAY_MS: ${CDN_BACKFILL_DELAY_MS:-500}
       ITEM_FILES_STORAGE_PATH: /var/item-files
+      MAP_ZIP_CACHE_PATH: /var/map-zips
       ITEM_FILES_SIGNING_KEY: ${ITEM_FILES_SIGNING_KEY}
       KOFI_VERIFICATION_TOKEN: ${KOFI_VERIFICATION_TOKEN:-}
       WS_START_DELAY_SECONDS: ${WS_START_DELAY_SECONDS:-0}
@@ -77,6 +78,7 @@ services:
     volumes:
       - staging-cdn-data:/var/cdn
       - staging-item-files-data:/var/item-files:ro
+      - staging-map-zips-data:/var/map-zips
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,3 +121,4 @@ volumes:
   staging-postgres-data:
   staging-cdn-data:
   staging-item-files-data:
+  staging-map-zips-data:

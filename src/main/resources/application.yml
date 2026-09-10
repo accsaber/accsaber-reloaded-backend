@@ -205,6 +205,8 @@ accsaber:
     encode-timeout-ms: ${CDN_ENCODE_TIMEOUT_MS:30000}
   item-files:
     storage-path: ${ITEM_FILES_STORAGE_PATH:./data/item-files}
+  maps:
+    zip-cache-path: ${MAP_ZIP_CACHE_PATH:./data/map-zips}
     signing-key: ${ITEM_FILES_SIGNING_KEY:}
   kofi:
     verification-token: ${KOFI_VERIFICATION_TOKEN:}

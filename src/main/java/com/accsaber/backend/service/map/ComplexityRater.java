@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public interface ComplexityRater {
 
@@ -16,4 +17,8 @@ public interface ComplexityRater {
     String version();
 
     Optional<Rating> rate(MapDifficulty difficulty);
+
+    default Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
+        return Optional.empty();
+    }
 }

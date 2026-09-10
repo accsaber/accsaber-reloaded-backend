@@ -80,6 +80,9 @@ public class ComplexityScenarioService {
     }
 
     public ScenarioState state(ComplexityScenario scenario) {
+        if (scenario.source() == null && scenario != ComplexityScenario.CURRENT) {
+            throw new IllegalArgumentException(scenario + " has no stored complexities");
+        }
         Cached<ScenarioState> cached = states.get(scenario);
         if (cached != null && cached.fresh()) {
             return cached.value();
@@ -244,10 +247,10 @@ public class ComplexityScenarioService {
                 Rounding.round(top, AP_SCALE));
     }
 
-    static Map<ComplexityScenario, ScenarioState> all(ComplexityScenarioService service) {
+    public Map<ComplexityScenario, ScenarioState> stored() {
         Map<ComplexityScenario, ScenarioState> result = new EnumMap<>(ComplexityScenario.class);
-        for (ComplexityScenario scenario : ComplexityScenario.values()) {
-            result.put(scenario, service.state(scenario));
+        for (ComplexityScenario scenario : ComplexityScenario.STORED) {
+            result.put(scenario, state(scenario));
         }
         return result;
     }

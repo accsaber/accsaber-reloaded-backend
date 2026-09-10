@@ -14,6 +14,7 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.service.score.APCalculationService;
 import com.accsaber.backend.util.Rounding;
+import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
 public class AiAccComplexityRater implements ComplexityRater {
@@ -58,18 +59,22 @@ public class AiAccComplexityRater implements ComplexityRater {
 
     @Override
     public Optional<Rating> rate(MapDifficulty difficulty) {
-        if (difficulty.getMap() == null) {
+        if (difficulty.getMap() == null || difficulty.getDifficulty() == null) {
             return Optional.empty();
         }
-        return estimate(difficulty.getMap().getSongHash(), difficulty.getCharacteristic(),
-                difficulty.getDifficulty().getNumericValue());
+        return beatLeaderClient.getAiAccuracy(difficulty.getMap().getSongHash(), difficulty.getCharacteristic(),
+                difficulty.getDifficulty().getNumericValue()).flatMap(this::price);
     }
 
-    public Optional<Rating> estimate(String songHash, String characteristic, int difficultyNumber) {
-        Double aiAcc = beatLeaderClient.getAiAccuracy(songHash, characteristic, difficultyNumber).orElse(null);
-        if (aiAcc == null) {
+    @Override
+    public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
+        if (inputs == null || !inputs.hasNonNull("aiAccuracy")) {
             return Optional.empty();
         }
+        return price(inputs.get("aiAccuracy").asDouble());
+    }
+
+    private Optional<Rating> price(double aiAcc) {
         Curve complexityCurve = curveRepository.findByNameAndActiveTrue(COMPLEXITY_CURVE_NAME).orElse(null);
         if (complexityCurve == null) {
             return Optional.empty();

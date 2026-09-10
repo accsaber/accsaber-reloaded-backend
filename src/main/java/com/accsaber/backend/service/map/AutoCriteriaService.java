@@ -7,7 +7,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.client.BeatSaverClient;
 import com.accsaber.backend.client.CriteriaCheckerClient;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
@@ -24,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AutoCriteriaService {
 
     private final MapDifficultyRepository mapDifficultyRepository;
-    private final BeatSaverClient beatSaverClient;
+    private final MapZipCache zipCache;
     private final CriteriaCheckerClient criteriaCheckerClient;
 
     @Transactional
@@ -59,7 +58,7 @@ public class AutoCriteriaService {
 
         byte[] zip;
         try {
-            zip = beatSaverClient.downloadMapZip(hash).orElse(null);
+            zip = zipCache.get(hash).orElse(null);
         } catch (Exception e) {
             log.warn("Zip download failed for hash {}: {}", hash, e.getMessage());
             return persistAndReturn(diff, AutoCriteriaStatus.UNAVAILABLE, List.of());

@@ -104,6 +104,7 @@ src/main/resources/
 | `COMPLEXITY_TRANSFORM_SCALE` | No   | Curve transform scale parameter            |
 | `COMPLEXITY_TRANSFORM_BASE` | No    | Curve transform base parameter             |
 | `CRITERIA_CHECKER_URL`    | No       | Override for the criteria checker sidecar URL |
+| `MAP_ZIP_CACHE_PATH`      | No       | Folder where downloaded BeatSaver map zips are kept, so the complexity script and the criteria check never fetch the same map twice. Defaults to `./data/map-zips` |
 | `COMPLEXITY_MODEL_URL`    | No       | Override for the complexity model sidecar URL, the service that turns a map file into per-note accuracies for the complexity script |
 | `DISCORD_OAUTH_CLIENT_ID` | OAuth    | Discord application client ID              |
 | `DISCORD_OAUTH_CLIENT_SECRET` | OAuth | Discord application client secret         |

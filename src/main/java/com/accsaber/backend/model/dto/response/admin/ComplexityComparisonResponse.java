@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.service.map.ComplexityScenario;
 
@@ -81,6 +82,22 @@ public final class ComplexityComparisonResponse {
         Double ap;
         Double weightedAp;
         Integer rank;
+    }
+
+    @Value
+    @Builder
+    public static class Rater {
+        String version;
+        List<Double> worstBands;
+        ComplexityRaterSpec rater;
+    }
+
+    @Value
+    @Builder
+    public static class Preview {
+        ComplexityRaterSpec rater;
+        List<DifficultyRow> difficulties;
+        PlayerBoard players;
     }
 
     @Value
