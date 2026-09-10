@@ -156,15 +156,15 @@ accsaber:
   complexity:
     model-check-interval-ms: 300000
     rater:
-      version: note-acc-2026-09-10
+      version: note-acc-2026-09-11
       worst-share: 0.05
       board:
         min-scores: 100
-        full-scores: 200
+        full-scores: 120
         min-players: 10
         min-player-plays: 20
-        top-players: 100
-        max-nudge: 1.0
+        top-plays: 10
+        max-nudge: 1.5
       categories:
         true_acc:
           intercept: 14.889
@@ -192,32 +192,32 @@ accsaber:
           njs-slope: 0
       board-categories:
         true_acc:
-          intercept: 4.809
-          mean-slope: -2.273
-          worst-slope: -0.531
-          reset-slope: -1.356
-          dot-slope: -0.244
-          notes-slope: 0.457
+          intercept: 6.923
+          mean-slope: -3.451
+          worst-slope: -1.641
+          reset-slope: -0.797
+          dot-slope: -0.193
+          notes-slope: 0.520
           njs-slope: 0
-          board-slope: -8.368
+          board-slope: -6.702
         standard_acc:
-          intercept: 19.020
-          mean-slope: -11.032
-          worst-slope: 1.747
+          intercept: 18.099
+          mean-slope: -10.235
+          worst-slope: 1.282
           reset-slope: 0
           dot-slope: 0
           notes-slope: 0
-          njs-slope: -0.084
-          board-slope: -10.254
+          njs-slope: -0.050
+          board-slope: -9.747
         tech_acc:
-          intercept: 23.840
-          mean-slope: -14.324
-          worst-slope: 0.566
+          intercept: 23.030
+          mean-slope: -12.599
+          worst-slope: -0.574
           reset-slope: 0
           dot-slope: 0
           notes-slope: 0
           njs-slope: 0
-          board-slope: -8.516
+          board-slope: -9.136
   rate-limit:
     capacity: 400
     window-seconds: 60

@@ -163,7 +163,7 @@ class NoteAccuracyComplexityRaterTest {
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
         ComplexityRater.Rating chart = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
         ComplexityRater.Rating thin = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 5, 500));
-        ComplexityRater.Rating half = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 50, 150));
+        ComplexityRater.Rating half = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 50, 110));
         ComplexityRater.Rating full = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 50, 500));
 
         assertThat(thin.complexity()).isEqualTo(chart.complexity());
@@ -187,7 +187,7 @@ class NoteAccuracyComplexityRaterTest {
         ComplexityRater.Rating chart = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
         ComplexityScenarioService.BoardEase board = new ComplexityScenarioService.BoardEase(0.2, 50, 500);
 
-        assertThat(rater.rate(response, "tech_acc", board).complexity()).isCloseTo(chart.complexity() - 1.0, within(0.051));
+        assertThat(rater.rate(response, "tech_acc", board).complexity()).isCloseTo(chart.complexity() - 1.5, within(0.051));
         properties.getBoard().setMaxNudge(0.0);
         assertThat(rater.rate(response, "tech_acc", board).complexity()).isCloseTo(chart.complexity() - 2.0, within(0.051));
     }
@@ -205,7 +205,7 @@ class NoteAccuracyComplexityRaterTest {
         response.setModelHash("abc123");
         ComplexityRater.Rating stored = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
         MapDifficulty tech = difficulty("tech_acc");
-        when(scenarioService.boardEase(20, 100)).thenReturn(java.util.Map.of(tech.getId(),
+        when(scenarioService.boardEase(20, 10)).thenReturn(java.util.Map.of(tech.getId(),
                 new ComplexityScenarioService.BoardEase(0.2, 50, 500)));
 
         ComplexityRater.Rating repriced = rater.reprice(tech, new ObjectMapper().valueToTree(stored.inputs()), "abc123")

@@ -37,7 +37,7 @@ public class ComplexityRaterSpec {
         private int minScores = 100;
 
         @Min(1)
-        private int fullScores = 200;
+        private int fullScores = 120;
 
         @Min(1)
         private int minPlayers = 10;
@@ -46,10 +46,10 @@ public class ComplexityRaterSpec {
         private int minPlayerPlays = 20;
 
         @Min(1)
-        private int topPlayers = 100;
+        private int topPlays = 10;
 
         @DecimalMin("0.0")
-        private double maxNudge = 1.0;
+        private double maxNudge = 1.5;
     }
 
     @Data
