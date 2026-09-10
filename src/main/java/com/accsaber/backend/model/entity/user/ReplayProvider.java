@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ReplayProvider {
     BEATLEADER,
-    SCORESABER,
+    CHROVIEWER,
     ARCVIEWER;
 
     @JsonValue
