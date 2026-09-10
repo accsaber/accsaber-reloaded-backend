@@ -52,7 +52,10 @@ public class ReweightService {
         req.setReason(reason);
         mapService.updateComplexity(mapDifficultyId, req, staffUserId, staffId);
 
-        afterCommit(() -> scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId));
+        afterCommit(() -> {
+            scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId);
+            scenarioService.rebuildAsync();
+        });
         mapService.evictRankedDifficultiesCache();
         scenarioService.evict();
 
@@ -119,7 +122,10 @@ public class ReweightService {
             mapService.updateComplexity(difficulty.getId(), req, staffUserId, staffId);
         }
 
-        afterCommit(() -> scoreRecalculationService.recalculateBatchAsync(difficulties));
+        afterCommit(() -> {
+            scoreRecalculationService.recalculateBatchAsync(difficulties);
+            scenarioService.rebuildAsync();
+        });
         mapService.evictRankedDifficultiesCache();
         scenarioService.evict();
         log.info("Triggered bulk reweight for {} difficulties", difficulties.size());

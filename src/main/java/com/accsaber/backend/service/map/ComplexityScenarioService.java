@@ -14,6 +14,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -199,9 +200,27 @@ public class ComplexityScenarioService {
             throw new IllegalArgumentException(scenario + " has no stored complexities");
         }
         Cached<ScenarioState> cached = states.get(scenario);
-        if (cached != null && cached.fresh()) {
+        if (cached != null) {
             return cached.value();
         }
+        return build(scenario);
+    }
+
+    @Async("taskExecutor")
+    public void rebuildAsync() {
+        rebuild();
+    }
+
+    public void rebuild() {
+        pool = null;
+        boardEase = null;
+        previews.clear();
+        for (ComplexityScenario scenario : ComplexityScenario.STORED) {
+            build(scenario);
+        }
+    }
+
+    private ScenarioState build(ComplexityScenario scenario) {
         ScenarioState state = evaluate(complexitiesFor(scenario));
         states.put(scenario, new Cached<>(state, Instant.now()));
         return state;

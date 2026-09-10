@@ -157,6 +157,23 @@ class ComplexityScenarioServiceTest {
     }
 
     @Test
+    void rebuildReplacesTheStatesSoReadsNeverBuildInline() {
+        stubPool();
+        when(complexityRepository.findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED))
+                .thenReturn(List.of(new ActiveComplexityRow(easyMap, 8.0), new ActiveComplexityRow(hardMap, 10.0)));
+        when(estimateRepository.findRows()).thenReturn(List.of());
+
+        service.rebuild();
+        ScenarioState current = service.state(ComplexityScenario.CURRENT);
+        ScenarioState script = service.state(ComplexityScenario.NEW_SCRIPT);
+
+        assertThat(current).isNotNull();
+        assertThat(script).isNotNull();
+        org.mockito.Mockito.verify(scoreRepository, org.mockito.Mockito.times(1))
+                .findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED);
+    }
+
+    @Test
     void cachesStatesUntilEvicted() {
         stubPool();
         when(complexityRepository.findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED))

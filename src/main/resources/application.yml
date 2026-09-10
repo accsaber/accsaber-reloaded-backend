@@ -149,6 +149,7 @@ accsaber:
     scoresaber-enabled: true
   complexity:
     model-check-interval-ms: 300000
+    scenario-refresh-ms: 600000
     rater:
       version: note-acc-2026-09-11
       worst-share: 0.05
