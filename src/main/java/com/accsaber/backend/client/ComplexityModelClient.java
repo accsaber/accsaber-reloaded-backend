@@ -82,6 +82,7 @@ public class ComplexityModelClient {
         private String model;
         private String modelHash;
         private String mapVersion;
+        private double njs;
         private int notes;
         private int predictedNotes;
         private double meanAccuracy;

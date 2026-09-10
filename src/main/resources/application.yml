@@ -156,27 +156,67 @@ accsaber:
   complexity:
     model-check-interval-ms: 300000
     rater:
-      version: note-acc-reset-2026-09
+      version: note-acc-2026-09-10
       worst-share: 0.05
+      board:
+        min-scores: 100
+        full-scores: 200
+        min-players: 30
+        min-player-plays: 20
+        max-nudge: 0.5
       categories:
         true_acc:
-          intercept: 19.970
-          mean-slope: -10.563
-          worst-slope: -2.903
-          reset-slope: -1.529
-          dot-slope: -3.002
+          intercept: 14.889
+          mean-slope: -10.086
+          worst-slope: -2.731
+          reset-slope: -1.414
+          dot-slope: -2.814
+          notes-slope: 0.823
+          njs-slope: 0
         standard_acc:
-          intercept: 29.355
-          mean-slope: -18.571
-          worst-slope: -2.053
+          intercept: 34.442
+          mean-slope: -21.638
+          worst-slope: -1.176
           reset-slope: 0
           dot-slope: 0
+          notes-slope: 0
+          njs-slope: -0.189
         tech_acc:
           intercept: 33.240
           mean-slope: -23.591
           worst-slope: 0
           reset-slope: 0
           dot-slope: 0
+          notes-slope: 0
+          njs-slope: 0
+      board-categories:
+        true_acc:
+          intercept: 4.809
+          mean-slope: -2.273
+          worst-slope: -0.531
+          reset-slope: -1.356
+          dot-slope: -0.244
+          notes-slope: 0.457
+          njs-slope: 0
+          board-slope: -8.368
+        standard_acc:
+          intercept: 19.020
+          mean-slope: -11.032
+          worst-slope: 1.747
+          reset-slope: 0
+          dot-slope: 0
+          notes-slope: 0
+          njs-slope: -0.084
+          board-slope: -10.254
+        tech_acc:
+          intercept: 23.840
+          mean-slope: -14.324
+          worst-slope: 0.566
+          reset-slope: 0
+          dot-slope: 0
+          notes-slope: 0
+          njs-slope: 0
+          board-slope: -8.516
   rate-limit:
     capacity: 400
     window-seconds: 60

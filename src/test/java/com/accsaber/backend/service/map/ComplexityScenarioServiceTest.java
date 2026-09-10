@@ -53,7 +53,7 @@ class ComplexityScenarioServiceTest {
     private final Curve scoreCurve = Curve.builder().id(UUID.randomUUID()).build();
     private final Curve weightCurve = Curve.builder().id(UUID.randomUUID()).build();
 
-    private void stubPool() {
+    private void stubScores() {
         Category category = Category.builder().id(categoryId).code("tech_acc").countForOverall(true)
                 .scoreCurve(scoreCurve).weightCurve(weightCurve).build();
         when(categoryRepository.findByActiveTrue()).thenReturn(List.of(category));
@@ -62,6 +62,10 @@ class ComplexityScenarioServiceTest {
                 new SimulationScoreRow(1L, hardMap, categoryId, 900_000, 1_000_000, 800.0),
                 new SimulationScoreRow(2L, easyMap, categoryId, 850_000, 1_000_000, 850.0),
                 new SimulationScoreRow(2L, hardMap, categoryId, 960_000, 1_000_000, 950.0)));
+    }
+
+    private void stubPool() {
+        stubScores();
         when(apCalculationService.calculateRawAP(anyDouble(), anyDouble(), eq(scoreCurve)))
                 .thenAnswer(inv -> new APResult(inv.getArgument(0, Double.class) * inv.getArgument(1, Double.class) * 100.0, 0.5));
         when(apCalculationService.calculateWeightedAP(anyDouble(), anyInt(), eq(weightCurve)))
@@ -98,6 +102,43 @@ class ComplexityScenarioServiceTest {
         Map<UUID, Double> complexities = service.complexitiesFor(ComplexityScenario.NEW_SCRIPT);
 
         assertThat(complexities).containsEntry(easyMap, 5.0).containsEntry(hardMap, 10.0).hasSize(2);
+    }
+
+    @Test
+    void boardEaseFactorsOutPlayerSkillAndGatesOnPlayCount() {
+        stubScores();
+
+        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2);
+
+        double expectedGap = ((-Math.log10(0.05) + Math.log10(0.10)) + (-Math.log10(0.15) + Math.log10(0.04))) / 2;
+        assertThat(ease.get(easyMap).ease() - ease.get(hardMap).ease()).isCloseTo(expectedGap, org.assertj.core.api.Assertions.within(1e-6));
+        assertThat(ease.get(easyMap).ease() + ease.get(hardMap).ease()).isCloseTo(0.0, org.assertj.core.api.Assertions.within(1e-9));
+        assertThat(ease.get(easyMap).players()).isEqualTo(2);
+        assertThat(ease.get(easyMap).scores()).isEqualTo(2);
+        assertThat(service.boardEase(3)).isEmpty();
+    }
+
+    @Test
+    void thePlayGateCountsPlaysInThatCategoryOnly() {
+        UUID trueCategory = UUID.randomUUID();
+        UUID trueMap = UUID.randomUUID();
+        UUID otherTrueMap = UUID.randomUUID();
+        when(scoreRepository.findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED)).thenReturn(List.of(
+                new SimulationScoreRow(1L, easyMap, categoryId, 950_000, 1_000_000, 900.0),
+                new SimulationScoreRow(1L, hardMap, categoryId, 900_000, 1_000_000, 800.0),
+                new SimulationScoreRow(2L, easyMap, categoryId, 850_000, 1_000_000, 850.0),
+                new SimulationScoreRow(2L, hardMap, categoryId, 960_000, 1_000_000, 950.0),
+                new SimulationScoreRow(1L, trueMap, trueCategory, 990_000, 1_000_000, 900.0),
+                new SimulationScoreRow(3L, trueMap, trueCategory, 980_000, 1_000_000, 850.0),
+                new SimulationScoreRow(3L, otherTrueMap, trueCategory, 985_000, 1_000_000, 850.0)));
+        when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
+
+        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2);
+
+        assertThat(ease.get(easyMap).players()).isEqualTo(2);
+        assertThat(ease.get(trueMap).players()).isEqualTo(1);
+        assertThat(ease.get(trueMap).scores()).isEqualTo(2);
+        assertThat(ease.get(otherTrueMap).players()).isEqualTo(1);
     }
 
     @Test

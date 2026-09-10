@@ -71,6 +71,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("hmd") String hmd, Pageable pageable);
 
     @Query("""
+            SELECT DISTINCT sn.userId FROM UserSearchName sn
+            WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
+            """)
+    List<Long> findIdsBySearch(@Param("search") String search);
+
+    @Query("""
             SELECT u FROM User u
             WHERE u.active = true AND u.banned = false AND u.totalXp > 0
             AND u.id IN :userIds

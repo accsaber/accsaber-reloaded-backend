@@ -49,6 +49,7 @@ import com.accsaber.backend.service.map.ComplexityScenarioService.Play;
 import com.accsaber.backend.service.map.ComplexityScenarioService.PlayerTotal;
 import com.accsaber.backend.service.map.ComplexityScenarioService.ScenarioState;
 import com.accsaber.backend.util.Rounding;
+import com.accsaber.backend.util.SearchText;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -69,14 +70,21 @@ public class ComplexityComparisonService {
     private final ReweightService reweightService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Transactional(readOnly = true)
-    public List<DifficultyRow> difficulties(UUID categoryId, MapDifficultyStatus status) {
-        return rows(difficultiesOf(categoryId, status), scenarioService.stored(), Map.of());
+    public record MapFilter(UUID categoryId, MapDifficultyStatus status, String search) {
+    }
+
+    public record PlayerQuery(UUID categoryId, int limit, String search) {
     }
 
     @Transactional(readOnly = true)
-    public List<DifficultyRow> highestAverageAp(ComplexityScenario scenario, UUID categoryId, int minScores,
+    public List<DifficultyRow> difficulties(MapFilter filter) {
+        return rows(difficultiesOf(filter), scenarioService.stored(), Map.of());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DifficultyRow> highestAverageAp(ComplexityScenario scenario, MapFilter filter, int minScores,
             int limit) {
+        UUID categoryId = filter.categoryId();
         Map<ComplexityScenario, ScenarioState> states = scenarioService.stored();
         List<UUID> candidates = states.values().stream()
                 .flatMap(state -> state.aggregates().keySet().stream())
@@ -87,8 +95,9 @@ public class ComplexityComparisonService {
         Map<ComplexityScenario, Map<UUID, Integer>> ranks = new EnumMap<>(ComplexityScenario.class);
         states.forEach((key, state) -> ranks.put(key, boardRanks(state, byId, categoryId, minScores)));
         List<MapDifficulty> ordered = ranks.get(scenario).keySet().stream()
-                .limit(limit)
                 .map(byId::get)
+                .filter(d -> matches(d, filter.search()))
+                .limit(limit)
                 .toList();
         return rows(ordered, states, ranks);
     }
@@ -129,8 +138,8 @@ public class ComplexityComparisonService {
     }
 
     @Transactional(readOnly = true)
-    public PlayerBoard players(UUID categoryId, int limit) {
-        return players(scenarioService.stored(), categoryId, limit);
+    public PlayerBoard players(PlayerQuery query) {
+        return players(scenarioService.stored(), query);
     }
 
     public Rater rater() {
@@ -142,7 +151,7 @@ public class ComplexityComparisonService {
     }
 
     @Transactional(readOnly = true)
-    public Preview preview(ComplexityRaterSpec spec, UUID categoryId, MapDifficultyStatus status, int playerLimit) {
+    public Preview preview(ComplexityRaterSpec spec, MapFilter filter, int playerLimit) {
         Map<UUID, Double> complexities = new HashMap<>(scenarioService.complexitiesFor(ComplexityScenario.CURRENT));
         for (MapDifficultyComplexityEstimate estimate : estimateService.estimates(ComplexityEstimateSource.NEW_SCRIPT)) {
             MapDifficulty difficulty = estimate.getMapDifficulty();
@@ -157,38 +166,61 @@ public class ComplexityComparisonService {
         states.put(ComplexityScenario.PREVIEW, scenarioService.evaluate(complexities));
         return Preview.builder()
                 .rater(spec)
-                .difficulties(rows(difficultiesOf(categoryId, status), states, Map.of()))
-                .players(players(states, categoryId, playerLimit))
+                .difficulties(rows(difficultiesOf(filter), states, Map.of()))
+                .players(players(states, new PlayerQuery(filter.categoryId(), playerLimit, null)))
                 .build();
     }
 
-    public void apply(ComplexityScenario scenario, String reason, Long staffUserId, UUID staffId) {
+    public record ApplyOptions(String reason, Double maxStep) {
+    }
+
+    public void apply(ComplexityScenario scenario, ApplyOptions options, Long staffUserId, UUID staffId) {
         if (scenario.source() == null) {
             throw new ValidationException("Only an estimated scenario can be applied");
+        }
+        if (options.maxStep() != null && options.maxStep() <= 0) {
+            throw new ValidationException("The step limit must be above zero");
         }
         Map<UUID, Double> current = scenarioService.complexitiesFor(ComplexityScenario.CURRENT);
         Map<UUID, Double> proposed = scenarioService.complexitiesFor(scenario);
         List<BulkReweightRequest.Item> items = new ArrayList<>();
         proposed.forEach((id, complexity) -> {
             Double now = current.get(id);
-            if (now != null && Math.abs(now - complexity) > 1e-9) {
+            if (now == null) {
+                return;
+            }
+            double target = step(now, complexity, options.maxStep());
+            if (Math.abs(now - target) > 1e-9) {
                 BulkReweightRequest.Item item = new BulkReweightRequest.Item();
                 item.setMapDifficultyId(id);
-                item.setComplexity(complexity);
+                item.setComplexity(target);
                 items.add(item);
             }
         });
         if (items.isEmpty()) {
             throw new ValidationException("The " + scenario + " scenario matches the current complexities");
         }
-        reweightService.bulkReweight(items, reason, staffUserId, staffId);
+        reweightService.bulkReweight(items, options.reason(), staffUserId, staffId);
     }
 
-    private List<MapDifficulty> difficultiesOf(UUID categoryId, MapDifficultyStatus status) {
-        return mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(status).stream()
-                .filter(d -> inCategory(d, categoryId))
+    static double step(double now, double proposed, Double maxStep) {
+        if (maxStep == null) {
+            return proposed;
+        }
+        double delta = Math.max(-maxStep, Math.min(maxStep, proposed - now));
+        return Rounding.round(now + delta, 1);
+    }
+
+    private List<MapDifficulty> difficultiesOf(MapFilter filter) {
+        return mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(filter.status()).stream()
+                .filter(d -> inCategory(d, filter.categoryId()) && matches(d, filter.search()))
                 .sorted(Comparator.comparing(d -> d.getMap().getSongName(), String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    private static boolean matches(MapDifficulty difficulty, String search) {
+        return SearchText.matches(search, difficulty.getMap().getSongName(), difficulty.getMap().getSongSubName(),
+                difficulty.getMap().getSongAuthor(), difficulty.getMap().getMapAuthor());
     }
 
     private static boolean inCategory(MapDifficulty difficulty, UUID categoryId) {
@@ -196,10 +228,13 @@ public class ComplexityComparisonService {
                 || (difficulty.getCategory() != null && categoryId.equals(difficulty.getCategory().getId()));
     }
 
-    private PlayerBoard players(Map<ComplexityScenario, ScenarioState> states, UUID categoryId, int limit) {
+    private PlayerBoard players(Map<ComplexityScenario, ScenarioState> states, PlayerQuery query) {
+        UUID categoryId = query.categoryId();
         Category category = categoryId == null ? null
                 : categoryRepository.findByIdAndActiveTrue(categoryId)
                         .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+        Set<Long> matching = query.search() == null || query.search().isBlank() ? null
+                : new HashSet<>(userRepository.findIdsBySearch(query.search().trim()));
         Map<ComplexityScenario, Map<Long, PlayerTotal>> totals = new EnumMap<>(ComplexityScenario.class);
         Map<ComplexityScenario, LadderValues> ladders = new EnumMap<>(ComplexityScenario.class);
         states.forEach((scenario, state) -> {
@@ -213,7 +248,8 @@ public class ComplexityComparisonService {
         Map<Long, PlayerTotal> current = totals.get(ComplexityScenario.CURRENT);
         List<Long> order = current.entrySet().stream()
                 .sorted(Comparator.comparingInt(e -> e.getValue().rank()))
-                .limit(limit)
+                .filter(e -> matching == null || matching.contains(e.getKey()))
+                .limit(query.limit())
                 .map(Map.Entry::getKey)
                 .toList();
         Map<Long, User> users = users(new HashSet<>(order));
