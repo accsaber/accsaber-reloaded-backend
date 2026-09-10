@@ -98,7 +98,9 @@ public class UserRelationController {
             + "depending on direction. Outgoing is the default and means people they added; incoming means people who added "
             + "them. Blocked never shows up here at all, so for your own blocked list use the me route. Bear in mind outgoing "
             + "is gated by that player's own privacy settings, so an empty page can mean they have chosen to keep it to "
-            + "themselves rather than that they have nobody.")
+            + "themselves rather than that they have nobody. Incoming works the other way round: a player who keeps their "
+            + "own following or rivals list private still shows up in someone else's incoming list, but as an anonymous "
+            + "Hidden Follower or Hidden Rival entry with hidden set to true and no id, avatar or country on it.")
     @GetMapping("/{userId}/relations")
     public ResponseEntity<Page<UserRelationResponse>> getUserRelations(
             @PathVariable Long userId,
@@ -108,7 +110,7 @@ public class UserRelationController {
             @PageableDefault(size = 20) Pageable pageable) {
         Long viewerId = principal != null ? principal.getUserId() : null;
         if ("incoming".equalsIgnoreCase(direction)) {
-            return ResponseEntity.ok(relationService.findByTarget(userId, type, pageable));
+            return ResponseEntity.ok(relationService.findByTarget(userId, type, viewerId, pageable));
         }
         return ResponseEntity.ok(relationService.findByUser(userId, type, false, viewerId, pageable));
     }

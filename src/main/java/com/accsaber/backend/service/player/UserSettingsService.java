@@ -1,5 +1,7 @@
 package com.accsaber.backend.service.player;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,13 +32,32 @@ public class UserSettingsService {
     private final UserRepository userRepository;
 
     public <T> T get(Long userId, UserSettingKey key, Class<T> type) {
+        assertType(key, type);
+        return settingRepository.findByUser_IdAndKey(userId, key.key())
+                .map(s -> deserialize(s.getValue(), type))
+                .orElseGet(() -> type.cast(key.defaultValue()));
+    }
+
+    public <T> Map<Long, T> getMany(Collection<Long> userIds, UserSettingKey key, Class<T> type) {
+        assertType(key, type);
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, T> values = new HashMap<>();
+        for (Long userId : userIds) {
+            values.put(userId, type.cast(key.defaultValue()));
+        }
+        for (UserSetting setting : settingRepository.findByUserIdsAndKey(userIds, key.key())) {
+            values.put(setting.getUser().getId(), deserialize(setting.getValue(), type));
+        }
+        return values;
+    }
+
+    private void assertType(UserSettingKey key, Class<?> type) {
         if (!key.valueType().equals(type)) {
             throw new IllegalArgumentException("Type mismatch for setting " + key.key()
                     + ": expected " + key.valueType().getSimpleName() + ", got " + type.getSimpleName());
         }
-        return settingRepository.findByUser_IdAndKey(userId, key.key())
-                .map(s -> deserialize(s.getValue(), type))
-                .orElseGet(() -> type.cast(key.defaultValue()));
     }
 
     public Map<String, Object> getAll(Long userId) {

@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.user;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,4 +21,7 @@ public interface UserSettingRepository extends JpaRepository<UserSetting, UUID> 
 
     @Query("SELECT s FROM UserSetting s WHERE s.user.id = :userId AND s.key LIKE CONCAT(:prefix, '%')")
     List<UserSetting> findByUser_IdAndKeyPrefix(@Param("userId") Long userId, @Param("prefix") String prefix);
+
+    @Query("SELECT s FROM UserSetting s WHERE s.user.id IN :userIds AND s.key = :key")
+    List<UserSetting> findByUserIdsAndKey(@Param("userIds") Collection<Long> userIds, @Param("key") String key);
 }

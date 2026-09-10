@@ -1,7 +1,12 @@
 package com.accsaber.backend.service.player;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -104,11 +109,8 @@ public class UserRelationService {
         }
         boolean isSelf = viewerUserId != null && viewerUserId.equals(userId);
         if (!isSelf && type != null && type != UserRelationType.blocked) {
-            UserSettingKey settingKey = type == UserRelationType.follower
-                    ? UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY
-                    : UserSettingKey.PRIVACY_RIVALS_VISIBILITY;
-            Visibility visibility = userSettingsService.get(userId, settingKey, Visibility.class);
-            if (!canView(viewerUserId, userId, visibility)) {
+            Visibility visibility = userSettingsService.get(userId, visibilityKey(type), Visibility.class);
+            if (!canView(visibility, () -> isFollowerOf(viewerUserId, userId))) {
                 throw new ForbiddenException("This list is not visible");
             }
         }
@@ -118,23 +120,59 @@ public class UserRelationService {
         return page.map(this::toResponse);
     }
 
-    private boolean canView(Long viewerId, Long ownerId, Visibility visibility) {
+    private boolean canView(Visibility visibility, BooleanSupplier viewerFollowsOwner) {
         return switch (visibility) {
             case PUBLIC -> true;
             case PRIVATE -> false;
-            case FOLLOWERS_ONLY -> viewerId != null && isFollowerOf(viewerId, ownerId);
+            case FOLLOWERS_ONLY -> viewerFollowsOwner.getAsBoolean();
         };
     }
 
-    public Page<UserRelationResponse> findByTarget(Long targetUserId, UserRelationType type, Pageable pageable) {
+    private UserSettingKey visibilityKey(UserRelationType type) {
+        return type == UserRelationType.rival
+                ? UserSettingKey.PRIVACY_RIVALS_VISIBILITY
+                : UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY;
+    }
+
+    public Page<UserRelationResponse> findByTarget(Long targetUserId, UserRelationType type, Long viewerUserId,
+            Pageable pageable) {
         if (type == UserRelationType.blocked) {
             throw new ForbiddenException("Cannot list users who have blocked someone");
         }
         if (type == null) {
             throw new ValidationException("type is required for incoming relations");
         }
-        return relationRepository.findByTargetUser_IdAndTypeAndActiveTrue(targetUserId, type, pageable)
-                .map(this::toIncomingResponse);
+        Page<UserRelation> page = relationRepository
+                .findByTargetUser_IdAndTypeAndActiveTrue(targetUserId, type, pageable);
+        Set<Long> hidden = findHidingOwnerIds(page.getContent(), type, viewerUserId);
+        return page.map(r -> hidden.contains(r.getUser().getId())
+                ? toHiddenResponse(r)
+                : toIncomingResponse(r));
+    }
+
+    private Set<Long> findHidingOwnerIds(List<UserRelation> relations, UserRelationType type, Long viewerUserId) {
+        Set<Long> ownerIds = relations.stream()
+                .map(r -> r.getUser().getId())
+                .filter(id -> !id.equals(viewerUserId))
+                .collect(Collectors.toSet());
+        if (ownerIds.isEmpty()) {
+            return Set.of();
+        }
+        Map<Long, Visibility> visibilities = userSettingsService.getMany(ownerIds, visibilityKey(type),
+                Visibility.class);
+        Set<Long> hiding = ownerIds.stream()
+                .filter(id -> visibilities.get(id) != null && visibilities.get(id) != Visibility.PUBLIC)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (hiding.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> followedByViewer = viewerUserId != null
+                && hiding.stream().anyMatch(id -> visibilities.get(id) == Visibility.FOLLOWERS_ONLY)
+                        ? Set.copyOf(relationRepository.findActiveTargetUserIdsIn(viewerUserId,
+                                UserRelationType.follower, hiding))
+                        : Set.<Long>of();
+        hiding.removeIf(id -> canView(visibilities.get(id), () -> followedByViewer.contains(id)));
+        return hiding;
     }
 
     @Transactional
@@ -214,6 +252,17 @@ public class UserRelationService {
 
     private UserRelationResponse toIncomingResponse(UserRelation r) {
         return buildResponse(r, r.getTargetUser(), r.getUser());
+    }
+
+    private UserRelationResponse toHiddenResponse(UserRelation r) {
+        return UserRelationResponse.builder()
+                .id(r.getId())
+                .userId(r.getTargetUser().getId())
+                .targetName(r.getType() == UserRelationType.rival ? "Hidden Rival" : "Hidden Follower")
+                .type(r.getType())
+                .createdAt(r.getCreatedAt())
+                .hidden(true)
+                .build();
     }
 
     private UserRelationResponse buildResponse(UserRelation r, User from, User other) {

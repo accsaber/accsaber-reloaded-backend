@@ -44,4 +44,16 @@ public interface UserRelationRepository extends JpaRepository<UserRelation, UUID
     List<Long> findActiveTargetUserIdsByTypes(
             @Param("userId") Long userId,
             @Param("types") Collection<UserRelationType> types);
+
+    @Query("""
+            SELECT r.targetUser.id FROM UserRelation r
+            WHERE r.user.id = :userId
+            AND r.type = :type
+            AND r.targetUser.id IN :targetUserIds
+            AND r.active = true
+            """)
+    List<Long> findActiveTargetUserIdsIn(
+            @Param("userId") Long userId,
+            @Param("type") UserRelationType type,
+            @Param("targetUserIds") Collection<Long> targetUserIds);
 }

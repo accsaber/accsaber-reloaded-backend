@@ -21,4 +21,5 @@ public class UserRelationResponse {
     String targetCountry;
     UserRelationType type;
     Instant createdAt;
+    boolean hidden;
 }
