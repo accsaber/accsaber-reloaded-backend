@@ -25,9 +25,10 @@ public class ComplexityRaterProperties {
     public static class Board {
         private int minScores = 100;
         private int fullScores = 200;
-        private int minPlayers = 30;
+        private int minPlayers = 10;
         private int minPlayerPlays = 20;
-        private double maxNudge = 0.5;
+        private int topPlayers = 100;
+        private double maxNudge = 1.0;
     }
 
     @Data
@@ -62,6 +63,7 @@ public class ComplexityRaterProperties {
         spec.getBoard().setFullScores(board.getFullScores());
         spec.getBoard().setMinPlayers(board.getMinPlayers());
         spec.getBoard().setMinPlayerPlays(board.getMinPlayerPlays());
+        spec.getBoard().setTopPlayers(board.getTopPlayers());
         spec.getBoard().setMaxNudge(board.getMaxNudge());
         categories.forEach((code, c) -> spec.getCategories().put(code, c.toSpec()));
         boardCategories.forEach((code, c) -> spec.getBoardCategories().put(code, c.toSpec()));

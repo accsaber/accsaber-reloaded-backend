@@ -108,14 +108,14 @@ class ComplexityScenarioServiceTest {
     void boardEaseFactorsOutPlayerSkillAndGatesOnPlayCount() {
         stubScores();
 
-        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2);
+        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2, 100);
 
         double expectedGap = ((-Math.log10(0.05) + Math.log10(0.10)) + (-Math.log10(0.15) + Math.log10(0.04))) / 2;
         assertThat(ease.get(easyMap).ease() - ease.get(hardMap).ease()).isCloseTo(expectedGap, org.assertj.core.api.Assertions.within(1e-6));
         assertThat(ease.get(easyMap).ease() + ease.get(hardMap).ease()).isCloseTo(0.0, org.assertj.core.api.Assertions.within(1e-9));
         assertThat(ease.get(easyMap).players()).isEqualTo(2);
         assertThat(ease.get(easyMap).scores()).isEqualTo(2);
-        assertThat(service.boardEase(3)).isEmpty();
+        assertThat(service.boardEase(3, 100)).isEmpty();
     }
 
     @Test
@@ -133,12 +133,25 @@ class ComplexityScenarioServiceTest {
                 new SimulationScoreRow(3L, otherTrueMap, trueCategory, 985_000, 1_000_000, 850.0)));
         when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
-        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2);
+        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2, 100);
 
         assertThat(ease.get(easyMap).players()).isEqualTo(2);
         assertThat(ease.get(trueMap).players()).isEqualTo(1);
         assertThat(ease.get(trueMap).scores()).isEqualTo(2);
         assertThat(ease.get(otherTrueMap).players()).isEqualTo(1);
+    }
+
+    @Test
+    void theEaseIsReadFromTheTopTierOnly() {
+        stubScores();
+
+        Map<UUID, ComplexityScenarioService.BoardEase> ease = service.boardEase(2, 1);
+
+        assertThat(ease.get(easyMap).players()).isEqualTo(1);
+        assertThat(ease.get(hardMap).players()).isEqualTo(1);
+        double gap = ease.get(easyMap).ease() - ease.get(hardMap).ease();
+        assertThat(Math.abs(gap)).isGreaterThan(0.1);
+        assertThat(ease.get(easyMap).ease() + ease.get(hardMap).ease()).isCloseTo(0.0, org.assertj.core.api.Assertions.within(1e-9));
     }
 
     @Test

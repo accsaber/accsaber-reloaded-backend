@@ -161,9 +161,10 @@ accsaber:
       board:
         min-scores: 100
         full-scores: 200
-        min-players: 30
+        min-players: 10
         min-player-plays: 20
-        max-nudge: 0.5
+        top-players: 100
+        max-nudge: 1.0
       categories:
         true_acc:
           intercept: 14.889

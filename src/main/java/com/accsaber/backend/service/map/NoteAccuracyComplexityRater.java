@@ -92,7 +92,8 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     }
 
     private BoardEase board(UUID difficultyId) {
-        return scenarioService.boardEase(properties.getBoard().getMinPlayerPlays()).getOrDefault(difficultyId, NO_BOARD);
+        return scenarioService.boardEase(properties.getBoard().getMinPlayerPlays(), properties.getBoard().getTopPlayers())
+                .getOrDefault(difficultyId, NO_BOARD);
     }
 
     private static void putBoard(Map<String, Object> inputs, BoardEase board) {
