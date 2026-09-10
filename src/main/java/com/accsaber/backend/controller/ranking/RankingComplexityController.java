@@ -20,6 +20,7 @@ import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.MapLeaderboard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerBoard;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerPlays;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.Preview;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.Rater;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -83,6 +84,23 @@ public class RankingComplexityController {
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(comparisonService.players(
                 new ComplexityComparisonService.PlayerQuery(categoryId, limit, search)));
+    }
+
+    @Operation(summary = "One player's best plays per category under the three scenarios", description = "For every active category the player has ranked plays in: their total AP and rank under each scenario with deltas, and the union of their best plays under each scenario, ordered by today's AP. Each play carries the map row the difficulties list uses, the accuracy, and per scenario the AP, the weighted AP, the play's position in the player's list, which is what sets its weight, and its rank on the map, with deltas against today. Pass a limit for how many plays per category and scenario feed the union.")
+    @GetMapping("/players/{userId}/plays")
+    public ResponseEntity<PlayerPlays> playerPlays(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(comparisonService.playerPlays(userId, limit));
+    }
+
+    @Operation(summary = "One player's best plays per category under a set of constants", description = "The same view as the player plays endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several players after one tuning pass does not reprice the pool each time.")
+    @PostMapping("/preview/players/{userId}/plays")
+    public ResponseEntity<PlayerPlays> previewPlayerPlays(
+            @PathVariable Long userId,
+            @Valid @RequestBody ComplexityRaterSpec rater,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(comparisonService.previewPlayerPlays(rater, userId, limit));
     }
 
     @Operation(summary = "The constants the note accuracy script runs with", description = "The worst share and the per category intercept and slopes the backend is configured with right now, in the same shape the preview endpoint takes as its body. A panel loads them, lets staff nudge them and sends them back. The chart line prices a map from its notes alone and is what import uses. The board line adds the map's skill adjusted leaderboard ease and takes over between the board gate's minimum and full score counts, once enough players with a known level have played it. The worst bands list says which worst shares the stored estimates carry exactly. Any other worst share snaps to the nearest band in a preview.")

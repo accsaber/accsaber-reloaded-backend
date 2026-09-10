@@ -82,7 +82,38 @@ public final class ComplexityComparisonResponse {
     public static class PlayValues {
         Double ap;
         Double weightedAp;
+        Integer position;
         Integer rank;
+    }
+
+    @Value
+    @Builder
+    public static class PlayerPlays {
+        String userId;
+        String name;
+        String avatarUrl;
+        String cdnAvatarUrl;
+        String country;
+        List<CategoryPlays> categories;
+    }
+
+    @Value
+    @Builder
+    public static class CategoryPlays {
+        UUID categoryId;
+        String categoryCode;
+        Map<ComplexityScenario, TotalValues> scenarios;
+        Map<ComplexityScenario, TotalValues> deltas;
+        List<PlayRow> plays;
+    }
+
+    @Value
+    @Builder
+    public static class PlayRow {
+        DifficultyRow difficulty;
+        double accuracy;
+        Map<ComplexityScenario, PlayValues> scenarios;
+        Map<ComplexityScenario, PlayValues> deltas;
     }
 
     @Value

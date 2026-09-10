@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,7 +28,10 @@ import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonRespons
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.LadderValues;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.MapLeaderboard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.MapValues;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.CategoryPlays;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayValues;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerPlays;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerBoard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.Preview;
@@ -152,6 +156,40 @@ public class ComplexityComparisonService {
 
     @Transactional(readOnly = true)
     public Preview preview(ComplexityRaterSpec spec, MapFilter filter, int playerLimit) {
+        Map<ComplexityScenario, ScenarioState> states = previewStates(spec);
+        return Preview.builder()
+                .rater(spec)
+                .difficulties(rows(difficultiesOf(filter), states, Map.of()))
+                .players(players(states, new PlayerQuery(filter.categoryId(), playerLimit, null)))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public PlayerPlays playerPlays(Long userId, int limit) {
+        return playerPlays(scenarioService.stored(), userId, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public PlayerPlays previewPlayerPlays(ComplexityRaterSpec spec, Long userId, int limit) {
+        return playerPlays(previewStates(spec), userId, limit);
+    }
+
+    private Map<ComplexityScenario, ScenarioState> previewStates(ComplexityRaterSpec spec) {
+        Map<ComplexityScenario, ScenarioState> states = new EnumMap<>(ComplexityScenario.class);
+        states.put(ComplexityScenario.CURRENT, scenarioService.state(ComplexityScenario.CURRENT));
+        states.put(ComplexityScenario.PREVIEW, scenarioService.preview(previewKey(spec), () -> previewComplexities(spec)));
+        return states;
+    }
+
+    private String previewKey(ComplexityRaterSpec spec) {
+        try {
+            return objectMapper.writeValueAsString(spec);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("Could not key the preview", e);
+        }
+    }
+
+    private Map<UUID, Double> previewComplexities(ComplexityRaterSpec spec) {
         Map<UUID, Double> complexities = new HashMap<>(scenarioService.complexitiesFor(ComplexityScenario.CURRENT));
         for (MapDifficultyComplexityEstimate estimate : estimateService.estimates(ComplexityEstimateSource.NEW_SCRIPT)) {
             MapDifficulty difficulty = estimate.getMapDifficulty();
@@ -161,13 +199,113 @@ public class ComplexityComparisonService {
             NoteAccuracyComplexityRater.price(estimate.getInputs(), spec, difficulty.getCategory().getCode())
                     .ifPresent(rating -> complexities.put(difficulty.getId(), rating.complexity()));
         }
-        Map<ComplexityScenario, ScenarioState> states = new EnumMap<>(ComplexityScenario.class);
-        states.put(ComplexityScenario.CURRENT, scenarioService.state(ComplexityScenario.CURRENT));
-        states.put(ComplexityScenario.PREVIEW, scenarioService.evaluate(complexities));
-        return Preview.builder()
-                .rater(spec)
-                .difficulties(rows(difficultiesOf(filter), states, Map.of()))
-                .players(players(states, new PlayerQuery(filter.categoryId(), playerLimit, null)))
+        return complexities;
+    }
+
+    private PlayerPlays playerPlays(Map<ComplexityScenario, ScenarioState> states, Long userId, int limit) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        Map<ComplexityScenario, Map<UUID, Play>> plays = new EnumMap<>(ComplexityScenario.class);
+        states.forEach((scenario, state) -> plays.put(scenario, state.playsByUser().getOrDefault(userId, List.of())
+                .stream().collect(Collectors.toMap(Play::difficultyId, Function.identity()))));
+        Set<UUID> shown = new HashSet<>();
+        plays.values().forEach(byMap -> byMap.values().stream()
+                .collect(Collectors.groupingBy(Play::categoryId)).values()
+                .forEach(list -> list.stream().sorted(Comparator.comparingDouble(Play::ap).reversed()).limit(limit)
+                        .forEach(play -> shown.add(play.difficultyId()))));
+        Map<UUID, MapDifficulty> byId = mapDifficultyRepository
+                .findAllByIdInAndActiveTrueWithMapAndCategory(new ArrayList<>(shown)).stream()
+                .collect(Collectors.toMap(MapDifficulty::getId, Function.identity()));
+        Map<UUID, DifficultyRow> headers = rows(new ArrayList<>(byId.values()), states, Map.of()).stream()
+                .collect(Collectors.toMap(DifficultyRow::getMapDifficultyId, Function.identity()));
+        Map<UUID, Play> current = plays.get(ComplexityScenario.CURRENT);
+        List<CategoryPlays> categories = categoryRepository.findByActiveTrue().stream()
+                .filter(category -> byId.values().stream().anyMatch(d -> d.getCategory() != null
+                        && category.getId().equals(d.getCategory().getId())))
+                .map(category -> {
+                    Map<ComplexityScenario, TotalValues> totals = categoryTotals(states, category.getId(), userId);
+                    return CategoryPlays.builder()
+                            .categoryId(category.getId())
+                            .categoryCode(category.getCode())
+                            .scenarios(totals)
+                            .deltas(totalDeltas(totals))
+                            .plays(byId.values().stream()
+                                    .filter(d -> d.getCategory() != null && category.getId().equals(d.getCategory().getId()))
+                                    .sorted(Comparator.comparingDouble((MapDifficulty d) -> current.containsKey(d.getId())
+                                            ? current.get(d.getId()).ap() : 0.0).reversed())
+                                    .map(d -> playRow(headers.get(d.getId()), d.getId(), plays))
+                                    .toList())
+                            .build();
+                })
+                .toList();
+        return PlayerPlays.builder()
+                .userId(String.valueOf(userId))
+                .name(user.getName())
+                .avatarUrl(user.getAvatarUrl())
+                .cdnAvatarUrl(user.getCdnAvatarUrl())
+                .country(user.getCountry())
+                .categories(categories)
+                .build();
+    }
+
+    private static Map<ComplexityScenario, TotalValues> categoryTotals(Map<ComplexityScenario, ScenarioState> states,
+            UUID categoryId, Long userId) {
+        Map<ComplexityScenario, TotalValues> totals = new EnumMap<>(ComplexityScenario.class);
+        states.forEach((scenario, state) -> {
+            PlayerTotal total = state.totalsByCategory().getOrDefault(categoryId, Map.of()).get(userId);
+            totals.put(scenario, total == null ? TotalValues.builder().build()
+                    : TotalValues.builder().ap(total.ap()).rank(total.rank()).build());
+        });
+        return totals;
+    }
+
+    private static Map<ComplexityScenario, TotalValues> totalDeltas(Map<ComplexityScenario, TotalValues> totals) {
+        TotalValues base = totals.get(ComplexityScenario.CURRENT);
+        Map<ComplexityScenario, TotalValues> deltas = new EnumMap<>(ComplexityScenario.class);
+        totals.forEach((scenario, values) -> {
+            if (scenario != ComplexityScenario.CURRENT) {
+                deltas.put(scenario, TotalValues.builder()
+                        .ap(diff(values.getAp(), base.getAp()))
+                        .rank(values.getRank() == null || base.getRank() == null ? null : values.getRank() - base.getRank())
+                        .build());
+            }
+        });
+        return deltas;
+    }
+
+    private static PlayRow playRow(DifficultyRow header, UUID difficultyId, Map<ComplexityScenario, Map<UUID, Play>> plays) {
+        Play current = plays.get(ComplexityScenario.CURRENT).get(difficultyId);
+        Play any = plays.values().stream().map(byMap -> byMap.get(difficultyId)).filter(Objects::nonNull).findFirst()
+                .orElseThrow();
+        Map<ComplexityScenario, PlayValues> scenarios = new EnumMap<>(ComplexityScenario.class);
+        Map<ComplexityScenario, PlayValues> deltas = new EnumMap<>(ComplexityScenario.class);
+        for (var entry : plays.entrySet()) {
+            PlayValues values = playValues(entry.getValue().get(difficultyId));
+            scenarios.put(entry.getKey(), values);
+            if (entry.getKey() != ComplexityScenario.CURRENT && current != null) {
+                deltas.put(entry.getKey(), playDelta(values, current));
+            }
+        }
+        return PlayRow.builder()
+                .difficulty(header)
+                .accuracy(any.accuracy())
+                .scenarios(scenarios)
+                .deltas(deltas)
+                .build();
+    }
+
+    private static PlayValues playValues(Play play) {
+        return play == null ? PlayValues.builder().build()
+                : PlayValues.builder().ap(play.ap()).weightedAp(play.weightedAp()).position(play.position())
+                        .rank(play.rank()).build();
+    }
+
+    private static PlayValues playDelta(PlayValues values, Play current) {
+        return PlayValues.builder()
+                .ap(diff(values.getAp(), current.ap()))
+                .weightedAp(diff(values.getWeightedAp(), current.weightedAp()))
+                .position(values.getPosition() == null ? null : values.getPosition() - current.position())
+                .rank(values.getRank() == null ? null : values.getRank() - current.rank())
                 .build();
     }
 
@@ -352,16 +490,10 @@ public class ComplexityComparisonService {
         Map<ComplexityScenario, PlayValues> scenarios = new EnumMap<>(ComplexityScenario.class);
         Map<ComplexityScenario, PlayValues> deltas = new EnumMap<>(ComplexityScenario.class);
         for (var entry : plays.entrySet()) {
-            Play play = entry.getValue().get(current.userId());
-            PlayValues values = play == null ? PlayValues.builder().build()
-                    : PlayValues.builder().ap(play.ap()).weightedAp(play.weightedAp()).rank(play.rank()).build();
+            PlayValues values = playValues(entry.getValue().get(current.userId()));
             scenarios.put(entry.getKey(), values);
             if (entry.getKey() != ComplexityScenario.CURRENT) {
-                deltas.put(entry.getKey(), PlayValues.builder()
-                        .ap(diff(values.getAp(), current.ap()))
-                        .weightedAp(diff(values.getWeightedAp(), current.weightedAp()))
-                        .rank(values.getRank() == null ? null : values.getRank() - current.rank())
-                        .build());
+                deltas.put(entry.getKey(), playDelta(values, current));
             }
         }
         return ScoreRow.builder()

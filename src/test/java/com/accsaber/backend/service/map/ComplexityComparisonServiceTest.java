@@ -141,10 +141,46 @@ class ComplexityComparisonServiceTest {
         assertThat(ComplexityComparisonService.step(5.0, 7.0, null)).isEqualTo(7.0);
     }
 
+    @Test
+    void playerPlaysUnionTheBestPlaysUnderEveryScenario() {
+        ComplexityScenarioService.Play firstNow = new ComplexityScenarioService.Play(7L, first.getId(), tech.getId(), 0.99, 900.0, 900.0, 1, 3);
+        ComplexityScenarioService.Play secondNow = new ComplexityScenarioService.Play(7L, second.getId(), tech.getId(), 0.98, 800.0, 700.0, 2, 9);
+        ComplexityScenarioService.Play firstNew = new ComplexityScenarioService.Play(7L, first.getId(), tech.getId(), 0.99, 850.0, 800.0, 2, 4);
+        ComplexityScenarioService.Play secondNew = new ComplexityScenarioService.Play(7L, second.getId(), tech.getId(), 0.98, 950.0, 950.0, 1, 2);
+        Map<ComplexityScenario, ScenarioState> states = new EnumMap<>(ComplexityScenario.class);
+        states.put(ComplexityScenario.CURRENT, new ScenarioState(Map.of(), Map.of(), Map.of(7L, List.of(firstNow, secondNow)),
+                Map.of(tech.getId(), Map.of(7L, new ComplexityScenarioService.PlayerTotal(1600.0, 5))), Map.of(), Map.of(), Map.of(),
+                new ComplexityScenarioService.Ladder(0, 0, 0, 0, 0, 0, 0, 0)));
+        states.put(ComplexityScenario.NEW_SCRIPT, new ScenarioState(Map.of(), Map.of(), Map.of(7L, List.of(firstNew, secondNew)),
+                Map.of(tech.getId(), Map.of(7L, new ComplexityScenarioService.PlayerTotal(1750.0, 4))), Map.of(), Map.of(), Map.of(),
+                new ComplexityScenarioService.Ladder(0, 0, 0, 0, 0, 0, 0, 0)));
+        when(scenarioService.stored()).thenReturn(states);
+        when(userRepository.findById(7L)).thenReturn(java.util.Optional.of(
+                com.accsaber.backend.model.entity.user.User.builder().id(7L).name("Seven").build()));
+        when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithMapAndCategory(anyList())).thenReturn(List.of(first, second));
+        when(estimateService.estimatesFor(any())).thenReturn(Map.of());
+        when(categoryRepository.findByActiveTrue()).thenReturn(List.of(tech, standard));
+
+        var plays = service.playerPlays(7L, 1);
+
+        assertThat(plays.getUserId()).isEqualTo("7");
+        assertThat(plays.getCategories()).hasSize(1);
+        var category = plays.getCategories().get(0);
+        assertThat(category.getCategoryCode()).isEqualTo("tech_acc");
+        assertThat(category.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getAp()).isEqualTo(1750.0);
+        assertThat(category.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getRank()).isEqualTo(-1);
+        assertThat(category.getPlays()).extracting(p -> p.getDifficulty().getMapDifficultyId())
+                .containsExactly(first.getId(), second.getId());
+        var secondRow = category.getPlays().get(1);
+        assertThat(secondRow.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getPosition()).isEqualTo(1);
+        assertThat(secondRow.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getPosition()).isEqualTo(-1);
+        assertThat(secondRow.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getAp()).isEqualTo(150.0);
+    }
+
     private static ScenarioState state(Map<UUID, MapAggregate> aggregates) {
         Map<UUID, Double> complexities = new java.util.HashMap<>();
         aggregates.forEach((id, a) -> complexities.put(id, a.complexity()));
-        return new ScenarioState(complexities, Map.of(), Map.of(), Map.of(), aggregates, Map.of(),
+        return new ScenarioState(complexities, Map.of(), Map.of(), Map.of(), Map.of(), aggregates, Map.of(),
                 new ComplexityScenarioService.Ladder(0, 0, 0, 0, 0, 0, 0, 0));
     }
 

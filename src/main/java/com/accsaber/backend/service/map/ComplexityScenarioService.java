@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -44,12 +45,15 @@ public class ComplexityScenarioService {
 
     private static final int EASE_ITERATIONS = 50;
 
+    private static final int PREVIEW_CACHE_SIZE = 8;
+
     private final Map<ComplexityScenario, Cached<ScenarioState>> states = new ConcurrentHashMap<>();
+    private final Map<String, Cached<ScenarioState>> previews = new ConcurrentHashMap<>();
     private volatile Cached<Pool> pool;
     private volatile Cached<EaseFit> boardEase;
 
     public record Play(Long userId, UUID difficultyId, UUID categoryId, double accuracy, double ap,
-            double weightedAp, int rank) {
+            double weightedAp, int position, int rank) {
     }
 
     public record PlayerTotal(double ap, int rank) {
@@ -73,8 +77,9 @@ public class ComplexityScenarioService {
     }
 
     public record ScenarioState(Map<UUID, Double> complexities, Map<UUID, List<Play>> playsByDifficulty,
-            Map<UUID, Map<Long, PlayerTotal>> totalsByCategory, Map<Long, PlayerTotal> overallTotals,
-            Map<UUID, MapAggregate> aggregates, Map<UUID, Ladder> ladders, Ladder overallLadder) {
+            Map<Long, List<Play>> playsByUser, Map<UUID, Map<Long, PlayerTotal>> totalsByCategory,
+            Map<Long, PlayerTotal> overallTotals, Map<UUID, MapAggregate> aggregates, Map<UUID, Ladder> ladders,
+            Ladder overallLadder) {
     }
 
     private record Pool(List<SimulationScoreRow> rows, Map<UUID, Category> categories) {
@@ -88,8 +93,22 @@ public class ComplexityScenarioService {
 
     public void evict() {
         states.clear();
+        previews.clear();
         pool = null;
         boardEase = null;
+    }
+
+    public ScenarioState preview(String key, Supplier<Map<UUID, Double>> complexities) {
+        Cached<ScenarioState> cached = previews.get(key);
+        if (cached != null && cached.fresh()) {
+            return cached.value();
+        }
+        ScenarioState state = evaluate(complexities.get());
+        if (previews.size() >= PREVIEW_CACHE_SIZE) {
+            previews.clear();
+        }
+        previews.put(key, new Cached<>(state, Instant.now()));
+        return state;
     }
 
     public Map<UUID, BoardEase> boardEase(int minPlayerPlays) {
@@ -204,7 +223,7 @@ public class ComplexityScenarioService {
             double ap = apCalculationService.calculateRawAP(accuracy, complexity, category.getScoreCurve()).rawAP();
             byCategoryUser.computeIfAbsent(category.getId(), k -> new HashMap<>())
                     .computeIfAbsent(row.userId(), k -> new ArrayList<>())
-                    .add(new Play(row.userId(), row.mapDifficultyId(), category.getId(), accuracy, ap, 0.0, 0));
+                    .add(new Play(row.userId(), row.mapDifficultyId(), category.getId(), accuracy, ap, 0.0, 0, 0));
         }
 
         Map<UUID, List<Play>> playsByDifficulty = new HashMap<>();
@@ -224,7 +243,7 @@ public class ComplexityScenarioService {
                     total += weighted;
                     playsByDifficulty.computeIfAbsent(play.difficultyId(), k -> new ArrayList<>())
                             .add(new Play(play.userId(), play.difficultyId(), play.categoryId(), play.accuracy(),
-                                    play.ap(), weighted, 0));
+                                    play.ap(), weighted, i + 1, 0));
                 }
                 totals.put(userEntry.getKey(), Rounding.round(total, AP_SCALE));
                 if (category.isCountForOverall()) {
@@ -236,14 +255,17 @@ public class ComplexityScenarioService {
         }
 
         Map<UUID, MapAggregate> aggregates = new HashMap<>();
+        Map<Long, List<Play>> playsByUser = new HashMap<>();
         for (var entry : playsByDifficulty.entrySet()) {
             List<Play> sorted = entry.getValue().stream()
                     .sorted(Comparator.comparingDouble(Play::ap).reversed().thenComparing(Play::userId)).toList();
             List<Play> rankedPlays = new ArrayList<>(sorted.size());
             for (int i = 0; i < sorted.size(); i++) {
                 Play play = sorted.get(i);
-                rankedPlays.add(new Play(play.userId(), play.difficultyId(), play.categoryId(), play.accuracy(),
-                        play.ap(), play.weightedAp(), i + 1));
+                Play ranked = new Play(play.userId(), play.difficultyId(), play.categoryId(), play.accuracy(),
+                        play.ap(), play.weightedAp(), play.position(), i + 1);
+                rankedPlays.add(ranked);
+                playsByUser.computeIfAbsent(ranked.userId(), k -> new ArrayList<>()).add(ranked);
             }
             entry.setValue(rankedPlays);
             aggregates.put(entry.getKey(), new MapAggregate(complexities.get(entry.getKey()), rankedPlays.size(),
@@ -260,8 +282,8 @@ public class ComplexityScenarioService {
                 .filter(e -> loaded.categories().get(e.getKey()).isCountForOverall())
                 .flatMap(e -> e.getValue().values().stream())
                 .toList();
-        return new ScenarioState(complexities, playsByDifficulty, totalsByCategory, overallTotals, aggregates,
-                ladders, ladder(overallPlays, overallRounded));
+        return new ScenarioState(complexities, playsByDifficulty, playsByUser, totalsByCategory, overallTotals,
+                aggregates, ladders, ladder(overallPlays, overallRounded));
     }
 
     private Pool loadPool() {
