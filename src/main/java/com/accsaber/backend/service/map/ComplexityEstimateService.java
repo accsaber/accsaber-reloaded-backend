@@ -1,7 +1,6 @@
 package com.accsaber.backend.service.map;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.Health;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.service.map.NoteAccuracyComplexityRater.Rating;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -33,14 +32,16 @@ public class ComplexityEstimateService {
 
     private static final List<MapDifficultyStatus> ESTIMATED_STATUSES = List.of(MapDifficultyStatus.RANKED,
             MapDifficultyStatus.QUALIFIED, MapDifficultyStatus.QUEUE);
-    private static final long PAUSE_AFTER_NETWORK_MS = 250;
 
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyComplexityEstimateRepository estimateRepository;
-    private final List<ComplexityRater> raters;
+    private final NoteAccuracyComplexityRater rater;
     private final ComplexityModelClient modelClient;
     private final ComplexityScenarioService scenarioService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public record Outcome(boolean stored, boolean repriced) {
+    }
 
     @Async("backfillExecutor")
     public CompletableFuture<Void> refreshAllAsync() {
@@ -49,17 +50,14 @@ public class ComplexityEstimateService {
             difficulties.addAll(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(status));
         }
         String modelHash = modelClient.health().map(Health::getModelHash).orElse(null);
-        log.info("Complexity estimate refresh starting for {} difficulties with {} raters, model {}",
-                difficulties.size(), raters.size(), modelHash);
+        log.info("Complexity estimate refresh starting for {} difficulties, script {}, model {}", difficulties.size(),
+                rater.version(), modelHash);
         int stored = 0;
         int repriced = 0;
         for (MapDifficulty difficulty : difficulties) {
             Outcome outcome = refresh(difficulty, modelHash);
-            stored += outcome.stored();
-            repriced += outcome.repriced();
-            if (outcome.network()) {
-                pause();
-            }
+            stored += outcome.stored() ? 1 : 0;
+            repriced += outcome.repriced() ? 1 : 0;
         }
         scenarioService.evict();
         log.info("Complexity estimate refresh complete, {} estimates stored, {} of them repriced from stored inputs",
@@ -67,65 +65,38 @@ public class ComplexityEstimateService {
         return CompletableFuture.completedFuture(null);
     }
 
-    public record Outcome(int stored, int repriced, boolean network) {
-    }
-
     @Transactional
     public Outcome refresh(MapDifficulty difficulty, String modelHash) {
-        int stored = 0;
-        int repriced = 0;
-        boolean network = false;
-        for (ComplexityRater rater : raters) {
-            Optional<MapDifficultyComplexityEstimate> existing = estimateRepository
-                    .findByMapDifficultyIdAndSource(difficulty.getId(), rater.source());
-            Optional<ComplexityRater.Rating> rating = existing
-                    .flatMap(e -> rater.reprice(difficulty, e.getInputs(), modelHash));
-            if (rating.isPresent()) {
-                repriced++;
-            } else {
-                network = true;
-                rating = rater.rate(difficulty);
-            }
-            if (rating.isEmpty()) {
-                continue;
-            }
-            MapDifficultyComplexityEstimate estimate = existing.orElseGet(() -> MapDifficultyComplexityEstimate.builder()
-                    .mapDifficulty(difficulty)
-                    .source(rater.source())
-                    .build());
-            estimate.setComplexity(rating.get().complexity());
-            estimate.setVersion(rater.version());
-            estimate.setInputs(objectMapper.valueToTree(rating.get().inputs()));
-            estimateRepository.save(estimate);
-            stored++;
+        Optional<MapDifficultyComplexityEstimate> existing = estimateRepository.findByMapDifficultyId(difficulty.getId());
+        Optional<Rating> repriced = existing.flatMap(e -> rater.reprice(difficulty, e.getInputs(), modelHash));
+        Optional<Rating> rating = repriced.isPresent() ? repriced : rater.rate(difficulty);
+        if (rating.isEmpty()) {
+            return new Outcome(false, false);
         }
-        return new Outcome(stored, repriced, network);
+        MapDifficultyComplexityEstimate estimate = existing.orElseGet(() -> MapDifficultyComplexityEstimate.builder()
+                .mapDifficulty(difficulty)
+                .build());
+        estimate.setComplexity(rating.get().complexity());
+        estimate.setVersion(rater.version());
+        estimate.setInputs(objectMapper.valueToTree(rating.get().inputs()));
+        estimateRepository.save(estimate);
+        return new Outcome(true, repriced.isPresent());
     }
 
     @Transactional(readOnly = true)
-    public Map<UUID, Map<ComplexityEstimateSource, MapDifficultyComplexityEstimate>> estimatesFor(
-            List<UUID> difficultyIds) {
-        Map<UUID, Map<ComplexityEstimateSource, MapDifficultyComplexityEstimate>> result = new HashMap<>();
+    public Map<UUID, MapDifficultyComplexityEstimate> estimatesFor(List<UUID> difficultyIds) {
+        Map<UUID, MapDifficultyComplexityEstimate> result = new HashMap<>();
         if (difficultyIds.isEmpty()) {
             return result;
         }
         for (MapDifficultyComplexityEstimate estimate : estimateRepository.findAllByDifficultyIds(difficultyIds)) {
-            result.computeIfAbsent(estimate.getMapDifficulty().getId(), k -> new EnumMap<>(ComplexityEstimateSource.class))
-                    .put(estimate.getSource(), estimate);
+            result.put(estimate.getMapDifficulty().getId(), estimate);
         }
         return result;
     }
 
     @Transactional(readOnly = true)
-    public List<MapDifficultyComplexityEstimate> estimates(ComplexityEstimateSource source) {
-        return estimateRepository.findAllBySourceWithCategory(source);
-    }
-
-    private static void pause() {
-        try {
-            Thread.sleep(PAUSE_AFTER_NETWORK_MS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    public List<MapDifficultyComplexityEstimate> estimates() {
+        return estimateRepository.findAllWithCategory();
     }
 }

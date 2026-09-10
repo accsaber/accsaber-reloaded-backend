@@ -98,11 +98,6 @@ src/main/resources/
 | `SPRING_PROFILES_ACTIVE`  | No       | `dev` or `prod` (prod compose hardcodes this) |
 | `GRAFANA_ADMIN_PASSWORD`  | No       | Grafana admin password (default: `admin`)  |
 | `COMPOSE_PROFILES`        | No       | Set to `criteria` to include the local criteria checker sidecar |
-| `COMPLEXITY_AP_TARGET`    | No       | AP target for AI complexity estimation     |
-| `COMPLEXITY_ACCURACY_SHIFT` | No    | Accuracy shift for AI complexity estimation |
-| `COMPLEXITY_TRANSFORM_OFFSET` | No  | Curve transform offset parameter           |
-| `COMPLEXITY_TRANSFORM_SCALE` | No   | Curve transform scale parameter            |
-| `COMPLEXITY_TRANSFORM_BASE` | No    | Curve transform base parameter             |
 | `CRITERIA_CHECKER_URL`    | No       | Override for the criteria checker sidecar URL |
 | `MAP_ZIP_CACHE_PATH`      | No       | Folder where downloaded BeatSaver map zips are kept, so the complexity script and the criteria check never fetch the same map twice. Defaults to `./data/map-zips` |
 | `COMPLEXITY_MODEL_URL`    | No       | Override for the complexity model sidecar URL, the service that turns a map file into per-note accuracies for the complexity script |

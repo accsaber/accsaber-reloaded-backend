@@ -15,7 +15,6 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.accsaber.backend.config.PlatformProperties;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
-import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderNoteAccuracyResponse;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 
@@ -139,51 +138,6 @@ public class BeatLeaderClient {
         } catch (Exception e) {
             log.error("Failed to fetch BL recent scores for {}: {}", leaderboardId, e.getMessage());
             return List.of();
-        }
-    }
-
-    public Optional<Double> getAiAccuracy(String songHash, String characteristic, int difficulty) {
-        return getNoteAccuracies(songHash, characteristic, difficulty)
-                .map(BeatLeaderNoteAccuracyResponse::aiAccuracy);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Optional<BeatLeaderNoteAccuracyResponse> getNoteAccuracies(String songHash, String characteristic,
-            int difficulty) {
-        try {
-            String stageBaseUrl = properties.getBeatleaderStageBaseUrl();
-            Map<String, Object> response = webClient.get()
-                    .uri(stageBaseUrl + "/json/{hash}/{characteristic}/{diff}/full/time-scale/1",
-                            songHash, characteristic, difficulty)
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
-                    })
-                    .retryWhen(retrySpec())
-                    .block(timeout());
-
-            if (response == null)
-                return Optional.empty();
-
-            Map<String, Object> notes = (Map<String, Object>) response.get("notes");
-            if (notes == null || notes.get("AIacc") == null)
-                return Optional.empty();
-
-            List<Double> accuracies = new ArrayList<>();
-            Object rows = notes.get("rows");
-            if (rows instanceof List<?> list) {
-                for (Object row : list) {
-                    if (row instanceof List<?> cells && !cells.isEmpty() && cells.get(0) instanceof Number acc) {
-                        accuracies.add(acc.doubleValue());
-                    }
-                }
-            }
-            return Optional.of(new BeatLeaderNoteAccuracyResponse(accuracies,
-                    Double.parseDouble(notes.get("AIacc").toString())));
-        } catch (WebClientResponseException.NotFound e) {
-            return Optional.empty();
-        } catch (Exception e) {
-            log.error("Failed to fetch BL note accuracies for hash={} diff={}: {}", songHash, difficulty, e.getMessage());
-            return Optional.empty();
         }
     }
 

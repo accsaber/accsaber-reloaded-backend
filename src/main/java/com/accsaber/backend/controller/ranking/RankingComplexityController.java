@@ -47,36 +47,38 @@ public class RankingComplexityController {
     private final ComplexityComparisonService comparisonService;
     private final ComplexityDatasetService datasetService;
 
-    @Operation(summary = "Every difficulty under the three stored complexity scenarios", description = "One row per difficulty with what it carries today, what the old BeatLeader accuracy script says, and what the current note accuracy script says, side by side. Each scenario also brings the top AP, the average AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The estimates block holds the inputs each script used. That is where you look when a number surprises you. Filter by category, pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet, and pass a search to match on song name, subtitle, artist or mapper, accents and case ignored. Run the refresh complexity estimates job first if the estimate columns are empty.")
+    @Operation(summary = "Every difficulty under the stored scenarios", description = "One row per difficulty with what it carries today and what the complexity script says, side by side. Each scenario also brings the top AP, the average AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The estimates block holds the inputs each script used. That is where you look when a number surprises you. Filter by category or by batch, which is how a monthly round looks at the maps ranked the month before, pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet, and pass a search to match on song name, subtitle, artist or mapper, accents and case ignored. Run the refresh complexity estimates job first if the estimate columns are empty.")
     @GetMapping("/difficulties")
     public ResponseEntity<List<DifficultyRow>> difficulties(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(defaultValue = "RANKED") MapDifficultyStatus status,
+            @RequestParam(required = false) UUID batchId,
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(comparisonService.difficulties(
-                new ComplexityComparisonService.MapFilter(categoryId, status, search)));
+                new ComplexityComparisonService.MapFilter(categoryId, status, batchId, search)));
     }
 
-    @Operation(summary = "One map's leaderboard under the three scenarios", description = "Every active score on the difficulty with the player attached, ordered by today's rank. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. The header is the same row the difficulties list gives you.")
+    @Operation(summary = "One map's leaderboard under the stored scenarios", description = "Every active score on the difficulty with the player attached, ordered by today's rank. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. The header is the same row the difficulties list gives you.")
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard")
     public ResponseEntity<MapLeaderboard> leaderboard(@PathVariable UUID mapDifficultyId) {
         return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId));
     }
 
-    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with all three scenarios on each, sorted by the chosen one. A search narrows the rows after ranking, so the positions still count the whole board. Each scenario block also carries the map's position on that scenario's board, ranked across every map that clears the score minimum and the category filter rather than the returned slice alone, with the position change against today in the deltas. A map with no complexity under a scenario, or under the score minimum, has no position there.")
+    @Operation(summary = "Maps with the highest average weighted AP under a scenario", description = "The same board the public statistics page has, priced under the scenario you pick. It shows which maps would be the most worth farming if that script went live. Rows come back in the same shape as the difficulties list, with both stored scenarios on each, sorted by the chosen one. A search narrows the rows after ranking, so the positions still count the whole board. Each scenario block also carries the map's position on that scenario's board, ranked across every map that clears the score minimum and the category filter rather than the returned slice alone, with the position change against today in the deltas. A map with no complexity under a scenario, or under the score minimum, has no position there.")
     @GetMapping("/leaderboards/highest-avg-ap")
     public ResponseEntity<List<DifficultyRow>> highestAverageAp(
             @RequestParam(defaultValue = "CURRENT") ComplexityScenario scenario,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(defaultValue = "10") int minScores,
             @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) UUID batchId,
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(comparisonService.highestAverageAp(scenario,
-                new ComplexityComparisonService.MapFilter(categoryId, MapDifficultyStatus.RANKED, search), minScores,
-                limit));
+                new ComplexityComparisonService.MapFilter(categoryId, MapDifficultyStatus.RANKED, batchId, search),
+                minScores, limit));
     }
 
-    @Operation(summary = "The player leaderboard under the three scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")
+    @Operation(summary = "The player leaderboard under the stored scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")
     @GetMapping("/players")
     public ResponseEntity<PlayerBoard> players(
             @RequestParam(required = false) UUID categoryId,
@@ -86,7 +88,7 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.PlayerQuery(categoryId, limit, search)));
     }
 
-    @Operation(summary = "One player's best plays per category under the three scenarios", description = "For every active category the player has ranked plays in: their total AP and rank under each scenario with deltas, and the union of their best plays under each scenario, ordered by today's AP. Each play carries the map row the difficulties list uses, the accuracy, and per scenario the AP, the weighted AP, the play's position in the player's list, which is what sets its weight, and its rank on the map, with deltas against today. Pass a limit for how many plays per category and scenario feed the union.")
+    @Operation(summary = "One player's best plays per category under the stored scenarios", description = "For every active category the player has ranked plays in: their total AP and rank under each scenario with deltas, and the union of their best plays under each scenario, ordered by today's AP. Each play carries the map row the difficulties list uses, the accuracy, and per scenario the AP, the weighted AP, the play's position in the player's list, which is what sets its weight, and its rank on the map, with deltas against today. Pass a limit for how many plays per category and scenario feed the union.")
     @GetMapping("/players/{userId}/plays")
     public ResponseEntity<PlayerPlays> playerPlays(
             @PathVariable Long userId,
@@ -117,18 +119,18 @@ public class RankingComplexityController {
             @RequestParam(defaultValue = "RANKED") MapDifficultyStatus status,
             @RequestParam(defaultValue = "100") int playerLimit) {
         return ResponseEntity.ok(comparisonService.preview(rater,
-                new ComplexityComparisonService.MapFilter(categoryId, status, null), playerLimit));
+                new ComplexityComparisonService.MapFilter(categoryId, status, null, null), playerLimit));
     }
 
-    @Operation(summary = "Apply a scenario as a bulk reweight", description = "Turns the chosen estimate scenario into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then reprices scores, boards, statistics, rankings and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")
+    @Operation(summary = "Apply the script as a bulk reweight", description = "Turns the stored script estimates into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then reprices scores, boards, statistics, rankings, milestones and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Pass a batch to reweight only the maps in it, which is the monthly round: the batch ranked last month gets its first script pass while this month's batch is released. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")
     @PostMapping("/apply")
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public ResponseEntity<Void> apply(
-            @RequestParam ComplexityScenario scenario,
             @RequestParam String reason,
             @RequestParam(required = false) Double maxStep,
+            @RequestParam(required = false) UUID batchId,
             Authentication authentication) {
-        comparisonService.apply(scenario, new ComplexityComparisonService.ApplyOptions(reason, maxStep),
+        comparisonService.apply(new ComplexityComparisonService.ApplyOptions(reason, maxStep, batchId),
                 StaffPrincipals.linkedUserIdOf(authentication), StaffPrincipals.staffIdOf(authentication));
         return ResponseEntity.accepted().build();
     }

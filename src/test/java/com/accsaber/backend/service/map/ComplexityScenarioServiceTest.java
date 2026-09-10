@@ -21,7 +21,6 @@ import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
 import com.accsaber.backend.model.dto.projection.SimulationScoreRow;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
@@ -96,7 +95,7 @@ class ComplexityScenarioServiceTest {
     void scenarioOverridesOnlyTheMapsThatHaveAnEstimate() {
         when(complexityRepository.findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED))
                 .thenReturn(List.of(new ActiveComplexityRow(easyMap, 8.0), new ActiveComplexityRow(hardMap, 10.0)));
-        when(estimateRepository.findRowsBySource(ComplexityEstimateSource.NEW_SCRIPT))
+        when(estimateRepository.findRows())
                 .thenReturn(List.of(new ActiveComplexityRow(easyMap, 5.0), new ActiveComplexityRow(UUID.randomUUID(), 3.0)));
 
         Map<UUID, Double> complexities = service.complexitiesFor(ComplexityScenario.NEW_SCRIPT);

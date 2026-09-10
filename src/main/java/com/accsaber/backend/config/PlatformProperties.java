@@ -20,7 +20,6 @@ public class PlatformProperties {
     private int wsMaxReconnectIntervalMs = 60000;
     private int ssStaleTimeoutMs = 120000;
 
-    private String beatleaderStageBaseUrl = "https://stage.api.beatleader.net";
 
     @Data
     public static class PlatformConfig {

@@ -147,12 +147,6 @@ accsaber:
     gap-fill-days: 2
     gap-fill-page-delay-ms: 125
     scoresaber-enabled: true
-  complexity-estimate:
-    ap-target: ${COMPLEXITY_AP_TARGET}
-    accuracy-shift: ${COMPLEXITY_ACCURACY_SHIFT}
-    transform-offset: ${COMPLEXITY_TRANSFORM_OFFSET}
-    transform-scale: ${COMPLEXITY_TRANSFORM_SCALE}
-    transform-base: ${COMPLEXITY_TRANSFORM_BASE}
   complexity:
     model-check-interval-ms: 300000
     rater:

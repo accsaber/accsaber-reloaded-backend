@@ -195,7 +195,7 @@ public class ComplexityScenarioService {
     }
 
     public ScenarioState state(ComplexityScenario scenario) {
-        if (scenario.source() == null && scenario != ComplexityScenario.CURRENT) {
+        if (!scenario.stored()) {
             throw new IllegalArgumentException(scenario + " has no stored complexities");
         }
         Cached<ScenarioState> cached = states.get(scenario);
@@ -213,11 +213,11 @@ public class ComplexityScenarioService {
                 .findActiveRowsByDifficultyStatus(MapDifficultyStatus.RANKED).stream()
                 .collect(Collectors.toMap(ActiveComplexityRow::mapDifficultyId, ActiveComplexityRow::complexity,
                         (first, second) -> first));
-        if (scenario.source() == null) {
+        if (scenario == ComplexityScenario.CURRENT) {
             return current;
         }
         Map<UUID, Double> merged = new HashMap<>(current);
-        for (ActiveComplexityRow row : estimateRepository.findRowsBySource(scenario.source())) {
+        for (ActiveComplexityRow row : estimateRepository.findRows()) {
             if (merged.containsKey(row.mapDifficultyId())) {
                 merged.put(row.mapDifficultyId(), row.complexity());
             }

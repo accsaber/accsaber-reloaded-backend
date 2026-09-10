@@ -25,7 +25,7 @@ import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.ImportCampaignMapRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
 import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
-import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
+import com.accsaber.backend.model.dto.response.map.ComplexityEstimateResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMetadata;
@@ -133,9 +133,9 @@ public class MapImportService {
         if (complexity == null) {
             complexity = estimateComplexity(response.getId());
             if (complexity != null) {
-                log.info("AI complexity estimate for {} ({}): {}", songName, importRequest.getDifficulty(), complexity);
+                log.info("Complexity script priced {} ({}) at {}", songName, importRequest.getDifficulty(), complexity);
             } else {
-                log.warn("AI complexity unavailable for {} ({})", songName, importRequest.getDifficulty());
+                log.warn("Complexity script could not price {} ({})", songName, importRequest.getDifficulty());
             }
         }
 
@@ -453,7 +453,7 @@ public class MapImportService {
         }
     }
 
-    public AiComplexityResponse estimateForRankedDifficulty(String songHash, Difficulty difficulty,
+    public ComplexityEstimateResponse estimateForDifficulty(String songHash, Difficulty difficulty,
             String characteristic) {
         var map = mapRepository.findBySongHashAndActiveTrue(songHash.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("Map", songHash));
@@ -461,18 +461,16 @@ public class MapImportService {
                 .findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(map.getId(), difficulty, characteristic)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MapDifficulty", songHash + "/" + difficulty + "/" + characteristic));
-        if (entity.getStatus() != MapDifficultyStatus.RANKED) {
-            throw new ValidationException("AI complexity is only available for RANKED difficulties");
-        }
-        return AiComplexityResponse.builder()
+        return ComplexityEstimateResponse.builder()
                 .complexity(estimateComplexity(entity.getId()))
+                .version(complexityRater.version())
                 .build();
     }
 
     public Double estimateComplexity(UUID mapDifficultyId) {
         return mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
                 .flatMap(complexityRater::rate)
-                .map(ComplexityRater.Rating::complexity)
+                .map(NoteAccuracyComplexityRater.Rating::complexity)
                 .orElse(null);
     }
 

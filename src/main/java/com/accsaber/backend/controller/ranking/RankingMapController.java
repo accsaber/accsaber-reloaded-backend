@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.model.dto.response.map.AiComplexityResponse;
+import com.accsaber.backend.model.dto.response.map.ComplexityEstimateResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -47,13 +47,13 @@ public class RankingMapController {
         return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
     }
 
-    @Operation(summary = "Estimate AI complexity", description = "Returns the AI-suggested complexity for an active RANKED difficulty identified by songHash + difficulty + characteristic. Returns a null complexity if BeatLeader has no AI accuracy for this map.")
+    @Operation(summary = "Run the complexity script on one difficulty", description = "The complexity the script gives an active difficulty identified by song hash, difficulty and characteristic, priced the way import prices it: the chart line from the map's notes, plus the leaderboard term once the map is ranked and has a board. Any status works, so the queue and the qualified maps get the same number they would get on import. Null when the model could not read the map. The version says which build of the script priced it.")
     @GetMapping("/difficulties/ai-complexity")
-    public ResponseEntity<AiComplexityResponse> getAiComplexity(
+    public ResponseEntity<ComplexityEstimateResponse> complexityEstimate(
             @RequestParam String songHash,
             @RequestParam Difficulty difficulty,
             @RequestParam String characteristic) {
-        return ResponseEntity.ok(mapImportService.estimateForRankedDifficulty(songHash, difficulty, characteristic));
+        return ResponseEntity.ok(mapImportService.estimateForDifficulty(songHash, difficulty, characteristic));
     }
 
     @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and "

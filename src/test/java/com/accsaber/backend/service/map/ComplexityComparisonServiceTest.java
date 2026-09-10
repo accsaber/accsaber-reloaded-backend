@@ -62,7 +62,6 @@ class ComplexityComparisonServiceTest {
                 second.getId(), aggregate(9.0, 40, 100.0),
                 other.getId(), aggregate(7.0, 40, 130.0),
                 thin.getId(), aggregate(8.0, 3, 500.0))));
-        states.put(ComplexityScenario.OLD_SCRIPT, state(Map.of()));
         states.put(ComplexityScenario.NEW_SCRIPT, state(Map.of(
                 first.getId(), aggregate(9.5, 40, 90.0),
                 second.getId(), aggregate(11.0, 40, 140.0),
@@ -74,16 +73,14 @@ class ComplexityComparisonServiceTest {
         when(estimateService.estimatesFor(any())).thenReturn(Map.of());
 
         List<DifficultyRow> rows = service.highestAverageAp(ComplexityScenario.NEW_SCRIPT,
-                new ComplexityComparisonService.MapFilter(tech.getId(), MapDifficultyStatus.RANKED, null), 10, 1);
+                new ComplexityComparisonService.MapFilter(tech.getId(), MapDifficultyStatus.RANKED, null, null), 10, 1);
 
         assertThat(rows).hasSize(1);
         DifficultyRow row = rows.get(0);
         assertThat(row.getMapDifficultyId()).isEqualTo(second.getId());
         assertThat(row.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getBoardRank()).isEqualTo(1);
         assertThat(row.getScenarios().get(ComplexityScenario.CURRENT).getBoardRank()).isEqualTo(2);
-        assertThat(row.getScenarios().get(ComplexityScenario.OLD_SCRIPT).getBoardRank()).isNull();
         assertThat(row.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getBoardRank()).isEqualTo(-1);
-        assertThat(row.getDeltas().get(ComplexityScenario.OLD_SCRIPT).getBoardRank()).isNull();
     }
 
     @Test
@@ -98,7 +95,7 @@ class ComplexityComparisonServiceTest {
         when(estimateService.estimatesFor(any())).thenReturn(Map.of());
 
         List<DifficultyRow> rows = service.highestAverageAp(ComplexityScenario.CURRENT,
-                new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, null), 10, 50);
+                new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, null, null), 10, 50);
 
         assertThat(rows).extracting(DifficultyRow::getMapDifficultyId).containsExactly(first.getId());
         assertThat(rows.get(0).getScenarios().get(ComplexityScenario.CURRENT).getBoardRank()).isEqualTo(1);
@@ -116,7 +113,7 @@ class ComplexityComparisonServiceTest {
         when(estimateService.estimatesFor(any())).thenReturn(Map.of());
 
         List<DifficultyRow> rows = service.highestAverageAp(ComplexityScenario.CURRENT,
-                new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, "SECOND"), 10, 50);
+                new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, null, "SECOND"), 10, 50);
 
         assertThat(rows).extracting(DifficultyRow::getMapDifficultyId).containsExactly(second.getId());
         assertThat(rows.get(0).getScenarios().get(ComplexityScenario.CURRENT).getBoardRank()).isEqualTo(2);
@@ -130,8 +127,7 @@ class ComplexityComparisonServiceTest {
         when(scenarioService.complexitiesFor(ComplexityScenario.CURRENT)).thenReturn(Map.of(a, 5.0, b, 8.0, c, 6.0));
         when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(a, 7.0, b, 8.0, c, 4.2));
 
-        service.apply(ComplexityScenario.NEW_SCRIPT, new ComplexityComparisonService.ApplyOptions("round 1", 0.5), 1L,
-                UUID.randomUUID());
+        service.apply(new ComplexityComparisonService.ApplyOptions("round 1", 0.5, null), 1L, UUID.randomUUID());
 
         org.mockito.ArgumentCaptor<List<com.accsaber.backend.model.dto.request.map.BulkReweightRequest.Item>> items = org.mockito.ArgumentCaptor
                 .captor();
@@ -175,6 +171,25 @@ class ComplexityComparisonServiceTest {
         assertThat(secondRow.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getPosition()).isEqualTo(1);
         assertThat(secondRow.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getPosition()).isEqualTo(-1);
         assertThat(secondRow.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getAp()).isEqualTo(150.0);
+    }
+
+    @Test
+    void applyScopedToABatchLeavesTheRestOfThePoolAlone() {
+        UUID inBatch = UUID.randomUUID();
+        UUID outside = UUID.randomUUID();
+        UUID batchId = UUID.randomUUID();
+        when(scenarioService.complexitiesFor(ComplexityScenario.CURRENT)).thenReturn(Map.of(inBatch, 5.0, outside, 6.0));
+        when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(inBatch, 7.0, outside, 4.0));
+        when(mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(batchId))
+                .thenReturn(List.of(MapDifficulty.builder().id(inBatch).build()));
+
+        service.apply(new ComplexityComparisonService.ApplyOptions("july round", null, batchId), 1L, UUID.randomUUID());
+
+        org.mockito.ArgumentCaptor<List<com.accsaber.backend.model.dto.request.map.BulkReweightRequest.Item>> items = org.mockito.ArgumentCaptor
+                .captor();
+        org.mockito.Mockito.verify(reweightService).bulkReweight(items.capture(), org.mockito.ArgumentMatchers.eq("july round"), any(), any());
+        assertThat(items.getValue()).extracting(i -> i.getMapDifficultyId() + "=" + i.getComplexity())
+                .containsExactly(inBatch + "=7.0");
     }
 
     private static ScenarioState state(Map<UUID, MapAggregate> aggregates) {

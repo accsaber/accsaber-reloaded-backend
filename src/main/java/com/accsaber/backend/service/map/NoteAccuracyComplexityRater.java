@@ -15,7 +15,6 @@ import com.accsaber.backend.client.ComplexityModelClient.NoteAccuracies;
 import com.accsaber.backend.config.ComplexityRaterProperties;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec.Coefficients;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.service.map.ComplexityScenarioService.BoardEase;
 import com.accsaber.backend.util.Rounding;
@@ -27,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class NoteAccuracyComplexityRater implements ComplexityRater {
+public class NoteAccuracyComplexityRater {
 
     static final double[] WORST_BANDS = { 0.01, 0.02, 0.05, 0.10, 0.25 };
     static final BoardEase NO_BOARD = new BoardEase(0.0, 0, 0);
@@ -38,6 +37,9 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
 
+    public record Rating(double complexity, Map<String, Object> inputs) {
+    }
+
     private record Terms(double mean, double worst, double reset, double dot, int notes, double njs, BoardEase board) {
     }
 
@@ -46,17 +48,10 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
     private final ComplexityRaterProperties properties;
     private final ComplexityScenarioService scenarioService;
 
-    @Override
-    public ComplexityEstimateSource source() {
-        return ComplexityEstimateSource.NEW_SCRIPT;
-    }
-
-    @Override
     public String version() {
         return properties.getVersion();
     }
 
-    @Override
     public Optional<Rating> rate(MapDifficulty difficulty) {
         if (difficulty.getCategory() == null || difficulty.getMap() == null || difficulty.getDifficulty() == null) {
             return Optional.empty();
@@ -78,7 +73,6 @@ public class NoteAccuracyComplexityRater implements ComplexityRater {
         return Optional.of(rate(notes.get(), categoryCode, board(difficulty.getId())));
     }
 
-    @Override
     public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
         if (difficulty.getCategory() == null || inputs == null || currentModelHash == null
                 || !currentModelHash.equals(inputs.path("modelHash").asText(null))

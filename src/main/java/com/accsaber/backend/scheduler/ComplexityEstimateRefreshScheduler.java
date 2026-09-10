@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.Health;
 import com.accsaber.backend.model.dto.request.admin.RunJobRequest;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.service.admin.AdminJobService;
@@ -46,7 +45,7 @@ public class ComplexityEstimateRefreshScheduler {
             return;
         }
         String current = health.get().getModelHash();
-        String stored = estimateRepository.findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource.NEW_SCRIPT)
+        String stored = estimateRepository.findFirstByOrderByUpdatedAtDesc()
                 .map(ComplexityEstimateRefreshScheduler::modelHashOf)
                 .orElse(null);
         if (current.equals(stored)) {

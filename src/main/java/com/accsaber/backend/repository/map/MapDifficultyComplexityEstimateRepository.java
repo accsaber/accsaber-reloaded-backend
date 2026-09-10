@@ -9,30 +9,27 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 
 public interface MapDifficultyComplexityEstimateRepository extends JpaRepository<MapDifficultyComplexityEstimate, UUID> {
 
-    Optional<MapDifficultyComplexityEstimate> findByMapDifficultyIdAndSource(UUID mapDifficultyId,
-            ComplexityEstimateSource source);
+    Optional<MapDifficultyComplexityEstimate> findByMapDifficultyId(UUID mapDifficultyId);
 
-    Optional<MapDifficultyComplexityEstimate> findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource source);
+    Optional<MapDifficultyComplexityEstimate> findFirstByOrderByUpdatedAtDesc();
 
     @Query("""
             SELECT e FROM MapDifficultyComplexityEstimate e
             JOIN FETCH e.mapDifficulty d
             JOIN FETCH d.category
-            WHERE e.source = :source AND d.active = true
+            WHERE d.active = true
             """)
-    List<MapDifficultyComplexityEstimate> findAllBySourceWithCategory(@Param("source") ComplexityEstimateSource source);
+    List<MapDifficultyComplexityEstimate> findAllWithCategory();
 
     @Query("""
             SELECT new com.accsaber.backend.model.dto.projection.ActiveComplexityRow(e.mapDifficulty.id, e.complexity)
             FROM MapDifficultyComplexityEstimate e
-            WHERE e.source = :source
             """)
-    List<ActiveComplexityRow> findRowsBySource(@Param("source") ComplexityEstimateSource source);
+    List<ActiveComplexityRow> findRows();
 
     @Query("""
             SELECT e FROM MapDifficultyComplexityEstimate e

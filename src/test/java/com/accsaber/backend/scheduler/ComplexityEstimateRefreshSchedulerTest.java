@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.Health;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.service.admin.AdminJobService;
@@ -50,7 +49,6 @@ class ComplexityEstimateRefreshSchedulerTest {
 
     private static MapDifficultyComplexityEstimate estimateMadeWith(String hash) {
         return MapDifficultyComplexityEstimate.builder()
-                .source(ComplexityEstimateSource.NEW_SCRIPT)
                 .inputs(new ObjectMapper().valueToTree(Map.of("modelHash", hash)))
                 .build();
     }
@@ -59,7 +57,7 @@ class ComplexityEstimateRefreshSchedulerTest {
     void refreshesWhenNoEstimateExistsYet() {
         when(jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)).thenReturn(false);
         when(modelClient.health()).thenReturn(Optional.of(health("abc")));
-        when(estimateRepository.findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource.NEW_SCRIPT))
+        when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.empty());
 
         scheduler.check();
@@ -71,7 +69,7 @@ class ComplexityEstimateRefreshSchedulerTest {
     void refreshesWhenTheSidecarRunsADifferentModel() {
         when(jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)).thenReturn(false);
         when(modelClient.health()).thenReturn(Optional.of(health("new")));
-        when(estimateRepository.findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource.NEW_SCRIPT))
+        when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.of(estimateMadeWith("old")));
 
         scheduler.check();
@@ -83,7 +81,7 @@ class ComplexityEstimateRefreshSchedulerTest {
     void staysQuietWhenEstimatesAlreadyMatchTheModel() {
         when(jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)).thenReturn(false);
         when(modelClient.health()).thenReturn(Optional.of(health("same")));
-        when(estimateRepository.findFirstBySourceOrderByUpdatedAtDesc(ComplexityEstimateSource.NEW_SCRIPT))
+        when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.of(estimateMadeWith("same")));
 
         scheduler.check();

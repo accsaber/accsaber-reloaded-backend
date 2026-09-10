@@ -43,9 +43,6 @@ public class MapDifficultyComplexityEstimate {
     private MapDifficulty mapDifficulty;
 
     @Column(nullable = false)
-    private ComplexityEstimateSource source;
-
-    @Column(nullable = false)
     private double complexity;
 
     @Column(nullable = false)

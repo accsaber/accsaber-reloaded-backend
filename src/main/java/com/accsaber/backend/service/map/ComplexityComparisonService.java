@@ -39,7 +39,6 @@ import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonRespons
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.ScoreRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.TotalValues;
 import com.accsaber.backend.model.entity.Category;
-import com.accsaber.backend.model.entity.map.ComplexityEstimateSource;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -74,7 +73,7 @@ public class ComplexityComparisonService {
     private final ReweightService reweightService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public record MapFilter(UUID categoryId, MapDifficultyStatus status, String search) {
+    public record MapFilter(UUID categoryId, MapDifficultyStatus status, UUID batchId, String search) {
     }
 
     public record PlayerQuery(UUID categoryId, int limit, String search) {
@@ -100,7 +99,7 @@ public class ComplexityComparisonService {
         states.forEach((key, state) -> ranks.put(key, boardRanks(state, byId, categoryId, minScores)));
         List<MapDifficulty> ordered = ranks.get(scenario).keySet().stream()
                 .map(byId::get)
-                .filter(d -> matches(d, filter.search()))
+                .filter(d -> inBatch(d, filter.batchId()) && matches(d, filter.search()))
                 .limit(limit)
                 .toList();
         return rows(ordered, states, ranks);
@@ -191,7 +190,7 @@ public class ComplexityComparisonService {
 
     private Map<UUID, Double> previewComplexities(ComplexityRaterSpec spec) {
         Map<UUID, Double> complexities = new HashMap<>(scenarioService.complexitiesFor(ComplexityScenario.CURRENT));
-        for (MapDifficultyComplexityEstimate estimate : estimateService.estimates(ComplexityEstimateSource.NEW_SCRIPT)) {
+        for (MapDifficultyComplexityEstimate estimate : estimateService.estimates()) {
             MapDifficulty difficulty = estimate.getMapDifficulty();
             if (difficulty.getCategory() == null) {
                 continue;
@@ -309,22 +308,22 @@ public class ComplexityComparisonService {
                 .build();
     }
 
-    public record ApplyOptions(String reason, Double maxStep) {
+    public record ApplyOptions(String reason, Double maxStep, UUID batchId) {
     }
 
-    public void apply(ComplexityScenario scenario, ApplyOptions options, Long staffUserId, UUID staffId) {
-        if (scenario.source() == null) {
-            throw new ValidationException("Only an estimated scenario can be applied");
-        }
+    public void apply(ApplyOptions options, Long staffUserId, UUID staffId) {
         if (options.maxStep() != null && options.maxStep() <= 0) {
             throw new ValidationException("The step limit must be above zero");
         }
         Map<UUID, Double> current = scenarioService.complexitiesFor(ComplexityScenario.CURRENT);
-        Map<UUID, Double> proposed = scenarioService.complexitiesFor(scenario);
+        Map<UUID, Double> proposed = scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT);
+        Set<UUID> scope = options.batchId() == null ? null
+                : mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(options.batchId()).stream()
+                        .map(MapDifficulty::getId).collect(Collectors.toSet());
         List<BulkReweightRequest.Item> items = new ArrayList<>();
         proposed.forEach((id, complexity) -> {
             Double now = current.get(id);
-            if (now == null) {
+            if (now == null || (scope != null && !scope.contains(id))) {
                 return;
             }
             double target = step(now, complexity, options.maxStep());
@@ -336,7 +335,7 @@ public class ComplexityComparisonService {
             }
         });
         if (items.isEmpty()) {
-            throw new ValidationException("The " + scenario + " scenario matches the current complexities");
+            throw new ValidationException("The script matches the current complexities on every map in scope");
         }
         reweightService.bulkReweight(items, options.reason(), staffUserId, staffId);
     }
@@ -351,7 +350,7 @@ public class ComplexityComparisonService {
 
     private List<MapDifficulty> difficultiesOf(MapFilter filter) {
         return mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(filter.status()).stream()
-                .filter(d -> inCategory(d, filter.categoryId()) && matches(d, filter.search()))
+                .filter(d -> inCategory(d, filter.categoryId()) && inBatch(d, filter.batchId()) && matches(d, filter.search()))
                 .sorted(Comparator.comparing(d -> d.getMap().getSongName(), String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
@@ -359,6 +358,10 @@ public class ComplexityComparisonService {
     private static boolean matches(MapDifficulty difficulty, String search) {
         return SearchText.matches(search, difficulty.getMap().getSongName(), difficulty.getMap().getSongSubName(),
                 difficulty.getMap().getSongAuthor(), difficulty.getMap().getMapAuthor());
+    }
+
+    private static boolean inBatch(MapDifficulty difficulty, UUID batchId) {
+        return batchId == null || (difficulty.getBatch() != null && batchId.equals(difficulty.getBatch().getId()));
     }
 
     private static boolean inCategory(MapDifficulty difficulty, UUID categoryId) {
@@ -403,16 +406,14 @@ public class ComplexityComparisonService {
     private List<DifficultyRow> rows(List<MapDifficulty> difficulties, Map<ComplexityScenario, ScenarioState> states,
             Map<ComplexityScenario, Map<UUID, Integer>> ranks) {
         List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
-        Map<UUID, Map<ComplexityEstimateSource, MapDifficultyComplexityEstimate>> estimates = estimateService
-                .estimatesFor(ids);
+        Map<UUID, MapDifficultyComplexityEstimate> estimates = estimateService.estimatesFor(ids);
         return difficulties.stream()
-                .map(d -> difficultyRow(d, states, estimates.getOrDefault(d.getId(), Map.of()), ranks))
+                .map(d -> difficultyRow(d, states, estimates.get(d.getId()), ranks))
                 .toList();
     }
 
     private DifficultyRow difficultyRow(MapDifficulty d, Map<ComplexityScenario, ScenarioState> states,
-            Map<ComplexityEstimateSource, MapDifficultyComplexityEstimate> estimates,
-            Map<ComplexityScenario, Map<UUID, Integer>> ranks) {
+            MapDifficultyComplexityEstimate estimate, Map<ComplexityScenario, Map<UUID, Integer>> ranks) {
         Map<ComplexityScenario, MapValues> scenarios = new EnumMap<>(ComplexityScenario.class);
         Map<ComplexityScenario, EstimateInfo> info = new EnumMap<>(ComplexityScenario.class);
         int scores = 0;
@@ -421,10 +422,9 @@ public class ComplexityComparisonService {
             ScenarioState state = entry.getValue();
             MapAggregate aggregate = state.aggregates().get(d.getId());
             Double complexity = state.complexities().get(d.getId());
-            MapDifficultyComplexityEstimate estimate = scenario.source() == null ? null
-                    : estimates.get(scenario.source());
-            if (complexity == null && estimate != null) {
-                complexity = estimate.getComplexity();
+            MapDifficultyComplexityEstimate stored = scenario == ComplexityScenario.NEW_SCRIPT ? estimate : null;
+            if (complexity == null && stored != null) {
+                complexity = stored.getComplexity();
             }
             scenarios.put(scenario, MapValues.builder()
                     .complexity(complexity)
@@ -436,11 +436,11 @@ public class ComplexityComparisonService {
             if (aggregate != null) {
                 scores = aggregate.scores();
             }
-            if (estimate != null) {
+            if (stored != null) {
                 info.put(scenario, EstimateInfo.builder()
-                        .version(estimate.getVersion())
-                        .updatedAt(estimate.getUpdatedAt())
-                        .inputs(objectMapper.convertValue(estimate.getInputs(), new TypeReference<Map<String, Object>>() {
+                        .version(stored.getVersion())
+                        .updatedAt(stored.getUpdatedAt())
+                        .inputs(objectMapper.convertValue(stored.getInputs(), new TypeReference<Map<String, Object>>() {
                         }))
                         .build());
             }
