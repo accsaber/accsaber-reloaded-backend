@@ -119,11 +119,16 @@ public class NoteAccuracyComplexityRater {
         return price(inputs, properties.toSpec(), categoryCode).orElseThrow();
     }
 
-    public static Optional<Rating> price(JsonNode inputs, ComplexityRaterSpec spec, String categoryCode) {
+    public static Optional<Rating> price(JsonNode inputs, ComplexityRaterSpec spec, String categoryCode,
+            BoardEase board) {
         if (inputs == null || !inputs.isObject()) {
             return Optional.empty();
         }
-        return price(JSON.convertValue(inputs, MAP), spec, categoryCode);
+        Map<String, Object> values = JSON.convertValue(inputs, MAP);
+        if (board != null) {
+            putBoard(values, board);
+        }
+        return price(values, spec, categoryCode);
     }
 
     private static Optional<Rating> price(Map<String, Object> inputs, ComplexityRaterSpec spec, String categoryCode) {

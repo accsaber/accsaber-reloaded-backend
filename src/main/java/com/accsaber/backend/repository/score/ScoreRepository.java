@@ -307,6 +307,18 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("categoryId") UUID categoryId);
 
         @Query("""
+                        SELECT s.ap FROM Score s
+                        JOIN s.mapDifficulty d
+                        WHERE s.user.id = :userId
+                        AND d.category.id = :categoryId
+                        AND s.active = true
+                        ORDER BY s.ap DESC
+                        """)
+        List<Double> findActiveApsByUserAndCategoryOrderByApDesc(
+                        @Param("userId") Long userId,
+                        @Param("categoryId") UUID categoryId);
+
+        @Query("""
                         SELECT MAX(s.ap) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId

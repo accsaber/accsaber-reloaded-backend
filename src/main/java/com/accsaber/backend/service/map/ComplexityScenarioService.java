@@ -51,7 +51,7 @@ public class ComplexityScenarioService {
     private final Map<ComplexityScenario, Cached<ScenarioState>> states = new ConcurrentHashMap<>();
     private final Map<String, Cached<ScenarioState>> previews = new ConcurrentHashMap<>();
     private volatile Cached<Pool> pool;
-    private volatile Cached<EaseFit> boardEase;
+    private final Map<String, Cached<Map<UUID, BoardEase>>> boardEase = new ConcurrentHashMap<>();
 
     public record Play(Long userId, UUID difficultyId, UUID categoryId, double accuracy, double ap,
             double weightedAp, int position, int rank) {
@@ -60,8 +60,7 @@ public class ComplexityScenarioService {
     public record PlayerTotal(double ap, int rank) {
     }
 
-    public record MapAggregate(Double complexity, int scores, double topAp, double averageAp,
-            double averageWeightedAp) {
+    public record MapAggregate(Double complexity, int scores, double topAp, double averageWeightedAp) {
     }
 
     public record Ladder(int players, double totalAp, int playersWith900, int playersWith1000,
@@ -74,8 +73,6 @@ public class ComplexityScenarioService {
     private record Observation(Long userId, UUID mapDifficultyId, double linearised) {
     }
 
-    private record EaseFit(int minPlayerPlays, int topPlays, Map<UUID, BoardEase> ease) {
-    }
 
     public record ScenarioState(Map<UUID, Double> complexities, Map<UUID, List<Play>> playsByDifficulty,
             Map<Long, List<Play>> playsByUser, Map<UUID, Map<Long, PlayerTotal>> totalsByCategory,
@@ -96,7 +93,7 @@ public class ComplexityScenarioService {
         states.clear();
         previews.clear();
         pool = null;
-        boardEase = null;
+        boardEase.clear();
     }
 
     public ScenarioState preview(String key, Supplier<Map<UUID, Double>> complexities) {
@@ -113,13 +110,13 @@ public class ComplexityScenarioService {
     }
 
     public Map<UUID, BoardEase> boardEase(int minPlayerPlays, int topPlays) {
-        Cached<EaseFit> cached = boardEase;
-        if (cached != null && cached.fresh() && cached.value().minPlayerPlays() == minPlayerPlays
-                && cached.value().topPlays() == topPlays) {
-            return cached.value().ease();
+        String window = minPlayerPlays + ":" + topPlays;
+        Cached<Map<UUID, BoardEase>> cached = boardEase.get(window);
+        if (cached != null && cached.fresh()) {
+            return cached.value();
         }
         Map<UUID, BoardEase> computed = computeBoardEase(loadPool(), minPlayerPlays, topPlays);
-        boardEase = new Cached<>(new EaseFit(minPlayerPlays, topPlays, computed), Instant.now());
+        boardEase.put(window, new Cached<>(computed, Instant.now()));
         return computed;
     }
 
@@ -213,7 +210,7 @@ public class ComplexityScenarioService {
 
     public void rebuild() {
         pool = null;
-        boardEase = null;
+        boardEase.clear();
         previews.clear();
         for (ComplexityScenario scenario : ComplexityScenario.STORED) {
             build(scenario);
@@ -306,7 +303,6 @@ public class ComplexityScenarioService {
             entry.setValue(rankedPlays);
             aggregates.put(entry.getKey(), new MapAggregate(complexities.get(entry.getKey()), rankedPlays.size(),
                     Rounding.round(rankedPlays.get(0).ap(), AP_SCALE),
-                    Rounding.round(rankedPlays.stream().mapToDouble(Play::ap).average().orElse(0.0), AP_SCALE),
                     Rounding.round(rankedPlays.stream().mapToDouble(Play::weightedAp).average().orElse(0.0),
                             AP_SCALE)));
         }

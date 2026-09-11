@@ -50,6 +50,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
 
 @ExtendWith(MockitoExtension.class)
 class MilestoneEvaluationServiceTest {
@@ -401,8 +402,8 @@ class MilestoneEvaluationServiceTest {
                         Milestone milestone = buildMilestone((double) (100), "GTE");
                         User user = User.builder().id(USER_ID).totalXp(0.0).build();
 
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (120));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (120), null));
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
@@ -416,7 +417,7 @@ class MilestoneEvaluationServiceTest {
 
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
-                        verify(queryBuilderService).evaluate(querySpec, USER_ID, null);
+                        verify(queryBuilderService).evaluateProgress(querySpec, USER_ID, null);
                         verify(milestoneRepository, never()).findActiveUncompletedForUser(any());
                 }
 
@@ -425,8 +426,8 @@ class MilestoneEvaluationServiceTest {
                         Milestone milestone = buildMilestone((double) (5), "GTE");
                         User user = User.builder().id(USER_ID).totalXp(0.0).build();
 
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (10));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (10), null));
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
@@ -450,8 +451,8 @@ class MilestoneEvaluationServiceTest {
                         Milestone milestone = buildMilestone((double) (500), "GTE");
                         User user = User.builder().id(USER_ID).build();
 
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (200));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (200), null));
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
@@ -471,8 +472,8 @@ class MilestoneEvaluationServiceTest {
                         Milestone milestone = buildMilestone((double) (100), "GTE", category);
                         User user = User.builder().id(USER_ID).build();
 
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, catId))
-                                        .thenReturn((double) (50));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, catId))
+                                        .thenReturn(new Progress((double) (50), null));
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
@@ -480,7 +481,7 @@ class MilestoneEvaluationServiceTest {
 
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
-                        verify(queryBuilderService).evaluate(querySpec, USER_ID, catId);
+                        verify(queryBuilderService).evaluateProgress(querySpec, USER_ID, catId);
                 }
 
                 @Test
@@ -496,7 +497,7 @@ class MilestoneEvaluationServiceTest {
 
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
-                        verify(queryBuilderService, never()).evaluate(any(), any(), any());
+                        verify(queryBuilderService, never()).evaluateProgress(any(), any(), any());
                         verify(userMilestoneLinkRepository, never()).save(any());
                         verify(userRepository, never()).findById(any());
                 }
@@ -508,8 +509,8 @@ class MilestoneEvaluationServiceTest {
 
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (150));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (150), null));
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
                         when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
                         when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
@@ -532,8 +533,8 @@ class MilestoneEvaluationServiceTest {
 
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (100));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (100), null));
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
                         when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -562,8 +563,8 @@ class MilestoneEvaluationServiceTest {
 
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
                                         .thenReturn(Optional.empty());
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (100));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (100), null));
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
                         when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
                         when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
@@ -589,8 +590,8 @@ class MilestoneEvaluationServiceTest {
                                         .build();
                         User user = User.builder().id(USER_ID).totalXp(0.0).build();
 
-                        when(queryBuilderService.evaluate(querySpec, USER_ID, null))
-                                        .thenReturn((double) (200));
+                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
+                                        .thenReturn(new Progress((double) (200), null));
                         when(queryBuilderService.findQualifyingScore(querySpec, USER_ID, null,
                                         (double) (100), "GTE")).thenReturn(qualifying);
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
@@ -621,8 +622,8 @@ class MilestoneEvaluationServiceTest {
                         milestone.setQuerySpec(statsSpec);
                         User user = User.builder().id(USER_ID).totalXp(0.0).build();
 
-                        when(queryBuilderService.evaluate(statsSpec, USER_ID, null))
-                                        .thenReturn(1.0);
+                        when(queryBuilderService.evaluateProgress(statsSpec, USER_ID, null))
+                                        .thenReturn(new Progress(1.0, null));
                         when(queryBuilderService.findQualifyingScore(statsSpec, USER_ID, null,
                                         (double) (10), "LTE")).thenReturn(null);
                         when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))

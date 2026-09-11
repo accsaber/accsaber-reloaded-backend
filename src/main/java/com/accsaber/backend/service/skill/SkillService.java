@@ -7,12 +7,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -62,6 +65,10 @@ public class SkillService {
     @Autowired
     @Lazy
     private SkillService self;
+
+    @Autowired
+    @Qualifier("backfillExecutor")
+    private Executor backfillExecutor;
 
     @Transactional
     public SkillResponse computeSkillForUser(Long userId, String categoryCode) {
@@ -154,14 +161,17 @@ public class SkillService {
         SkillBatchContext context = new SkillBatchContext(
                 overall, categoryMax, activePlayers, overallId, overallActivePlayers);
 
-        for (Long userId : userIds) {
-            try {
-                self.recomputeUserSkill(userId, categoryId, context);
-            } catch (Exception e) {
-                log.error("Skill recompute failed for user {} in category {}: {}",
-                        userId, categoryId, e.getMessage());
-            }
-        }
+        List<CompletableFuture<Void>> futures = userIds.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        self.recomputeUserSkill(userId, categoryId, context);
+                    } catch (Exception e) {
+                        log.error("Skill recompute failed for user {} in category {}: {}",
+                                userId, categoryId, e.getMessage());
+                    }
+                }, backfillExecutor))
+                .toList();
+        futures.forEach(CompletableFuture::join);
     }
 
     @Transactional
@@ -356,10 +366,7 @@ public class SkillService {
             return null;
         }
         List<Double> rawAps = scoreRepository
-                .findActiveByUserAndCategoryOrderByApDesc(userId, category.getId())
-                .stream()
-                .map(Score::getAp)
-                .toList();
+                .findActiveApsByUserAndCategoryOrderByApDesc(userId, category.getId());
         return apCalculationService.calculateRawApForOneWeightedGain(rawAps, category.getWeightCurve());
     }
 

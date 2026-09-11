@@ -382,7 +382,7 @@ class SkillServiceTest {
                 .ranking(rank).topPlay(topPlay).build();
         when(statsRepository.findByUser_IdAndCategory_IdAndActiveTrue(USER_ID, CATEGORY_ID))
                 .thenReturn(Optional.of(stats));
-        lenient().when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(USER_ID, CATEGORY_ID))
+        lenient().when(scoreRepository.findActiveApsByUserAndCategoryOrderByApDesc(USER_ID, CATEGORY_ID))
                 .thenReturn(List.of());
     }
 

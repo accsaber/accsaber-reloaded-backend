@@ -95,7 +95,7 @@ class ComplexityComparisonServiceTest {
         when(userRepository.findById(7L)).thenReturn(java.util.Optional.of(
                 com.accsaber.backend.model.entity.user.User.builder().id(7L).name("Seven").build()));
         when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithMapAndCategory(anyList())).thenReturn(List.of(first, second));
-        when(estimateService.estimatesFor(any())).thenReturn(Map.of());
+        when(estimateService.summaryRowsFor(any())).thenReturn(List.of());
         when(categoryRepository.findByActiveTrue()).thenReturn(List.of(tech, standard));
 
         var plays = service.playerPlays(7L, 1);
@@ -163,6 +163,122 @@ class ComplexityComparisonServiceTest {
         org.mockito.Mockito.verify(mapService, org.mockito.Mockito.never()).updateComplexity(org.mockito.ArgumentMatchers.eq(held.getId()), any(), any(), any());
     }
 
+    @Test
+    void theListPagesTheRowsButCountsTheWholeRound() {
+        thin.setComplexityPinned(true);
+        when(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED))
+                .thenReturn(List.of(first, second, other, thin));
+        when(scenarioService.stored()).thenReturn(states(
+                Map.of(first.getId(), aggregate(5.0, 10, 400.0), second.getId(), aggregate(7.0, 10, 500.0),
+                        other.getId(), aggregate(6.0, 10, 450.0), thin.getId(), aggregate(3.0, 10, 200.0)),
+                Map.of(first.getId(), aggregate(9.0, 10, 700.0), second.getId(), aggregate(7.0, 10, 500.0),
+                        other.getId(), aggregate(6.5, 10, 470.0), thin.getId(), aggregate(8.0, 10, 600.0))));
+        when(estimateService.summaryRowsFor(any())).thenReturn(List.of(
+                summaryRow(first.getId(), 9.0, "b7"),
+                summaryRow(second.getId(), 7.0, "b7"),
+                summaryRow(other.getId(), 6.5, "b6")));
+
+        var page = service.difficulties(filter(null), new ComplexityComparisonService.Paging(0, 2, null, true));
+
+        assertThat(page.getRows()).hasSize(2);
+        assertThat(page.getTotal()).isEqualTo(4);
+        assertThat(page.getTotalPages()).isEqualTo(2);
+        assertThat(page.getRows()).extracting(DifficultyRow::getMapDifficultyId)
+                .containsExactly(thin.getId(), first.getId());
+        var summary = page.getSummary();
+        assertThat(summary.getDifficulties()).isEqualTo(4);
+        assertThat(summary.getPinned()).isEqualTo(1);
+        assertThat(summary.getMissingEstimate()).isEqualTo(1);
+        assertThat(summary.getStaleEstimate()).isEqualTo(1);
+        assertThat(summary.getModelHash()).isEqualTo("b7");
+        assertThat(summary.getMoving().get(ComplexityScenario.NEW_SCRIPT)).isEqualTo(2);
+    }
+
+    @Test
+    void theListLeavesTheEstimateInputsToTheSingleMapView() {
+        when(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED))
+                .thenReturn(List.of(first));
+        when(scenarioService.stored()).thenReturn(states(Map.of(first.getId(), aggregate(5.0, 10, 400.0)),
+                Map.of(first.getId(), aggregate(6.0, 10, 450.0))));
+        when(estimateService.summaryRowsFor(any())).thenReturn(List.of(summaryRow(first.getId(), 6.0, "b7")));
+
+        var page = service.difficulties(filter(null), new ComplexityComparisonService.Paging(0, 50, null, false));
+
+        assertThat(page.getRows().get(0).getEstimates()).isEmpty();
+        org.mockito.Mockito.verify(estimateService, org.mockito.Mockito.never()).estimatesFor(any());
+    }
+
+    @Test
+    void aPinnedFilterNarrowsTheRoundItself() {
+        thin.setComplexityPinned(true);
+        when(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED))
+                .thenReturn(List.of(first, thin));
+        when(scenarioService.stored()).thenReturn(states(
+                Map.of(first.getId(), aggregate(5.0, 10, 400.0), thin.getId(), aggregate(3.0, 10, 200.0)),
+                Map.of(first.getId(), aggregate(9.0, 10, 700.0), thin.getId(), aggregate(8.0, 10, 600.0))));
+        when(estimateService.summaryRowsFor(any())).thenReturn(List.of());
+
+        var page = service.difficulties(filter(true), new ComplexityComparisonService.Paging(0, 50, null, false));
+
+        assertThat(page.getRows()).extracting(DifficultyRow::getMapDifficultyId).containsExactly(thin.getId());
+        assertThat(page.getSummary().getDifficulties()).isEqualTo(1);
+        assertThat(page.getSummary().getMoving().get(ComplexityScenario.NEW_SCRIPT)).isZero();
+    }
+
+    @Test
+    void theLeaderboardOnlyLooksUpThePlayersOnThePage() {
+        List<ComplexityScenarioService.Play> now = new java.util.ArrayList<>();
+        List<ComplexityScenarioService.Play> next = new java.util.ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            now.add(new ComplexityScenarioService.Play((long) i, first.getId(), tech.getId(), 0.99, 1000.0 - i,
+                    1000.0 - i, 1, i));
+            next.add(new ComplexityScenarioService.Play((long) i, first.getId(), tech.getId(), 0.99, 1100.0 - i,
+                    1100.0 - i, 1, i));
+        }
+        Map<ComplexityScenario, ScenarioState> states = new EnumMap<>(ComplexityScenario.class);
+        states.put(ComplexityScenario.CURRENT, board(now));
+        states.put(ComplexityScenario.NEW_SCRIPT, board(next));
+        when(mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(first.getId()))
+                .thenReturn(java.util.Optional.of(first));
+        when(scenarioService.stored()).thenReturn(states);
+        when(estimateService.estimatesFor(List.of(first.getId()))).thenReturn(Map.of());
+        when(userRepository.findAllById(any())).thenReturn(List.of());
+
+        var leaderboard = service.leaderboard(first.getId(),
+                new ComplexityComparisonService.Paging(1, 2, null, false));
+
+        assertThat(leaderboard.getTotal()).isEqualTo(5);
+        assertThat(leaderboard.getTotalPages()).isEqualTo(3);
+        assertThat(leaderboard.getRows()).extracting(r -> r.getScenarios().get(ComplexityScenario.CURRENT).getRank())
+                .containsExactly(3, 4);
+        org.mockito.ArgumentCaptor<Iterable<Long>> ids = org.mockito.ArgumentCaptor.captor();
+        org.mockito.Mockito.verify(userRepository).findAllById(ids.capture());
+        assertThat(ids.getValue()).containsExactlyInAnyOrder(3L, 4L);
+    }
+
+    private static ComplexityComparisonService.MapFilter filter(Boolean pinned) {
+        return new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, null, null, pinned);
+    }
+
+    private static com.accsaber.backend.model.dto.projection.EstimateSummaryRow summaryRow(UUID difficultyId,
+            double complexity, String modelHash) {
+        return new com.accsaber.backend.model.dto.projection.EstimateSummaryRow(difficultyId, complexity, "v9",
+                java.time.Instant.parse("2026-09-0" + (modelHash.equals("b7") ? "9" : "1") + "T00:00:00Z"), modelHash);
+    }
+
+    private static Map<ComplexityScenario, ScenarioState> states(Map<UUID, MapAggregate> now,
+            Map<UUID, MapAggregate> next) {
+        Map<ComplexityScenario, ScenarioState> states = new EnumMap<>(ComplexityScenario.class);
+        states.put(ComplexityScenario.CURRENT, state(now));
+        states.put(ComplexityScenario.NEW_SCRIPT, state(next));
+        return states;
+    }
+
+    private static ScenarioState board(List<ComplexityScenarioService.Play> plays) {
+        return new ScenarioState(Map.of(), Map.of(plays.get(0).difficultyId(), plays), Map.of(), Map.of(), Map.of(),
+                Map.of(), Map.of(), new ComplexityScenarioService.Ladder(0, 0, 0, 0, 0, 0, 0, 0));
+    }
+
     private static ScenarioState state(Map<UUID, MapAggregate> aggregates) {
         Map<UUID, Double> complexities = new java.util.HashMap<>();
         aggregates.forEach((id, a) -> complexities.put(id, a.complexity()));
@@ -171,7 +287,7 @@ class ComplexityComparisonServiceTest {
     }
 
     private static MapAggregate aggregate(double complexity, int scores, double averageWeightedAp) {
-        return new MapAggregate(complexity, scores, 1000.0, 700.0, averageWeightedAp);
+        return new MapAggregate(complexity, scores, 1000.0, averageWeightedAp);
     }
 
     private static MapDifficulty difficulty(String name, Category category) {

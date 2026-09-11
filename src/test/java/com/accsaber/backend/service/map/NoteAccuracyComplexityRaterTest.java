@@ -113,9 +113,9 @@ class NoteAccuracyComplexityRaterTest {
         ComplexityRaterSpec spec = properties.toSpec();
         spec.setWorstShare(0.03);
 
-        NoteAccuracyComplexityRater.Rating priced = NoteAccuracyComplexityRater.price(inputs, spec, "tech_acc").orElseThrow();
+        NoteAccuracyComplexityRater.Rating priced = NoteAccuracyComplexityRater.price(inputs, spec, "tech_acc", null).orElseThrow();
         assertThat((Double) priced.inputs().get("worstNoteAccuracy")).isCloseTo(0.99, within(1e-6));
-        assertThat(NoteAccuracyComplexityRater.price(inputs, spec, "true_acc")).isEmpty();
+        assertThat(NoteAccuracyComplexityRater.price(inputs, spec, "true_acc", null)).isEmpty();
     }
 
     @Test

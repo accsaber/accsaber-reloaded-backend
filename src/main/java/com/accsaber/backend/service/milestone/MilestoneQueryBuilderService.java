@@ -58,26 +58,27 @@ public class MilestoneQueryBuilderService {
     private final MilestoneSourceRegistry registry;
     private final MilestoneSqlCompiler compiler;
 
+    public record Progress(Double value, Double gateFraction) {
+    }
+
     public void validate(MilestoneQuerySpec spec) {
         validateSpec(spec, null);
     }
 
     public Double evaluate(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
-        Double result = evaluateSingle(spec, userId, categoryId);
-        if (spec.divisor() == null) {
-            return result;
-        }
-        Double divisor = evaluateSingle(spec.divisor(), userId, categoryId);
-        if (result == null || divisor == null || divisor == 0.0) {
-            return null;
-        }
-        return Rounding.round(result / divisor, 6);
+        return value(spec, userId, categoryId, havingValue(spec, userId, categoryId));
     }
 
-    public Double evaluateGate(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
-        if (spec == null || spec.having() == null) {
-            return null;
+    public Progress evaluateProgress(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
+        if (spec == null) {
+            return new Progress(null, null);
         }
+        Double havingValue = havingValue(spec, userId, categoryId);
+        return new Progress(value(spec, userId, categoryId, havingValue),
+                gateFraction(spec, userId, categoryId, havingValue));
+    }
+
+    private Double evaluateGate(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
         HavingSpec having = spec.having();
         MilestoneQuerySpec gateSpec = new MilestoneQuerySpec(
                 new SelectSpec(having.function(), having.column()),
@@ -86,19 +87,31 @@ public class MilestoneQueryBuilderService {
         return evaluateSingle(gateSpec, userId, categoryId);
     }
 
-    public Double evaluateGateFraction(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
-        if (spec == null || spec.having() == null) {
+    private Double gateFraction(MilestoneQuerySpec spec, Long userId, UUID categoryId, Double havingValue) {
+        if (spec.having() == null) {
             return null;
         }
         HavingSpec having = spec.having();
         Double target = having.valueQuery() != null
-                ? evaluateSingle(having.valueQuery(), userId, categoryId)
+                ? havingValue
                 : (having.value() instanceof Number number ? number.doubleValue() : null);
         if (target == null || target <= 0) {
             return null;
         }
-        Double value = evaluateGate(spec, userId, categoryId);
-        return value == null ? 0.0 : Rounding.round(value / target, 6);
+        Double gate = evaluateGate(spec, userId, categoryId);
+        return gate == null ? 0.0 : Rounding.round(gate / target, 6);
+    }
+
+    private Double value(MilestoneQuerySpec spec, Long userId, UUID categoryId, Double havingValue) {
+        Double result = evaluateSingle(spec, userId, categoryId, havingValue);
+        if (spec.divisor() == null) {
+            return result;
+        }
+        Double divisor = evaluateSingle(spec.divisor(), userId, categoryId);
+        if (result == null || divisor == null || divisor == 0.0) {
+            return null;
+        }
+        return Rounding.round(result / divisor, 6);
     }
 
     public boolean requiresIndividualEvaluation(MilestoneQuerySpec spec) {
@@ -169,11 +182,22 @@ public class MilestoneQueryBuilderService {
     }
 
     private Double evaluateSingle(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
+        return evaluateSingle(spec, userId, categoryId, havingValue(spec, userId, categoryId));
+    }
+
+    private Double evaluateSingle(MilestoneQuerySpec spec, Long userId, UUID categoryId, Double havingValue) {
         Context context = Context.of(userId, categoryId);
         if (spec.having() != null && spec.having().valueQuery() != null) {
-            context = context.withHavingValue(evaluateSingle(spec.having().valueQuery(), userId, categoryId));
+            context = context.withHavingValue(havingValue);
         }
         return toDouble(bind(compiler.scalar(spec, context)).getSingleResult());
+    }
+
+    private Double havingValue(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
+        if (spec.having() == null || spec.having().valueQuery() == null) {
+            return null;
+        }
+        return evaluateSingle(spec.having().valueQuery(), userId, categoryId);
     }
 
     private Map<UUID, Double> evaluateGroup(List<Milestone> group, Long userId) {

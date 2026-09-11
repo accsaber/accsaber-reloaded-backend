@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.map;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.Health;
+import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -94,6 +96,17 @@ public class ComplexityEstimateService {
             result.put(estimate.getMapDifficulty().getId(), estimate);
         }
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<EstimateSummaryRow> summaryRowsFor(Collection<UUID> difficultyIds) {
+        if (difficultyIds.isEmpty()) {
+            return List.of();
+        }
+        return estimateRepository.findSummaryRows(difficultyIds).stream()
+                .map(row -> new EstimateSummaryRow((UUID) row[0], ((Number) row[1]).doubleValue(), (String) row[2],
+                        ((java.sql.Timestamp) row[3]).toInstant(), (String) row[4]))
+                .toList();
     }
 
     @Transactional(readOnly = true)

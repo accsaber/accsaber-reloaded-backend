@@ -1,7 +1,6 @@
 package com.accsaber.backend.controller.ranking;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpHeaders;
@@ -17,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
-import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyPage;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.MapLeaderboard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerBoard;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.PlayerPlays;
@@ -46,21 +45,33 @@ public class RankingComplexityController {
     private final ComplexityComparisonService comparisonService;
     private final ComplexityDatasetService datasetService;
 
-    @Operation(summary = "Every difficulty under the stored scenarios", description = "One row per difficulty with what it carries today and what the complexity script says, side by side. Each scenario also brings the top AP, the average AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The estimates block holds the inputs each script used. That is where you look when a number surprises you. Filter by category or by batch, which is how a monthly round looks at the maps ranked the month before, pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet, and pass a search to match on song name, subtitle, artist or mapper, accents and case ignored. Run the refresh complexity estimates job first if the estimate columns are empty.")
+    @Operation(summary = "Every difficulty under the stored scenarios", description = "One page of difficulties with what each carries today and what the complexity script says, side by side. Each scenario also brings the top AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The summary block counts the whole filtered round rather than the page: how many difficulties are in it, how many are pinned, how many the script would move, how many have no estimate and how many still carry one from an older model, with the newest estimate's script version, model hash and timestamp. That is what a header reads, so nothing has to pull the whole pool to count. The estimate inputs are not on these rows, they come with a single map's leaderboard. Filter by category or by batch, which is how a monthly round looks at the maps ranked the month before, pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet, pass pinned to see only the maps held by hand or only the rest, and pass a search to match on song name, subtitle, artist or mapper, accents and case ignored. Sort on song, mapper, scores, currentComplexity, scenarioComplexity, complexityDelta, currentTopAp, scenarioTopAp, topApDelta, currentAverageWeightedAp, scenarioAverageWeightedAp or averageWeightedApDelta, and pass absolute to order a delta column by how big the move is rather than which way it goes. Run the refresh complexity estimates job first if the estimate columns are empty.")
     @GetMapping("/difficulties")
-    public ResponseEntity<List<DifficultyRow>> difficulties(
+    public ResponseEntity<DifficultyPage> difficulties(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(defaultValue = "RANKED") MapDifficultyStatus status,
             @RequestParam(required = false) UUID batchId,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean pinned,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "false") boolean absolute) {
         return ResponseEntity.ok(comparisonService.difficulties(
-                new ComplexityComparisonService.MapFilter(categoryId, status, batchId, search)));
+                new ComplexityComparisonService.MapFilter(categoryId, status, batchId, search, pinned),
+                new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
-    @Operation(summary = "One map's leaderboard under the stored scenarios", description = "Every active score on the difficulty with the player attached, ordered by today's rank. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. The header is the same row the difficulties list gives you.")
+    @Operation(summary = "One map's leaderboard under the stored scenarios", description = "One page of the active scores on a difficulty with the player attached, ordered by today's rank unless you say otherwise. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. A busy map has thousands of scores, so this is paged and only the players on the page are looked up. Sort on rank, accuracy, currentAp, scenarioAp, apDelta, currentWeightedAp, scenarioWeightedAp or weightedApDelta, and pass absolute to order a delta column by how big the move is. The header is the difficulties row for this map, and it is the one place that carries the script's estimate inputs, which is where you look when a number surprises you.")
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard")
-    public ResponseEntity<MapLeaderboard> leaderboard(@PathVariable UUID mapDifficultyId) {
-        return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId));
+    public ResponseEntity<MapLeaderboard> leaderboard(
+            @PathVariable UUID mapDifficultyId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "false") boolean absolute) {
+        return ResponseEntity.ok(comparisonService.leaderboard(mapDifficultyId,
+                new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
     @Operation(summary = "The player leaderboard under the stored scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")
@@ -96,15 +107,22 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.rater());
     }
 
-    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and prices every map that has a note accuracy estimate from the inputs that estimate already carries, then works out what every active score would pay under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change. The answer holds the difficulties list with a CURRENT and a PREVIEW scenario per row, and the player board for the chosen category with both ladders. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
+    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and prices every map that has a note accuracy estimate from the inputs that estimate already carries, then works out what every active score would pay under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change, with one exception: the board's player play minimum and top play count change the leaderboard fit itself rather than how a stored input is read, so the first call with a window the backend has not fitted before refits the whole score pool and takes a moment. Send those two on commit rather than on every keystroke. Every window is cached separately afterwards, so going back to one you have already tried is free. The answer holds one page of difficulties with a CURRENT and a PREVIEW scenario per row and the same round summary the difficulties list carries, plus the player board for the chosen category with both ladders. It takes the same filter, paging and sort parameters as the difficulties list. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
     @PostMapping("/preview")
     public ResponseEntity<Preview> preview(
             @Valid @RequestBody ComplexityRaterSpec rater,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(defaultValue = "RANKED") MapDifficultyStatus status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean pinned,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "false") boolean absolute,
             @RequestParam(defaultValue = "100") int playerLimit) {
         return ResponseEntity.ok(comparisonService.preview(rater,
-                new ComplexityComparisonService.MapFilter(categoryId, status, null, null), playerLimit));
+                new ComplexityComparisonService.MapFilter(categoryId, status, null, search, pinned),
+                new ComplexityComparisonService.Paging(page, size, sort, absolute), playerLimit));
     }
 
     @Operation(summary = "Apply the script as a bulk reweight", description = "Turns the stored script estimates into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then adjusts scores, boards, statistics, rankings, milestones and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Maps whose complexity is pinned, because a head set it by hand, are left alone. Pass a batch to reweight only the maps in it, which is the monthly round: the batch ranked last month gets its first script pass while this month's batch is released. Pass a status of QUEUE or QUALIFIED to set those maps to the script's number instead; they have no scores, so that is a plain complexity change with no recalculation behind it. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")

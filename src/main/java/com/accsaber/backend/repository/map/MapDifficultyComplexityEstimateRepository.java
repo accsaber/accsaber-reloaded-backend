@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.map;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,4 +38,11 @@ public interface MapDifficultyComplexityEstimateRepository extends JpaRepository
             WHERE d.id IN :difficultyIds
             """)
     List<MapDifficultyComplexityEstimate> findAllByDifficultyIds(@Param("difficultyIds") List<UUID> difficultyIds);
+
+    @Query(value = """
+            SELECT e.map_difficulty_id, e.complexity, e.version, e.updated_at, e.inputs ->> 'modelHash'
+            FROM map_difficulty_complexity_estimates e
+            WHERE e.map_difficulty_id IN (:difficultyIds)
+            """, nativeQuery = true)
+    List<Object[]> findSummaryRows(@Param("difficultyIds") Collection<UUID> difficultyIds);
 }

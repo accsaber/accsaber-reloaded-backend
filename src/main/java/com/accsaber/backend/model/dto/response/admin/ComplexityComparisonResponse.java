@@ -45,8 +45,31 @@ public final class ComplexityComparisonResponse {
     public static class MapValues {
         Double complexity;
         Double topAp;
-        Double averageAp;
         Double averageWeightedAp;
+    }
+
+    @Value
+    @Builder
+    public static class DifficultyPage {
+        RoundSummary summary;
+        List<DifficultyRow> rows;
+        int page;
+        int size;
+        int total;
+        int totalPages;
+    }
+
+    @Value
+    @Builder
+    public static class RoundSummary {
+        int difficulties;
+        int pinned;
+        int missingEstimate;
+        int staleEstimate;
+        String modelHash;
+        String scriptVersion;
+        Instant estimatedAt;
+        Map<ComplexityScenario, Integer> moving;
     }
 
     @Value
@@ -62,6 +85,10 @@ public final class ComplexityComparisonResponse {
     public static class MapLeaderboard {
         DifficultyRow difficulty;
         List<ScoreRow> rows;
+        int page;
+        int size;
+        int total;
+        int totalPages;
     }
 
     @Value
@@ -128,7 +155,7 @@ public final class ComplexityComparisonResponse {
     @Builder
     public static class Preview {
         ComplexityRaterSpec rater;
-        List<DifficultyRow> difficulties;
+        DifficultyPage difficulties;
         PlayerBoard players;
     }
 

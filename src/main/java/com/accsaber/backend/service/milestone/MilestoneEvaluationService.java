@@ -43,6 +43,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
 import com.accsaber.backend.service.milestone.source.MilestoneSourceRegistry;
 import com.accsaber.backend.service.milestone.source.MilestoneTrigger;
 
@@ -53,6 +54,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class MilestoneEvaluationService {
+
+    private static final Progress EMPTY_PROGRESS = new Progress(null, null);
 
     private final MilestoneRepository milestoneRepository;
     private final MilestoneItemRepository milestoneItemRepository;
@@ -87,11 +90,11 @@ public class MilestoneEvaluationService {
         }
 
         UUID categoryId = milestone.getCategory() != null ? milestone.getCategory().getId() : null;
-        Double currentValue = evaluateMilestone(milestone, userId, categoryId);
-        link.setProgress(currentValue);
-        link.setGateFraction(gateFraction(milestone, userId, categoryId));
+        Progress progress = queryBuilderService.evaluateProgress(milestone.getQuerySpec(), userId, categoryId);
+        link.setProgress(progress.value());
+        link.setGateFraction(progress.gateFraction());
 
-        boolean newlyCompleted = isCompleted(milestone, currentValue);
+        boolean newlyCompleted = isCompleted(milestone, progress.value());
         if (newlyCompleted) {
             markCompleted(link, findQualifying(milestone, userId));
         }
@@ -123,18 +126,18 @@ public class MilestoneEvaluationService {
             return new EvaluationResult(List.of(), List.of());
         }
 
-        Map<UUID, Double> batchResults = evaluateAll(uncompleted, userId);
+        Map<UUID, Progress> batchResults = evaluateAll(uncompleted, userId);
         Map<UUID, UserMilestoneLink> linkMap = loadLinkMap(userId, uncompleted);
 
         List<Milestone> newlyCompleted = new ArrayList<>();
         List<UserMilestoneLink> linksToSave = new ArrayList<>();
 
         for (Milestone milestone : uncompleted) {
-            Double currentValue = batchResults.get(milestone.getId());
+            Progress progress = batchResults.getOrDefault(milestone.getId(), EMPTY_PROGRESS);
+            Double currentValue = progress.value();
             UserMilestoneLink link = getOrCreateFromMap(linkMap, userId, milestone);
             link.setProgress(currentValue);
-            link.setGateFraction(gateFraction(milestone, userId,
-                    milestone.getCategory() != null ? milestone.getCategory().getId() : null));
+            link.setGateFraction(progress.gateFraction());
 
             if (isCompleted(milestone, currentValue) && !link.isCompleted()) {
                 markCompleted(link, newScore != null ? newScore : findQualifying(milestone, userId));
@@ -329,36 +332,24 @@ public class MilestoneEvaluationService {
         return ItemMapper.toRewardResponse(item, quantity);
     }
 
-    private Double gateFraction(Milestone milestone, Long userId, UUID categoryId) {
-        if (milestone.getQuerySpec() == null || milestone.getQuerySpec().having() == null) {
-            return null;
-        }
-        return queryBuilderService.evaluateGateFraction(milestone.getQuerySpec(), userId, categoryId);
-    }
-
-    private Double evaluateMilestone(Milestone milestone, Long userId, UUID categoryId) {
-        if (milestone.getQuerySpec() == null)
-            return null;
-        return queryBuilderService.evaluate(milestone.getQuerySpec(), userId, categoryId);
-    }
-
-    private Map<UUID, Double> evaluateAll(List<Milestone> milestones, Long userId) {
+    private Map<UUID, Progress> evaluateAll(List<Milestone> milestones, Long userId) {
         List<Milestone> batchable = new ArrayList<>();
-        Map<UUID, Double> results = new HashMap<>();
+        Map<UUID, Progress> results = new HashMap<>();
 
         for (Milestone m : milestones) {
             if (m.getQuerySpec() == null) {
                 continue;
             } else if (queryBuilderService.requiresIndividualEvaluation(m.getQuerySpec())) {
                 UUID catId = m.getCategory() != null ? m.getCategory().getId() : null;
-                results.put(m.getId(), queryBuilderService.evaluate(m.getQuerySpec(), userId, catId));
+                results.put(m.getId(), queryBuilderService.evaluateProgress(m.getQuerySpec(), userId, catId));
             } else {
                 batchable.add(m);
             }
         }
 
         if (!batchable.isEmpty()) {
-            results.putAll(queryBuilderService.evaluateBatch(batchable, userId));
+            queryBuilderService.evaluateBatch(batchable, userId)
+                    .forEach((milestoneId, value) -> results.put(milestoneId, new Progress(value, null)));
         }
         return results;
     }
