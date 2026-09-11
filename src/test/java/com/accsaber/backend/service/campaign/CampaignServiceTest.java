@@ -99,6 +99,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
 import com.accsaber.backend.service.playlist.PlaylistService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignServiceTest {
@@ -1500,6 +1501,29 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(node));
                         when(itemRepository.findByIdAndActiveTrue(untradeable.getId()))
                                         .thenReturn(Optional.of(untradeable));
+                        when(campaignDifficultyItemRepository.findById(any())).thenReturn(Optional.empty());
+                        when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
+                                        .thenReturn(List.of());
+
+                        campaignService.setDifficultyItemAsEditor(CampaignEditor.player(creator.getId()), node.getId(),
+                                        request);
+
+                        verify(campaignDifficultyItemRepository).save(any());
+                }
+
+                @Test
+                void allowsRandomActiveCrateOnNonOfficialCampaign() {
+                        CampaignDifficulty node = draftNode();
+                        Item sentinel = Item.builder().id(UUID.randomUUID()).name("Random Active Crate")
+                                        .tradeable(false)
+                                        .value(new ObjectMapper().createObjectNode().put("grant", "active_crate"))
+                                        .build();
+                        SetCampaignItemRequest request = new SetCampaignItemRequest();
+                        request.setItemId(sentinel.getId());
+                        when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
+                                        .thenReturn(Optional.of(node));
+                        when(itemRepository.findByIdAndActiveTrue(sentinel.getId()))
+                                        .thenReturn(Optional.of(sentinel));
                         when(campaignDifficultyItemRepository.findById(any())).thenReturn(Optional.empty());
                         when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
                                         .thenReturn(List.of());

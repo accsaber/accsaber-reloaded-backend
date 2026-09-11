@@ -126,6 +126,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.infra.ModifierService;
+import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
 import com.accsaber.backend.service.playlist.PlaylistService;
@@ -1123,7 +1124,7 @@ public class CampaignService {
     }
 
     private void assertRewardItemAllowed(Item item, Campaign campaign) {
-        if (!item.isTradeable() && !campaign.isOfficial()) {
+        if (!item.isTradeable() && !campaign.isOfficial() && !ItemService.isActiveCrateSentinel(item)) {
             throw new ValidationException(
                     "Only official campaigns can reward untradeable items");
         }
