@@ -134,6 +134,22 @@ class NoteAccuracyComplexityRaterTest {
     }
 
     @Test
+    void bottomRowUpSwingsPriceThroughTheirOwnSlopeAndLeaveCleanMapsAlone() {
+        properties.getCategories().get("tech_acc").setBottomUpSlope(-4.0);
+        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
+        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc",
+                NoteAccuracyComplexityRater.NO_BOARD, null);
+        response.setBottomUpShare(0.15);
+        NoteAccuracyComplexityRater.Rating pattern = rater.rate(response, "tech_acc",
+                NoteAccuracyComplexityRater.NO_BOARD, null);
+
+        assertThat(clean.inputs()).containsEntry("bottomUpShare", 0.0);
+        assertThat(pattern.complexity()).isCloseTo(clean.complexity() - 0.6, within(0.051));
+        assertThat(pattern.inputs()).containsEntry("bottomUpShare", 0.15);
+        assertThat(chart(pattern)).containsEntry("bottomUpSlope", -4.0);
+    }
+
+    @Test
     void noteDensityPricesThroughItsOwnSlopeAndIsSkippedWithoutADuration() {
         properties.getCategories().get("tech_acc").setNpsSlope(-2.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));

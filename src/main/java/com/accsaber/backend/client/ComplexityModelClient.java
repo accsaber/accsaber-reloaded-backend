@@ -89,5 +89,6 @@ public class ComplexityModelClient {
         private List<Double> noteAccuracies;
         private double resetShare;
         private double dotShare;
+        private double bottomUpShare;
     }
 }
