@@ -188,7 +188,7 @@ public class ComplexityScenarioService {
                 .average().orElse(0.0);
         Map<UUID, BoardEase> result = new HashMap<>();
         topSums.forEach((map, sum) -> result.put(map,
-                new BoardEase(sum[0] / sum[1] - centre, (int) sum[1], scores.getOrDefault(map, 0))));
+                new BoardEase(sum[0] / sum[1] - centre, count.getOrDefault(map, 0), scores.getOrDefault(map, 0))));
         return result;
     }
 
