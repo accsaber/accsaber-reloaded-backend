@@ -15,12 +15,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
@@ -263,5 +265,60 @@ class ReweightServiceTest {
                 .status(status)
                 .active(true)
                 .build();
+    }
+
+    @Test
+    void reweightABatchValidatesMembershipThenGoesThroughTheOneReweightPath() {
+        UUID batchId = UUID.randomUUID();
+        MapDifficulty inBatch = buildDifficulty(MapDifficultyStatus.RANKED);
+        Batch batch = Batch.builder().id(batchId).status(BatchStatus.RELEASED).build();
+        when(batchRepository.findById(batchId)).thenReturn(Optional.of(batch));
+        when(mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(batchId)).thenReturn(List.of(inBatch));
+
+        ApproveReweightRequest outside = new ApproveReweightRequest();
+        outside.setMapDifficultyId(UUID.randomUUID());
+        outside.setComplexity((double) (8.0));
+        assertThatThrownBy(() -> reweightService.reweightBatch(batchId, List.of(outside), 1L, null))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("not in this batch");
+
+        ApproveReweightRequest item = new ApproveReweightRequest();
+        item.setMapDifficultyId(inBatch.getId());
+        item.setComplexity((double) (9.5));
+        item.setReason("july round");
+        when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of(inBatch));
+
+        reweightService.reweightBatch(batchId, List.of(item), 1L, null);
+
+        ArgumentCaptor<UpdateMapComplexityRequest> request = ArgumentCaptor.captor();
+        verify(mapService).updateComplexity(eq(inBatch.getId()), request.capture(), eq(1L), any());
+        assertThat(request.getValue().getComplexity()).isEqualTo(9.5);
+        assertThat(request.getValue().getReason()).isEqualTo("july round");
+        verify(scoreRecalculationService).recalculateBatchAsync(List.of(inBatch));
+        verify(scenarioService).evict();
+    }
+
+    @Test
+    void aHandSetComplexityReweightsARankedMapAndPinsIt() {
+        MapDifficulty ranked = buildDifficulty(MapDifficultyStatus.RANKED);
+        when(mapDifficultyRepository.findByIdAndActiveTrue(ranked.getId())).thenReturn(Optional.of(ranked));
+
+        reweightService.setComplexityByHand(ranked.getId(), 7.5, "hand override", 1L, null);
+
+        verify(mapService).updateComplexity(eq(ranked.getId()), any(), eq(1L), any());
+        verify(scoreRecalculationService).recalculateDifficultyAsync(ranked.getId());
+        verify(mapService).setComplexityPinned(ranked.getId(), true, null);
+    }
+
+    @Test
+    void aHandSetComplexityOnAQueueMapOnlySetsAndPins() {
+        MapDifficulty queued = buildDifficulty(MapDifficultyStatus.QUEUE);
+        when(mapDifficultyRepository.findByIdAndActiveTrue(queued.getId())).thenReturn(Optional.of(queued));
+
+        reweightService.setComplexityByHand(queued.getId(), 3.0, "queue fix", 1L, null);
+
+        verify(mapService).updateComplexity(eq(queued.getId()), any(), eq(1L), any());
+        verify(scoreRecalculationService, never()).recalculateDifficultyAsync(any());
+        verify(mapService).setComplexityPinned(queued.getId(), true, null);
     }
 }

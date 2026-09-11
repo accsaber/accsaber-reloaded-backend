@@ -535,6 +535,16 @@ public class MapService {
     }
 
     @Transactional
+    public MapDifficultyResponse setComplexityPinned(UUID difficultyId, boolean pinned, UUID staffId) {
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+        difficulty.setComplexityPinned(pinned);
+        difficulty.setLastUpdatedBy(staffId);
+        mapDifficultyRepository.save(difficulty);
+        return getDifficultyResponse(difficultyId);
+    }
+
+    @Transactional
     public MapDifficultyResponse updateCategory(UUID difficultyId, UUID categoryId, UUID staffId) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
@@ -781,6 +791,7 @@ public class MapService {
                 .nps(MapDifficultyMetrics.nps(d.getMetadata()))
                 .maxCombo(MapDifficultyMetrics.maxCombo(d.getMetadata()))
                 .complexity(complexity)
+                .complexityPinned(d.isComplexityPinned())
                 .scriptComplexity(estimate == null ? null : estimate.getComplexity())
                 .scriptVersion(estimate == null ? null : estimate.getVersion())
                 .rankedAt(d.getRankedAt())

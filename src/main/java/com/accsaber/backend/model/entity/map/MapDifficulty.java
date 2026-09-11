@@ -99,6 +99,10 @@ public class MapDifficulty {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "complexity_pinned", nullable = false)
+    @Builder.Default
+    private boolean complexityPinned = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -16,11 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
-import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
@@ -36,7 +34,6 @@ import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
-import com.accsaber.backend.service.score.ScoreRecalculationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -53,7 +50,6 @@ public class BatchService {
     private final ScoreImportService scoreImportService;
     private final ScoreIngestionService scoreIngestionService;
     private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
-    private final ScoreRecalculationService scoreRecalculationService;
     private final MapService mapService;
     private final PlaylistService playlistService;
 
@@ -232,48 +228,6 @@ public class BatchService {
         mapService.evictRankedDifficultiesCache();
 
         return toResponse(batch, enrich(difficulties));
-    }
-
-    @Transactional
-    public List<MapDifficultyResponse> reweightBatch(UUID batchId, List<ApproveReweightRequest> items,
-            Long staffUserId, UUID staffId) {
-        Batch batch = batchRepository.findById(batchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
-
-        if (batch.getStatus() != BatchStatus.RELEASED) {
-            throw new ValidationException("Can only reweight a released batch");
-        }
-
-        List<MapDifficulty> batchDifficulties = mapDifficultyRepository
-                .findByBatchIdAndActiveTrueWithCategory(batchId);
-
-        if (batchDifficulties.isEmpty()) {
-            throw new ValidationException("Batch has no active difficulties to reweight");
-        }
-
-        List<UUID> batchDifficultyIds = batchDifficulties.stream().map(MapDifficulty::getId).toList();
-        List<UUID> requestedIds = items.stream().map(ApproveReweightRequest::getMapDifficultyId).toList();
-        List<UUID> invalid = requestedIds.stream()
-                .filter(id -> !batchDifficultyIds.contains(id))
-                .toList();
-        if (!invalid.isEmpty()) {
-            throw new ValidationException("Difficulties not in this batch: " + invalid);
-        }
-
-        for (ApproveReweightRequest item : items) {
-            UpdateMapComplexityRequest req = new UpdateMapComplexityRequest();
-            req.setComplexity(item.getComplexity());
-            req.setReason(item.getReason());
-            mapService.updateComplexity(item.getMapDifficultyId(), req, staffUserId, staffId);
-        }
-
-        List<MapDifficulty> affectedDifficulties = batchDifficulties.stream()
-                .filter(d -> requestedIds.contains(d.getId()))
-                .toList();
-        scoreRecalculationService.recalculateBatchAsync(affectedDifficulties);
-        mapService.evictRankedDifficultiesCache();
-
-        return enrich(affectedDifficulties);
     }
 
     private static boolean hasDifficultyCountSort(Pageable pageable) {

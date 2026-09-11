@@ -41,6 +41,7 @@ public class MapDifficultyResponse {
     Double nps;
     Integer maxCombo;
     Double complexity;
+    boolean complexityPinned;
     Double scriptComplexity;
     String scriptVersion;
     Instant rankedAt;

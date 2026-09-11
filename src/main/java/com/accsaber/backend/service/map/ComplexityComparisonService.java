@@ -289,10 +289,11 @@ public class ComplexityComparisonService {
         Set<UUID> scope = options.batchId() == null ? null
                 : mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(options.batchId()).stream()
                         .map(MapDifficulty::getId).collect(Collectors.toSet());
+        Set<UUID> pinned = new HashSet<>(mapDifficultyRepository.findPinnedDifficultyIds());
         List<BulkReweightRequest.Item> items = new ArrayList<>();
         proposed.forEach((id, complexity) -> {
             Double now = current.get(id);
-            if (now == null || (scope != null && !scope.contains(id))) {
+            if (now == null || (scope != null && !scope.contains(id)) || pinned.contains(id)) {
                 return;
             }
             double target = step(now, complexity, options.maxStep());
@@ -318,7 +319,7 @@ public class ComplexityComparisonService {
         int changed = 0;
         for (MapDifficulty difficulty : difficulties) {
             MapDifficultyComplexityEstimate estimate = estimates.get(difficulty.getId());
-            if (estimate == null) {
+            if (estimate == null || difficulty.isComplexityPinned()) {
                 continue;
             }
             Double now = current.get(difficulty.getId());
@@ -454,6 +455,7 @@ public class ComplexityComparisonService {
                 .categoryId(d.getCategory() == null ? null : d.getCategory().getId())
                 .categoryCode(d.getCategory() == null ? null : d.getCategory().getCode())
                 .status(d.getStatus())
+                .complexityPinned(d.isComplexityPinned())
                 .scores(scores)
                 .scenarios(scenarios)
                 .deltas(mapDeltas(scenarios))

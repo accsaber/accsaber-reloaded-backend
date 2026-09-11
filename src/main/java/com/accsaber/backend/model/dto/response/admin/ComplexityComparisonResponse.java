@@ -33,6 +33,7 @@ public final class ComplexityComparisonResponse {
         UUID categoryId;
         String categoryCode;
         MapDifficultyStatus status;
+        boolean complexityPinned;
         int scores;
         Map<ComplexityScenario, MapValues> scenarios;
         Map<ComplexityScenario, MapValues> deltas;

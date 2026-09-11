@@ -100,6 +100,9 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
 
         List<MapDifficulty> findByBatch_IdAndActiveTrue(UUID batchId);
 
+        @Query("SELECT d.id FROM MapDifficulty d WHERE d.complexityPinned = true AND d.active = true")
+        List<UUID> findPinnedDifficultyIds();
+
         @Query("""
                         SELECT d FROM MapDifficulty d
                         JOIN FETCH d.category c

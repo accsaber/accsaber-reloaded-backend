@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -75,15 +76,27 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Set difficulty complexity", description = "Versioned complexity update - deactivates current and inserts new version")
+        @Operation(summary = "Set difficulty complexity by hand", description = "Versioned complexity update: the current row is deactivated and a new one inserted with the reason. On a ranked map this is a reweight, so scores, statistics, rankings, milestones, XP and skills are repriced in the background; a queue or qualified map has no scores, so it is a plain complexity change. Either way the map is pinned, and the complexity script's apply skips it until the pin is lifted.")
         @PostMapping("/{difficultyId}/complexity")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> updateComplexity(
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody UpdateMapComplexityRequest request,
                         Authentication authentication) {
-                return ResponseEntity.ok(mapService.updateComplexity(difficultyId, request,
+                return ResponseEntity.ok(reweightService.setComplexityByHand(difficultyId, request.getComplexity(),
+                                request.getReason(),
                                 StaffPrincipals.linkedUserIdOf(authentication),
+                                StaffPrincipals.staffIdOf(authentication)));
+        }
+
+        @Operation(summary = "Pin or unpin a difficulty's complexity", description = "A pinned map keeps the complexity it carries: the complexity script's apply leaves it alone, in every round, until it is unpinned. Setting a complexity by hand pins automatically; this is the switch for the other direction, or to hold a map without changing its number.")
+        @PatchMapping("/{difficultyId}/complexity-pin")
+        @PreAuthorize("hasRole('RANKING_HEAD')")
+        public ResponseEntity<MapDifficultyResponse> pinComplexity(
+                        @PathVariable UUID difficultyId,
+                        @RequestParam boolean pinned,
+                        Authentication authentication) {
+                return ResponseEntity.ok(mapService.setComplexityPinned(difficultyId, pinned,
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 

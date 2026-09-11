@@ -112,13 +112,13 @@ public class RankingBatchController {
         return ResponseEntity.ok(batchService.release(id));
     }
 
-    @Operation(summary = "Reweight a batch", description = "Sets new complexities on RANKED difficulties in a released batch and recalculates scores asynchronously")
+    @Operation(summary = "Reweight a batch", description = "Sets the complexities you name on the RANKED difficulties of a released batch, then reprices scores, statistics, rankings, milestones, XP and skills in the background. Every item has to belong to the batch. These are named maps and named numbers, so a pinned map is still reweighted; the pin only holds the complexity script's apply off.")
     @PostMapping("/{id}/reweight")
     public ResponseEntity<List<MapDifficultyResponse>> reweightBatch(
             @PathVariable UUID id,
             @Valid @RequestBody BatchReweightRequest request,
             Authentication authentication) {
-        return ResponseEntity.ok(batchService.reweightBatch(id, request.getItems(),
+        return ResponseEntity.ok(reweightService.reweightBatch(id, request.getItems(),
                 StaffPrincipals.linkedUserIdOf(authentication),
                 StaffPrincipals.staffIdOf(authentication)));
     }

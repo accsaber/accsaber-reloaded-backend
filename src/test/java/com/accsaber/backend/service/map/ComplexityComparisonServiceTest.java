@@ -64,7 +64,9 @@ class ComplexityComparisonServiceTest {
         UUID b = UUID.randomUUID();
         UUID c = UUID.randomUUID();
         when(scenarioService.complexitiesFor(ComplexityScenario.CURRENT)).thenReturn(Map.of(a, 5.0, b, 8.0, c, 6.0));
-        when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(a, 7.0, b, 8.0, c, 4.2));
+        when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(a, 7.0, b, 9.5, c, 4.2));
+
+        when(mapDifficultyRepository.findPinnedDifficultyIds()).thenReturn(List.of(b));
 
         service.apply(new ComplexityComparisonService.ApplyOptions("round 1", 0.5, null, MapDifficultyStatus.RANKED), 1L, UUID.randomUUID());
 
@@ -121,6 +123,7 @@ class ComplexityComparisonServiceTest {
         when(scenarioService.complexitiesFor(ComplexityScenario.NEW_SCRIPT)).thenReturn(Map.of(inBatch, 7.0, outside, 4.0));
         when(mapDifficultyRepository.findByBatchIdAndActiveTrueWithCategory(batchId))
                 .thenReturn(List.of(MapDifficulty.builder().id(inBatch).build()));
+        when(mapDifficultyRepository.findPinnedDifficultyIds()).thenReturn(List.of());
 
         service.apply(new ComplexityComparisonService.ApplyOptions("july round", null, batchId, null), 1L, UUID.randomUUID());
 
@@ -137,12 +140,16 @@ class ComplexityComparisonServiceTest {
         queued.setStatus(MapDifficultyStatus.QUEUE);
         MapDifficulty priced = difficulty("Priced", tech);
         priced.setStatus(MapDifficultyStatus.QUEUE);
+        MapDifficulty held = difficulty("Held", tech);
+        held.setStatus(MapDifficultyStatus.QUEUE);
+        held.setComplexityPinned(true);
         when(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.QUEUE))
-                .thenReturn(List.of(queued, priced));
+                .thenReturn(List.of(queued, priced, held));
         when(complexityService.findActiveComplexitiesForDifficulties(any())).thenReturn(Map.of(priced.getId(), 9.0));
         when(estimateService.estimatesFor(any())).thenReturn(Map.of(
                 queued.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(8.5).build(),
-                priced.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(9.0).build()));
+                priced.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(9.0).build(),
+                held.getId(), com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate.builder().complexity(4.0).build()));
 
         service.apply(new ComplexityComparisonService.ApplyOptions("queue pass", null, null, MapDifficultyStatus.QUEUE), 1L,
                 UUID.randomUUID());
@@ -153,6 +160,7 @@ class ComplexityComparisonServiceTest {
         assertThat(request.getValue().getComplexity()).isEqualTo(8.5);
         assertThat(request.getValue().getReason()).isEqualTo("queue pass");
         org.mockito.Mockito.verify(reweightService, org.mockito.Mockito.never()).bulkReweight(any(), any(), any(), any());
+        org.mockito.Mockito.verify(mapService, org.mockito.Mockito.never()).updateComplexity(org.mockito.ArgumentMatchers.eq(held.getId()), any(), any(), any());
     }
 
     private static ScenarioState state(Map<UUID, MapAggregate> aggregates) {
