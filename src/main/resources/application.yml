@@ -151,7 +151,7 @@ accsaber:
     model-check-interval-ms: 300000
     scenario-refresh-ms: 600000
     rater:
-      version: note-acc-2026-09-17
+      version: note-acc-2026-09-20
       worst-share: 0.05
       board:
         min-scores: 50
@@ -170,14 +170,14 @@ accsaber:
           notes-slope: 0.823
           njs-slope: 0
         standard_acc:
-          intercept: 34.870
-          mean-slope: -21.638
-          worst-slope: -1.176
+          intercept: 32.945
+          mean-slope: -20.340
+          worst-slope: -1.105
           reset-slope: 0
           dot-slope: 0
           notes-slope: 0
-          nps-slope: -0.35
-          njs-slope: -0.189
+          nps-slope: 0
+          njs-slope: -0.178
         tech_acc:
           intercept: 33.240
           mean-slope: -23.591
@@ -197,15 +197,15 @@ accsaber:
           njs-slope: 0
           board-slope: -6.702
         standard_acc:
-          intercept: 18.527
-          mean-slope: -10.235
-          worst-slope: 1.282
+          intercept: 17.583
+          mean-slope: -9.621
+          worst-slope: 1.205
           reset-slope: 0
           dot-slope: 0
           notes-slope: 0
-          nps-slope: -0.35
-          njs-slope: -0.050
-          board-slope: -9.747
+          nps-slope: 0
+          njs-slope: -0.047
+          board-slope: -9.162
         tech_acc:
           intercept: 23.030
           mean-slope: -12.599
