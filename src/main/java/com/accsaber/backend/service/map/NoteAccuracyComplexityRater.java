@@ -40,7 +40,8 @@ public class NoteAccuracyComplexityRater {
     public record Rating(double complexity, Map<String, Object> inputs) {
     }
 
-    private record Terms(double mean, double worst, double reset, double dot, int notes, double njs, BoardEase board) {
+    private record Terms(double mean, double worst, double reset, double dot, int notes, double nps, double njs,
+            BoardEase board) {
     }
 
     private final MapZipCache zipCache;
@@ -70,7 +71,7 @@ public class NoteAccuracyComplexityRater {
                 || notes.get().getNoteAccuracies().size() < MIN_NOTES) {
             return Optional.empty();
         }
-        return Optional.of(rate(notes.get(), categoryCode, board(difficulty.getId())));
+        return Optional.of(rate(notes.get(), categoryCode, board(difficulty.getId()), duration(difficulty)));
     }
 
     public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
@@ -81,8 +82,13 @@ public class NoteAccuracyComplexityRater {
             return Optional.empty();
         }
         Map<String, Object> refreshed = JSON.convertValue(inputs, MAP);
+        refreshed.put("duration", duration(difficulty));
         putBoard(refreshed, board(difficulty.getId()));
         return price(refreshed, properties.toSpec(), difficulty.getCategory().getCode());
+    }
+
+    private static Integer duration(MapDifficulty difficulty) {
+        return difficulty.getMetadata() == null ? null : difficulty.getMetadata().getDuration();
     }
 
     private BoardEase board(UUID difficultyId) {
@@ -96,7 +102,7 @@ public class NoteAccuracyComplexityRater {
         inputs.put("scores", board.scores());
     }
 
-    Rating rate(NoteAccuracies notes, String categoryCode, BoardEase board) {
+    Rating rate(NoteAccuracies notes, String categoryCode, BoardEase board, Integer duration) {
         List<Double> sorted = new ArrayList<>(notes.getNoteAccuracies());
         sorted.sort(null);
         double mean = sorted.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
@@ -110,6 +116,7 @@ public class NoteAccuracyComplexityRater {
         inputs.put("mapVersion", notes.getMapVersion());
         inputs.put("njs", notes.getNjs());
         inputs.put("notes", notes.getNotes());
+        inputs.put("duration", duration);
         inputs.put("predictedNotes", sorted.size());
         inputs.put("meanNoteAccuracy", Rounding.round(mean, 6));
         inputs.put("worstBands", bands);
@@ -141,8 +148,10 @@ public class NoteAccuracyComplexityRater {
         double worst = number(bands, bandKey(nearestBand(spec.getWorstShare())), number(inputs, "worstNoteAccuracy", mean));
         BoardEase board = new BoardEase(number(inputs, "boardEase", 0.0), (int) number(inputs, "boardPlayers", 0),
                 (int) number(inputs, "scores", 0));
+        int notes = (int) number(inputs, "notes", 0);
+        double duration = number(inputs, "duration", 0.0);
         Terms terms = new Terms(mean, worst, number(inputs, "resetShare", 0.0), number(inputs, "dotShare", 0.0),
-                (int) number(inputs, "notes", 0), number(inputs, "njs", 0.0), board);
+                notes, duration > 0.0 ? notes / duration : 0.0, number(inputs, "njs", 0.0), board);
         Coefficients chart = spec.getCategories().get(categoryCode);
         Coefficients boardLine = spec.getBoardCategories().get(categoryCode);
         double weight = boardLine == null ? 0.0 : boardWeight(board, spec.getBoard());
@@ -154,6 +163,7 @@ public class NoteAccuracyComplexityRater {
         out.put("meanTerm", Rounding.round(linearised(mean), 6));
         out.put("worstTerm", Rounding.round(linearised(worst), 6));
         out.put("notesTerm", Rounding.round(Math.log(Math.max(1, terms.notes())), 6));
+        out.put("npsTerm", terms.nps() <= 0.0 ? null : Rounding.round(Math.log(terms.nps()), 6));
         out.put("chartComplexity", Rounding.round(Math.max(0.0, chartComplexity), COMPLEXITY_SCALE));
         out.put("boardWeight", Rounding.round(weight, 4));
         out.put("boardComplexity", weight == 0.0 ? null : Rounding.round(Math.max(0.0, line(boardLine, terms)), COMPLEXITY_SCALE));
@@ -169,6 +179,7 @@ public class NoteAccuracyComplexityRater {
                 + c.getResetSlope() * terms.reset()
                 + c.getDotSlope() * terms.dot()
                 + c.getNotesSlope() * Math.log(Math.max(1, terms.notes()))
+                + (terms.nps() <= 0.0 ? 0.0 : c.getNpsSlope() * Math.log(terms.nps()))
                 + c.getNjsSlope() * terms.njs()
                 + c.getBoardSlope() * terms.board().ease();
     }
@@ -205,6 +216,7 @@ public class NoteAccuracyComplexityRater {
         out.put("resetSlope", c.getResetSlope());
         out.put("dotSlope", c.getDotSlope());
         out.put("notesSlope", c.getNotesSlope());
+        out.put("npsSlope", c.getNpsSlope());
         out.put("njsSlope", c.getNjsSlope());
         out.put("boardSlope", c.getBoardSlope());
         return out;

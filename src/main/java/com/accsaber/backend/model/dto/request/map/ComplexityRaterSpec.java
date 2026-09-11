@@ -70,6 +70,8 @@ public class ComplexityRaterSpec {
 
         private double notesSlope;
 
+        private double npsSlope;
+
         private double njsSlope;
 
         private double boardSlope;
