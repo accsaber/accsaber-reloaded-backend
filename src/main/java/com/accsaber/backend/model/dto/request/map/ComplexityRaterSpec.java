@@ -34,10 +34,10 @@ public class ComplexityRaterSpec {
     public static class Board {
 
         @Min(0)
-        private int minScores = 100;
+        private int minScores = 50;
 
         @Min(1)
-        private int fullScores = 120;
+        private int fullScores = 70;
 
         @Min(1)
         private int minPlayers = 10;

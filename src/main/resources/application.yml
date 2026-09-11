@@ -151,11 +151,11 @@ accsaber:
     model-check-interval-ms: 300000
     scenario-refresh-ms: 600000
     rater:
-      version: note-acc-2026-09-11
+      version: note-acc-2026-09-15
       worst-share: 0.05
       board:
-        min-scores: 100
-        full-scores: 120
+        min-scores: 50
+        full-scores: 70
         min-players: 10
         min-player-plays: 20
         top-plays: 10

@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executor;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,6 +108,7 @@ public class ScoreRecalculationService {
 
         ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
         ConcurrentHashMap<UUID, Boolean> categoryIsOverall = new ConcurrentHashMap<>();
+        AtomicInteger difficultiesDone = new AtomicInteger();
 
         List<CompletableFuture<Void>> futures = difficulties.stream()
                 .map(difficulty -> CompletableFuture.runAsync(() -> {
@@ -125,6 +127,11 @@ public class ScoreRecalculationService {
                         }
                     } catch (Exception e) {
                         log.error("Batch recalc failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
+                    } finally {
+                        int done = difficultiesDone.incrementAndGet();
+                        if (done % 50 == 0) {
+                            log.info("Batch recalculation: {}/{} difficulties processed", done, difficulties.size());
+                        }
                     }
                 }, backfillExecutor))
                 .toList();
@@ -135,6 +142,7 @@ public class ScoreRecalculationService {
 
         boolean anyChanges = affectedByCategory.values().stream().anyMatch(s -> !s.isEmpty());
         if (anyChanges) {
+            log.info("Batch recalculation: rebuilding XP totals");
             userRepository.recalculateTotalXpForAllActiveUsers();
         }
 
@@ -314,6 +322,9 @@ public class ScoreRecalculationService {
             }
         }
 
+        int statsTotal = affectedByCategory.values().stream().mapToInt(Set::size).sum();
+        log.info("Batch recalculation: category statistics for {} player and category pairs", statsTotal);
+        AtomicInteger statsDone = new AtomicInteger();
         List<CompletableFuture<Void>> statsFutures = new java.util.ArrayList<>();
         for (var e : affectedByCategory.entrySet()) {
             UUID categoryId = e.getKey();
@@ -324,12 +335,19 @@ public class ScoreRecalculationService {
                     } catch (Exception ex) {
                         log.error("Stats recalc failed for user {} category {}: {}",
                                 userId, categoryId, ex.getMessage());
+                    } finally {
+                        int done = statsDone.incrementAndGet();
+                        if (done % 500 == 0) {
+                            log.info("Batch recalculation: {}/{} category statistics processed", done, statsTotal);
+                        }
                     }
                 }, backfillExecutor));
             }
         }
         statsFutures.forEach(CompletableFuture::join);
 
+        log.info("Batch recalculation: overall statistics and milestones for {} players", allUsers.size());
+        AtomicInteger playersDone = new AtomicInteger();
         List<CompletableFuture<Void>> userFutures = allUsers.stream()
                 .map(userId -> CompletableFuture.runAsync(() -> {
                     try {
@@ -340,11 +358,17 @@ public class ScoreRecalculationService {
                     } catch (Exception ex) {
                         log.error("Per-user post-recalc failed for user {}: {}",
                                 userId, ex.getMessage());
+                    } finally {
+                        int done = playersDone.incrementAndGet();
+                        if (done % 500 == 0) {
+                            log.info("Batch recalculation: {}/{} players processed", done, allUsers.size());
+                        }
                     }
                 }, backfillExecutor))
                 .toList();
         userFutures.forEach(CompletableFuture::join);
 
+        log.info("Batch recalculation: category rankings");
         for (UUID categoryId : affectedByCategory.keySet()) {
             try {
                 rankingService.updateRankings(categoryId);
@@ -356,12 +380,14 @@ public class ScoreRecalculationService {
         boolean anyOverall = overallUsers.size() > 0
                 || categoryIsOverall.values().stream().anyMatch(Boolean.TRUE::equals);
         if (anyOverall) {
+            log.info("Batch recalculation: overall rankings");
             try {
                 overallStatisticsService.updateOverallRankings();
             } catch (Exception ex) {
                 log.error("Overall ranking update failed: {}", ex.getMessage());
             }
         }
+        log.info("Batch recalculation: skills");
         resweepSkills(affectedByCategory.keySet());
     }
 
