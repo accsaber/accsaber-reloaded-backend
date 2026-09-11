@@ -441,7 +441,7 @@ public class ComplexityComparisonService {
         List<EstimateSummaryRow> summaries = estimateService
                 .summaryRowsFor(scope.stream().map(MapDifficulty::getId).toList());
         Map<UUID, EstimateSummaryRow> byDifficulty = summaries.stream()
-                .collect(Collectors.toMap(EstimateSummaryRow::mapDifficultyId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(EstimateSummaryRow::getMapDifficultyId, Function.identity(), (a, b) -> a));
         List<DifficultyRow> all = scope.stream()
                 .map(d -> difficultyRow(d, states, estimateComplexity(byDifficulty.get(d.getId())), null))
                 .toList();
@@ -468,7 +468,7 @@ public class ComplexityComparisonService {
             Map<ComplexityScenario, ScenarioState> states) {
         Map<UUID, Double> complexities = estimateService
                 .summaryRowsFor(difficulties.stream().map(MapDifficulty::getId).toList()).stream()
-                .collect(Collectors.toMap(EstimateSummaryRow::mapDifficultyId, EstimateSummaryRow::complexity,
+                .collect(Collectors.toMap(EstimateSummaryRow::getMapDifficultyId, EstimateSummaryRow::getComplexity,
                         (a, b) -> a));
         return difficulties.stream()
                 .map(d -> difficultyRow(d, states, complexities.get(d.getId()), null))
@@ -476,19 +476,19 @@ public class ComplexityComparisonService {
     }
 
     private static Double estimateComplexity(EstimateSummaryRow row) {
-        return row == null ? null : row.complexity();
+        return row == null ? null : row.getComplexity();
     }
 
     private RoundSummary summary(List<DifficultyRow> all, List<EstimateSummaryRow> summaries,
             Map<ComplexityScenario, ScenarioState> states) {
-        EstimateSummaryRow newest = summaries.stream().max(Comparator.comparing(EstimateSummaryRow::updatedAt))
+        EstimateSummaryRow newest = summaries.stream().max(Comparator.comparing(EstimateSummaryRow::getUpdatedAt))
                 .orElse(null);
-        String modelHash = newest == null ? null : newest.modelHash();
+        String modelHash = newest == null ? null : newest.getModelHash();
         Set<UUID> priced = new HashSet<>();
         int stale = 0;
         for (EstimateSummaryRow row : summaries) {
-            priced.add(row.mapDifficultyId());
-            if (modelHash != null && row.modelHash() != null && !modelHash.equals(row.modelHash())) {
+            priced.add(row.getMapDifficultyId());
+            if (modelHash != null && row.getModelHash() != null && !modelHash.equals(row.getModelHash())) {
                 stale++;
             }
         }
@@ -505,8 +505,8 @@ public class ComplexityComparisonService {
                 .missingEstimate((int) all.stream().filter(row -> !priced.contains(row.getMapDifficultyId())).count())
                 .staleEstimate(stale)
                 .modelHash(modelHash)
-                .scriptVersion(newest == null ? null : newest.version())
-                .estimatedAt(newest == null ? null : newest.updatedAt())
+                .scriptVersion(newest == null ? null : newest.getVersion())
+                .estimatedAt(newest == null ? null : newest.getUpdatedAt())
                 .moving(moving)
                 .build();
     }

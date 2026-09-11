@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
+import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 
 public interface MapDifficultyComplexityEstimateRepository extends JpaRepository<MapDifficultyComplexityEstimate, UUID> {
@@ -40,9 +41,13 @@ public interface MapDifficultyComplexityEstimateRepository extends JpaRepository
     List<MapDifficultyComplexityEstimate> findAllByDifficultyIds(@Param("difficultyIds") List<UUID> difficultyIds);
 
     @Query(value = """
-            SELECT e.map_difficulty_id, e.complexity, e.version, e.updated_at, e.inputs ->> 'modelHash'
+            SELECT e.map_difficulty_id AS "mapDifficultyId",
+                   e.complexity AS "complexity",
+                   e.version AS "version",
+                   e.updated_at AS "updatedAt",
+                   e.inputs ->> 'modelHash' AS "modelHash"
             FROM map_difficulty_complexity_estimates e
             WHERE e.map_difficulty_id IN (:difficultyIds)
             """, nativeQuery = true)
-    List<Object[]> findSummaryRows(@Param("difficultyIds") Collection<UUID> difficultyIds);
+    List<EstimateSummaryRow> findSummaryRows(@Param("difficultyIds") Collection<UUID> difficultyIds);
 }

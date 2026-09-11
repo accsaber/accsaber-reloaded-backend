@@ -103,10 +103,7 @@ public class ComplexityEstimateService {
         if (difficultyIds.isEmpty()) {
             return List.of();
         }
-        return estimateRepository.findSummaryRows(difficultyIds).stream()
-                .map(row -> new EstimateSummaryRow((UUID) row[0], ((Number) row[1]).doubleValue(), (String) row[2],
-                        ((java.sql.Timestamp) row[3]).toInstant(), (String) row[4]))
-                .toList();
+        return estimateRepository.findSummaryRows(difficultyIds);
     }
 
     @Transactional(readOnly = true)

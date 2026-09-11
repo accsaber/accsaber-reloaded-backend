@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.config.ComplexityRaterProperties;
+import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -260,10 +261,38 @@ class ComplexityComparisonServiceTest {
         return new ComplexityComparisonService.MapFilter(null, MapDifficultyStatus.RANKED, null, null, pinned);
     }
 
-    private static com.accsaber.backend.model.dto.projection.EstimateSummaryRow summaryRow(UUID difficultyId,
-            double complexity, String modelHash) {
-        return new com.accsaber.backend.model.dto.projection.EstimateSummaryRow(difficultyId, complexity, "v9",
-                java.time.Instant.parse("2026-09-0" + (modelHash.equals("b7") ? "9" : "1") + "T00:00:00Z"), modelHash);
+    private static EstimateSummaryRow summaryRow(UUID difficultyId, double complexity, String modelHash) {
+        return new Summary(difficultyId, complexity, java.time.Instant
+                .parse("2026-09-0" + (modelHash.equals("b7") ? "9" : "1") + "T00:00:00Z"), modelHash);
+    }
+
+    private record Summary(UUID difficultyId, double complexity, java.time.Instant updatedAt, String modelHash)
+            implements EstimateSummaryRow {
+
+        @Override
+        public UUID getMapDifficultyId() {
+            return difficultyId;
+        }
+
+        @Override
+        public double getComplexity() {
+            return complexity;
+        }
+
+        @Override
+        public String getVersion() {
+            return "v9";
+        }
+
+        @Override
+        public java.time.Instant getUpdatedAt() {
+            return updatedAt;
+        }
+
+        @Override
+        public String getModelHash() {
+            return modelHash;
+        }
     }
 
     private static Map<ComplexityScenario, ScenarioState> states(Map<UUID, MapAggregate> now,
