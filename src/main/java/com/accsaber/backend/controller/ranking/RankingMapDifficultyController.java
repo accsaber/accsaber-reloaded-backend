@@ -76,7 +76,7 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Set difficulty complexity by hand", description = "Versioned complexity update: the current row is deactivated and a new one inserted with the reason. On a ranked map this is a reweight, so scores, statistics, rankings, milestones, XP and skills are repriced in the background; a queue or qualified map has no scores, so it is a plain complexity change. Either way the map is pinned, and the complexity script's apply skips it until the pin is lifted.")
+        @Operation(summary = "Set difficulty complexity by hand", description = "Versioned complexity update: the current row is deactivated and a new one inserted with the reason. On a ranked map this is a reweight, so scores, statistics, rankings, milestones, XP and skills are adjusted in the background; a queue or qualified map has no scores, so it is a plain complexity change. Either way the map is pinned, and the complexity script's apply skips it until the pin is lifted.")
         @PostMapping("/{difficultyId}/complexity")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> updateComplexity(

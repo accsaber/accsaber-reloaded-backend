@@ -61,7 +61,7 @@ public class ComplexityEstimateService {
         }
         scenarioService.evict();
         scenarioService.rebuild();
-        log.info("Complexity estimate refresh complete, {} estimates stored, {} of them repriced from stored inputs",
+        log.info("Complexity estimate refresh complete, {} estimates stored, {} of them worked out from stored inputs",
                 stored, repriced);
         return CompletableFuture.completedFuture(null);
     }

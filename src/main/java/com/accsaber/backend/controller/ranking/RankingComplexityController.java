@@ -81,7 +81,7 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.playerPlays(userId, limit));
     }
 
-    @Operation(summary = "One player's best plays per category under a set of constants", description = "The same view as the player plays endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several players after one tuning pass does not reprice the pool each time.")
+    @Operation(summary = "One player's best plays per category under a set of constants", description = "The same view as the player plays endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several players after one tuning pass does not run the whole pool again each time.")
     @PostMapping("/preview/players/{userId}/plays")
     public ResponseEntity<PlayerPlays> previewPlayerPlays(
             @PathVariable Long userId,
@@ -96,7 +96,7 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.rater());
     }
 
-    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and reprices every map that has a note accuracy estimate from the inputs that estimate already carries, then reprices every active score under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change. The answer holds the difficulties list with a CURRENT and a PREVIEW scenario per row, and the player board for the chosen category with both ladders. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
+    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and prices every map that has a note accuracy estimate from the inputs that estimate already carries, then works out what every active score would pay under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change. The answer holds the difficulties list with a CURRENT and a PREVIEW scenario per row, and the player board for the chosen category with both ladders. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
     @PostMapping("/preview")
     public ResponseEntity<Preview> preview(
             @Valid @RequestBody ComplexityRaterSpec rater,
@@ -107,7 +107,7 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.MapFilter(categoryId, status, null, null), playerLimit));
     }
 
-    @Operation(summary = "Apply the script as a bulk reweight", description = "Turns the stored script estimates into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then reprices scores, boards, statistics, rankings, milestones and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Maps whose complexity is pinned, because a head set it by hand, are left alone. Pass a batch to reweight only the maps in it, which is the monthly round: the batch ranked last month gets its first script pass while this month's batch is released. Pass a status of QUEUE or QUALIFIED to set those maps to the script's number instead; they have no scores, so that is a plain complexity change with no recalculation behind it. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")
+    @Operation(summary = "Apply the script as a bulk reweight", description = "Turns the stored script estimates into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then adjusts scores, boards, statistics, rankings, milestones and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Maps whose complexity is pinned, because a head set it by hand, are left alone. Pass a batch to reweight only the maps in it, which is the monthly round: the batch ranked last month gets its first script pass while this month's batch is released. Pass a status of QUEUE or QUALIFIED to set those maps to the script's number instead; they have no scores, so that is a plain complexity change with no recalculation behind it. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")
     @PostMapping("/apply")
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public ResponseEntity<Void> apply(
