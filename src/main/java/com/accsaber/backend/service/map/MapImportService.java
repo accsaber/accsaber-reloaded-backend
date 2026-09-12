@@ -34,6 +34,7 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
+import com.accsaber.backend.service.map.NoteAccuracyComplexityRater.Rating;
 import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.playlist.PlaylistService;
 
@@ -52,6 +53,7 @@ public class MapImportService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapRepository mapRepository;
     private final NoteAccuracyComplexityRater complexityRater;
+    private final ComplexityEstimateService complexityEstimateService;
     private final AutoCriteriaService autoCriteriaService;
     private final PlaylistService playlistService;
     private final CdnSyncService cdnSyncService;
@@ -61,11 +63,8 @@ public class MapImportService {
     public MapDifficultyResponse importByLeaderboardIds(ImportMapFromLeaderboardIdsRequest importRequest,
             UUID staffId, MapDifficultyStatus status) {
         String blId = importRequest.getBlLeaderboardId();
-        String ssId = importRequest.getSsLeaderboardId();
+        String ssId = blankToNull(importRequest.getSsLeaderboardId());
 
-        if (ssId == null || ssId.isBlank()) {
-            throw new ValidationException("ScoreSaber leaderboard ID is required");
-        }
         if (blId == null || blId.isBlank()) {
             throw new ValidationException("BeatLeader leaderboard ID is required");
         }
@@ -130,8 +129,10 @@ public class MapImportService {
         MapDifficultyResponse response = mapService.importMapDifficulty(request, staffId, status);
 
         Double complexity = importRequest.getComplexity();
+        String reason = "Initial import";
         if (complexity == null) {
-            complexity = estimateComplexity(response.getId());
+            complexity = complexityEstimateService.estimateFor(response.getId()).map(Rating::complexity).orElse(null);
+            reason = "Complexity script " + complexityRater.version();
             if (complexity != null) {
                 log.info("Complexity script priced {} ({}) at {}", songName, importRequest.getDifficulty(), complexity);
             } else {
@@ -142,8 +143,6 @@ public class MapImportService {
         if (complexity != null) {
             MapDifficulty entity = mapDifficultyRepository.findById(response.getId())
                     .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
-            String reason = importRequest.getComplexity() != null ? "Initial import"
-                    : "Complexity script " + complexityRater.version();
             complexityService.setComplexity(entity, complexity, reason, null);
         }
 
@@ -319,7 +318,7 @@ public class MapImportService {
         }
 
         String newBlId = request.getBlLeaderboardId();
-        String newSsId = request.getSsLeaderboardId();
+        String newSsId = blankToNull(request.getSsLeaderboardId());
 
         mapDifficultyRepository.findByBlLeaderboardId(newBlId)
                 .filter(existing -> !existing.getId().equals(difficultyId))
@@ -328,13 +327,15 @@ public class MapImportService {
                             "BeatLeader leaderboard ID '%s' is already used by another difficulty (ID: %s)",
                             newBlId, existing.getId()));
                 });
-        mapDifficultyRepository.findBySsLeaderboardId(newSsId)
-                .filter(existing -> !existing.getId().equals(difficultyId))
-                .ifPresent(existing -> {
-                    throw new ConflictException(String.format(
-                            "ScoreSaber leaderboard ID '%s' is already used by another difficulty (ID: %s)",
-                            newSsId, existing.getId()));
-                });
+        if (newSsId != null) {
+            mapDifficultyRepository.findBySsLeaderboardId(newSsId)
+                    .filter(existing -> !existing.getId().equals(difficultyId))
+                    .ifPresent(existing -> {
+                        throw new ConflictException(String.format(
+                                "ScoreSaber leaderboard ID '%s' is already used by another difficulty (ID: %s)",
+                                newSsId, existing.getId()));
+                    });
+        }
 
         BeatLeaderLeaderboardResponse blLeaderboard = beatLeaderClient.getLeaderboard(newBlId)
                 .orElseThrow(() -> new ValidationException(
@@ -402,20 +403,27 @@ public class MapImportService {
         }
 
         difficulty.setBlLeaderboardId(newBlId);
-        difficulty.setSsLeaderboardId(newSsId);
+        if (newSsId != null) {
+            difficulty.setSsLeaderboardId(newSsId);
+        }
         difficulty.setMaxScore(maxScore);
         difficulty.setMetadata(extractMetadata(beatSaverMap, difficulty.getDifficulty(),
                 difficulty.getCharacteristic()));
         difficulty.setLastUpdatedBy(staffId);
         mapDifficultyRepository.save(difficulty);
 
-        log.info("Refreshed map difficulty {}: BL={} SS={} hash={}", difficultyId, newBlId, newSsId, songHash);
+        log.info("Refreshed map difficulty {}: BL={} SS={} hash={}", difficultyId, newBlId,
+                difficulty.getSsLeaderboardId(), songHash);
 
         playlistService.evictAllUnrankedPlaylists();
         scheduleAutoCriteriaCheck(difficultyId);
         scheduleMapCoverMirror(difficulty.getMap().getId());
 
         return mapService.getDifficultyResponse(difficultyId);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private void scheduleMapCoverMirror(UUID mapId) {
@@ -462,16 +470,9 @@ public class MapImportService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MapDifficulty", songHash + "/" + difficulty + "/" + characteristic));
         return ComplexityEstimateResponse.builder()
-                .complexity(estimateComplexity(entity.getId()))
+                .complexity(complexityEstimateService.estimateFor(entity.getId()).map(Rating::complexity).orElse(null))
                 .version(complexityRater.version())
                 .build();
-    }
-
-    public Double estimateComplexity(UUID mapDifficultyId) {
-        return mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
-                .flatMap(complexityRater::rate)
-                .map(NoteAccuracyComplexityRater.Rating::complexity)
-                .orElse(null);
     }
 
     private static MapDifficultyMetadata extractMetadata(BeatSaverMapResponse beatSaverMap, Difficulty difficulty,

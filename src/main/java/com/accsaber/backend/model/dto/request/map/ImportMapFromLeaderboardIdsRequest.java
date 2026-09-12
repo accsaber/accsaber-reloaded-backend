@@ -15,7 +15,6 @@ public class ImportMapFromLeaderboardIdsRequest {
     @NotBlank
     private String blLeaderboardId;
 
-    @NotBlank
     private String ssLeaderboardId;
 
     @NotNull

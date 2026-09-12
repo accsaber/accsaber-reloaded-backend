@@ -69,6 +69,21 @@ class ComplexityEstimateServiceTest {
     }
 
     @Test
+    void estimateForStoresTheEstimateAndReturnsTheRating() {
+        MapDifficulty difficulty = MapDifficulty.builder().id(UUID.randomUUID()).build();
+        when(mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(difficulty.getId()))
+                .thenReturn(Optional.of(difficulty));
+        when(modelClient.health()).thenReturn(Optional.empty());
+        when(estimateRepository.findByMapDifficultyId(difficulty.getId())).thenReturn(Optional.empty());
+        when(rater.version()).thenReturn("note-acc-2026-09-11");
+        when(rater.rate(difficulty)).thenReturn(Optional.of(new Rating(8.4, Map.of("meanNoteAccuracy", 0.9))));
+
+        assertThat(service.estimateFor(difficulty.getId())).hasValueSatisfying(
+                rating -> assertThat(rating.complexity()).isEqualTo(8.4));
+        verify(estimateRepository).save(any());
+    }
+
+    @Test
     void aMapTheScriptCannotPriceStoresNothing() {
         MapDifficulty difficulty = MapDifficulty.builder().id(UUID.randomUUID()).build();
         when(estimateRepository.findByMapDifficultyId(difficulty.getId())).thenReturn(Optional.empty());

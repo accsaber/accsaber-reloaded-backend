@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,6 +48,8 @@ class MapImportServiceTest {
         private MapDifficultyRepository mapDifficultyRepository;
         @Mock
         private NoteAccuracyComplexityRater complexityRater;
+        @Mock
+        private ComplexityEstimateService complexityEstimateService;
 
         @InjectMocks
         private MapImportService mapImportService;
@@ -58,11 +61,28 @@ class MapImportServiceTest {
         class ImportByLeaderboardIds {
 
                 @Test
-                void throwsValidation_whenSsIdMissing() {
-                        assertThatThrownBy(() -> mapImportService.importByLeaderboardIds(
-                                        request("bl_123", null), STAFF_ID, MapDifficultyStatus.QUEUE))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("ScoreSaber");
+                void importsWithoutSsId() {
+                        BeatLeaderLeaderboardResponse blLb = buildBlLeaderboard();
+                        when(beatLeaderClient.getLeaderboard("bl_123")).thenReturn(Optional.of(blLb));
+                        when(beatSaverClient.getMapByHash("abc123hash")).thenReturn(Optional.empty());
+
+                        MapDifficultyResponse expectedResponse = MapDifficultyResponse.builder()
+                                        .id(UUID.randomUUID())
+                                        .status(MapDifficultyStatus.QUEUE)
+                                        .build();
+                        when(mapService.importMapDifficulty(any(CreateMapDifficultyRequest.class), eq(STAFF_ID),
+                                        eq(MapDifficultyStatus.QUEUE)))
+                                        .thenReturn(expectedResponse);
+
+                        mapImportService.importByLeaderboardIds(
+                                        request("bl_123", null), STAFF_ID, MapDifficultyStatus.QUEUE);
+
+                        ArgumentCaptor<CreateMapDifficultyRequest> captor = ArgumentCaptor
+                                        .forClass(CreateMapDifficultyRequest.class);
+                        verify(mapService).importMapDifficulty(captor.capture(), eq(STAFF_ID),
+                                        eq(MapDifficultyStatus.QUEUE));
+
+                        assertThat(captor.getValue().getSsLeaderboardId()).isNull();
                 }
 
                 @Test
@@ -149,6 +169,33 @@ class MapImportServiceTest {
 
                         verify(complexityService).setComplexity(eq(entity), eq(7.5),
                                         eq("Initial import"), eq(null));
+                }
+
+                @Test
+                void pricesWithTheScript_whenComplexityOmitted() {
+                        BeatLeaderLeaderboardResponse blLb = buildBlLeaderboard();
+                        when(beatLeaderClient.getLeaderboard("bl_123")).thenReturn(Optional.of(blLb));
+                        when(beatSaverClient.getMapByHash("abc123hash")).thenReturn(Optional.empty());
+
+                        UUID diffId = UUID.randomUUID();
+                        when(mapService.importMapDifficulty(any(CreateMapDifficultyRequest.class), eq(STAFF_ID),
+                                        eq(MapDifficultyStatus.QUEUE)))
+                                        .thenReturn(MapDifficultyResponse.builder()
+                                                        .id(diffId)
+                                                        .status(MapDifficultyStatus.QUEUE)
+                                                        .build());
+                        when(complexityEstimateService.estimateFor(diffId))
+                                        .thenReturn(Optional.of(new NoteAccuracyComplexityRater.Rating(8.4, Map.of())));
+                        when(complexityRater.version()).thenReturn("note-acc-2026-09-11");
+
+                        MapDifficulty entity = new MapDifficulty();
+                        when(mapDifficultyRepository.findById(diffId)).thenReturn(Optional.of(entity));
+
+                        mapImportService.importByLeaderboardIds(
+                                        request("bl_123", "ss_456"), STAFF_ID, MapDifficultyStatus.QUEUE);
+
+                        verify(complexityService).setComplexity(eq(entity), eq(8.4),
+                                        eq("Complexity script note-acc-2026-09-11"), eq(null));
                 }
 
                 @Test

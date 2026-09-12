@@ -9,6 +9,5 @@ public class RefreshMapDifficultyRequest {
     @NotBlank
     private String blLeaderboardId;
 
-    @NotBlank
     private String ssLeaderboardId;
 }

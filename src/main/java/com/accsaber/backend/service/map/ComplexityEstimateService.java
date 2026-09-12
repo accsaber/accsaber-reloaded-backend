@@ -42,7 +42,17 @@ public class ComplexityEstimateService {
     private final ComplexityScenarioService scenarioService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public record Outcome(boolean stored, boolean repriced) {
+    public record Outcome(Rating rating, boolean repriced) {
+        public boolean stored() {
+            return rating != null;
+        }
+    }
+
+    @Transactional
+    public Optional<Rating> estimateFor(UUID mapDifficultyId) {
+        return mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
+                .map(difficulty -> refresh(difficulty, currentModelHash()))
+                .map(Outcome::rating);
     }
 
     @Async("backfillExecutor")
@@ -51,7 +61,7 @@ public class ComplexityEstimateService {
         for (MapDifficultyStatus status : ESTIMATED_STATUSES) {
             difficulties.addAll(mapDifficultyRepository.findByStatusAndActiveTrueWithCategory(status));
         }
-        String modelHash = modelClient.health().map(Health::getModelHash).orElse(null);
+        String modelHash = currentModelHash();
         log.info("Complexity estimate refresh starting for {} difficulties, script {}, model {}", difficulties.size(),
                 rater.version(), modelHash);
         int stored = 0;
@@ -74,7 +84,7 @@ public class ComplexityEstimateService {
         Optional<Rating> repriced = existing.flatMap(e -> rater.reprice(difficulty, e.getInputs(), modelHash));
         Optional<Rating> rating = repriced.isPresent() ? repriced : rater.rate(difficulty);
         if (rating.isEmpty()) {
-            return new Outcome(false, false);
+            return new Outcome(null, false);
         }
         MapDifficultyComplexityEstimate estimate = existing.orElseGet(() -> MapDifficultyComplexityEstimate.builder()
                 .mapDifficulty(difficulty)
@@ -83,7 +93,11 @@ public class ComplexityEstimateService {
         estimate.setVersion(rater.version());
         estimate.setInputs(objectMapper.valueToTree(rating.get().inputs()));
         estimateRepository.save(estimate);
-        return new Outcome(true, repriced.isPresent());
+        return new Outcome(rating.get(), repriced.isPresent());
+    }
+
+    private String currentModelHash() {
+        return modelClient.health().map(Health::getModelHash).orElse(null);
     }
 
     @Transactional(readOnly = true)
