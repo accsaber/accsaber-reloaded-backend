@@ -30,6 +30,12 @@ class LevelCurveTest {
         }
     }
 
+    @Test
+    void cumulativeXpAddsEveryLevelUpToAndIncludingTheTarget() {
+        assertThat(curve.cumulativeXpForLevel(0)).isZero();
+        assertThat(curve.cumulativeXpForLevel(2)).isEqualTo(52.0 + 119.0);
+    }
+
     @Nested
     class ProgressAt {
 

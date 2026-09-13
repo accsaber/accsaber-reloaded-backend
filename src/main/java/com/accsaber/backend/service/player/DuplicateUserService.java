@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import com.accsaber.backend.model.entity.user.MergeScoreAction;
 import com.accsaber.backend.model.entity.user.MergeScoreAction.ActionType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserDuplicateLink;
+import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -61,6 +63,7 @@ public class DuplicateUserService {
     private final RankingService rankingService;
     private final SkillService skillService;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     private DuplicateUserService self;
 
@@ -257,6 +260,7 @@ public class DuplicateUserService {
         linkRepository.save(link);
 
         duplicateCache.put(secondary.getId(), primary.getId());
+        eventPublisher.publishEvent(new PlayersMergedEvent(primary.getId(), secondary.getId()));
         log.info("Merged user {} into {}: {} scores reassigned", secondary.getId(), primary.getId(), reassigned);
     }
 

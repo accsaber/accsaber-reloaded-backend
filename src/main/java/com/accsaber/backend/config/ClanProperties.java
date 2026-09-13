@@ -21,6 +21,7 @@ public class ClanProperties {
     private Period seasonLength = Period.ofMonths(6);
     private double playXpShare = 0.05;
     private double standingPerSkill = 10.0;
+    private double rosterReferenceStrength = 300.0;
     private War war = new War();
 
     @Getter

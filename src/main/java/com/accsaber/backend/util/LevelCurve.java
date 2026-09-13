@@ -12,6 +12,14 @@ public record LevelCurve(double base, double exponent, int cap) {
         return Math.floor(base * Math.pow(Math.min(level, cap), exponent));
     }
 
+    public double cumulativeXpForLevel(int level) {
+        double total = 0.0;
+        for (int n = 1; n <= level; n++) {
+            total += xpForLevel(n);
+        }
+        return total;
+    }
+
     public Progress progressAt(double totalXp) {
         int level = 0;
         double cumulative = 0.0;

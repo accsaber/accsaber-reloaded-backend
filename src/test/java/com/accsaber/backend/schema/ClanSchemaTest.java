@@ -107,6 +107,19 @@ class ClanSchemaTest {
     }
 
     @Test
+    @DisplayName("clan cosmetic types reuse the badge, background and title render contracts")
+    void cosmeticTypesReuseRenderContracts() {
+        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_emblem') = "
+                + "(SELECT value_schema FROM item_types WHERE key = 'badge')")).isEqualTo(true);
+        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_banner') = "
+                + "(SELECT value_schema FROM item_types WHERE key = 'profile_background')")).isEqualTo(true);
+        assertThat(single("SELECT jsonb_exists(value_schema -> 'properties', 'text') FROM item_types "
+                + "WHERE key = 'clan_tag_effect'")).isEqualTo(false);
+        assertThat(single("SELECT CAST(value_schema -> 'required' AS text) FROM item_types "
+                + "WHERE key = 'clan_tag_effect'")).isEqualTo("[\"states\"]");
+    }
+
+    @Test
     @DisplayName("a tag has to be two to five uppercase letters or digits")
     void tagShapeIsEnforced() {
         clan("Valid", "AB12");
