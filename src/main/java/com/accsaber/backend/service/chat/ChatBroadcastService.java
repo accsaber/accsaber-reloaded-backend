@@ -1,4 +1,4 @@
-package com.accsaber.backend.service.campaign;
+package com.accsaber.backend.service.chat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,36 +8,30 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
-import com.accsaber.backend.model.event.CampaignChatMessageEvent;
-import com.accsaber.backend.websocket.server.CampaignChatBroadcast;
-import com.accsaber.backend.websocket.server.CampaignPresenceWebSocketHandler;
+import com.accsaber.backend.model.event.ChatMessageEvent;
+import com.accsaber.backend.websocket.server.ChatBroadcast;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import lombok.RequiredArgsConstructor;
-
 @Service
-@RequiredArgsConstructor
-public class CampaignChatBroadcastService {
+public class ChatBroadcastService {
 
-    private static final Logger log = LoggerFactory.getLogger(CampaignChatBroadcastService.class);
+    private static final Logger log = LoggerFactory.getLogger(ChatBroadcastService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .registerModule(PlainDoubleJackson2Module.create())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-    private final CampaignPresenceWebSocketHandler presenceHandler;
-
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onCampaignChatMessage(CampaignChatMessageEvent event) {
+    public void onChatMessage(ChatMessageEvent event) {
         try {
-            String json = MAPPER.writeValueAsString(new CampaignChatBroadcast(event.campaignId(), event.message()));
-            presenceHandler.broadcastChat(event.campaignId(), json);
+            String json = MAPPER.writeValueAsString(ChatBroadcast.of(event.channelId(), event.message()));
+            event.channel().broadcast(event.channelId(), json);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize campaign chat message for broadcast: {}", e.getMessage());
+            log.error("Failed to serialize chat message for broadcast: {}", e.getMessage());
         }
     }
 }

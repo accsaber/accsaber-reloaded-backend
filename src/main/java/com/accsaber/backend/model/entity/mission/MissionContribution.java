@@ -22,14 +22,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "community_mission_contributions")
-@IdClass(CommunityMissionContribution.Key.class)
+@Table(name = "mission_contributions")
+@IdClass(MissionContribution.Key.class)
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CommunityMissionContribution {
+public class MissionContribution {
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)

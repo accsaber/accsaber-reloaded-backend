@@ -197,7 +197,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                   AND (CAST(:userId AS bigint) IS NULL OR um.user_id = CAST(:userId AS bigint))
                 UNION ALL
                 SELECT cmc.user_id, 'mission', CAST(cm.xp_reward AS numeric)
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 WHERE cmc.rewarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR cmc.user_id = CAST(:userId AS bigint))
@@ -273,7 +273,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 WHERE um.user_id = :userId AND um.status = 'completed'
                 UNION ALL
                 SELECT cmc.rewarded_at, cm.xp_reward
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 WHERE cmc.user_id = :userId AND cmc.rewarded_at IS NOT NULL
                 UNION ALL

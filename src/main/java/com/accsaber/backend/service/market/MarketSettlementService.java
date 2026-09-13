@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.market.MarketListing;
@@ -93,7 +94,7 @@ public class MarketSettlementService {
 
     private void publish(MarketListing listing, String type, Long amount) {
         eventPublisher.publishEvent(new MarketListingEvent(listing.getId(), type, listing.getStatus(),
-                amount, MarketMapper.toUserRef(listing.getWinner()), MarketMapper.toUserRef(listing.getSeller()),
+                amount, PlayerRef.of(listing.getWinner()), PlayerRef.of(listing.getSeller()),
                 listing.getEndsAt()));
     }
 }

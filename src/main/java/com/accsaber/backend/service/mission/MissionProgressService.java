@@ -36,12 +36,12 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
-import com.accsaber.backend.model.event.CommunityMissionCompletedEvent;
+import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -62,7 +62,7 @@ public class MissionProgressService {
     private static final String OVERALL_CODE = "overall";
 
     private final UserMissionRepository userMissionRepository;
-    private final CommunityMissionContributionRepository contributionRepository;
+    private final MissionContributionRepository contributionRepository;
     private final UserEventProfileRepository eventProfileRepository;
     private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
@@ -105,7 +105,7 @@ public class MissionProgressService {
                 completeMission(mission, event.userId(), completedAt);
             }
         }
-        for (UserMission mission : communityMissionsFor(MissionTrigger.CAMPAIGN, ctx)) {
+        for (UserMission mission : sharedMissionsFor(MissionTrigger.CAMPAIGN, ctx)) {
             contribute(mission, event.userId(), evalCampaignComplete(mission, event));
         }
     }
@@ -119,7 +119,7 @@ public class MissionProgressService {
                 .toList();
     }
 
-    private List<UserMission> communityMissionsFor(MissionTrigger trigger, EvalContext ctx) {
+    private List<UserMission> sharedMissionsFor(MissionTrigger trigger, EvalContext ctx) {
         List<UserMission> open = userMissionRepository.findActiveCommunity();
         if (open.isEmpty()) {
             return List.of();
@@ -144,7 +144,7 @@ public class MissionProgressService {
                         latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
             }
         }
-        for (UserMission mission : communityMissionsFor(MissionTrigger.SCORE, ctx)) {
+        for (UserMission mission : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
             if (!isCreditable(mission, latestScore))
                 continue;
             contribute(mission, userId, evaluate(mission, latestScore, ctx));
@@ -186,7 +186,7 @@ public class MissionProgressService {
         userMissionRepository.bankCommunityProgress(mission.getId(),
                 banksAp ? 0 : (int) accepted, banksAp ? accepted : 0.0);
         if (userMissionRepository.claimCommunityCompletion(mission.getId(), now) == 1) {
-            eventPublisher.publishEvent(new CommunityMissionCompletedEvent(mission.getId()));
+            eventPublisher.publishEvent(new SharedMissionCompletedEvent(mission.getId()));
         }
     }
 
@@ -493,7 +493,7 @@ public class MissionProgressService {
             }
         }
         EvalContext ctx = new EvalContext(userId);
-        for (UserMission window : communityMissionsFor(MissionTrigger.SCORE, ctx)) {
+        for (UserMission window : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
             if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW)
                 continue;
             contribute(window, userId, xpAmount);

@@ -32,7 +32,7 @@ import jakarta.persistence.EntityManager;
 @Testcontainers
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class CommunityContributionQueryTest {
+class MissionContributionQueryTest {
 
     @Container
     @ServiceConnection
@@ -41,7 +41,7 @@ class CommunityContributionQueryTest {
     @Autowired
     private EntityManager entityManager;
     @Autowired
-    private CommunityMissionContributionRepository contributionRepository;
+    private MissionContributionRepository contributionRepository;
     @Autowired
     private UserMissionRepository userMissionRepository;
 

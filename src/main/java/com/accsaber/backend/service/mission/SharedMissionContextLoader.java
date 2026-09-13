@@ -10,36 +10,36 @@ import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.UserMission;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 
 import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class CommunityContextLoader {
+public class SharedMissionContextLoader {
 
-    private final CommunityMissionContributionRepository contributionRepository;
+    private final MissionContributionRepository contributionRepository;
 
-    public MissionResponse.CommunityContext load(List<UserMission> missions, Long viewerId) {
+    public MissionResponse.SharedContext load(List<UserMission> missions, Long viewerId) {
         List<UUID> ids = missions.stream()
                 .filter(UserMission::isCommunity)
                 .map(UserMission::getId)
                 .toList();
         if (ids.isEmpty()) {
-            return MissionResponse.CommunityContext.EMPTY;
+            return MissionResponse.SharedContext.EMPTY;
         }
         Map<UUID, Long> contributors = contributionRepository.countContributors(ids).stream()
                 .collect(Collectors.toMap(
-                        CommunityMissionContributionRepository.ContributorCountView::getMissionId,
-                        CommunityMissionContributionRepository.ContributorCountView::getContributors));
+                        MissionContributionRepository.ContributorCountView::getMissionId,
+                        MissionContributionRepository.ContributorCountView::getContributors));
         if (viewerId == null) {
-            return new MissionResponse.CommunityContext(contributors, Map.of());
+            return new MissionResponse.SharedContext(contributors, Map.of());
         }
         Map<UUID, Double> yours = new HashMap<>();
-        for (CommunityMissionContributionRepository.ContributionView view : contributionRepository
+        for (MissionContributionRepository.ContributionView view : contributionRepository
                 .findContributionsByUser(viewerId, ids)) {
             yours.put(view.getMissionId(), view.getContribution());
         }
-        return new MissionResponse.CommunityContext(contributors, yours);
+        return new MissionResponse.SharedContext(contributors, yours);
     }
 }

@@ -20,16 +20,16 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.model.dto.response.mission.CommunityContributorResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionContributorResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.item.ItemSource;
-import com.accsaber.backend.model.entity.mission.CommunityMissionContribution;
+import com.accsaber.backend.model.entity.mission.MissionContribution;
 import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
-import com.accsaber.backend.model.event.CommunityMissionCompletedEvent;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.service.item.ItemService;
@@ -41,14 +41,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CommunityMissionService {
+public class SharedMissionService {
 
     private static final int REWARD_PAGE_SIZE = 200;
 
     private final MissionTemplateRepository templateRepository;
     private final UserMissionRepository userMissionRepository;
-    private final CommunityMissionContributionRepository contributionRepository;
-    private final CommunityContextLoader communityContextLoader;
+    private final MissionContributionRepository contributionRepository;
+    private final SharedMissionContextLoader sharedMissionContextLoader;
     private final MissionRowFactory missionRowFactory;
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
@@ -65,7 +65,7 @@ public class CommunityMissionService {
 
     @Async("backfillExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onCompleted(CommunityMissionCompletedEvent event) {
+    public void onCompleted(SharedMissionCompletedEvent event) {
         payRewards(event.missionId());
         openMissing();
     }
@@ -73,7 +73,7 @@ public class CommunityMissionService {
     @Transactional(readOnly = true)
     public List<MissionResponse> list(UUID eventId, boolean activeOnly, Long viewerId) {
         List<UserMission> missions = userMissionRepository.findCommunity(eventId, activeOnly);
-        MissionResponse.CommunityContext ctx = communityContextLoader.load(missions, viewerId);
+        MissionResponse.SharedContext ctx = sharedMissionContextLoader.load(missions, viewerId);
         return missions.stream().map(m -> MissionResponse.from(m, ctx)).toList();
     }
 
@@ -81,20 +81,20 @@ public class CommunityMissionService {
     public MissionResponse get(UUID missionId, Long viewerId) {
         UserMission mission = userMissionRepository.findCommunityById(missionId)
                 .orElseThrow(() -> new ResourceNotFoundException("CommunityMission", missionId));
-        return MissionResponse.from(mission, communityContextLoader.load(List.of(mission), viewerId));
+        return MissionResponse.from(mission, sharedMissionContextLoader.load(List.of(mission), viewerId));
     }
 
     @Transactional(readOnly = true)
-    public Page<CommunityContributorResponse> leaderboard(UUID missionId, Pageable pageable) {
+    public Page<MissionContributorResponse> leaderboard(UUID missionId, Pageable pageable) {
         if (userMissionRepository.findCommunityById(missionId).isEmpty()) {
             throw new ResourceNotFoundException("CommunityMission", missionId);
         }
-        Page<CommunityMissionContribution> page = contributionRepository.findLeaderboard(missionId, pageable);
+        Page<MissionContribution> page = contributionRepository.findLeaderboard(missionId, pageable);
         long offset = pageable.getOffset();
-        List<CommunityMissionContribution> content = page.getContent();
-        List<CommunityContributorResponse> rows = new ArrayList<>(content.size());
+        List<MissionContribution> content = page.getContent();
+        List<MissionContributorResponse> rows = new ArrayList<>(content.size());
         for (int i = 0; i < content.size(); i++) {
-            rows.add(CommunityContributorResponse.from(content.get(i), offset + i + 1));
+            rows.add(MissionContributorResponse.from(content.get(i), offset + i + 1));
         }
         return new PageImpl<>(rows, pageable, page.getTotalElements());
     }
@@ -168,13 +168,13 @@ public class CommunityMissionService {
         }
         int paid = 0;
         while (true) {
-            List<CommunityMissionContribution> page = contributionRepository
+            List<MissionContribution> page = contributionRepository
                     .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE));
             if (page.isEmpty()) {
                 break;
             }
             int paidInPage = 0;
-            for (CommunityMissionContribution contribution : page) {
+            for (MissionContribution contribution : page) {
                 if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId, missionName)) {
                     paidInPage++;
                 }
@@ -215,13 +215,13 @@ public class CommunityMissionService {
 
     private void markAllRewarded(UUID missionId) {
         while (true) {
-            List<CommunityMissionContribution> page = contributionRepository
+            List<MissionContribution> page = contributionRepository
                     .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE));
             if (page.isEmpty()) {
                 return;
             }
             transactionTemplate.executeWithoutResult(status -> {
-                for (CommunityMissionContribution contribution : page) {
+                for (MissionContribution contribution : page) {
                     contributionRepository.markRewarded(missionId, contribution.getUser().getId(), Instant.now());
                 }
             });

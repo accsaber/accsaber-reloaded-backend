@@ -12,15 +12,10 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
-import com.accsaber.backend.repository.campaign.CampaignRepository;
-import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.player.DuplicateUserService;
-import com.accsaber.backend.service.staff.JwtService;
+import com.accsaber.backend.security.PlayerTokenResolver;
+import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
 
-import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,68 +29,41 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
     static final String ATTR_USER_NAME = "userName";
     static final String ATTR_USER_AVATAR = "userAvatar";
 
-    private final JwtService jwtService;
-    private final UserRepository userRepository;
-    private final DuplicateUserService duplicateUserService;
-    private final CampaignRepository campaignRepository;
-    private final CampaignCollaboratorRepository collaboratorRepository;
+    private final PlayerTokenResolver playerTokenResolver;
+    private final CampaignCollaboratorService collaboratorService;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
         MultiValueMap<String, String> params = UriComponentsBuilder.fromUri(request.getURI())
                 .build().getQueryParams();
-        String token = params.getFirst("token");
-        String campaignParam = params.getFirst("campaignId");
-        if (token == null || token.isBlank() || campaignParam == null || campaignParam.isBlank()) {
-            log.warn("Presence handshake rejected: missing token or campaignId (hasToken={}, campaignId={})",
-                    token != null && !token.isBlank(), campaignParam);
-            response.setStatusCode(HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        UUID campaignId;
-        try {
-            campaignId = UUID.fromString(campaignParam);
-        } catch (IllegalArgumentException e) {
-            log.warn("Presence handshake rejected: invalid campaignId '{}'", campaignParam);
+        UUID campaignId = parseCampaignId(params.getFirst("campaignId"));
+        if (campaignId == null) {
+            log.warn("Presence handshake rejected: missing or invalid campaignId '{}'", params.getFirst("campaignId"));
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
 
-        Long userId;
-        try {
-            jwtService.validateToken(token);
-            if (!JwtService.TYPE_PLAYER.equals(jwtService.extractTokenType(token))) {
-                log.warn("Presence handshake rejected: non-player token for campaign {}", campaignId);
-                response.setStatusCode(HttpStatus.UNAUTHORIZED);
-                return false;
-            }
-            userId = duplicateUserService.resolvePrimaryUserId(jwtService.extractPlayerId(token));
-        } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Presence handshake rejected: invalid token for campaign {} ({})", campaignId, e.getMessage());
-            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        PlayerTokenResolver.Resolution resolution = playerTokenResolver.resolve(params.getFirst("token"));
+        if (!resolution.accepted()) {
+            log.warn("Presence handshake rejected: {} (campaign {})", resolution.reason(), campaignId);
+            response.setStatusCode(resolution.rejection());
             return false;
         }
-
-        User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
-        if (user == null || user.isBanned()) {
-            log.warn("Presence handshake rejected: user {} inactive or banned (campaign {})", userId, campaignId);
-            response.setStatusCode(HttpStatus.FORBIDDEN);
-            return false;
-        }
-        if (!isMember(campaignId, userId)) {
+        User user = resolution.user();
+        if (!collaboratorService.isParticipant(campaignId, user.getId())) {
             log.warn("Presence handshake rejected: user {} is not owner or accepted collaborator of campaign {}",
-                    userId, campaignId);
+                    user.getId(), campaignId);
             response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
 
         attributes.put(ATTR_CAMPAIGN_ID, campaignId);
-        attributes.put(ATTR_USER_ID, userId);
+        attributes.put(ATTR_USER_ID, user.getId());
         attributes.put(ATTR_USER_NAME, user.getName());
         attributes.put(ATTR_USER_AVATAR,
                 user.getCdnAvatarUrl() != null ? user.getCdnAvatarUrl() : user.getAvatarUrl());
-        log.debug("Presence handshake accepted: user {} on campaign {}", userId, campaignId);
+        log.debug("Presence handshake accepted: user {} on campaign {}", user.getId(), campaignId);
         return true;
     }
 
@@ -104,12 +72,14 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
             WebSocketHandler wsHandler, Exception exception) {
     }
 
-    private boolean isMember(UUID campaignId, Long userId) {
-        Long creatorId = campaignRepository.findCreatorIdByIdAndActiveTrue(campaignId).orElse(null);
-        if (userId.equals(creatorId)) {
-            return true;
+    private static UUID parseCampaignId(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
-        return collaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
-                campaignId, userId, CampaignCollaboratorStatus.ACCEPTED);
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

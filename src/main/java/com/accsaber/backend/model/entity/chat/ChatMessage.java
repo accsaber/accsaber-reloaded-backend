@@ -1,10 +1,11 @@
-package com.accsaber.backend.model.entity.campaign;
+package com.accsaber.backend.model.entity.chat;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
@@ -23,13 +24,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "campaign_chat_messages")
+@Table(name = "chat_messages")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CampaignChatMessage {
+public class ChatMessage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

@@ -1,7 +1,7 @@
 package com.accsaber.backend.websocket.server;
 
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
-import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 
-public record CrateOpenBroadcast(String type, MarketUserRef player, CrateOpenResponse open) {
+public record CrateOpenBroadcast(String type, PlayerRef player, CrateOpenResponse open) {
 }
