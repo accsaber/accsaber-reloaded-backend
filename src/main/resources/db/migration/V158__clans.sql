@@ -382,21 +382,22 @@ VALUES
 INSERT INTO item_types (key, name, description) VALUES
     ('clan_cosmetic', 'Clan Cosmetic', 'Parent grouping for everything a clan owns and equips.');
 
-INSERT INTO item_types (parent_type_id, key, name, description, value_schema) VALUES
-    ((SELECT id FROM item_types WHERE key = 'clan_cosmetic'),
-    'clan_emblem', 'Clan Emblem',
-    'The icon shown next to a clan everywhere it appears.',
-    '{"type":"object","properties":{"image_url":{"type":"string"}},"required":["image_url"]}'),
+INSERT INTO item_types (parent_type_id, key, name, description, value_schema)
+SELECT parent.id, 'clan_emblem', 'Clan Emblem', 'The icon shown next to a clan everywhere it appears.', contract.value_schema
+FROM item_types parent, item_types contract
+WHERE parent.key = 'clan_cosmetic' AND contract.key = 'badge';
 
-    ((SELECT id FROM item_types WHERE key = 'clan_cosmetic'),
-    'clan_banner', 'Clan Banner',
-    'The wide artwork at the top of a clan page.',
-    '{"type":"object","properties":{"image_url":{"type":"string"}},"required":["image_url"]}'),
+INSERT INTO item_types (parent_type_id, key, name, description, value_schema)
+SELECT parent.id, 'clan_banner', 'Clan Banner', 'The wide artwork at the top of a clan page.', contract.value_schema
+FROM item_types parent, item_types contract
+WHERE parent.key = 'clan_cosmetic' AND contract.key = 'profile_background';
 
-    ((SELECT id FROM item_types WHERE key = 'clan_cosmetic'),
-    'clan_tag_effect', 'Clan Tag Effect',
-    'How the clan tag renders next to every member name. value.kind discriminates between solid, gradient, and animated variants.',
-    '{"type":"object","properties":{"kind":{"type":"string","enum":["solid","gradient","animated"]}},"required":["kind"]}');
+INSERT INTO item_types (parent_type_id, key, name, description, value_schema)
+SELECT parent.id, 'clan_tag_effect', 'Clan Tag Effect',
+       'How the clan tag renders next to every member name. The title contract without text, since the text is the tag.',
+       jsonb_set(contract.value_schema #- '{properties,text}', '{required}', '["states"]')
+FROM item_types parent, item_types contract
+WHERE parent.key = 'clan_cosmetic' AND contract.key = 'title';
 
 INSERT INTO clan_level_capacities (level, capacity, amount) VALUES
     (0, 'member_slots', 10),
