@@ -17,6 +17,7 @@ import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
@@ -25,7 +26,6 @@ import com.accsaber.backend.model.dto.response.clan.ClanAuditEntryResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
-import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
@@ -48,9 +48,6 @@ public class ClanService {
 
     private static final Set<String> RESERVED_SLUGS = Set.of("join-requests", "levels", "seasons", "wars");
 
-    private static final Map<String, String> SORT_EXPRESSIONS = Map.of(
-            "level", "c.totalXp",
-            "members", "(SELECT COUNT(m) FROM ClanMember m WHERE m.clan = c AND m.leftAt IS NULL)");
 
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
@@ -59,9 +56,11 @@ public class ClanService {
     private final ClanAccessService accessService;
     private final ClanLevelService levelService;
     private final ClanCosmeticService cosmeticService;
+    private final ClanStandingService standingService;
+    private final ClanProperties clanProperties;
 
     private record ListExtras(Map<UUID, Long> memberCounts, Map<UUID, PlayerRef> founders,
-            Map<UUID, List<ItemResponse>> equipped, ClanLevelService.CapacityTable capacities) {
+            Map<UUID, PublicClanResponse> refs, Map<UUID, Double> earned, ClanLevelService.CapacityTable capacities) {
     }
 
     public Page<ClanResponse> list(String search, Pageable pageable) {
@@ -184,7 +183,7 @@ public class ClanService {
 
     private ListExtras extrasFor(List<Clan> clans) {
         if (clans.isEmpty()) {
-            return new ListExtras(Map.of(), Map.of(), Map.of(), levelService.capacities());
+            return new ListExtras(Map.of(), Map.of(), Map.of(), Map.of(), levelService.capacities());
         }
         List<UUID> ids = clans.stream().map(Clan::getId).toList();
         Map<UUID, Long> counts = memberRepository.countOpenByClanIds(ids).stream()
@@ -193,27 +192,40 @@ public class ClanService {
         Map<UUID, PlayerRef> founders = memberRepository.findOpenFounders(ids).stream()
                 .collect(Collectors.toMap(m -> m.getClan().getId(), m -> PlayerRef.of(m.getUser()),
                         (first, second) -> first));
-        return new ListExtras(counts, founders, cosmeticService.equippedByClanIds(ids), levelService.capacities());
+        return new ListExtras(counts, founders, cosmeticService.publicRefs(clans),
+                standingService.earnedInCurrentSeason(ids), levelService.capacities());
     }
 
     private ClanResponse toResponse(Clan clan, ListExtras extras) {
         LevelResponse level = levelService.levelOf(clan);
-        PublicClanResponse identity = PublicClanResponse.of(clan, extras.equipped().getOrDefault(clan.getId(), List.of()));
-        return new ClanResponse(identity, clan.getDescription(), clan.isAcceptingRequests(), level,
-                extras.memberCounts().getOrDefault(clan.getId(), 0L),
+        double standing = standingService.baseStanding(clan) + extras.earned().getOrDefault(clan.getId(), 0.0);
+        return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.isAcceptingRequests(),
+                level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
                 extras.capacities().at(level.getLevel(), ClanCapacity.member_slots),
                 extras.founders().get(clan.getId()), clan.getCreatedAt());
     }
 
-    private static Pageable withSortExpressions(Pageable pageable) {
+    private Pageable withSortExpressions(Pageable pageable) {
         for (Sort.Order order : pageable.getSort()) {
-            String expression = SORT_EXPRESSIONS.get(order.getProperty());
+            String expression = sortExpression(order.getProperty());
             if (expression != null) {
                 return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
                         JpaSort.unsafe(order.getDirection(), expression));
             }
         }
         return pageable;
+    }
+
+    private String sortExpression(String property) {
+        return switch (property) {
+            case "level" -> "c.totalXp";
+            case "members" -> "(SELECT COUNT(m) FROM ClanMember m WHERE m.clan = c AND m.leftAt IS NULL)";
+            case "standing" -> "((c.rosterStrength + c.allyStrength) * " + clanProperties.getStandingPerSkill()
+                    + " + COALESCE((SELECT ss.earned FROM ClanSeasonStanding ss WHERE ss.clan = c"
+                    + " AND ss.season.closedAt IS NULL AND ss.season.startsAt <= CURRENT_TIMESTAMP"
+                    + " AND ss.season.endsAt > CURRENT_TIMESTAMP), 0))";
+            default -> null;
+        };
     }
 
     private static String blankToNull(String value) {

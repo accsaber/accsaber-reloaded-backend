@@ -15,5 +15,6 @@ public enum ItemSource {
     system,
     crate_drop,
     supporter_tier,
-    market
+    market,
+    clan_season
 }

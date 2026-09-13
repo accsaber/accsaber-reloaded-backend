@@ -12,9 +12,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -23,14 +25,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
@@ -61,6 +66,10 @@ class ClanServiceTest {
     private ClanLevelService levelService;
     @Mock
     private ClanCosmeticService cosmeticService;
+    @Mock
+    private ClanStandingService standingService;
+    @Spy
+    private ClanProperties clanProperties = new ClanProperties();
 
     @InjectMocks
     private ClanService clanService;
@@ -72,6 +81,10 @@ class ClanServiceTest {
         lenient().when(accessService.player(PLAYER)).thenReturn(player);
         lenient().when(levelService.levelOf(any())).thenReturn(LevelResponse.builder().level(0).build());
         lenient().when(levelService.capacities()).thenReturn(new ClanLevelService.CapacityTable(List.of(), 50));
+        lenient().when(cosmeticService.publicRefs(any())).thenAnswer(inv -> {
+            Collection<Clan> clans = inv.getArgument(0);
+            return clans.stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of())));
+        });
         lenient().when(clanRepository.saveAndFlush(any())).thenAnswer(inv -> {
             Clan clan = inv.getArgument(0);
             if (clan.getId() == null) {

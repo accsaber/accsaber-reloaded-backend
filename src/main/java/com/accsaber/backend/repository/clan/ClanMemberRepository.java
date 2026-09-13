@@ -76,4 +76,38 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
             """)
     int closeOpenByClanId(@Param("clanId") UUID clanId, @Param("reason") ClanLeaveReason reason,
             @Param("now") Instant now);
+
+    interface ClanSkillView {
+        UUID getClanId();
+
+        double getSkill();
+    }
+
+    @Query("""
+            SELECT m.clan.id AS clanId, s.skillLevel AS skill
+            FROM ClanMember m, UserCategorySkill s
+            WHERE s.user = m.user AND s.category.id = :overallId
+              AND m.leftAt IS NULL AND m.clan.id IN :clanIds
+            """)
+    List<ClanSkillView> findOpenMemberSkills(@Param("clanIds") Collection<UUID> clanIds,
+            @Param("overallId") UUID overallId);
+
+    @Query(value = """
+            SELECT pair.clan_id AS clanId, MAX(s.skill_level) AS skill
+            FROM (
+                SELECT a.clan_a_id AS clan_id, a.clan_b_id AS ally_id FROM clan_alliances a WHERE a.status = 'active'
+                UNION ALL
+                SELECT a.clan_b_id, a.clan_a_id FROM clan_alliances a WHERE a.status = 'active'
+            ) pair
+            JOIN clan_members m ON m.clan_id = pair.ally_id AND m.left_at IS NULL
+            JOIN user_category_skills s ON s.user_id = m.user_id AND s.category_id = :overallId
+            WHERE pair.clan_id IN (:clanIds)
+              AND EXISTS (
+                  SELECT 1 FROM clan_wars w JOIN clan_seasons cs ON cs.id = w.season_id
+                  WHERE (w.attacker_clan_id = pair.ally_id OR w.defender_clan_id = pair.ally_id)
+                    AND cs.starts_at <= :now AND cs.ends_at > :now)
+            GROUP BY pair.clan_id, pair.ally_id
+            """, nativeQuery = true)
+    List<ClanSkillView> findFoughtAllyTopSkills(@Param("clanIds") Collection<UUID> clanIds,
+            @Param("overallId") UUID overallId, @Param("now") Instant now);
 }
