@@ -151,7 +151,7 @@ accsaber:
     model-check-interval-ms: 300000
     scenario-refresh-ms: 600000
     rater:
-      version: note-acc-2026-09-24
+      version: note-acc-2026-09-26
       worst-share: 0.05
       board:
         min-scores: 50
@@ -185,7 +185,7 @@ accsaber:
           mean-slope: -23.591
           worst-slope: 0
           reset-slope: 0
-          dot-slope: 0
+          dot-slope: -2.4
           bottom-up-slope: -2.0
           notes-slope: 0
           njs-slope: 0
@@ -216,7 +216,7 @@ accsaber:
           mean-slope: -12.599
           worst-slope: -0.574
           reset-slope: 0
-          dot-slope: 0
+          dot-slope: -2.4
           bottom-up-slope: -2.0
           notes-slope: 0
           njs-slope: 0
