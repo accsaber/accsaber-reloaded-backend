@@ -10,6 +10,7 @@ public record ClanResponse(
         String description,
         boolean acceptingRequests,
         LevelResponse level,
+        double standing,
         long memberCount,
         int memberCap,
         PlayerRef founder,

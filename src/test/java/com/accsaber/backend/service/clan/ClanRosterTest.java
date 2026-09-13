@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
@@ -30,6 +31,7 @@ import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -47,13 +49,16 @@ class ClanRosterTest {
     private ClanJoinRequestRepository joinRequestRepository;
     @Mock
     private ClanLevelService levelService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanRoster roster;
 
     @BeforeEach
     void setUp() {
-        roster = new ClanRoster(clanRepository, memberRepository, joinRequestRepository, levelService, clanProperties);
+        roster = new ClanRoster(clanRepository, memberRepository, joinRequestRepository, levelService, clanProperties,
+                eventPublisher);
     }
 
     private void latestStint(Instant joinedAt, Instant leftAt, ClanLeaveReason reason) {
@@ -131,12 +136,13 @@ class ClanRosterTest {
             assertThat(member.getClan()).isSameAs(clan);
             assertThat(member.getRole()).isEqualTo(ClanRole.member);
             verify(joinRequestRepository).expirePendingForUser(eq(USER), any());
+            verify(eventPublisher).publishEvent(new ClanMembershipChangedEvent(clan.getId()));
         }
     }
 
     @Test
     void closingAStintStampsTheTimeAndReason() {
-        ClanMember member = ClanMember.builder().build();
+        ClanMember member = ClanMember.builder().clan(Clan.builder().id(UUID.randomUUID()).build()).build();
 
         roster.close(member, ClanLeaveReason.kicked);
 

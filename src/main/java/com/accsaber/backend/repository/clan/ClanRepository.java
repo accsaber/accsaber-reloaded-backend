@@ -34,4 +34,7 @@ public interface ClanRepository extends JpaRepository<Clan, UUID> {
                    OR c.tag LIKE CONCAT('%', UPPER(CAST(:search AS string)), '%'))
             """)
     Page<Clan> search(@Param("search") String search, Pageable pageable);
+
+    @Query("SELECT c.id FROM Clan c WHERE c.active = true ORDER BY c.id")
+    Page<UUID> findActiveIds(Pageable pageable);
 }

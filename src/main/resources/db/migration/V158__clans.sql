@@ -133,6 +133,12 @@ CREATE TABLE clan_items (
 
 ALTER TABLE items ADD CONSTRAINT uq_items_id_type UNIQUE (id, type_id);
 
+ALTER TABLE user_item_links DROP CONSTRAINT user_item_links_source_check;
+ALTER TABLE user_item_links ADD CONSTRAINT user_item_links_source_check
+    CHECK (source IN ('milestone', 'milestone_set', 'campaign_milestone', 'campaign_difficulty',
+                      'campaign_completion', 'level', 'mission', 'event', 'welcome', 'trade',
+                      'manual', 'system', 'crate_drop', 'supporter_tier', 'market', 'clan_war', 'clan_season'));
+
 CREATE TABLE clan_equipped_items (
     clan_id       UUID NOT NULL REFERENCES clans(id),
     item_type_id  UUID NOT NULL REFERENCES item_types(id),
