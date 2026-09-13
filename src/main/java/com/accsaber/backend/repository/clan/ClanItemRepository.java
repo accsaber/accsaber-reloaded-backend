@@ -33,4 +33,13 @@ public interface ClanItemRepository extends JpaRepository<ClanItem, ClanItem.Key
             """, nativeQuery = true)
     int grantLevelItems(@Param("clanId") UUID clanId, @Param("fromLevel") int fromLevel,
             @Param("toLevel") int toLevel);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO clan_items (clan_id, item_id, source, source_id)
+            VALUES (:clanId, :itemId, :source, :sourceId)
+            ON CONFLICT (clan_id, item_id) DO NOTHING
+            """, nativeQuery = true)
+    int grantItem(@Param("clanId") UUID clanId, @Param("itemId") UUID itemId, @Param("source") String source,
+            @Param("sourceId") String sourceId);
 }

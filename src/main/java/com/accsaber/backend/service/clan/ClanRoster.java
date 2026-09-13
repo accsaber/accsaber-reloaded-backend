@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.config.ClanProperties;
@@ -15,6 +16,7 @@ import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -30,6 +32,7 @@ public class ClanRoster {
     private final ClanJoinRequestRepository joinRequestRepository;
     private final ClanLevelService levelService;
     private final ClanProperties clanProperties;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Clan lock(UUID clanId) {
         return clanRepository.findByIdAndActiveTrueForUpdate(clanId)
@@ -65,6 +68,7 @@ public class ClanRoster {
         ClanMember member = memberRepository.saveAndFlush(
                 ClanMember.builder().clan(clan).user(user).role(role).build());
         joinRequestRepository.expirePendingForUser(user.getId(), Instant.now());
+        eventPublisher.publishEvent(new ClanMembershipChangedEvent(clan.getId()));
         return member;
     }
 
@@ -72,11 +76,13 @@ public class ClanRoster {
         member.setLeftAt(Instant.now());
         member.setLeaveReason(reason);
         memberRepository.saveAndFlush(member);
+        eventPublisher.publishEvent(new ClanMembershipChangedEvent(member.getClan().getId()));
     }
 
     public void closeAll(UUID clanId, ClanLeaveReason reason) {
         Instant now = Instant.now();
         memberRepository.closeOpenByClanId(clanId, reason, now);
         joinRequestRepository.expirePendingForClan(clanId, now);
+        eventPublisher.publishEvent(new ClanMembershipChangedEvent(clanId));
     }
 }

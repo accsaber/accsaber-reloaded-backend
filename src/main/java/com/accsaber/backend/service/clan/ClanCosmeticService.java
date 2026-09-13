@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanItemResponse;
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
@@ -62,6 +63,13 @@ public class ClanCosmeticService {
                         Collectors.mapping(e -> ItemMapper.toItemResponse(e.getItem()), Collectors.toList())));
     }
 
+    public Map<UUID, PublicClanResponse> publicRefs(Collection<Clan> clans) {
+        Map<UUID, List<ItemResponse>> equipped = equippedByClanIds(clans.stream().map(Clan::getId).toList());
+        return clans.stream().collect(Collectors.toMap(Clan::getId,
+                clan -> PublicClanResponse.of(clan, equipped.getOrDefault(clan.getId(), List.of())),
+                (first, second) -> first));
+    }
+
     @Transactional
     public List<ItemResponse> equip(UUID clanId, Long playerId, UUID itemId) {
         User actor = accessService.player(playerId);
@@ -69,7 +77,7 @@ public class ClanCosmeticService {
         accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
         Item item = itemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item", itemId));
         ItemType type = item.getType();
-        if (type.getParentType() == null || !CLAN_COSMETIC_TYPE.equals(type.getParentType().getKey())) {
+        if (!isClanCosmetic(type)) {
             throw new ValidationException("itemId", "is not a clan cosmetic");
         }
         if (!clanItemRepository.existsByClan_IdAndItem_Id(clanId, itemId)) {
@@ -81,6 +89,10 @@ public class ClanCosmeticService {
         equippedRepository.saveAndFlush(slot);
         audit(clan, actor, type.getKey(), itemId);
         return equippedByClanIds(List.of(clanId)).getOrDefault(clanId, List.of());
+    }
+
+    public static boolean isClanCosmetic(ItemType type) {
+        return type.getParentType() != null && CLAN_COSMETIC_TYPE.equals(type.getParentType().getKey());
     }
 
     @Transactional

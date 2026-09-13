@@ -37,6 +37,7 @@ import com.accsaber.backend.model.entity.clan.ClanLevelItem;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -44,6 +45,8 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 
 import jakarta.persistence.EntityManager;
 
@@ -71,6 +74,12 @@ class ClanQueryTest {
     private ClanItemRepository clanItemRepository;
     @Autowired
     private ClanEquippedItemRepository equippedRepository;
+    @Autowired
+    private ClanSeasonRepository seasonRepository;
+    @Autowired
+    private ClanSeasonStandingRepository standingRepository;
+    @Autowired
+    private ClanWarParticipantRepository participantRepository;
 
     private Clan owls;
     private Clan lapiz;
@@ -273,5 +282,145 @@ class ClanQueryTest {
 
         assertThat(equipped).extracting(e -> e.getItem().getName()).containsExactly("Owl Emblem");
         assertThat(equippedRepository.deleteSlot(owls.getId(), "clan_emblem")).isEqualTo(1);
+    }
+
+    private Category overall() {
+        return entityManager
+                .createQuery("SELECT c FROM Category c WHERE c.code = 'overall' AND c.active = true", Category.class)
+                .getSingleResult();
+    }
+
+    private void skill(User player, double level) {
+        entityManager.persist(UserCategorySkill.builder().user(player).category(overall()).skillLevel(level)
+                .rankScore(0).sustainedScore(0).peakScore(0).combinedScore(0).topAp(0).activePlayers(1L).build());
+    }
+
+    private UUID season(Instant startsAt, Instant endsAt) {
+        ClanSeason season = ClanSeason.builder().name("S " + startsAt).slug("s-" + startsAt.toEpochMilli())
+                .startsAt(startsAt).endsAt(endsAt).build();
+        entityManager.persist(season);
+        entityManager.flush();
+        return season.getId();
+    }
+
+    private UUID war(UUID seasonId, Clan attacker, Clan defender) {
+        UUID id = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO clan_wars (season_id, attacker_clan_id, defender_clan_id, declared_by, arena, arena_spec, ruleset)
+                VALUES (?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel') RETURNING id
+                """).setParameter(1, seasonId).setParameter(2, attacker.getId()).setParameter(3, defender.getId())
+                .setParameter(4, founder.getId()).getSingleResult();
+        for (Clan side : List.of(attacker, defender)) {
+            entityManager.createNativeQuery("INSERT INTO clan_war_sides (war_id, clan_id, stake, stake_remaining, "
+                    + "standing_at_declare) VALUES (?1, ?2, 10, 10, 10)")
+                    .setParameter(1, id).setParameter(2, side.getId()).executeUpdate();
+        }
+        return id;
+    }
+
+    @Test
+    @DisplayName("roster strength reads every open member's overall skill")
+    void memberSkillsForStrength() {
+        skill(founder, 70.0);
+        skill(officer, 40.0);
+        entityManager.flush();
+
+        List<ClanMemberRepository.ClanSkillView> skills = memberRepository.findOpenMemberSkills(
+                List.of(owls.getId(), lapiz.getId()), overall().getId());
+
+        assertThat(skills).extracting(ClanMemberRepository.ClanSkillView::getSkill).containsExactlyInAnyOrder(70.0, 40.0);
+        assertThat(skills).extracting(ClanMemberRepository.ClanSkillView::getClanId).containsOnly(owls.getId());
+    }
+
+    @Test
+    @DisplayName("an ally only lends its top player's skill once it has fought a war this season")
+    void allyStrengthNeedsAnAllyThatFought() {
+        User lapizStar = user(76561190000000306L, "Lapiz Star");
+        User lapizBench = user(76561190000000307L, "Lapiz Bench");
+        seat(lapiz, lapizStar, ClanRole.founder, Instant.now().minus(5, ChronoUnit.DAYS));
+        seat(lapiz, lapizBench, ClanRole.member, Instant.now().minus(5, ChronoUnit.DAYS));
+        skill(lapizStar, 90.0);
+        skill(lapizBench, 50.0);
+        UUID low = (UUID) entityManager.createNativeQuery("SELECT LEAST(CAST(?1 AS uuid), CAST(?2 AS uuid))")
+                .setParameter(1, owls.getId()).setParameter(2, lapiz.getId()).getSingleResult();
+        UUID high = low.equals(owls.getId()) ? lapiz.getId() : owls.getId();
+        entityManager.createNativeQuery("INSERT INTO clan_alliances (clan_a_id, clan_b_id, proposed_by_clan_id, "
+                + "proposed_by_user_id, status, accepted_at) VALUES (?1, ?2, ?1, ?3, 'active', NOW())")
+                .setParameter(1, low).setParameter(2, high).setParameter(3, founder.getId()).executeUpdate();
+        entityManager.flush();
+
+        assertThat(memberRepository.findFoughtAllyTopSkills(List.of(owls.getId()), overall().getId(), Instant.now()))
+                .isEmpty();
+
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        war(current, lapiz, rival);
+
+        assertThat(memberRepository.findFoughtAllyTopSkills(List.of(owls.getId()), overall().getId(), Instant.now()))
+                .extracting(ClanMemberRepository.ClanSkillView::getSkill).containsExactly(90.0);
+    }
+
+    @Test
+    @DisplayName("the live ranking orders by base plus earned and a single rank agrees with it")
+    void liveRankingAndRankAgree() {
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        entityManager.createNativeQuery("UPDATE clans SET roster_strength = 10 WHERE id = ?1")
+                .setParameter(1, owls.getId()).executeUpdate();
+        entityManager.createNativeQuery("UPDATE clans SET roster_strength = 5 WHERE id = ?1")
+                .setParameter(1, lapiz.getId()).executeUpdate();
+        entityManager.createNativeQuery("INSERT INTO clan_season_standings (season_id, clan_id, earned) VALUES (?1, ?2, 80)")
+                .setParameter(1, current).setParameter(2, lapiz.getId()).executeUpdate();
+
+        List<ClanSeasonStandingRepository.RankingRow> ranking = standingRepository.findFullLiveRanking(current, 10.0);
+
+        assertThat(ranking).extracting(ClanSeasonStandingRepository.RankingRow::getClanId)
+                .containsExactly(lapiz.getId(), owls.getId());
+        assertThat(ranking.get(0).getBaseStanding()).isEqualTo(50.0);
+        assertThat(ranking.get(0).getEarned()).isEqualTo(80.0);
+        entityManager.clear();
+        Clan freshOwls = clanRepository.findById(owls.getId()).orElseThrow();
+        assertThat(standingRepository.findLiveRank(current, 10.0, 100.0, freshOwls.getCreatedAt(), owls.getId()))
+                .isEqualTo(2);
+        assertThat(standingRepository.findLiveRanking(current, 10.0, PageRequest.of(0, 1)).getTotalElements())
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("season lookups find the running season, the ended ones and whether one is still open")
+    void seasonLookups() {
+        Instant now = Instant.now();
+        UUID ended = season(now.minus(60, ChronoUnit.DAYS), now.minus(10, ChronoUnit.DAYS));
+        UUID running = season(now.minus(10, ChronoUnit.DAYS), now.plus(10, ChronoUnit.DAYS));
+
+        assertThat(seasonRepository.findCurrent(now)).get().extracting(ClanSeason::getId).isEqualTo(running);
+        assertThat(seasonRepository.findEndedUnclosedIds(now)).containsExactly(ended);
+        assertThat(seasonRepository.existsOpenUntilAfter(now)).isTrue();
+        assertThat(seasonRepository.findTopByOrderByEndsAtDesc()).get().extracting(ClanSeason::getId)
+                .isEqualTo(running);
+    }
+
+    @Test
+    @DisplayName("season contributors sum a player's war contribution for their own clan, biggest first")
+    void seasonContributorsOrderByContribution() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID firstWar = war(current, owls, rival);
+        UUID secondWar = war(current, rival, owls);
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, lent_by_clan_id, "
+                + "standing_weight, guard, contribution) VALUES (?1, ?2, ?3, ?4, 0.5, 100, ?5)";
+        entityManager.createNativeQuery(participant).setParameter(1, firstWar).setParameter(2, officer.getId())
+                .setParameter(3, owls.getId()).setParameter(4, null).setParameter(5, 30.0).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, secondWar).setParameter(2, officer.getId())
+                .setParameter(3, owls.getId()).setParameter(4, null).setParameter(5, 40.0).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, firstWar).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, null).setParameter(5, 50.0).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, firstWar).setParameter(2, member.getId())
+                .setParameter(3, owls.getId()).setParameter(4, null).setParameter(5, 0.0).executeUpdate();
+
+        List<ClanWarParticipantRepository.ContributorView> contributors = participantRepository
+                .findSeasonContributors(current, owls.getId());
+
+        assertThat(contributors).extracting(ClanWarParticipantRepository.ContributorView::getUserId)
+                .containsExactly(officer.getId(), founder.getId());
+        assertThat(contributors.get(0).getContribution()).isEqualTo(70.0);
     }
 }
