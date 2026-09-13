@@ -140,6 +140,9 @@ public class OpenApiConfig {
                                                                 curated are the ones that hand out XP and items. Browsing them, \
                                                                 starting one, following progress, chat and per campaign \
                                                                 leaderboards all live here."""),
+                                new Tag().name("Clans")
+                                                .description("""
+                                                                Clans are groups of players who level up together, run                                                                 missions as a team and go to war with other clans over                                                                 Standing. Founding one, joining, ranks, invites and the                                                                 audit log all live here."""),
                                 new Tag().name("Milestones")
                                                 .description("""
                                                                 Milestones and achievements, the sets and groups they belong to, \

@@ -17,7 +17,6 @@ import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.milestone.LevelThresholdRepository;
 import com.accsaber.backend.util.LevelCurve;
-import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,22 +38,11 @@ public class LevelService {
     public LevelResponse calculateLevel(Double totalXp) {
         double xp = totalXp == null || totalXp <= 0 ? 0.0 : totalXp;
         LevelCurve.Progress progress = getLevelCurve().progressAt(xp);
-        double percent = progress.xpForNextLevel() > 0
-                ? Rounding.round(progress.xpIntoLevel() * 100.0 / progress.xpForNextLevel(), 2)
-                : 0.0;
         String title = xp <= 0 ? null
                 : levelThresholdRepository.findHighestTitleAtOrBelow(progress.level())
                         .map(LevelThreshold::getTitle)
                         .orElse(null);
-
-        return LevelResponse.builder()
-                .level(progress.level())
-                .title(title)
-                .totalXp(xp)
-                .xpForCurrentLevel(progress.xpIntoLevel())
-                .xpForNextLevel(progress.xpForNextLevel())
-                .progressPercent(percent)
-                .build();
+        return LevelResponse.of(progress, xp, title);
     }
 
     public double xpForLevel(int n) {

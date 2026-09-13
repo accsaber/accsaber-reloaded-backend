@@ -1,0 +1,230 @@
+package com.accsaber.backend.service.clan;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.accsaber.backend.exception.ConflictException;
+import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
+import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
+import com.accsaber.backend.model.dto.response.clan.ClanAuditEntryResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanResponse;
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
+import com.accsaber.backend.model.dto.response.item.ItemResponse;
+import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
+import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanAuditAction;
+import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
+import com.accsaber.backend.model.entity.clan.ClanCapacity;
+import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
+import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
+import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.util.Slugs;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ClanService {
+
+    private static final Set<String> RESERVED_SLUGS = Set.of("join-requests", "levels", "seasons", "wars");
+
+    private static final Map<String, String> SORT_EXPRESSIONS = Map.of(
+            "level", "c.totalXp",
+            "members", "(SELECT COUNT(m) FROM ClanMember m WHERE m.clan = c AND m.leftAt IS NULL)");
+
+    private final ClanRepository clanRepository;
+    private final ClanMemberRepository memberRepository;
+    private final ClanAuditEntryRepository auditRepository;
+    private final ClanRoster roster;
+    private final ClanAccessService accessService;
+    private final ClanLevelService levelService;
+    private final ClanCosmeticService cosmeticService;
+
+    private record ListExtras(Map<UUID, Long> memberCounts, Map<UUID, PlayerRef> founders,
+            Map<UUID, List<ItemResponse>> equipped, ClanLevelService.CapacityTable capacities) {
+    }
+
+    public Page<ClanResponse> list(String search, Pageable pageable) {
+        Page<Clan> page = clanRepository.search(blankToNull(search), withSortExpressions(pageable));
+        ListExtras extras = extrasFor(page.getContent());
+        return page.map(clan -> toResponse(clan, extras));
+    }
+
+    public ClanResponse get(String slugOrId) {
+        return toResponse(findActive(slugOrId));
+    }
+
+    @Transactional
+    public ClanResponse create(Long playerId, CreateClanRequest request) {
+        User founder = accessService.player(playerId);
+        roster.assertCanJoin(founder.getId());
+        String tag = request.getTag().toUpperCase(Locale.ROOT);
+        String name = request.getName().trim();
+        Clan clan = saveUnique(Clan.builder()
+                .name(name)
+                .tag(tag)
+                .slug(slugFor(name, tag, null))
+                .description(request.getDescription())
+                .build());
+        roster.seat(clan, founder, ClanRole.founder);
+        levelService.grantStartingItems(clan.getId());
+        return toResponse(clan);
+    }
+
+    @Transactional
+    public ClanResponse update(UUID clanId, Long playerId, UpdateClanRequest request) {
+        User actor = accessService.player(playerId);
+        Clan clan = roster.lock(clanId);
+        accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
+        Map<String, Object> changes = applyChanges(clan, request);
+        if (changes.isEmpty()) {
+            return toResponse(clan);
+        }
+        saveUnique(clan);
+        auditRepository.save(ClanAuditEntry.builder()
+                .clan(clan).actor(actor).action(ClanAuditAction.profile_updated).details(changes).build());
+        return toResponse(clan);
+    }
+
+    @Transactional
+    public void disband(UUID clanId, Long playerId) {
+        User actor = accessService.player(playerId);
+        Clan clan = roster.lock(clanId);
+        accessService.require(clanId, actor.getId(), ClanPermission.DISBAND);
+        disband(clan, actor);
+    }
+
+    @Transactional
+    public void disband(Clan clan, User actor) {
+        clan.setActive(false);
+        clanRepository.saveAndFlush(clan);
+        roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
+        auditRepository.save(ClanAuditEntry.builder()
+                .clan(clan).actor(actor).action(ClanAuditAction.disbanded).build());
+    }
+
+    public Page<ClanAuditEntryResponse> audit(UUID clanId, Long playerId, Pageable pageable) {
+        User viewer = accessService.player(playerId);
+        accessService.require(clanId, viewer.getId(), ClanPermission.READ_AUDIT);
+        return auditRepository.findPageByClanId(clanId, pageable).map(ClanAuditEntryResponse::of);
+    }
+
+    private Clan findActive(String slugOrId) {
+        UUID id = parseUuid(slugOrId);
+        return (id != null ? clanRepository.findByIdAndActiveTrue(id) : clanRepository.findBySlugAndActiveTrue(slugOrId))
+                .orElseThrow(() -> new ResourceNotFoundException("Clan", slugOrId));
+    }
+
+    private Map<String, Object> applyChanges(Clan clan, UpdateClanRequest request) {
+        Map<String, Object> changes = new LinkedHashMap<>();
+        if (request.getName() != null && !request.getName().trim().equals(clan.getName())) {
+            clan.setName(request.getName().trim());
+            changes.put("name", clan.getName());
+        }
+        if (request.getTag() != null && !request.getTag().toUpperCase(Locale.ROOT).equals(clan.getTag())) {
+            clan.setTag(request.getTag().toUpperCase(Locale.ROOT));
+            changes.put("tag", clan.getTag());
+        }
+        if (changes.containsKey("name")) {
+            clan.setSlug(slugFor(clan.getName(), clan.getTag(), clan.getSlug()));
+        }
+        if (request.getDescription() != null && !request.getDescription().equals(clan.getDescription())) {
+            clan.setDescription(request.getDescription());
+            changes.put("description", clan.getDescription());
+        }
+        if (request.getAcceptingRequests() != null && request.getAcceptingRequests() != clan.isAcceptingRequests()) {
+            clan.setAcceptingRequests(request.getAcceptingRequests());
+            changes.put("acceptingRequests", clan.isAcceptingRequests());
+        }
+        return changes;
+    }
+
+    private String slugFor(String name, String tag, String currentSlug) {
+        String base = Slugs.slugify(name);
+        if (base.equals(currentSlug)) {
+            return base;
+        }
+        if (base.isEmpty() || RESERVED_SLUGS.contains(base) || clanRepository.existsBySlugAndActiveTrue(base)) {
+            base = base.isEmpty() ? tag.toLowerCase(Locale.ROOT) : base + "-" + tag.toLowerCase(Locale.ROOT);
+        }
+        return base;
+    }
+
+    private Clan saveUnique(Clan clan) {
+        try {
+            return clanRepository.saveAndFlush(clan);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("An active clan already uses that name or tag");
+        }
+    }
+
+    private ClanResponse toResponse(Clan clan) {
+        return toResponse(clan, extrasFor(List.of(clan)));
+    }
+
+    private ListExtras extrasFor(List<Clan> clans) {
+        if (clans.isEmpty()) {
+            return new ListExtras(Map.of(), Map.of(), Map.of(), levelService.capacities());
+        }
+        List<UUID> ids = clans.stream().map(Clan::getId).toList();
+        Map<UUID, Long> counts = memberRepository.countOpenByClanIds(ids).stream()
+                .collect(Collectors.toMap(ClanMemberRepository.MemberCountView::getClanId,
+                        ClanMemberRepository.MemberCountView::getMembers));
+        Map<UUID, PlayerRef> founders = memberRepository.findOpenFounders(ids).stream()
+                .collect(Collectors.toMap(m -> m.getClan().getId(), m -> PlayerRef.of(m.getUser()),
+                        (first, second) -> first));
+        return new ListExtras(counts, founders, cosmeticService.equippedByClanIds(ids), levelService.capacities());
+    }
+
+    private ClanResponse toResponse(Clan clan, ListExtras extras) {
+        LevelResponse level = levelService.levelOf(clan);
+        PublicClanResponse identity = PublicClanResponse.of(clan, extras.equipped().getOrDefault(clan.getId(), List.of()));
+        return new ClanResponse(identity, clan.getDescription(), clan.isAcceptingRequests(), level,
+                extras.memberCounts().getOrDefault(clan.getId(), 0L),
+                extras.capacities().at(level.getLevel(), ClanCapacity.member_slots),
+                extras.founders().get(clan.getId()), clan.getCreatedAt());
+    }
+
+    private static Pageable withSortExpressions(Pageable pageable) {
+        for (Sort.Order order : pageable.getSort()) {
+            String expression = SORT_EXPRESSIONS.get(order.getProperty());
+            if (expression != null) {
+                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                        JpaSort.unsafe(order.getDirection(), expression));
+            }
+        }
+        return pageable;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static UUID parseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+}

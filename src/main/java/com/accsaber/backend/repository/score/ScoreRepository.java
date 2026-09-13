@@ -983,4 +983,17 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("rivalIds") java.util.Collection<Long> rivalIds,
                         @Param("score") Integer score);
+
+        interface LastPlayedView {
+                Long getUserId();
+
+                Instant getLastPlayedAt();
+        }
+
+        @Query("""
+                        SELECT s.user.id AS userId, MAX(s.timeSet) AS lastPlayedAt FROM Score s
+                        WHERE s.user.id IN :userIds AND s.active = true
+                        GROUP BY s.user.id
+                        """)
+        List<LastPlayedView> findLastActiveScoreTimes(@Param("userIds") Collection<Long> userIds);
 }
