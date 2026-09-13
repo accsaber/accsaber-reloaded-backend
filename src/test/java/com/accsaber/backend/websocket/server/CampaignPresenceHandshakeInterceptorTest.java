@@ -1,13 +1,14 @@
 package com.accsaber.backend.websocket.server;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,13 +21,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 
-import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
-import com.accsaber.backend.repository.campaign.CampaignRepository;
-import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.player.DuplicateUserService;
-import com.accsaber.backend.service.staff.JwtService;
+import com.accsaber.backend.security.PlayerTokenResolver;
+import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignPresenceHandshakeInterceptorTest {
@@ -34,15 +31,9 @@ class CampaignPresenceHandshakeInterceptorTest {
     private static final UUID CAMPAIGN = UUID.randomUUID();
 
     @Mock
-    private JwtService jwtService;
+    private PlayerTokenResolver playerTokenResolver;
     @Mock
-    private UserRepository userRepository;
-    @Mock
-    private DuplicateUserService duplicateUserService;
-    @Mock
-    private CampaignRepository campaignRepository;
-    @Mock
-    private CampaignCollaboratorRepository collaboratorRepository;
+    private CampaignCollaboratorService collaboratorService;
 
     @InjectMocks
     private CampaignPresenceHandshakeInterceptor interceptor;
@@ -63,77 +54,53 @@ class CampaignPresenceHandshakeInterceptorTest {
         when(request.getURI()).thenReturn(URI.create("ws://host/ws/campaigns/presence?" + query));
     }
 
-    private void validPlayerToken(long userId) {
-        when(jwtService.extractTokenType("tok")).thenReturn(JwtService.TYPE_PLAYER);
-        when(jwtService.extractPlayerId("tok")).thenReturn(userId);
-        when(duplicateUserService.resolvePrimaryUserId(userId)).thenReturn(userId);
-        when(userRepository.findByIdAndActiveTrue(userId))
-                .thenReturn(Optional.of(User.builder().id(userId).name("u").active(true).banned(false).build()));
+    private void resolves(long userId) {
+        User user = User.builder().id(userId).name("u").cdnAvatarUrl("https://cdn/a.webp").build();
+        when(playerTokenResolver.resolve("tok")).thenReturn(new PlayerTokenResolver.Resolution(user, null, null));
     }
 
     @Test
-    void acceptsOwner() {
+    void acceptsParticipantAndStampsTheSession() {
         uri("campaignId=" + CAMPAIGN + "&token=tok");
-        validPlayerToken(5L);
-        when(campaignRepository.findCreatorIdByIdAndActiveTrue(CAMPAIGN)).thenReturn(Optional.of(5L));
+        resolves(5L);
+        when(collaboratorService.isParticipant(CAMPAIGN, 5L)).thenReturn(true);
 
         boolean ok = interceptor.beforeHandshake(request, response, null, attributes);
 
         assertThat(ok).isTrue();
-        assertThat(attributes).containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_USER_ID, 5L);
-        assertThat(attributes).containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_CAMPAIGN_ID, CAMPAIGN);
+        assertThat(attributes)
+                .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_USER_ID, 5L)
+                .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_CAMPAIGN_ID, CAMPAIGN)
+                .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_USER_AVATAR, "https://cdn/a.webp");
     }
 
     @Test
-    void acceptsAcceptedCollaborator() {
+    void rejectsNonParticipant() {
         uri("campaignId=" + CAMPAIGN + "&token=tok");
-        validPlayerToken(7L);
-        when(campaignRepository.findCreatorIdByIdAndActiveTrue(CAMPAIGN)).thenReturn(Optional.of(5L));
-        when(collaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
-                CAMPAIGN, 7L, CampaignCollaboratorStatus.ACCEPTED)).thenReturn(true);
-
-        assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isTrue();
-    }
-
-    @Test
-    void rejectsNonMember() {
-        uri("campaignId=" + CAMPAIGN + "&token=tok");
-        validPlayerToken(9L);
-        when(campaignRepository.findCreatorIdByIdAndActiveTrue(CAMPAIGN)).thenReturn(Optional.of(5L));
-        when(collaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
-                CAMPAIGN, 9L, CampaignCollaboratorStatus.ACCEPTED)).thenReturn(false);
+        resolves(9L);
+        when(collaboratorService.isParticipant(CAMPAIGN, 9L)).thenReturn(false);
 
         assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isFalse();
         verify(response).setStatusCode(HttpStatus.FORBIDDEN);
     }
 
     @Test
-    void rejectsBannedUser() {
+    void passesTheTokenRejectionThrough() {
         uri("campaignId=" + CAMPAIGN + "&token=tok");
-        when(jwtService.extractTokenType("tok")).thenReturn(JwtService.TYPE_PLAYER);
-        when(jwtService.extractPlayerId("tok")).thenReturn(5L);
-        when(duplicateUserService.resolvePrimaryUserId(5L)).thenReturn(5L);
-        when(userRepository.findByIdAndActiveTrue(5L))
-                .thenReturn(Optional.of(User.builder().id(5L).name("u").active(true).banned(true).build()));
-
-        assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isFalse();
-        verify(response).setStatusCode(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void rejectsMissingToken() {
-        uri("campaignId=" + CAMPAIGN);
-
-        assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isFalse();
-        verify(response).setStatusCode(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void rejectsNonPlayerToken() {
-        uri("campaignId=" + CAMPAIGN + "&token=tok");
-        when(jwtService.extractTokenType("tok")).thenReturn(JwtService.TYPE_STAFF);
+        when(playerTokenResolver.resolve("tok"))
+                .thenReturn(new PlayerTokenResolver.Resolution(null, HttpStatus.UNAUTHORIZED, "non-player token"));
 
         assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isFalse();
         verify(response).setStatusCode(HttpStatus.UNAUTHORIZED);
+        verify(collaboratorService, never()).isParticipant(any(), any());
+    }
+
+    @Test
+    void rejectsMissingOrInvalidCampaignBeforeTouchingTheToken() {
+        uri("campaignId=not-a-uuid&token=tok");
+
+        assertThat(interceptor.beforeHandshake(request, response, null, attributes)).isFalse();
+        verify(response).setStatusCode(HttpStatus.BAD_REQUEST);
+        verify(playerTokenResolver, never()).resolve(any());
     }
 }

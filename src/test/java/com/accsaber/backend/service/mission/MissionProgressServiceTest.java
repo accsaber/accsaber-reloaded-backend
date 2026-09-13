@@ -46,11 +46,11 @@ import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
-import com.accsaber.backend.model.event.CommunityMissionCompletedEvent;
+import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -70,7 +70,7 @@ class MissionProgressServiceTest {
         @Mock
         private UserMissionRepository userMissionRepository;
         @Mock
-        private CommunityMissionContributionRepository contributionRepository;
+        private MissionContributionRepository contributionRepository;
         @Mock
         private UserEventProfileRepository eventProfileRepository;
         @Mock
@@ -684,7 +684,7 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(eventPublisher).publishEvent(new CommunityMissionCompletedEvent(m.getId()));
+                        verify(eventPublisher).publishEvent(new SharedMissionCompletedEvent(m.getId()));
                 }
 
                 @Test
@@ -697,7 +697,7 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(eventPublisher, never()).publishEvent(any(CommunityMissionCompletedEvent.class));
+                        verify(eventPublisher, never()).publishEvent(any(SharedMissionCompletedEvent.class));
                 }
 
                 @Test

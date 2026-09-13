@@ -1,0 +1,7 @@
+ALTER TABLE campaign_chat_messages RENAME TO chat_messages;
+
+ALTER TABLE chat_messages RENAME CONSTRAINT campaign_chat_messages_pkey TO chat_messages_pkey;
+ALTER TABLE chat_messages RENAME CONSTRAINT campaign_chat_messages_campaign_id_fkey TO chat_messages_campaign_id_fkey;
+ALTER TABLE chat_messages RENAME CONSTRAINT campaign_chat_messages_user_id_fkey TO chat_messages_user_id_fkey;
+
+ALTER INDEX idx_campaign_chat_messages_campaign RENAME TO idx_chat_messages_campaign;

@@ -68,7 +68,7 @@ class EventMissionServiceTest {
         @Mock
         private MissionRowFactory missionRowFactory;
         @Mock
-        private CommunityContextLoader communityContextLoader;
+        private SharedMissionContextLoader sharedMissionContextLoader;
         @Mock
         private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 

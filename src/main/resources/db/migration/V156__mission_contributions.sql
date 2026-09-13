@@ -1,0 +1,13 @@
+ALTER TABLE community_mission_contributions RENAME TO mission_contributions;
+
+ALTER TABLE mission_contributions RENAME CONSTRAINT community_mission_contributions_pkey TO mission_contributions_pkey;
+ALTER TABLE mission_contributions RENAME CONSTRAINT community_mission_contributions_user_mission_id_fkey
+    TO mission_contributions_user_mission_id_fkey;
+ALTER TABLE mission_contributions RENAME CONSTRAINT community_mission_contributions_user_id_fkey
+    TO mission_contributions_user_id_fkey;
+ALTER TABLE mission_contributions RENAME CONSTRAINT chk_community_contribution_non_negative
+    TO chk_mission_contribution_non_negative;
+
+ALTER INDEX idx_community_contributions_leaderboard RENAME TO idx_mission_contributions_leaderboard;
+ALTER INDEX idx_community_contributions_payout RENAME TO idx_mission_contributions_payout;
+ALTER INDEX idx_community_contributions_user RENAME TO idx_mission_contributions_user;

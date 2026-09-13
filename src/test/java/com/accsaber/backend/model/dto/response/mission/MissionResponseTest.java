@@ -128,7 +128,7 @@ class MissionResponseTest {
         mission.setTargetCount(5000);
 
         MissionResponse response = MissionResponse.from(mission,
-                new MissionResponse.CommunityContext(
+                new MissionResponse.SharedContext(
                         Map.of(mission.getId(), 412L),
                         Map.of(mission.getId(), 27.0)));
 
@@ -144,7 +144,7 @@ class MissionResponseTest {
         mission.setTargetCount(5000);
 
         MissionResponse response = MissionResponse.from(mission,
-                new MissionResponse.CommunityContext(Map.of(mission.getId(), 412L), Map.of()));
+                new MissionResponse.SharedContext(Map.of(mission.getId(), 412L), Map.of()));
 
         assertThat(response.getContributors()).isEqualTo(412L);
         assertThat(response.getYourContribution()).isNull();
@@ -172,7 +172,7 @@ class MissionResponseTest {
         UserMission mission = communityMission(event,
                 startsAt.plus(Duration.ofDays(14)), startsAt.plus(Duration.ofDays(21)));
 
-        MissionResponse response = MissionResponse.from(mission, MissionResponse.CommunityContext.EMPTY);
+        MissionResponse response = MissionResponse.from(mission, MissionResponse.SharedContext.EMPTY);
 
         assertThat(response.getCode()).isEqualTo("accursed_totality_w3_community_streaks");
         assertThat(response.getWeek()).isEqualTo(3);
@@ -188,7 +188,7 @@ class MissionResponseTest {
                 .build();
         UserMission mission = communityMission(event, startsAt, null);
 
-        MissionResponse response = MissionResponse.from(mission, MissionResponse.CommunityContext.EMPTY);
+        MissionResponse response = MissionResponse.from(mission, MissionResponse.SharedContext.EMPTY);
 
         assertThat(response.getWeek()).isEqualTo(1);
         assertThat(response.getEndsWithWeek()).isFalse();

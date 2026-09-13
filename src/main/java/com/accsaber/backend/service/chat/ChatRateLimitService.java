@@ -1,4 +1,4 @@
-package com.accsaber.backend.service.campaign;
+package com.accsaber.backend.service.chat;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -9,7 +9,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 @Service
-public class CampaignChatRateLimitService {
+public class ChatRateLimitService {
 
     private static final int MAX_MESSAGES_PER_WINDOW = 10;
 

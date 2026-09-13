@@ -207,7 +207,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 SELECT cmc.user_id,
                     CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
                     CAST(cm.xp_reward AS numeric)
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 JOIN mission_templates mt ON mt.id = cm.template_id
                 WHERE cmc.rewarded_at IS NOT NULL
@@ -287,7 +287,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 WHERE um.user_id = :userId AND um.status = 'completed'
                 UNION ALL
                 SELECT cmc.rewarded_at, cm.xp_reward
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 WHERE cmc.user_id = :userId AND cmc.rewarded_at IS NOT NULL
                 UNION ALL

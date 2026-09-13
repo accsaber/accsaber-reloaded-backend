@@ -14,10 +14,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
-import com.accsaber.backend.model.dto.response.market.MarketUserRef;
 import com.accsaber.backend.model.event.CrateOpenedEvent;
 import com.accsaber.backend.websocket.server.CrateFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.CrateOpenBroadcast;
@@ -56,8 +56,8 @@ class CrateBroadcastServiceTest {
                 .rolledAt(Instant.parse("2026-07-25T18:00:00Z"))
                 .build();
 
-        MarketUserRef player = MarketUserRef.builder().id(USER_ID).name("Tikugato").country("us")
-                .avatarUrl("https://cdn.example/a.png").cdnAvatarUrl("https://cdn.accsaber/a.webp").build();
+        PlayerRef player = new PlayerRef(String.valueOf(USER_ID), "Tikugato", "https://cdn.example/a.png",
+                "https://cdn.accsaber/a.webp", "us");
 
         service.onCrateOpened(new CrateOpenedEvent(new CrateOpenBroadcast("crate_opened", player, open)));
 

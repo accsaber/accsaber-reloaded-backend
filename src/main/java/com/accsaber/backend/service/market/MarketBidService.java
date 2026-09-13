@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.market.MarketBidResponse;
 import com.accsaber.backend.model.entity.market.MarketBid;
 import com.accsaber.backend.model.entity.market.MarketListing;
@@ -190,7 +191,7 @@ public class MarketBidService {
 
     private void publish(MarketListing listing, String type, Long amount, User actor) {
         eventPublisher.publishEvent(new MarketListingEvent(listing.getId(), type, listing.getStatus(),
-                amount, MarketMapper.toUserRef(actor), MarketMapper.toUserRef(listing.getSeller()),
+                amount, PlayerRef.of(actor), PlayerRef.of(listing.getSeller()),
                 listing.getEndsAt()));
     }
 }
