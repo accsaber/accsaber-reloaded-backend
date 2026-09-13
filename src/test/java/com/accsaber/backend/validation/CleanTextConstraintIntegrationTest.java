@@ -6,7 +6,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import com.accsaber.backend.model.dto.request.campaign.SendCampaignChatMessageRequest;
+import com.accsaber.backend.model.dto.request.chat.SendChatMessageRequest;
 import com.accsaber.backend.service.moderation.TextModerationService;
 
 import jakarta.validation.ConstraintValidator;
@@ -47,17 +47,17 @@ class CleanTextConstraintIntegrationTest {
 
     @Test
     void rejectsSlurOnAnnotatedField() {
-        SendCampaignChatMessageRequest request = new SendCampaignChatMessageRequest();
+        SendChatMessageRequest request = new SendChatMessageRequest();
         request.setContent("you faggot");
-        Set<ConstraintViolation<SendCampaignChatMessageRequest>> violations = validator.validate(request);
+        Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
         assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("content"));
     }
 
     @Test
     void allowsGeneralProfanityOnAnnotatedField() {
-        SendCampaignChatMessageRequest request = new SendCampaignChatMessageRequest();
+        SendChatMessageRequest request = new SendChatMessageRequest();
         request.setContent("this map is fucking hard");
-        Set<ConstraintViolation<SendCampaignChatMessageRequest>> violations = validator.validate(request);
+        Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
         assertThat(violations).isEmpty();
     }
 }

@@ -31,7 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
-import com.accsaber.backend.model.entity.mission.CommunityMissionContribution;
+import com.accsaber.backend.model.entity.mission.MissionContribution;
 import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
@@ -39,23 +39,23 @@ import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.user.User;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 @ExtendWith(MockitoExtension.class)
-class CommunityMissionServiceTest {
+class SharedMissionServiceTest {
 
     @Mock
     private MissionTemplateRepository templateRepository;
     @Mock
     private UserMissionRepository userMissionRepository;
     @Mock
-    private CommunityMissionContributionRepository contributionRepository;
+    private MissionContributionRepository contributionRepository;
     @Mock
-    private CommunityContextLoader communityContextLoader;
+    private SharedMissionContextLoader sharedMissionContextLoader;
     @Mock
     private MissionRowFactory missionRowFactory;
     @Mock
@@ -68,7 +68,7 @@ class CommunityMissionServiceTest {
     private TransactionTemplate transactionTemplate;
 
     @InjectMocks
-    private CommunityMissionService service;
+    private SharedMissionService service;
 
     private Event event;
     private Instant now;
@@ -228,8 +228,8 @@ class CommunityMissionServiceTest {
                 .build();
     }
 
-    private CommunityMissionContribution contribution(Long userId) {
-        return CommunityMissionContribution.builder()
+    private MissionContribution contribution(Long userId) {
+        return MissionContribution.builder()
                 .user(User.builder().id(userId).build())
                 .contribution(5.0)
                 .firstAt(now)

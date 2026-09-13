@@ -13,7 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
@@ -41,8 +41,8 @@ class MilestoneTriggerListenerTest {
                 maxWaitSeconds);
     }
 
-    private MarketUserRef ref(Long id) {
-        return MarketUserRef.builder().id(id).build();
+    private PlayerRef ref(Long id) {
+        return new PlayerRef(String.valueOf(id), null, null, null, null);
     }
 
     @Test

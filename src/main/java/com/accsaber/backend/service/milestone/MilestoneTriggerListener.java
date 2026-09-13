@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.model.event.CrateOpenedEvent;
@@ -67,7 +67,7 @@ public class MilestoneTriggerListener {
         if (event.payload() == null || event.payload().player() == null) {
             return;
         }
-        dispatch(event.payload().player().getId(), MilestoneTrigger.ITEM);
+        dispatch(userId(event.payload().player()), MilestoneTrigger.ITEM);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -135,8 +135,8 @@ public class MilestoneTriggerListener {
         dispatch(event.userId(), MilestoneTrigger.CAMPAIGN);
     }
 
-    private Long userId(MarketUserRef ref) {
-        return ref == null ? null : ref.getId();
+    private Long userId(PlayerRef ref) {
+        return ref == null ? null : Long.valueOf(ref.id());
     }
 
     private void dispatch(Long userId, MilestoneTrigger trigger) {

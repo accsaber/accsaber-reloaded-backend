@@ -11,19 +11,19 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.accsaber.backend.model.entity.mission.CommunityMissionContribution;
+import com.accsaber.backend.model.entity.mission.MissionContribution;
 
-public interface CommunityMissionContributionRepository
-        extends JpaRepository<CommunityMissionContribution, CommunityMissionContribution.Key> {
+public interface MissionContributionRepository
+        extends JpaRepository<MissionContribution, MissionContribution.Key> {
 
     @Query(value = """
             WITH prior AS (
                 SELECT contribution
-                FROM community_mission_contributions
+                FROM mission_contributions
                 WHERE user_mission_id = :missionId AND user_id = :userId
             ),
             banked AS (
-                INSERT INTO community_mission_contributions AS c
+                INSERT INTO mission_contributions AS c
                     (user_mission_id, user_id, contribution, first_at, last_at)
                 VALUES (:missionId, :userId,
                         LEAST(CAST(:amount AS double precision),
@@ -54,7 +54,7 @@ public interface CommunityMissionContributionRepository
 
     @Query("""
             SELECT c.mission.id AS missionId, c.contribution AS contribution
-            FROM CommunityMissionContribution c
+            FROM MissionContribution c
             WHERE c.user.id = :userId AND c.mission.id IN :missionIds
             """)
     List<ContributionView> findContributionsByUser(
@@ -69,35 +69,35 @@ public interface CommunityMissionContributionRepository
 
     @Query("""
             SELECT c.mission.id AS missionId, COUNT(c) AS contributors
-            FROM CommunityMissionContribution c
+            FROM MissionContribution c
             WHERE c.mission.id IN :missionIds
             GROUP BY c.mission.id
             """)
     List<ContributorCountView> countContributors(@Param("missionIds") List<UUID> missionIds);
 
     @Query(value = """
-            SELECT c FROM CommunityMissionContribution c
+            SELECT c FROM MissionContribution c
             JOIN FETCH c.user
             WHERE c.mission.id = :missionId
             ORDER BY c.contribution DESC, c.firstAt ASC
             """,
             countQuery = """
-            SELECT COUNT(c) FROM CommunityMissionContribution c
+            SELECT COUNT(c) FROM MissionContribution c
             WHERE c.mission.id = :missionId
             """)
-    Page<CommunityMissionContribution> findLeaderboard(@Param("missionId") UUID missionId, Pageable pageable);
+    Page<MissionContribution> findLeaderboard(@Param("missionId") UUID missionId, Pageable pageable);
 
     @Query("""
-            SELECT c FROM CommunityMissionContribution c
+            SELECT c FROM MissionContribution c
             JOIN FETCH c.user
             WHERE c.mission.id = :missionId AND c.rewardedAt IS NULL
             ORDER BY c.firstAt ASC
             """)
-    List<CommunityMissionContribution> findUnrewarded(@Param("missionId") UUID missionId, Pageable pageable);
+    List<MissionContribution> findUnrewarded(@Param("missionId") UUID missionId, Pageable pageable);
 
     @Modifying
     @Query("""
-            UPDATE CommunityMissionContribution c
+            UPDATE MissionContribution c
             SET c.rewardedAt = :now
             WHERE c.mission.id = :missionId AND c.user.id = :userId AND c.rewardedAt IS NULL
             """)
@@ -105,7 +105,7 @@ public interface CommunityMissionContributionRepository
             @Param("now") Instant now);
 
     @Query("""
-            SELECT DISTINCT c.mission.id FROM CommunityMissionContribution c
+            SELECT DISTINCT c.mission.id FROM MissionContribution c
             WHERE c.rewardedAt IS NULL
               AND c.mission.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
               AND c.mission.pool = com.accsaber.backend.model.entity.mission.MissionPool.community

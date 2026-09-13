@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
@@ -28,7 +29,6 @@ import com.accsaber.backend.model.entity.item.UserCrateOpen;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 import com.accsaber.backend.model.entity.item.UserItemTradeItem;
-import com.accsaber.backend.model.entity.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -215,8 +215,8 @@ public final class ItemMapper {
                 .id(trade.getId())
                 .fromUserId(trade.getFromUser().getId())
                 .toUserId(trade.getToUser().getId())
-                .fromUser(toTradeUserRef(trade.getFromUser()))
-                .toUser(toTradeUserRef(trade.getToUser()))
+                .fromUser(PlayerRef.of(trade.getFromUser()))
+                .toUser(PlayerRef.of(trade.getToUser()))
                 .offeredItems(tradeItemsForSide(trade, TradeItemSide.offered))
                 .requestedItems(tradeItemsForSide(trade, TradeItemSide.requested))
                 .offeredEssence(trade.getOfferedEssence())
@@ -225,19 +225,6 @@ public final class ItemMapper {
                 .message(trade.getMessage())
                 .createdAt(trade.getCreatedAt())
                 .resolvedAt(trade.getResolvedAt())
-                .build();
-    }
-
-    private static TradeResponse.TradeUserRef toTradeUserRef(User user) {
-        if (user == null) {
-            return null;
-        }
-        return TradeResponse.TradeUserRef.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .avatarUrl(user.getAvatarUrl())
-                .cdnAvatarUrl(user.getCdnAvatarUrl())
-                .country(user.getCountry())
                 .build();
     }
 
