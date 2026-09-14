@@ -206,6 +206,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 FROM user_event_profiles uep
                 WHERE uep.bonus_awarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR uep.user_id = CAST(:userId AS bigint))
+                UNION ALL
+                SELECT h.attacker_user_id, 'war', CAST(h.xp_awarded AS numeric)
+                FROM clan_war_hits h
+                WHERE h.xp_awarded IS NOT NULL
+                  AND (CAST(:userId AS bigint) IS NULL OR h.attacker_user_id = CAST(:userId AS bigint))
             ),
             totals AS (
                 SELECT user_id,
@@ -280,6 +285,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 SELECT uep.bonus_awarded_at, uep.bonus_xp
                 FROM user_event_profiles uep
                 WHERE uep.user_id = :userId AND uep.bonus_awarded_at IS NOT NULL
+                UNION ALL
+                SELECT (SELECT b.created_at FROM clan_war_hits b
+                        WHERE b.war_id = h.war_id AND b.victim_user_id = h.victim_user_id
+                          AND b.victim_cycle = h.victim_cycle AND b.broke), h.xp_awarded
+                FROM clan_war_hits h
+                WHERE h.attacker_user_id = :userId AND h.xp_awarded IS NOT NULL
             ) e
             WHERE e.xp IS NOT NULL AND e.xp <> 0
             ORDER BY e.ts ASC NULLS FIRST

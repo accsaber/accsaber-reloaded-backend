@@ -97,4 +97,26 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             ORDER BY w.starts_at
             """, nativeQuery = true)
     List<UUID> findQuietSince(@Param("cutoff") Instant cutoff);
+
+    @Query(value = """
+            SELECT w.id FROM clan_wars w
+            JOIN clan_war_participants p ON p.war_id = w.id AND p.user_id = :userId AND p.left_at IS NULL
+            JOIN clan_war_pool pool ON pool.war_id = w.id AND pool.map_difficulty_id = :mapDifficultyId
+            WHERE w.status = 'active'
+            ORDER BY w.id
+            """, nativeQuery = true)
+    List<UUID> findActiveIdsFighting(@Param("userId") Long userId, @Param("mapDifficultyId") UUID mapDifficultyId);
+
+    @Query(value = """
+            SELECT DISTINCT pool.map_difficulty_id FROM clan_war_pool pool
+            JOIN clan_wars w ON w.id = pool.war_id AND w.status = 'active'
+            """, nativeQuery = true)
+    List<UUID> findActivePoolDifficultyIds();
+
+    @Query(value = """
+            SELECT DISTINCT p.user_id FROM clan_war_participants p
+            JOIN clan_wars w ON w.id = p.war_id AND w.status = 'active'
+            WHERE p.left_at IS NULL
+            """, nativeQuery = true)
+    List<Long> findActiveParticipantIds();
 }
