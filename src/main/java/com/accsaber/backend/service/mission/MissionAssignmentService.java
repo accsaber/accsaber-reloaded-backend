@@ -171,8 +171,8 @@ public class MissionAssignmentService {
         if (pool == MissionPool.event) {
             throw new ValidationException("pool", "event missions are managed via the event endpoints");
         }
-        if (pool == MissionPool.community) {
-            throw new ValidationException("pool", "community missions are not assigned per user");
+        if (pool == MissionPool.community || pool == MissionPool.clan) {
+            throw new ValidationException("pool", pool + " missions are not assigned per user");
         }
     }
 
@@ -220,18 +220,18 @@ public class MissionAssignmentService {
         if (user == null || user.isBanned())
             return List.of();
 
-        MissionAssignmentContext ctx = buildContext(userId);
+        MissionAssignmentContext ctx = contextFor(userId);
         if (ctx.activeCategories().isEmpty())
             return List.of();
 
         return switch (pool) {
             case daily -> assignDaily(ctx, cache, freshSeed);
             case weekly -> assignWeekly(ctx, cache, freshSeed);
-            case event, community -> List.of();
+            case event, community, clan -> List.of();
         };
     }
 
-    private MissionAssignmentContext buildContext(Long userId) {
+    public MissionAssignmentContext contextFor(Long userId) {
         List<UserCategoryStatistics> activeStats = statsRepository.findActiveByUser_IdWithCategory(userId).stream()
                 .filter(s -> s.getRankedPlays() != null && s.getRankedPlays() > 0)
                 .toList();

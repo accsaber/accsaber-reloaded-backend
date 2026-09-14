@@ -807,7 +807,7 @@ public class MissionBuilderService {
         return type == MissionType.XP_IN_WINDOW || type == MissionType.PLAY_N_MAPS || type == MissionType.SCORES_N;
     }
 
-    private MissionTemplate weightedPickExcluding(List<MissionTemplate> pool, Random rng, Set<UUID> exclude) {
+    public MissionTemplate weightedPickExcluding(List<MissionTemplate> pool, Random rng, Set<UUID> exclude) {
         int total = 0;
         for (MissionTemplate t : pool) {
             if (!exclude.contains(t.getId()))

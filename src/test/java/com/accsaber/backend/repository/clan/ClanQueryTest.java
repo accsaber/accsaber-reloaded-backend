@@ -26,7 +26,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
+import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanRival;
 import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
 import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
 import com.accsaber.backend.model.entity.clan.ClanItem;
@@ -47,7 +50,10 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategorySkill;
-import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
+import com.accsaber.backend.model.entity.mission.MissionStatus;
+import com.accsaber.backend.model.entity.mission.UserMission;
+import com.accsaber.backend.repository.chat.ChatMessageRepository;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 import jakarta.persistence.EntityManager;
 
@@ -80,9 +86,15 @@ class ClanQueryTest {
     @Autowired
     private ClanSeasonStandingRepository standingRepository;
     @Autowired
-    private ClanWarParticipantRepository participantRepository;
+    private UserMissionRepository userMissionRepository;
+    @Autowired
+    private ClanStandingEventRepository standingEventRepository;
     @Autowired
     private ClanAllianceRepository allianceRepository;
+    @Autowired
+    private ClanRivalRepository rivalRepository;
+    @Autowired
+    private ChatMessageRepository chatRepository;
 
     private Clan owls;
     private Clan lapiz;
@@ -407,7 +419,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("season contributors sum a player's war contribution for their own clan, biggest first")
+    @DisplayName("season contributors add war contribution to their share of completed clan missions, biggest first")
     void seasonContributorsOrderByContribution() {
         Clan rival = clan("Rivals", "RIV", "rivals");
         UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
@@ -424,12 +436,18 @@ class ClanQueryTest {
         entityManager.createNativeQuery(participant).setParameter(1, firstWar).setParameter(2, member.getId())
                 .setParameter(3, owls.getId()).setParameter(4, null).setParameter(5, 0.0).executeUpdate();
 
-        List<ClanWarParticipantRepository.ContributorView> contributors = participantRepository
-                .findSeasonContributors(current, owls.getId());
+        UUID template = template("clan-counter", "clan", "{\"count\": 4}");
+        UUID done = mission(template, owls, null, null, "completed", 4, Instant.now().minus(1, ChronoUnit.DAYS));
+        contribution(done, member, 1.0);
+        contribution(done, founder, 3.0);
 
-        assertThat(contributors).extracting(ClanWarParticipantRepository.ContributorView::getUserId)
-                .containsExactly(officer.getId(), founder.getId());
-        assertThat(contributors.get(0).getContribution()).isEqualTo(70.0);
+        List<ClanSeasonRepository.ContributorView> contributors = seasonRepository
+                .findContributors(current, owls.getId(), 100.0);
+
+        assertThat(contributors).extracting(ClanSeasonRepository.ContributorView::getUserId)
+                .containsExactly(founder.getId(), officer.getId(), member.getId());
+        assertThat(contributors.get(0).getContribution()).isEqualTo(125.0);
+        assertThat(contributors.get(1).getContribution()).isEqualTo(70.0);
     }
 
     @Test
@@ -495,5 +513,155 @@ class ClanQueryTest {
                 VALUES (?1, ?2, ?3, ?4, 0.5, 100, ?5)
                 """).setParameter(1, warId).setParameter(2, player.getId()).setParameter(3, borrower.getId())
                 .setParameter(4, lender.getId()).setParameter(5, contribution).executeUpdate();
+    }
+
+    private UUID template(String code, String pool, String targets) {
+        return (UUID) entityManager.createNativeQuery("""
+                INSERT INTO mission_templates (code, name, description, type, pool, event_targets, completable_until)
+                VALUES (?1, ?1, 'Clan work', 'SCORES_N', ?2, CAST(?3 AS jsonb), NOW() + INTERVAL '7 days')
+                RETURNING id
+                """).setParameter(1, code).setParameter(2, pool).setParameter(3, targets).getSingleResult();
+    }
+
+    private UUID mission(UUID templateId, Clan clan, User user, UUID parentId, String status, int progress,
+            Instant completedAt) {
+        return (UUID) entityManager.createNativeQuery("""
+                INSERT INTO user_missions (template_id, pool, clan_id, user_id, parent_mission_id, status,
+                    progress_count, target_count, completed_at, expires_at)
+                VALUES (?1, ?8, ?2, ?3, ?4, ?5, ?6, 4, ?7, NOW() + INTERVAL '3 days')
+                RETURNING id
+                """).setParameter(1, templateId).setParameter(8, clan != null ? "clan" : "community")
+                .setParameter(2, clan != null ? clan.getId() : null)
+                .setParameter(3, user != null ? user.getId() : null).setParameter(4, parentId)
+                .setParameter(5, status).setParameter(6, progress).setParameter(7, completedAt).getSingleResult();
+    }
+
+    private void contribution(UUID missionId, User user, double amount) {
+        entityManager.createNativeQuery("INSERT INTO mission_contributions (user_mission_id, user_id, contribution) "
+                + "VALUES (?1, ?2, ?3)").setParameter(1, missionId).setParameter(2, user.getId())
+                .setParameter(3, amount).executeUpdate();
+    }
+
+    private MissionStatus statusOf(UUID missionId) {
+        entityManager.clear();
+        return userMissionRepository.findById(missionId).map(UserMission::getStatus).orElseThrow();
+    }
+
+    @Test
+    @DisplayName("clan mission lookups keep counters, per member parents and member rows apart")
+    void clanMissionLookups() {
+        User outsider = user(76561190000000309L, "Outsider");
+        UUID community = mission(template("community", "community", "{\"count\": 50}"), null, null, null,
+                "active", 0, null);
+        UUID counter = mission(template("counter", "clan", "{\"count\": 20}"), owls, null, null, "active", 0, null);
+        UUID perMember = template("per-member", "clan", null);
+        UUID parent = mission(perMember, owls, null, null, "active", 0, null);
+        UUID founderRow = mission(perMember, owls, founder, parent, "active", 0, null);
+        entityManager.flush();
+
+        assertThat(userMissionRepository.findActiveSharedFor(founder.getId())).extracting(UserMission::getId)
+                .containsExactlyInAnyOrder(community, counter);
+        assertThat(userMissionRepository.findActiveSharedFor(outsider.getId())).extracting(UserMission::getId)
+                .containsExactly(community);
+        assertThat(userMissionRepository.findClanShared(owls.getId(), true, Instant.now(), PageRequest.of(0, 10))
+                .getContent()).extracting(UserMission::getId).containsExactlyInAnyOrder(counter, parent);
+        assertThat(userMissionRepository.findPerMemberParentsMissing(owls.getId(), officer.getId(), Instant.now()))
+                .extracting(UserMission::getId).containsExactly(parent);
+        assertThat(userMissionRepository.findPerMemberParentsMissing(owls.getId(), founder.getId(), Instant.now()))
+                .isEmpty();
+        assertThat(userMissionRepository.findClanIdsWithoutCurrentMissions(Instant.now()))
+                .contains(lapiz.getId()).doesNotContain(owls.getId());
+        assertThat(userMissionRepository.findSharedById(parent)).isPresent();
+        assertThat(userMissionRepository.findSharedById(founderRow)).isEmpty();
+
+        assertThat(userMissionRepository.voidActiveClanRowsForUser(founder.getId())).isEqualTo(1);
+        assertThat(statusOf(founderRow)).isEqualTo(MissionStatus.voided);
+        assertThat(userMissionRepository.expireActiveForClan(owls.getId())).isEqualTo(2);
+        assertThat(statusOf(counter)).isEqualTo(MissionStatus.expired);
+        assertThat(statusOf(community)).isEqualTo(MissionStatus.active);
+    }
+
+    @Test
+    @DisplayName("a clan mission past its week expires and a live one does not")
+    void staleClanMissionsExpire() {
+        UUID counter = mission(template("stale", "clan", "{\"count\": 20}"), owls, null, null, "active", 0, null);
+        UUID live = mission(template("live", "clan", "{\"count\": 20}"), lapiz, null, null, "active", 0, null);
+        entityManager.createNativeQuery("UPDATE user_missions SET expires_at = NOW() - INTERVAL '1 minute' WHERE id = ?1")
+                .setParameter(1, counter).executeUpdate();
+
+        assertThat(userMissionRepository.expireStaleClanMissions(Instant.now())).isEqualTo(1);
+        assertThat(statusOf(counter)).isEqualTo(MissionStatus.expired);
+        assertThat(statusOf(live)).isEqualTo(MissionStatus.active);
+    }
+
+    @Test
+    @DisplayName("the Standing writer's queries create the row once, lock it and bank each source once")
+    void standingWriterQueries() {
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+
+        assertThat(standingRepository.ensureRow(current, owls.getId())).isEqualTo(1);
+        assertThat(standingRepository.ensureRow(current, owls.getId())).isZero();
+        assertThat(standingRepository.lockEarned(current, owls.getId())).isZero();
+        assertThat(standingEventRepository.insertIfAbsent(current, owls.getId(), 40.0, "mission", "m-1")).isEqualTo(1);
+        assertThat(standingEventRepository.insertIfAbsent(current, owls.getId(), 40.0, "mission", "m-1")).isZero();
+        assertThat(standingRepository.addEarned(current, owls.getId(), 40.0)).isEqualTo(1);
+        assertThat(standingRepository.lockEarned(current, owls.getId())).isEqualTo(40.0);
+    }
+
+    @Test
+    @DisplayName("rival lookups read both directions, skip dropped rows and disbanded clans, and see either order")
+    void rivalLookups() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        Clan gone = clan("Gone", "GONE", "gone");
+        entityManager.persist(ClanRival.builder().clan(owls).rivalClan(lapiz).declaredBy(founder).build());
+        entityManager.persist(ClanRival.builder().clan(rival).rivalClan(owls).build());
+        entityManager.persist(ClanRival.builder().clan(owls).rivalClan(gone).build());
+        entityManager.persist(ClanRival.builder().clan(lapiz).rivalClan(rival).active(false).build());
+        gone.setActive(false);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(rivalRepository.findDeclaredBy(owls.getId(), PageRequest.of(0, 10)).getContent())
+                .extracting(r -> r.getRivalClan().getName()).containsExactly("El Lápiz");
+        assertThat(rivalRepository.findDeclaredAgainst(owls.getId(), PageRequest.of(0, 10)).getTotalElements())
+                .isEqualTo(1);
+        assertThat(rivalRepository.existsActiveBetween(lapiz.getId(), owls.getId())).isTrue();
+        assertThat(rivalRepository.existsActiveBetween(lapiz.getId(), rival.getId())).isFalse();
+        assertThat(rivalRepository.findByClan_IdAndRivalClan_Id(lapiz.getId(), rival.getId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("an active alliance is found whichever clan is asked about first")
+    void activeAllianceEitherWay() {
+        alliance(owls, lapiz, "active", Instant.now());
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        alliance(owls, rival, "pending", null);
+
+        assertThat(allianceRepository.existsActiveBetween(owls.getId(), lapiz.getId())).isTrue();
+        assertThat(allianceRepository.existsActiveBetween(lapiz.getId(), owls.getId())).isTrue();
+        assertThat(allianceRepository.existsActiveBetween(owls.getId(), rival.getId())).isFalse();
+    }
+
+    @Test
+    @DisplayName("clan chat pages newest first with its subjects, one clan at a time")
+    void clanChatPages() {
+        for (int i = 0; i < 3; i++) {
+            entityManager.persist(ChatMessage.builder().clan(owls).user(member).content("msg " + i).build());
+        }
+        entityManager.persist(ChatMessage.builder().clan(owls).user(founder).event(ChatEvent.alliance_formed)
+                .subjectClan(lapiz).build());
+        entityManager.persist(ChatMessage.builder().clan(lapiz).user(founder).content("elsewhere").build());
+        entityManager.flush();
+
+        entityManager.clear();
+
+        List<ChatMessage> page = chatRepository.findByClan_IdOrderByCreatedAtDesc(owls.getId(), PageRequest.of(0, 10))
+                .getContent();
+        assertThat(page).hasSize(4);
+        assertThat(page).filteredOn(m -> m.getEvent() == ChatEvent.alliance_formed).singleElement()
+                .satisfies(m -> assertThat(m.getSubjectClan().getTag()).isEqualTo("LPZ"));
+
+        assertThat(chatRepository.findByClan_IdOrderByCreatedAtDesc(lapiz.getId(), PageRequest.of(0, 10))
+                .getTotalElements()).isEqualTo(1);
     }
 }

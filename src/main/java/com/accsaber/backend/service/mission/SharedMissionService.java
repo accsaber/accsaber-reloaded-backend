@@ -1,16 +1,15 @@
 package com.accsaber.backend.service.mission;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -44,6 +43,8 @@ import lombok.extern.slf4j.Slf4j;
 public class SharedMissionService {
 
     private static final int REWARD_PAGE_SIZE = 200;
+    private static final Sort JOIN_ORDER = Sort.by("firstAt");
+    private static final Sort CONTRIBUTION_ORDER = Sort.by(Sort.Direction.DESC, "contribution").and(JOIN_ORDER);
 
     private final MissionTemplateRepository templateRepository;
     private final UserMissionRepository userMissionRepository;
@@ -89,14 +90,7 @@ public class SharedMissionService {
         if (userMissionRepository.findCommunityById(missionId).isEmpty()) {
             throw new ResourceNotFoundException("CommunityMission", missionId);
         }
-        Page<MissionContribution> page = contributionRepository.findLeaderboard(missionId, pageable);
-        long offset = pageable.getOffset();
-        List<MissionContribution> content = page.getContent();
-        List<MissionContributorResponse> rows = new ArrayList<>(content.size());
-        for (int i = 0; i < content.size(); i++) {
-            rows.add(MissionContributorResponse.from(content.get(i), offset + i + 1));
-        }
-        return new PageImpl<>(rows, pageable, page.getTotalElements());
+        return sharedMissionContextLoader.contributors(missionId, pageable);
     }
 
     public int openMissing() {
@@ -155,10 +149,12 @@ public class SharedMissionService {
     }
 
     public void payRewards(UUID missionId) {
-        UserMission mission = userMissionRepository.findCommunityById(missionId).orElse(null);
+        UserMission mission = userMissionRepository.findSharedById(missionId).orElse(null);
         if (mission == null || mission.getStatus() != MissionStatus.completed) {
             return;
         }
+        Sort order = mission.isCommunity() ? JOIN_ORDER : CONTRIBUTION_ORDER;
+        String rewardLabel = (mission.isCommunity() ? "Community" : "Clan") + " mission reward: ";
         int xpReward = mission.getXpReward() != null ? mission.getXpReward() : 0;
         UUID itemRewardId = mission.getItemReward() != null ? mission.getItemReward().getId() : null;
         String missionName = mission.getTemplate().getName();
@@ -169,29 +165,30 @@ public class SharedMissionService {
         int paid = 0;
         while (true) {
             List<MissionContribution> page = contributionRepository
-                    .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE));
+                    .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE, order));
             if (page.isEmpty()) {
                 break;
             }
             int paidInPage = 0;
             for (MissionContribution contribution : page) {
-                if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId, missionName)) {
+                if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId,
+                        rewardLabel + missionName)) {
                     paidInPage++;
                 }
             }
             if (paidInPage == 0) {
-                log.error("Community mission {} has {} contributors that could not be rewarded",
+                log.error("Shared mission {} has {} contributors that could not be rewarded",
                         missionId, page.size());
                 break;
             }
             paid += paidInPage;
         }
         if (paid > 0) {
-            log.info("Paid community mission '{}' rewards to {} contributors", missionName, paid);
+            log.info("Paid shared mission '{}' rewards to {} contributors", missionName, paid);
         }
     }
 
-    private boolean payOne(UUID missionId, Long userId, int xpReward, UUID itemRewardId, String missionName) {
+    private boolean payOne(UUID missionId, Long userId, int xpReward, UUID itemRewardId, String reason) {
         try {
             return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
                 if (contributionRepository.markRewarded(missionId, userId, Instant.now()) == 0) {
@@ -203,12 +200,12 @@ public class SharedMissionService {
                 }
                 if (itemRewardId != null) {
                     itemService.awardSystem(userId, itemRewardId, ItemSource.mission, missionId.toString(),
-                            "Community mission reward: " + missionName);
+                            reason);
                 }
                 return true;
             }));
         } catch (Exception e) {
-            log.warn("Failed to reward user {} for community mission {}: {}", userId, missionId, e.getMessage());
+            log.warn("Failed to reward user {} for shared mission {}: {}", userId, missionId, e.getMessage());
             return false;
         }
     }
@@ -216,7 +213,7 @@ public class SharedMissionService {
     private void markAllRewarded(UUID missionId) {
         while (true) {
             List<MissionContribution> page = contributionRepository
-                    .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE));
+                    .findUnrewarded(missionId, PageRequest.of(0, REWARD_PAGE_SIZE, JOIN_ORDER));
             if (page.isEmpty()) {
                 return;
             }

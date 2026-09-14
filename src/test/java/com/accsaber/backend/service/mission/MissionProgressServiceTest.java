@@ -33,6 +33,7 @@ import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
+import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -55,6 +56,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -93,6 +95,8 @@ class MissionProgressServiceTest {
         private UserRelationRepository userRelationRepository;
         @Mock
         private ModifierCacheService modifierCacheService;
+        @Mock
+        private ClanMissionService clanMissionService;
 
         @InjectMocks
         private MissionProgressService service;
@@ -638,7 +642,7 @@ class MissionProgressServiceTest {
 
                 private void givenCommunity(UserMission... missions) {
                         when(userMissionRepository.findAllActiveByUser(USER_ID)).thenReturn(List.of());
-                        when(userMissionRepository.findActiveCommunity()).thenReturn(List.of(missions));
+                        when(userMissionRepository.findActiveSharedFor(USER_ID)).thenReturn(List.of(missions));
                 }
 
                 private void accepting(UserMission m, double amount) {
@@ -655,7 +659,7 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(userMissionRepository).bankCommunityProgress(m.getId(), 1, 0.0);
+                        verify(userMissionRepository).bankSharedProgress(m.getId(), 1, 0.0);
                         assertThat(m.getProgressCount()).isZero();
                 }
 
@@ -671,7 +675,7 @@ class MissionProgressServiceTest {
 
                         verify(contributionRepository).acceptContribution(eq(m.getId()), eq(USER_ID), eq(42.0),
                                         isNull(), any());
-                        verify(userMissionRepository).bankCommunityProgress(m.getId(), 42, 0.0);
+                        verify(userMissionRepository).bankSharedProgress(m.getId(), 42, 0.0);
                 }
 
                 @Test
@@ -685,7 +689,7 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(userMissionRepository).bankCommunityProgress(m.getId(), 0, 3.5);
+                        verify(userMissionRepository).bankSharedProgress(m.getId(), 0, 3.5);
                         assertThat(m.getProgressAp()).isEqualByComparingTo(0.0);
                 }
 
@@ -695,7 +699,7 @@ class MissionProgressServiceTest {
                         m.setTargetCount(1);
                         givenCommunity(m);
                         accepting(m, 1.0);
-                        when(userMissionRepository.claimCommunityCompletion(eq(m.getId()), any())).thenReturn(1);
+                        when(userMissionRepository.claimSharedCompletion(eq(m.getId()), any())).thenReturn(1);
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
@@ -708,7 +712,7 @@ class MissionProgressServiceTest {
                         m.setTargetCount(1);
                         givenCommunity(m);
                         accepting(m, 1.0);
-                        when(userMissionRepository.claimCommunityCompletion(eq(m.getId()), any())).thenReturn(0);
+                        when(userMissionRepository.claimSharedCompletion(eq(m.getId()), any())).thenReturn(0);
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
@@ -724,8 +728,8 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(userMissionRepository, never()).bankCommunityProgress(any(), anyInt(), anyDouble());
-                        verify(userMissionRepository, never()).claimCommunityCompletion(any(), any());
+                        verify(userMissionRepository, never()).bankSharedProgress(any(), anyInt(), anyDouble());
+                        verify(userMissionRepository, never()).claimSharedCompletion(any(), any());
                 }
 
                 @Test
@@ -783,7 +787,7 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
-                        verify(userMissionRepository).bankCommunityProgress(m.getId(), 1, 0.0);
+                        verify(userMissionRepository).bankSharedProgress(m.getId(), 1, 0.0);
                 }
 
                 @Test
@@ -795,6 +799,73 @@ class MissionProgressServiceTest {
 
                         service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
 
+                        verify(contributionRepository, never()).acceptContribution(any(), anyLong(), anyDouble(),
+                                        any(), any());
+                }
+        }
+
+        @Nested
+        class ClanMissions {
+
+                private final Clan clan = Clan.builder().id(UUID.randomUUID()).build();
+
+                private UserMission clanRow(MissionType type) {
+                        UserMission m = mission(type);
+                        m.setPool(MissionPool.clan);
+                        m.setClan(clan);
+                        m.getTemplate().setPool(MissionPool.clan);
+                        m.setExpiresAt(Instant.now().plusSeconds(3600));
+                        return m;
+                }
+
+                @Test
+                void aClanCounterThatCompletesBanksTheClanRewards() {
+                        UserMission counter = clanRow(MissionType.SCORES_N);
+                        counter.setUser(null);
+                        counter.setTargetCount(1);
+                        when(userMissionRepository.findActiveSharedFor(USER_ID)).thenReturn(List.of(counter));
+                        when(contributionRepository.acceptContribution(eq(counter.getId()), eq(USER_ID), anyDouble(),
+                                        any(), any())).thenReturn(1.0);
+                        when(userMissionRepository.claimSharedCompletion(eq(counter.getId()), any())).thenReturn(1);
+
+                        service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
+
+                        verify(clanMissionService).bankCompletion(counter);
+                        verify(eventPublisher).publishEvent(new SharedMissionCompletedEvent(counter.getId()));
+                }
+
+                @Test
+                void clearingAMemberRowCountsOnceTowardItsParent() {
+                        UserMission parent = clanRow(MissionType.SCORES_N);
+                        parent.setUser(null);
+                        parent.setTargetCount(3);
+                        UserMission memberRow = clanRow(MissionType.SCORES_N);
+                        memberRow.setTargetCount(1);
+                        memberRow.setParentMission(parent);
+                        givenMissions(memberRow);
+                        when(contributionRepository.acceptContribution(eq(parent.getId()), eq(USER_ID), eq(1.0),
+                                        any(), any())).thenReturn(1.0);
+
+                        service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
+
+                        assertThat(memberRow.getStatus()).isEqualTo(MissionStatus.completed);
+                        verify(userMissionRepository).bankSharedProgress(parent.getId(), 1, 0.0);
+                        verify(clanMissionService, never()).bankCompletion(any());
+                }
+
+                @Test
+                void aParentThatIsAlreadyDoneTakesNoMoreClears() {
+                        UserMission parent = clanRow(MissionType.SCORES_N);
+                        parent.setUser(null);
+                        parent.setStatus(MissionStatus.completed);
+                        UserMission memberRow = clanRow(MissionType.SCORES_N);
+                        memberRow.setTargetCount(1);
+                        memberRow.setParentMission(parent);
+                        givenMissions(memberRow);
+
+                        service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
+
+                        assertThat(memberRow.getStatus()).isEqualTo(MissionStatus.completed);
                         verify(contributionRepository, never()).acceptContribution(any(), anyLong(), anyDouble(),
                                         any(), any());
                 }

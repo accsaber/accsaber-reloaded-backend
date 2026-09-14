@@ -21,6 +21,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanMemberResponse;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
@@ -57,6 +58,7 @@ public class ClanMembershipService {
     private final ClanLevelService levelService;
     private final ClanService clanService;
     private final NotificationWebSocketHandler notificationHandler;
+    private final ClanChatChannel chatChannel;
     private final ClanProperties clanProperties;
 
     public Page<ClanMemberResponse> roster(UUID clanId, Pageable pageable) {
@@ -108,6 +110,7 @@ public class ClanMembershipService {
         ClanMember target = openMember(clanId, targetUserId);
         assertOutranks(actor, target);
         roster.close(target, ClanLeaveReason.kicked);
+        chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_kicked, actorUser, target.getUser()));
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actorUser)
                 .action(ClanAuditAction.member_kicked).targetUser(target.getUser()).build());
     }
@@ -134,6 +137,7 @@ public class ClanMembershipService {
         memberRepository.findOpenByUserId(event.userId()).ifPresent(member -> {
             Clan clan = roster.lock(member.getClan().getId());
             roster.close(member, ClanLeaveReason.banned);
+            chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_left, member.getUser(), null));
             if (member.getRole() == ClanRole.founder) {
                 promoteSuccessor(clan);
             }
@@ -159,6 +163,7 @@ public class ClanMembershipService {
     private void leave(Clan clan, ClanMember member) {
         if (member.getRole() != ClanRole.founder) {
             roster.close(member, ClanLeaveReason.left);
+            chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_left, member.getUser(), null));
             return;
         }
         if (memberRepository.countByClan_IdAndLeftAtIsNull(clan.getId()) > 1) {

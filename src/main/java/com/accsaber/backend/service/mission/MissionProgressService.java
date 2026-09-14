@@ -48,6 +48,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -75,6 +76,7 @@ public class MissionProgressService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final UserRelationRepository userRelationRepository;
     private final ModifierCacheService modifierCacheService;
+    private final ClanMissionService clanMissionService;
 
     @Value("${accsaber.missions.enabled:false}")
     private boolean missionsEnabled;
@@ -120,7 +122,7 @@ public class MissionProgressService {
     }
 
     private List<UserMission> sharedMissionsFor(MissionTrigger trigger, EvalContext ctx) {
-        List<UserMission> open = userMissionRepository.findActiveCommunity();
+        List<UserMission> open = userMissionRepository.findActiveSharedFor(ctx.userId);
         if (open.isEmpty()) {
             return List.of();
         }
@@ -183,9 +185,12 @@ public class MissionProgressService {
             return;
         }
         boolean banksAp = mission.getTemplate().getType().getAxis() == MissionProgressAxis.AP;
-        userMissionRepository.bankCommunityProgress(mission.getId(),
+        userMissionRepository.bankSharedProgress(mission.getId(),
                 banksAp ? 0 : (int) accepted, banksAp ? accepted : 0.0);
-        if (userMissionRepository.claimCommunityCompletion(mission.getId(), now) == 1) {
+        if (userMissionRepository.claimSharedCompletion(mission.getId(), now) == 1) {
+            if (mission.getPool() == MissionPool.clan) {
+                clanMissionService.bankCompletion(mission);
+            }
             eventPublisher.publishEvent(new SharedMissionCompletedEvent(mission.getId()));
         }
     }
@@ -470,6 +475,14 @@ public class MissionProgressService {
         }
 
         publishCompletionEvent(userId, mission);
+        contributeToParent(mission, userId, completedAt);
+    }
+
+    private void contributeToParent(UserMission mission, Long userId, Instant completedAt) {
+        UserMission parent = mission.getParentMission();
+        if (parent != null && parent.getStatus() == MissionStatus.active && parent.getExpiresAt().isAfter(completedAt)) {
+            contribute(parent, userId, 1);
+        }
     }
 
     @Transactional

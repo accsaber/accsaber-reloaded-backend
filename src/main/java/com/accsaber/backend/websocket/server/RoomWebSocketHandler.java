@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,23 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
     protected boolean hasSessions(K key) {
         Set<WebSocketSession> room = rooms.get(key);
         return room != null && !room.isEmpty();
+    }
+
+    protected void closeWhere(K key, Predicate<WebSocketSession> predicate) {
+        Set<WebSocketSession> room = rooms.get(key);
+        if (room == null) {
+            return;
+        }
+        for (WebSocketSession session : room) {
+            if (predicate.test(session)) {
+                try {
+                    session.close(CloseStatus.POLICY_VIOLATION);
+                } catch (IOException e) {
+                    log.warn("Failed to close session {}: {}", session.getId(), e.getMessage());
+                }
+                room.remove(session);
+            }
+        }
     }
 
     protected void sendToRoom(K key, String json) {

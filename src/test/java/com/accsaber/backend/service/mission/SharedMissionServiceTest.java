@@ -27,6 +27,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.model.entity.item.Item;
@@ -161,7 +163,7 @@ class SharedMissionServiceTest {
         void aMissionWhoseWeekRanOutUnfinishedPaysNobody() {
             UUID missionId = UUID.randomUUID();
             UserMission expired = communityRow(missionId, MissionStatus.expired);
-            when(userMissionRepository.findCommunityById(missionId)).thenReturn(Optional.of(expired));
+            when(userMissionRepository.findSharedById(missionId)).thenReturn(Optional.of(expired));
 
             service.payRewards(missionId);
 
@@ -179,7 +181,7 @@ class SharedMissionServiceTest {
         void everyContributorIsPaidOldestFirst() {
             UUID missionId = UUID.randomUUID();
             UserMission completed = communityRow(missionId, MissionStatus.completed);
-            when(userMissionRepository.findCommunityById(missionId)).thenReturn(Optional.of(completed));
+            when(userMissionRepository.findSharedById(missionId)).thenReturn(Optional.of(completed));
             when(contributionRepository.findUnrewarded(eq(missionId), any()))
                     .thenReturn(List.of(contribution(11L), contribution(22L)))
                     .thenReturn(List.of());
@@ -201,7 +203,7 @@ class SharedMissionServiceTest {
         void aContributorAlreadyPaidIsNotPaidTwice() {
             UUID missionId = UUID.randomUUID();
             UserMission completed = communityRow(missionId, MissionStatus.completed);
-            when(userMissionRepository.findCommunityById(missionId)).thenReturn(Optional.of(completed));
+            when(userMissionRepository.findSharedById(missionId)).thenReturn(Optional.of(completed));
             when(contributionRepository.findUnrewarded(eq(missionId), any()))
                     .thenReturn(List.of(contribution(11L)))
                     .thenReturn(List.of());
@@ -212,6 +214,20 @@ class SharedMissionServiceTest {
 
             verify(levelUpAwardService, never()).addMissionXp(anyLong(), any());
             verify(itemService, never()).awardSystem(anyLong(), any(), any(), any(), any());
+        }
+
+        @Test
+        void aClanMissionPaysItsBiggestContributorsFirst() {
+            UUID missionId = UUID.randomUUID();
+            UserMission completed = communityRow(missionId, MissionStatus.completed);
+            completed.setPool(MissionPool.clan);
+            when(userMissionRepository.findSharedById(missionId)).thenReturn(Optional.of(completed));
+            when(contributionRepository.findUnrewarded(eq(missionId), any())).thenReturn(List.of());
+
+            service.payRewards(missionId);
+
+            verify(contributionRepository).findUnrewarded(missionId, PageRequest.of(0, 200,
+                    Sort.by(Sort.Direction.DESC, "contribution").and(Sort.by("firstAt"))));
         }
     }
 

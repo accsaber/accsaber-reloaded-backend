@@ -27,7 +27,6 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.service.item.ItemService;
 
 import lombok.RequiredArgsConstructor;
@@ -42,7 +41,6 @@ public class ClanSeasonService {
     private final ClanSeasonRewardRepository rewardRepository;
     private final ClanRepository clanRepository;
     private final ClanItemRepository clanItemRepository;
-    private final ClanWarParticipantRepository participantRepository;
     private final ClanStandingService standingService;
     private final ItemService itemService;
     private final ClanProperties clanProperties;
@@ -104,7 +102,7 @@ public class ClanSeasonService {
     private void payRewards(ClanSeason season, List<ClanSeasonStandingRepository.RankingRow> ranking) {
         List<ClanSeasonReward> rewards = rewardRepository.findBySeasonId(season.getId());
         int lastRewardedRank = rewards.stream().mapToInt(ClanSeasonReward::getRankTo).max().orElse(0);
-        Map<UUID, List<ClanWarParticipantRepository.ContributorView>> contributorsByClan = new HashMap<>();
+        Map<UUID, List<ClanSeasonRepository.ContributorView>> contributorsByClan = new HashMap<>();
         for (int i = 0; i < Math.min(ranking.size(), lastRewardedRank); i++) {
             int rank = i + 1;
             UUID clanId = ranking.get(i).getClanId();
@@ -117,9 +115,10 @@ public class ClanSeasonService {
                             season.getId().toString());
                     continue;
                 }
-                List<ClanWarParticipantRepository.ContributorView> contributors = contributorsByClan.computeIfAbsent(
-                        clanId, id -> participantRepository.findSeasonContributors(season.getId(), id));
-                for (ClanWarParticipantRepository.ContributorView contributor : contributors) {
+                List<ClanSeasonRepository.ContributorView> contributors = contributorsByClan.computeIfAbsent(clanId,
+                        id -> seasonRepository.findContributors(season.getId(), id,
+                                clanProperties.getMissionContribution()));
+                for (ClanSeasonRepository.ContributorView contributor : contributors) {
                     itemService.awardSystem(contributor.getUserId(), reward.getItem().getId(), ItemSource.clan_season,
                             season.getId().toString(), "Clan season reward: " + season.getName(),
                             reward.getQuantity());

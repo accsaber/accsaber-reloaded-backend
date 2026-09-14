@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -74,8 +75,16 @@ class CampaignChatChannelTest {
     }
 
     @Test
+    void campaignMessagesMapWithNoClan() {
+        ChatMessage message = ChatMessage.builder().id(UUID.randomUUID()).content("hi").build();
+
+        assertThat(channel.toResponses(List.of(message))).singleElement()
+                .satisfies(response -> assertThat(response.clan()).isNull());
+    }
+
+    @Test
     void pruneAndBroadcastStayScopedToTheCampaign() {
-        channel.prune(campaignId, 1000);
+        channel.prune(campaignId);
         channel.broadcast(campaignId, "{}");
 
         verify(chatRepository).pruneCampaignToNewest(campaignId, 1000);

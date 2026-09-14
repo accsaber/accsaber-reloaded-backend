@@ -32,7 +32,8 @@ public class MissionController {
             + "with the target on each and how far along they are. Dailies roll over at 4AM server time and weeklies go on "
             + "Monday, so anything not finished by then disappears. Pass completed=true to get the ones you have already "
             + "finished instead, which are kept around after they roll over so you can look back at what you earned. Pool "
-            + "narrows the active list to one kind, and is ignored on the completed one.")
+            + "narrows the active list to one kind, and is ignored on the completed one. Your part of your clan's skill "
+            + "missions only shows up when you ask for pool=clan.")
     @GetMapping
     public ResponseEntity<List<MissionResponse>> listMine(
             @AuthenticationPrincipal PlayerUserDetails principal,

@@ -19,6 +19,9 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 
 public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
 
+    @Query("SELECT m.user.id FROM ClanMember m WHERE m.clan.id = :clanId AND m.leftAt IS NULL ORDER BY m.joinedAt")
+    List<Long> findOpenUserIds(@Param("clanId") UUID clanId);
+
     @Query("SELECT m FROM ClanMember m JOIN FETCH m.clan WHERE m.user.id = :userId AND m.leftAt IS NULL")
     Optional<ClanMember> findOpenByUserId(@Param("userId") Long userId);
 
