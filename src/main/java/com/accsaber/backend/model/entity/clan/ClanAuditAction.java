@@ -7,5 +7,7 @@ public enum ClanAuditAction {
     founder_transferred,
     founder_claimed,
     member_kicked,
+    alliance_formed,
+    alliance_ended,
     disbanded
 }

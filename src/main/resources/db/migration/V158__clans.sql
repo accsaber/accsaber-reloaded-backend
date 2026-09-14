@@ -69,7 +69,7 @@ CREATE TABLE clan_audit_log (
     details         JSONB,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_clan_audit_log_action CHECK (action IN ('profile_updated', 'cosmetic_equipped', 'role_changed',
-        'founder_transferred', 'founder_claimed', 'member_kicked', 'disbanded'))
+        'founder_transferred', 'founder_claimed', 'member_kicked', 'alliance_formed', 'alliance_ended', 'disbanded'))
 );
 
 CREATE INDEX idx_clan_audit_log_clan ON clan_audit_log (clan_id, created_at DESC);

@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.CurveRepository;
+import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.service.score.APCalculationService;
@@ -34,6 +36,7 @@ public class ClanStrengthService {
 
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
+    private final ClanAllianceRepository allianceRepository;
     private final CategoryRepository categoryRepository;
     private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
@@ -59,7 +62,8 @@ public class ClanStrengthService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onMembershipChanged(ClanMembershipChangedEvent event) {
-        recompute(List.of(event.clanId()));
+        List<UUID> changed = List.of(event.clanId());
+        recompute(Stream.concat(changed.stream(), allianceRepository.findActiveAllyIds(changed).stream()).toList());
     }
 
     private Map<UUID, List<Double>> skillsByClan(List<ClanMemberRepository.ClanSkillView> rows) {
