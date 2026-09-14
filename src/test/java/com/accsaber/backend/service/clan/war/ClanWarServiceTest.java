@@ -47,6 +47,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -58,6 +59,7 @@ import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
+import com.accsaber.backend.service.map.MapService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanWarServiceTest {
@@ -86,6 +88,12 @@ class ClanWarServiceTest {
     private ClanWarPoolService poolService;
     @Mock
     private ClanChatChannel chatChannel;
+    @Mock
+    private ClanWarScoreGate scoreGate;
+    @Mock
+    private ClanWarHitRepository hitRepository;
+    @Mock
+    private MapService mapService;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanWarService service;
@@ -97,9 +105,9 @@ class ClanWarServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ClanWarService(warRepository, sideRepository, participantRepository, allianceRepository,
-                memberRepository, roster, accessService, levelService, standingService, cosmeticService, poolService,
-                chatChannel, clanProperties);
+        service = new ClanWarService(warRepository, sideRepository, participantRepository, hitRepository, mapService,
+                allianceRepository, memberRepository, roster, accessService, levelService, standingService,
+                cosmeticService, poolService, chatChannel, scoreGate, clanProperties);
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()),
@@ -310,6 +318,7 @@ class ClanWarServiceTest {
         service.forfeitAll(attacker.getId());
 
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.forfeited);
+        verify(scoreGate).refreshAfterCommit();
     }
 
     @Test

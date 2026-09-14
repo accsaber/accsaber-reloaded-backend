@@ -53,6 +53,8 @@ class ClanWarRosterServiceTest {
     private ClanStrengthService strengthService;
     @Mock
     private ClanChatChannel chatChannel;
+    @Mock
+    private ClanWarScoreGate scoreGate;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanWarRosterService service;
@@ -64,7 +66,7 @@ class ClanWarRosterServiceTest {
     @BeforeEach
     void setUp() {
         service = new ClanWarRosterService(warRepository, participantRepository, userRepository, strengthService,
-                chatChannel, clanProperties);
+                chatChannel, scoreGate, clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .status(ClanWarStatus.preparing).startsAt(Instant.now().minusSeconds(1)).build();
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
@@ -93,6 +95,7 @@ class ClanWarRosterServiceTest {
         service.start(war.getId());
 
         assertThat(war.getStatus()).isEqualTo(ClanWarStatus.active);
+        verify(scoreGate).refreshAfterCommit();
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).hasSize(5);
         assertThat(participants.get(1L).getStandingWeight()).isEqualTo(0.6);

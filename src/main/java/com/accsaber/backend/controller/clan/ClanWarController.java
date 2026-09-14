@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.request.clan.SubmitClanWarPicksRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanWarRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
@@ -107,6 +108,18 @@ public class ClanWarController {
             throw new ValidationException("status", "must be ended");
         }
         return ResponseEntity.ok(warService.retreat(warId, principal.getUserId()));
+    }
+
+    @Operation(summary = "List a war's hits",
+            description = "Newest first. A hit is a play that beat an enemy's score on a pool map, or found them with no "
+                    + "score there at all, which is missingScore and hits softer. broke is the hit that emptied their "
+                    + "guard, with the Standing it moved, and xpAwarded is what each hit in that guard earned once it "
+                    + "broke.")
+    @GetMapping("/wars/{warId}/hits")
+    public ResponseEntity<Page<ClanWarHitResponse>> hits(
+            @PathVariable UUID warId,
+            @PageableDefault(size = 50) Pageable pageable) {
+        return ResponseEntity.ok(warService.hits(warId, pageable));
     }
 
     @Operation(summary = "List a war's participants",

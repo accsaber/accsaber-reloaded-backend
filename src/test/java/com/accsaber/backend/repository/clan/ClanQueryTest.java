@@ -1,6 +1,7 @@
 package com.accsaber.backend.repository.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -25,6 +26,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import jakarta.persistence.PersistenceException;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
@@ -53,6 +55,8 @@ import com.accsaber.backend.model.entity.user.UserCategorySkill;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.chat.ChatMessageRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
@@ -102,6 +106,10 @@ class ClanQueryTest {
     private ClanWarRepository warRepository;
     @Autowired
     private ClanWarPoolEntryRepository poolRepository;
+    @Autowired
+    private ClanWarHitRepository hitRepository;
+    @Autowired
+    private ClanWarParticipantRepository participantRepository;
 
     private Clan owls;
     private Clan lapiz;
@@ -757,5 +765,79 @@ class ClanQueryTest {
                 .satisfies(view -> assertThat(view.getSkill()).isEqualTo(70.0));
         assertThat(skills).filteredOn(view -> !view.getUserId().equals(founder.getId()))
                 .allSatisfy(view -> assertThat(view.getSkill()).isZero());
+    }
+
+    @Test
+    @DisplayName("combat lookups find the wars a play can land in, the gate's sets, skills and enemy scores")
+    void combatLookups() {
+        MapDifficulty pooled = rankedAt(6.0);
+        MapDifficulty elsewhere = rankedAt(6.0);
+        skill(founder, 55.0);
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        User lapizStar = user(76561190000000310L, "Lapiz Star");
+        seat(lapiz, lapizStar, ClanRole.founder, Instant.now().minus(5, ChronoUnit.DAYS));
+        warState(warId, "status = 'active', starts_at = ?1", Instant.now().minusSeconds(60));
+        entityManager.createNativeQuery("INSERT INTO clan_war_pool (war_id, map_difficulty_id, source) VALUES "
+                + "(?1, ?2, 'random')").setParameter(1, warId).setParameter(2, pooled.getId()).executeUpdate();
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
+                + "left_at) VALUES (?1, ?2, ?3, 0.5, 100, ?4)";
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, null).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, member.getId())
+                .setParameter(3, owls.getId()).setParameter(4, Instant.now()).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, lapizStar.getId())
+                .setParameter(3, lapiz.getId()).setParameter(4, null).executeUpdate();
+        score(lapizStar, pooled, 0.0, Instant.now());
+        entityManager.createNativeQuery("UPDATE scores SET active = true WHERE user_id = ?1")
+                .setParameter(1, lapizStar.getId()).executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(warRepository.findActiveIdsFighting(founder.getId(), pooled.getId())).containsExactly(warId);
+        assertThat(warRepository.findActiveIdsFighting(founder.getId(), elsewhere.getId())).isEmpty();
+        assertThat(warRepository.findActiveIdsFighting(member.getId(), pooled.getId())).isEmpty();
+        assertThat(warRepository.findActivePoolDifficultyIds()).containsExactly(pooled.getId());
+        assertThat(warRepository.findActiveParticipantIds()).containsExactlyInAnyOrder(founder.getId(), lapizStar.getId());
+        assertThat(participantRepository.findActiveByWarId(warId)).hasSize(2);
+        assertThat(participantRepository.findOverallSkills(List.of(founder.getId(), lapizStar.getId())))
+                .extracting(ClanMemberRepository.MemberSkillView::getUserId).containsExactly(founder.getId());
+        assertThat(hitRepository.findActiveScores(pooled.getId(), List.of(lapizStar.getId(), founder.getId())))
+                .singleElement().satisfies(view -> {
+                    assertThat(view.getUserId()).isEqualTo(lapizStar.getId());
+                    assertThat(view.getScore()).isEqualTo(950000);
+                });
+        assertThat(hitRepository.countByWar_IdAndVictim_IdAndVictimCycle(warId, lapizStar.getId(), 0)).isZero();
+        assertThat(hitRepository.findPageByWarId(warId, PageRequest.of(0, 10)).getTotalElements()).isZero();
+    }
+
+    @Test
+    @DisplayName("a guard breaks once per cycle, whatever map the second break comes from")
+    void oneBreakPerGuardCycle() {
+        MapDifficulty first = rankedAt(6.0);
+        MapDifficulty second = rankedAt(7.0);
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        User lapizStar = user(76561190000000311L, "Lapiz Star");
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard) "
+                + "VALUES (?1, ?2, ?3, 1, 100)";
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, lapizStar.getId())
+                .setParameter(3, lapiz.getId()).executeUpdate();
+        score(founder, first, 0.0, Instant.now());
+        entityManager.flush();
+        UUID scoreId = (UUID) entityManager.createNativeQuery("SELECT id FROM scores WHERE user_id = ?1")
+                .setParameter(1, founder.getId()).getSingleResult();
+        String hit = "INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, victim_cycle, "
+                + "map_difficulty_id, attacker_score_id, damage, guard_after, broke) VALUES (?1, ?2, ?3, 0, ?4, ?5, "
+                + "100, 0, true)";
+        entityManager.createNativeQuery(hit).setParameter(1, warId).setParameter(2, founder.getId())
+                .setParameter(3, lapizStar.getId()).setParameter(4, first.getId()).setParameter(5, scoreId)
+                .executeUpdate();
+
+        assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)
+                .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, second.getId())
+                .setParameter(5, scoreId).executeUpdate()).isInstanceOf(PersistenceException.class);
     }
 }
