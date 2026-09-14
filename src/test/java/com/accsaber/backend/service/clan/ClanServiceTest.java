@@ -46,6 +46,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.service.clan.war.ClanWarService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanServiceTest {
@@ -72,6 +73,8 @@ class ClanServiceTest {
     private ClanAllianceService allianceService;
     @Mock
     private ClanMissionService missionService;
+    @Mock
+    private ClanWarService warService;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
 
@@ -214,6 +217,7 @@ class ClanServiceTest {
         verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
         verify(allianceService).endAll(eq(clan), any());
         verify(missionService).endAll(clanId);
+        verify(warService).forfeitAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
     }
 

@@ -37,6 +37,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,7 @@ public class ClanService {
     private final ClanStandingService standingService;
     private final ClanAllianceService allianceService;
     private final ClanMissionService missionService;
+    private final ClanWarService warService;
     private final ClanProperties clanProperties;
 
     private record ListExtras(Map<UUID, Long> memberCounts, Map<UUID, PlayerRef> founders,
@@ -122,6 +124,7 @@ public class ClanService {
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
         allianceService.endAll(clan, actor);
         missionService.endAll(clan.getId());
+        warService.forfeitAll(clan.getId());
         auditRepository.save(ClanAuditEntry.builder()
                 .clan(clan).actor(actor).action(ClanAuditAction.disbanded).build());
     }

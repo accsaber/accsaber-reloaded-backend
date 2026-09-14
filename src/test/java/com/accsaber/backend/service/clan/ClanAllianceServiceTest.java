@@ -96,8 +96,7 @@ class ClanAllianceServiceTest {
         lenient().when(accessService.player(3L)).thenReturn(outsider);
         lenient().when(memberRepository.findOpenByUserId(1L)).thenReturn(Optional.of(member(owls, owlsFounder)));
         lenient().when(memberRepository.findOpenByUserId(2L)).thenReturn(Optional.of(member(lapiz, lapizFounder)));
-        lenient().when(roster.lock(OWLS_ID)).thenReturn(owls);
-        lenient().when(roster.lock(LAPIZ_ID)).thenReturn(lapiz);
+        lenient().when(roster.lockPair(any(), any())).thenReturn(List.of(owls, lapiz));
         lenient().when(levelService.capacityOf(any(), any())).thenReturn(2);
         lenient().when(cosmeticService.equippedByClanIds(anyCollection())).thenReturn(Map.of());
         lenient().when(allianceRepository.saveAndFlush(any())).thenAnswer(inv -> {

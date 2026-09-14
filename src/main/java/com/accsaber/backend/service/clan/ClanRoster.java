@@ -1,7 +1,10 @@
 package com.accsaber.backend.service.clan;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -28,6 +31,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClanRoster {
 
+    private static final Comparator<UUID> LOCK_ORDER = Comparator
+            .comparing(UUID::getMostSignificantBits, Long::compareUnsigned)
+            .thenComparing(UUID::getLeastSignificantBits, Long::compareUnsigned);
+
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanJoinRequestRepository joinRequestRepository;
@@ -39,6 +46,10 @@ public class ClanRoster {
     public Clan lock(UUID clanId) {
         return clanRepository.findByIdAndActiveTrueForUpdate(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+    }
+
+    public List<Clan> lockPair(UUID first, UUID second) {
+        return Stream.of(first, second).sorted(LOCK_ORDER).map(this::lock).toList();
     }
 
     public void assertCanJoin(Long userId) {

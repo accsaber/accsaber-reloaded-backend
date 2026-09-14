@@ -53,6 +53,9 @@ import com.accsaber.backend.model.entity.user.UserCategorySkill;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.chat.ChatMessageRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 import jakarta.persistence.EntityManager;
@@ -95,6 +98,10 @@ class ClanQueryTest {
     private ClanRivalRepository rivalRepository;
     @Autowired
     private ChatMessageRepository chatRepository;
+    @Autowired
+    private ClanWarRepository warRepository;
+    @Autowired
+    private ClanWarPoolEntryRepository poolRepository;
 
     private Clan owls;
     private Clan lapiz;
@@ -663,5 +670,92 @@ class ClanQueryTest {
 
         assertThat(chatRepository.findByClan_IdOrderByCreatedAtDesc(lapiz.getId(), PageRequest.of(0, 10))
                 .getTotalElements()).isEqualTo(1);
+    }
+
+    private void warState(UUID warId, String sql, Object value) {
+        entityManager.createNativeQuery("UPDATE clan_wars SET " + sql + " WHERE id = ?2")
+                .setParameter(1, value).setParameter(2, warId).executeUpdate();
+    }
+
+    @Test
+    @DisplayName("war lookups find open attacks, due pick windows and starts, quiet wars and a season's open wars")
+    void warLookups() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        Instant now = Instant.now();
+        UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        UUID picking = war(current, owls, lapiz);
+        UUID preparing = war(current, lapiz, rival);
+        UUID quiet = war(current, rival, owls);
+        warState(picking, "picks_due_at = ?1", now.minusSeconds(60));
+        warState(preparing, "status = 'preparing', starts_at = ?1", now.minusSeconds(60));
+        warState(quiet, "status = 'active', starts_at = ?1", now.minus(10, ChronoUnit.DAYS));
+
+        assertThat(warRepository.existsOpenAttack(owls.getId(), null)).isTrue();
+        assertThat(warRepository.existsOpenAttack(owls.getId(), lapiz.getId())).isTrue();
+        assertThat(warRepository.existsOpenAttack(lapiz.getId(), owls.getId())).isFalse();
+        assertThat(warRepository.findPicksDue(now)).containsExactly(picking);
+        assertThat(warRepository.findStartsDue(now)).containsExactly(preparing);
+        assertThat(warRepository.findQuietSince(now.minus(7, ChronoUnit.DAYS))).containsExactly(quiet);
+        assertThat(warRepository.findQuietSince(now.minus(11, ChronoUnit.DAYS))).isEmpty();
+        assertThat(warRepository.findOpenIdsBySeasonId(current)).containsExactlyInAnyOrder(picking, preparing, quiet);
+        assertThat(warRepository.findOpenIdsByClanId(owls.getId())).containsExactlyInAnyOrder(picking, quiet);
+        assertThat(warRepository.findActiveIdsByClanId(owls.getId())).containsExactly(quiet);
+        assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(2);
+
+        warState(quiet, "status = 'ended', outcome = 'drawn', ended_at = ?1", now);
+        assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(1);
+        assertThat(warRepository.findPage(null, false, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(warRepository.findWithRefsById(picking)).get()
+                .satisfies(war -> assertThat(war.getAttackerClan().getTag()).isEqualTo("NOW"));
+    }
+
+    private MapDifficulty rankedAt(double complexity) {
+        MapDifficulty difficulty = rankedDifficulty();
+        entityManager.persist(MapDifficultyComplexity.builder().mapDifficulty(difficulty).complexity(complexity).build());
+        entityManager.flush();
+        return difficulty;
+    }
+
+    @Test
+    @DisplayName("the arena decides which ranked maps are legal and random fills skip what the pool already has")
+    void poolLegalityAndRandomFill() {
+        MapDifficulty easy = rankedAt(4.0);
+        MapDifficulty mid = rankedAt(8.0);
+        MapDifficulty hard = rankedAt(12.0);
+        UUID trueAcc = easy.getCategory().getId();
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        entityManager.createNativeQuery("INSERT INTO clan_war_pool (war_id, map_difficulty_id, picked_by_clan_id, "
+                + "source) VALUES (?1, ?2, ?3, 'pick')").setParameter(1, warId).setParameter(2, mid.getId())
+                .setParameter(3, owls.getId()).executeUpdate();
+
+        assertThat(poolRepository.findLegal(List.of(easy.getId(), mid.getId(), hard.getId()), trueAcc, 5.0, 13.0))
+                .containsExactlyInAnyOrder(mid.getId(), hard.getId());
+        assertThat(poolRepository.findLegal(List.of(easy.getId()), overall().getId(), null, null)).isEmpty();
+
+        assertThat(poolRepository.insertRandom(warId, lapiz.getId(), "replacement", 5, trueAcc, 5.0, 13.0))
+                .isEqualTo(1);
+        entityManager.clear();
+
+        assertThat(poolRepository.findByWarId(warId)).extracting(entry -> entry.getMapDifficulty().getId())
+                .containsExactlyInAnyOrder(mid.getId(), hard.getId());
+        assertThat(poolRepository.findDifficulties(warId)).extracting(d -> d.getMap().getSongName())
+                .containsOnly("Song");
+    }
+
+    @Test
+    @DisplayName("member skills for a war roster include members with no overall skill yet at zero")
+    void rosterSkillsIncludeUnrankedMembers() {
+        skill(founder, 70.0);
+        entityManager.flush();
+
+        List<ClanMemberRepository.MemberSkillView> skills = memberRepository.findOpenMemberSkillsByClan(owls.getId(),
+                overall().getId());
+
+        assertThat(skills).hasSize(4);
+        assertThat(skills).filteredOn(view -> view.getUserId().equals(founder.getId())).singleElement()
+                .satisfies(view -> assertThat(view.getSkill()).isEqualTo(70.0));
+        assertThat(skills).filteredOn(view -> !view.getUserId().equals(founder.getId()))
+                .allSatisfy(view -> assertThat(view.getSkill()).isZero());
     }
 }

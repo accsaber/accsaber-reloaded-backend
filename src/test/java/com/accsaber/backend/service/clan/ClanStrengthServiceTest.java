@@ -128,4 +128,30 @@ class ClanStrengthServiceTest {
         assertThat(clan.getRosterStrength()).isEqualTo(50.0);
         assertThat(ally.getAllyStrength()).isEqualTo(50.0);
     }
+
+    @Test
+    void memberSharesSplitTheWeightedRosterStrongestFirst() {
+        UUID clanId = UUID.randomUUID();
+        when(memberRepository.findOpenMemberSkillsByClan(clanId, OVERALL)).thenReturn(List.of(
+                memberSkill(2L, 30.0), memberSkill(1L, 60.0), memberSkill(3L, 0.0)));
+
+        List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(clanId);
+
+        assertThat(strengths).extracting(ClanStrengthService.MemberStrength::userId).containsExactly(1L, 2L, 3L);
+        assertThat(strengths.get(0).share()).isEqualTo(0.8);
+        assertThat(strengths.get(1).share()).isEqualTo(0.2);
+        assertThat(strengths.get(2).share()).isZero();
+    }
+
+    private ClanMemberRepository.MemberSkillView memberSkill(Long userId, double value) {
+        return new ClanMemberRepository.MemberSkillView() {
+            public Long getUserId() {
+                return userId;
+            }
+
+            public double getSkill() {
+                return value;
+            }
+        };
+    }
 }

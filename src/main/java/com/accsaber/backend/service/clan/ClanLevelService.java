@@ -82,6 +82,12 @@ public class ClanLevelService {
         return capacities().at(levelOf(clan).getLevel(), capacity);
     }
 
+    public boolean hasWarMode(Clan clan, ClanWarModeAxis axis, String mode) {
+        return warModeRepository.findById(new ClanLevelWarMode.Key(axis, mode))
+                .map(row -> row.getLevel() <= levelOf(clan).getLevel())
+                .orElse(false);
+    }
+
     public double rosterFactor(Clan clan) {
         return Math.max(1.0, clan.getRosterStrength() / clanProperties.getRosterReferenceStrength());
     }

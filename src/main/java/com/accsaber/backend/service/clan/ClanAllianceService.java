@@ -3,12 +3,10 @@ package com.accsaber.backend.service.clan;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,10 +43,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ClanAllianceService {
 
-    private static final Comparator<UUID> LOCK_ORDER = Comparator
-            .comparing(UUID::getMostSignificantBits, Long::compareUnsigned)
-            .thenComparing(UUID::getLeastSignificantBits, Long::compareUnsigned);
-
     private final ClanAllianceRepository allianceRepository;
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
@@ -82,7 +76,7 @@ public class ClanAllianceService {
         if (clanId.equals(allyId)) {
             throw new ValidationException("clanId", "must be another clan");
         }
-        List<Clan> pair = lockPair(clanId, allyId);
+        List<Clan> pair = roster.lockPair(clanId, allyId);
         if (allianceRepository.existsOpenBetween(pair.get(0).getId(), pair.get(1).getId())) {
             throw new ConflictException("These clans already have an alliance or a proposal between them");
         }
@@ -166,7 +160,7 @@ public class ClanAllianceService {
         if (alliance.getProposedByClan().getId().equals(side)) {
             throw new ForbiddenException("The other clan has to accept this proposal");
         }
-        List<Clan> pair = lockPair(alliance.getClanA().getId(), alliance.getClanB().getId());
+        List<Clan> pair = roster.lockPair(alliance.getClanA().getId(), alliance.getClanB().getId());
         assertNotRivals(alliance.getClanA().getId(), alliance.getClanB().getId());
         pair.forEach(this::assertFreeSlot);
         alliance.setStatus(ClanAllianceStatus.active);
@@ -198,10 +192,6 @@ public class ClanAllianceService {
                 .orElseThrow(() -> new ForbiddenException("You are not in either clan of this alliance"));
         accessService.require(clanId, actor.getId(), ClanPermission.MANAGE_ALLIANCES);
         return clanId;
-    }
-
-    private List<Clan> lockPair(UUID first, UUID second) {
-        return Stream.of(first, second).sorted(LOCK_ORDER).map(roster::lock).toList();
     }
 
     private void assertNotRivals(UUID first, UUID second) {

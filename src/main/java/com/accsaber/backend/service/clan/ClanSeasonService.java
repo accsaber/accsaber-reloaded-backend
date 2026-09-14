@@ -27,6 +27,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
+import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.service.item.ItemService;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class ClanSeasonService {
     private final ClanRepository clanRepository;
     private final ClanItemRepository clanItemRepository;
     private final ClanStandingService standingService;
+    private final ClanWarService warService;
     private final ItemService itemService;
     private final ClanProperties clanProperties;
 
@@ -83,6 +85,7 @@ public class ClanSeasonService {
         if (season.getClosedAt() != null) {
             return;
         }
+        warService.endSeason(seasonId);
         List<ClanSeasonStandingRepository.RankingRow> ranking = standingService.fullLiveRanking(seasonId);
         for (int i = 0; i < ranking.size(); i++) {
             ClanSeasonStandingRepository.RankingRow row = ranking.get(i);

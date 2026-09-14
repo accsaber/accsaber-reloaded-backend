@@ -416,4 +416,20 @@ class ClanSchemaTest {
         assertThatThrownBy(() -> sql("INSERT INTO chat_messages (clan_id, content) VALUES (?1, 'who said this')",
                 red)).isInstanceOf(PersistenceException.class);
     }
+
+    @Test
+    @DisplayName("only a war event can point a chat row at a war")
+    void onlyWarEventsCarryAWar() {
+        UUID red = clan("Red", "RED");
+        UUID blue = clan("Blue", "BLUE");
+        UUID current = season("season-1", "2026-01-01T00:00:00Z", "2099-07-01T00:00:00Z");
+        UUID war = (UUID) single("INSERT INTO clan_wars (season_id, attacker_clan_id, defender_clan_id, declared_by, "
+                + "arena, arena_spec, ruleset) VALUES (?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel') RETURNING id",
+                current, red, blue, alice.getId());
+        sql("INSERT INTO chat_messages (clan_id, event, subject_clan_id, war_id) VALUES (?1, 'war_declared', ?2, ?3)",
+                red, blue, war);
+
+        assertThatThrownBy(() -> sql("INSERT INTO chat_messages (clan_id, event, war_id) VALUES (?1, 'member_left', ?2)",
+                red, war)).isInstanceOf(PersistenceException.class);
+    }
 }
