@@ -45,6 +45,7 @@ public class ClanChatChannel implements ChatChannel {
                 .event(notice.event())
                 .subjectUser(notice.subjectUser())
                 .subjectClan(notice.subjectClan())
+                .war(notice.war())
                 .build());
     }
 

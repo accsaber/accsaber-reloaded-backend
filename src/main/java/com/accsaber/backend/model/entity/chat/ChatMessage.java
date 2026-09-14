@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
@@ -63,6 +64,10 @@ public class ChatMessage {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subject_clan_id")
     private Clan subjectClan;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "war_id")
+    private ClanWar war;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

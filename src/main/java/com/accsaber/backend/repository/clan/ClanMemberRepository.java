@@ -95,6 +95,19 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
     List<ClanSkillView> findOpenMemberSkills(@Param("clanIds") Collection<UUID> clanIds,
             @Param("overallId") UUID overallId);
 
+    interface MemberSkillView {
+        Long getUserId();
+
+        double getSkill();
+    }
+
+    @Query("""
+            SELECT m.user.id AS userId, COALESCE(s.skillLevel, 0.0) AS skill
+            FROM ClanMember m LEFT JOIN UserCategorySkill s ON s.user = m.user AND s.category.id = :overallId
+            WHERE m.clan.id = :clanId AND m.leftAt IS NULL
+            """)
+    List<MemberSkillView> findOpenMemberSkillsByClan(@Param("clanId") UUID clanId, @Param("overallId") UUID overallId);
+
     @Query(value = """
             SELECT pair.clan_id AS clanId, MAX(s.skill_level) AS skill
             FROM (

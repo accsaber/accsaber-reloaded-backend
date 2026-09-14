@@ -7,5 +7,9 @@ public enum ChatEvent {
     alliance_formed,
     alliance_ended,
     rival_declared,
-    rivaled_by
+    rivaled_by,
+    war_declared,
+    war_received,
+    war_started,
+    war_ended
 }

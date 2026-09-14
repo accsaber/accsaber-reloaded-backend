@@ -43,6 +43,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
+import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.service.item.ItemService;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,6 +62,8 @@ class ClanSeasonServiceTest {
     @Mock
     private ClanStandingService standingService;
     @Mock
+    private ClanWarService warService;
+    @Mock
     private ItemService itemService;
 
     private final ClanProperties clanProperties = new ClanProperties();
@@ -70,7 +73,7 @@ class ClanSeasonServiceTest {
     void setUp() {
         clanProperties.setSeasonLength(Period.ofMonths(6));
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
-                clanItemRepository, standingService, itemService, clanProperties);
+                clanItemRepository, standingService, warService, itemService, clanProperties);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
     }
@@ -190,6 +193,7 @@ class ClanSeasonServiceTest {
 
             service.close(seasonId);
 
+            verify(warService).endSeason(seasonId);
             ArgumentCaptor<ClanSeasonResult> results = ArgumentCaptor.forClass(ClanSeasonResult.class);
             verify(resultRepository, times(2)).save(results.capture());
             assertThat(results.getAllValues()).extracting(ClanSeasonResult::getRank).containsExactly(1, 2);

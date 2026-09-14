@@ -180,4 +180,23 @@ class ClanStandingServiceTest {
 
         verify(standingRepository, never()).addEarned(any(), any(), anyDouble());
     }
+
+    @Test
+    void currentStandingIsBasePlusWhatTheRunningSeasonEarned() {
+        Clan clan = Clan.builder().id(UUID.randomUUID()).rosterStrength(20.0).allyStrength(5.0).build();
+        ClanSeason season = ClanSeason.builder().id(UUID.randomUUID()).build();
+        when(seasonRepository.findCurrent(any())).thenReturn(Optional.of(season));
+        when(standingRepository.findEarned(season.getId(), List.of(clan.getId()))).thenReturn(List.of(
+                new ClanSeasonStandingRepository.EarnedView() {
+                    public UUID getClanId() {
+                        return clan.getId();
+                    }
+
+                    public double getEarned() {
+                        return 30.0;
+                    }
+                }));
+
+        assertThat(service.currentStanding(clan)).isEqualTo(280.0);
+    }
 }

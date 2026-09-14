@@ -69,6 +69,10 @@ public class ClanStandingService {
         }
     }
 
+    public double currentStanding(Clan clan) {
+        return baseStanding(clan) + earnedInCurrentSeason(List.of(clan.getId())).getOrDefault(clan.getId(), 0.0);
+    }
+
     public double baseStanding(Clan clan) {
         return (clan.getRosterStrength() + clan.getAllyStrength()) * clanProperties.getStandingPerSkill();
     }
