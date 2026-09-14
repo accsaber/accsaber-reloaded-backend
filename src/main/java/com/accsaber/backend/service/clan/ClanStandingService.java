@@ -21,6 +21,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanStandingEventResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanStandingResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanSeasonResult;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -57,6 +58,15 @@ public class ClanStandingService {
         UUID id = parseUuid(slugOrId);
         return (id != null ? seasonRepository.findById(id) : seasonRepository.findBySlug(slugOrId))
                 .orElseThrow(() -> new ResourceNotFoundException("ClanSeason", slugOrId));
+    }
+
+    @Transactional
+    public void apply(UUID seasonId, UUID clanId, double delta, ClanStandingSource source, String sourceId) {
+        standingRepository.ensureRow(seasonId, clanId);
+        double applied = Math.max(delta, -standingRepository.lockEarned(seasonId, clanId));
+        if (eventRepository.insertIfAbsent(seasonId, clanId, applied, source.name(), sourceId) == 1) {
+            standingRepository.addEarned(seasonId, clanId, applied);
+        }
     }
 
     public double baseStanding(Clan clan) {

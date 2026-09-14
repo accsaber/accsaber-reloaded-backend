@@ -4,10 +4,12 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 
 public enum ClanPermission {
     READ_AUDIT(ClanRole.member),
+    CHAT(ClanRole.member),
     INVITE(ClanRole.officer),
     RESOLVE_REQUESTS(ClanRole.officer),
     KICK(ClanRole.officer),
     PROMOTE_OFFICER(ClanRole.commander),
+    MANAGE_RIVALS(ClanRole.commander),
     PROMOTE_COMMANDER(ClanRole.founder),
     MANAGE_ALLIANCES(ClanRole.founder),
     CUSTOMIZE(ClanRole.founder),

@@ -6,10 +6,13 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -37,15 +40,29 @@ public class ChatMessage {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "campaign_id", nullable = false)
+    @JoinColumn(name = "campaign_id")
     private Campaign campaign;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "clan_id")
+    private Clan clan;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(nullable = false)
     private String content;
+
+    @Enumerated(EnumType.STRING)
+    private ChatEvent event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subject_user_id")
+    private User subjectUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subject_clan_id")
+    private Clan subjectClan;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

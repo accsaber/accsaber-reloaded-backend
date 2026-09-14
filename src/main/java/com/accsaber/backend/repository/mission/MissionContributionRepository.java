@@ -91,7 +91,6 @@ public interface MissionContributionRepository
             SELECT c FROM MissionContribution c
             JOIN FETCH c.user
             WHERE c.mission.id = :missionId AND c.rewardedAt IS NULL
-            ORDER BY c.firstAt ASC
             """)
     List<MissionContribution> findUnrewarded(@Param("missionId") UUID missionId, Pageable pageable);
 
@@ -108,7 +107,7 @@ public interface MissionContributionRepository
             SELECT DISTINCT c.mission.id FROM MissionContribution c
             WHERE c.rewardedAt IS NULL
               AND c.mission.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
-              AND c.mission.pool = com.accsaber.backend.model.entity.mission.MissionPool.community
+              AND c.mission.user IS NULL
             """)
     List<UUID> findMissionIdsAwaitingRewards();
 }

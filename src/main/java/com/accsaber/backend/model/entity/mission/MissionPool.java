@@ -4,5 +4,6 @@ public enum MissionPool {
     daily,
     weekly,
     event,
-    community
+    community,
+    clan
 }

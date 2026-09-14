@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -42,7 +43,6 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.service.item.ItemService;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,8 +59,6 @@ class ClanSeasonServiceTest {
     @Mock
     private ClanItemRepository clanItemRepository;
     @Mock
-    private ClanWarParticipantRepository participantRepository;
-    @Mock
     private ClanStandingService standingService;
     @Mock
     private ItemService itemService;
@@ -72,7 +70,7 @@ class ClanSeasonServiceTest {
     void setUp() {
         clanProperties.setSeasonLength(Period.ofMonths(6));
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
-                clanItemRepository, participantRepository, standingService, itemService, clanProperties);
+                clanItemRepository, standingService, itemService, clanProperties);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
     }
@@ -144,8 +142,8 @@ class ClanSeasonServiceTest {
             };
         }
 
-        private ClanWarParticipantRepository.ContributorView contributor(Long userId) {
-            return new ClanWarParticipantRepository.ContributorView() {
+        private ClanSeasonRepository.ContributorView contributor(Long userId) {
+            return new ClanSeasonRepository.ContributorView() {
                 public Long getUserId() {
                     return userId;
                 }
@@ -185,9 +183,9 @@ class ClanSeasonServiceTest {
             ClanSeasonReward banner = reward(1, 1, clanBanner);
             ClanSeasonReward crates = reward(1, 2, crate);
             when(rewardRepository.findBySeasonId(seasonId)).thenReturn(List.of(banner, crates));
-            when(participantRepository.findSeasonContributors(seasonId, first))
+            when(seasonRepository.findContributors(seasonId, first, 100.0))
                     .thenReturn(List.of(contributor(11L), contributor(12L)));
-            when(participantRepository.findSeasonContributors(seasonId, second))
+            when(seasonRepository.findContributors(seasonId, second, 100.0))
                     .thenReturn(List.of(contributor(21L)));
 
             service.close(seasonId);
@@ -216,7 +214,7 @@ class ClanSeasonServiceTest {
 
             service.close(seasonId);
 
-            verify(participantRepository, never()).findSeasonContributors(seasonId, second);
+            verify(seasonRepository, never()).findContributors(eq(seasonId), eq(second), anyDouble());
         }
     }
 }

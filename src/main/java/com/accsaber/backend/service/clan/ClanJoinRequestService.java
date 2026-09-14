@@ -16,6 +16,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanJoinRequestResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanJoinDirection;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
@@ -39,6 +40,7 @@ public class ClanJoinRequestService {
     private final ClanRoster roster;
     private final ClanAccessService accessService;
     private final ClanCosmeticService cosmeticService;
+    private final ClanChatChannel chatChannel;
 
     @Transactional
     public ClanJoinRequestResponse create(UUID clanId, Long playerId, Long invitedUserId) {
@@ -87,7 +89,9 @@ public class ClanJoinRequestService {
         request.setResolvedAt(Instant.now());
         joinRequestRepository.saveAndFlush(request);
         if (status == ClanJoinStatus.accepted) {
-            roster.admit(roster.lock(request.getClan().getId()), request.getUser(), ClanRole.member);
+            Clan clan = roster.lock(request.getClan().getId());
+            roster.admit(clan, request.getUser(), ClanRole.member);
+            chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_joined, request.getUser(), null));
         }
         return toResponse(request);
     }

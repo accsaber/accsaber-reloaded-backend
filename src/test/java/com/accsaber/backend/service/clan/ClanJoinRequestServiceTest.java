@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanJoinDirection;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
@@ -50,6 +51,8 @@ class ClanJoinRequestServiceTest {
     private ClanAccessService accessService;
     @Mock
     private ClanCosmeticService cosmeticService;
+    @Mock
+    private ClanChatChannel chatChannel;
 
     @InjectMocks
     private ClanJoinRequestService service;
@@ -137,6 +140,7 @@ class ClanJoinRequestServiceTest {
 
             verify(accessService).require(CLAN_ID, 1L, ClanPermission.RESOLVE_REQUESTS);
             verify(roster).admit(clan, player, ClanRole.member);
+            verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_joined, player, null));
             assertThat(response.status()).isEqualTo(ClanJoinStatus.accepted);
             assertThat(response.resolvedBy().id()).isEqualTo("1");
         }

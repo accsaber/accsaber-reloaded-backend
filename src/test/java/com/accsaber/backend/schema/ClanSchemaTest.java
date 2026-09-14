@@ -288,4 +288,132 @@ class ClanSchemaTest {
                 + "proposed_by_user_id) VALUES (?1, ?2, ?1, ?3)", high, low, alice.getId()))
                 .isInstanceOf(PersistenceException.class);
     }
+
+    private UUID missionTemplate(String code, String type, String targets) {
+        return (UUID) single("INSERT INTO mission_templates (code, name, description, type, pool, event_targets) "
+                + "VALUES (?1, ?1, 'Clan work', ?2, 'clan', CAST(?3 AS jsonb)) RETURNING id", code, type, targets);
+    }
+
+    private static final String CLAN_MISSION = "INSERT INTO user_missions (template_id, pool, clan_id, user_id, parent_mission_id, "
+            + "expires_at) VALUES (?1, ?2, ?3, ?4, ?5, NOW() + INTERVAL '7 days') RETURNING id";
+
+    @Test
+    @DisplayName("a fixed target mission type needs its targets before it can join the clan pool")
+    void clanFixedTargetTemplatesNeedTargets() {
+        missionTemplate("clan-scores", "SCORES_N", null);
+        missionTemplate("clan-ap-gain", "AP_GAIN_OVERALL", "{\"ap\": 20}");
+
+        assertThatThrownBy(() -> missionTemplate("clan-ap-gain-bare", "AP_GAIN_OVERALL", null))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("clan rows carry their clan, shared rows have no player and member rows point at their parent")
+    void clanMissionRowsKeepTheirShape() {
+        UUID red = clan("Red", "RED");
+        UUID template = missionTemplate("clan-scores", "SCORES_N", null);
+        UUID parent = (UUID) single(CLAN_MISSION, template, "clan", red, null, null);
+        single(CLAN_MISSION, template, "clan", red, alice.getId(), parent);
+
+        assertThatThrownBy(() -> single(CLAN_MISSION, template, "clan", null, null, null))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a clan member row without a player, or a player on a clan row without a parent, is rejected")
+    void clanMemberRowsNeedBothPlayerAndParent() {
+        UUID red = clan("Red", "RED");
+        UUID template = missionTemplate("clan-scores", "SCORES_N", null);
+        UUID parent = (UUID) single(CLAN_MISSION, template, "clan", red, null, null);
+
+        assertThatThrownBy(() -> single(CLAN_MISSION, template, "clan", red, null, parent))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a player on a shared clan row is rejected")
+    void sharedClanRowsHaveNoPlayer() {
+        UUID red = clan("Red", "RED");
+        UUID template = missionTemplate("clan-scores", "SCORES_N", null);
+
+        assertThatThrownBy(() -> single(CLAN_MISSION, template, "clan", red, alice.getId(), null))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a clan opens one mission per template at a time and each member holds one row under it")
+    void oneOpenClanMissionPerTemplateAndOneRowPerMember() {
+        UUID red = clan("Red", "RED");
+        UUID template = missionTemplate("clan-scores", "SCORES_N", null);
+        UUID parent = (UUID) single(CLAN_MISSION, template, "clan", red, null, null);
+        single(CLAN_MISSION, template, "clan", red, alice.getId(), parent);
+
+        assertThatThrownBy(() -> single(CLAN_MISSION, template, "clan", red, alice.getId(), parent))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("two open shared rows for the same template in one clan are rejected")
+    void twoOpenClanParentsAreRejected() {
+        UUID red = clan("Red", "RED");
+        UUID template = missionTemplate("clan-scores", "SCORES_N", null);
+        single(CLAN_MISSION, template, "clan", red, null, null);
+
+        assertThatThrownBy(() -> single(CLAN_MISSION, template, "clan", red, null, null))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a clan rivals another clan once and never itself")
+    void rivalsArePairsOfTwoClans() {
+        UUID red = clan("Red", "RED");
+        UUID blue = clan("Blue", "BLUE");
+        String rival = "INSERT INTO clan_rivals (clan_id, rival_clan_id) VALUES (?1, ?2)";
+        sql(rival, red, blue);
+        sql(rival, blue, red);
+
+        assertThatThrownBy(() -> sql(rival, red, red)).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a rivalry is stored once per direction")
+    void rivalryIsUniquePerDirection() {
+        UUID red = clan("Red", "RED");
+        UUID blue = clan("Blue", "BLUE");
+        String rival = "INSERT INTO clan_rivals (clan_id, rival_clan_id) VALUES (?1, ?2)";
+        sql(rival, red, blue);
+
+        assertThatThrownBy(() -> sql(rival, red, blue)).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a chat row belongs to exactly one channel")
+    void chatRowsBelongToOneChannel() {
+        UUID red = clan("Red", "RED");
+        sql("INSERT INTO chat_messages (clan_id, user_id, content) VALUES (?1, ?2, 'hi')", red, alice.getId());
+
+        assertThatThrownBy(() -> sql("INSERT INTO chat_messages (user_id, content) VALUES (?1, 'nowhere')",
+                alice.getId())).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a clan event row carries an event and no text, and needs no author")
+    void eventRowsHaveNoText() {
+        UUID red = clan("Red", "RED");
+        sql("INSERT INTO chat_messages (clan_id, event, subject_user_id) VALUES (?1, 'member_left', ?2)",
+                red, alice.getId());
+
+        assertThatThrownBy(() -> sql("INSERT INTO chat_messages (clan_id, user_id, content, event) "
+                + "VALUES (?1, ?2, 'both', 'member_left')", red, alice.getId()))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a said message needs its author")
+    void saidMessagesNeedAnAuthor() {
+        UUID red = clan("Red", "RED");
+
+        assertThatThrownBy(() -> sql("INSERT INTO chat_messages (clan_id, content) VALUES (?1, 'who said this')",
+                red)).isInstanceOf(PersistenceException.class);
+    }
 }

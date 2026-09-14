@@ -20,6 +20,7 @@ import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +31,7 @@ public class ClanRoster {
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanJoinRequestRepository joinRequestRepository;
+    private final UserMissionRepository userMissionRepository;
     private final ClanLevelService levelService;
     private final ClanProperties clanProperties;
     private final ApplicationEventPublisher eventPublisher;
@@ -76,6 +78,7 @@ public class ClanRoster {
         member.setLeftAt(Instant.now());
         member.setLeaveReason(reason);
         memberRepository.saveAndFlush(member);
+        userMissionRepository.voidActiveClanRowsForUser(member.getUser().getId());
         eventPublisher.publishEvent(new ClanMembershipChangedEvent(member.getClan().getId()));
     }
 

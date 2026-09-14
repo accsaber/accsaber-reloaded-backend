@@ -22,7 +22,7 @@ public class MissionRolloverService {
 
         return switch (pool) {
             case daily -> nextDaily.atZone(zone).toInstant();
-            case weekly -> nextDaily
+            case weekly, clan -> nextDaily
                     .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
                     .atZone(zone).toInstant();
             case event, community -> nextDaily.plusYears(10).atZone(zone).toInstant();

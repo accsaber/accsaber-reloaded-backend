@@ -160,4 +160,8 @@ public class MissionTemplate {
     public boolean isCommunity() {
         return pool == MissionPool.community;
     }
+
+    public boolean isPerMember() {
+        return pool == MissionPool.clan && eventTargets == null;
+    }
 }
