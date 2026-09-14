@@ -35,6 +35,7 @@ import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ClanRosterTest {
@@ -48,6 +49,8 @@ class ClanRosterTest {
     @Mock
     private ClanJoinRequestRepository joinRequestRepository;
     @Mock
+    private UserMissionRepository userMissionRepository;
+    @Mock
     private ClanLevelService levelService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -57,8 +60,8 @@ class ClanRosterTest {
 
     @BeforeEach
     void setUp() {
-        roster = new ClanRoster(clanRepository, memberRepository, joinRequestRepository, levelService, clanProperties,
-                eventPublisher);
+        roster = new ClanRoster(clanRepository, memberRepository, joinRequestRepository, userMissionRepository,
+                levelService, clanProperties, eventPublisher);
     }
 
     private void latestStint(Instant joinedAt, Instant leftAt, ClanLeaveReason reason) {
@@ -141,13 +144,15 @@ class ClanRosterTest {
     }
 
     @Test
-    void closingAStintStampsTheTimeAndReason() {
-        ClanMember member = ClanMember.builder().clan(Clan.builder().id(UUID.randomUUID()).build()).build();
+    void closingAStintStampsTheTimeAndReasonAndVoidsTheirClanMissionRows() {
+        ClanMember member = ClanMember.builder().clan(Clan.builder().id(UUID.randomUUID()).build())
+                .user(User.builder().id(USER).build()).build();
 
         roster.close(member, ClanLeaveReason.kicked);
 
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(member.getLeaveReason()).isEqualTo(ClanLeaveReason.kicked);
         verify(memberRepository).saveAndFlush(member);
+        verify(userMissionRepository).voidActiveClanRowsForUser(USER);
     }
 }

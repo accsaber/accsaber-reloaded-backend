@@ -144,14 +144,14 @@ class MissionContributionQueryTest {
     @Test
     @DisplayName("banking and claiming completion only fires for whoever crosses the target")
     void completionIsClaimedExactlyOnce() {
-        userMissionRepository.bankCommunityProgress(mission.getId(), 499, 0.0);
+        userMissionRepository.bankSharedProgress(mission.getId(), 499, 0.0);
         entityManager.clear();
-        assertThat(userMissionRepository.claimCommunityCompletion(mission.getId(), Instant.now())).isZero();
+        assertThat(userMissionRepository.claimSharedCompletion(mission.getId(), Instant.now())).isZero();
 
-        userMissionRepository.bankCommunityProgress(mission.getId(), 1, 0.0);
+        userMissionRepository.bankSharedProgress(mission.getId(), 1, 0.0);
         entityManager.clear();
-        assertThat(userMissionRepository.claimCommunityCompletion(mission.getId(), Instant.now())).isEqualTo(1);
-        assertThat(userMissionRepository.claimCommunityCompletion(mission.getId(), Instant.now())).isZero();
+        assertThat(userMissionRepository.claimSharedCompletion(mission.getId(), Instant.now())).isEqualTo(1);
+        assertThat(userMissionRepository.claimSharedCompletion(mission.getId(), Instant.now())).isZero();
 
         entityManager.clear();
         assertThat(userMissionRepository.findCommunityById(mission.getId()))
@@ -162,7 +162,7 @@ class MissionContributionQueryTest {
     @Test
     @DisplayName("the shared row is found by the community lookups and never by a per-user one")
     void theSharedRowIsInvisibleToPerUserQueries() {
-        assertThat(userMissionRepository.findActiveCommunity())
+        assertThat(userMissionRepository.findActiveSharedFor(alice.getId()))
                 .extracting(UserMission::getId)
                 .containsExactly(mission.getId());
         assertThat(userMissionRepository.findAllActiveByUser(alice.getId())).isEmpty();

@@ -23,6 +23,10 @@ public class ClanProperties {
     private double playXpShare = 0.05;
     private double standingPerSkill = 10.0;
     private double rosterReferenceStrength = 300.0;
+    private int missionClears = 3;
+    private double missionXp = 400.0;
+    private double missionStanding = 40.0;
+    private double missionContribution = 100.0;
     private List<TrustTier> trustTiers = List.of(
             new TrustTier(Duration.ZERO, 0.0, 1),
             new TrustTier(Duration.ofDays(30), 500.0, 2),

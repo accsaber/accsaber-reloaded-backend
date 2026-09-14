@@ -60,6 +60,13 @@ public interface ClanAllianceRepository extends JpaRepository<ClanAlliance, UUID
     boolean existsOpenBetween(@Param("clanAId") UUID clanAId, @Param("clanBId") UUID clanBId);
 
     @Query("""
+            SELECT COUNT(a) > 0 FROM ClanAlliance a
+            WHERE a.status = com.accsaber.backend.model.entity.clan.ClanAllianceStatus.active
+              AND ((a.clanA.id = :first AND a.clanB.id = :second) OR (a.clanA.id = :second AND a.clanB.id = :first))
+            """)
+    boolean existsActiveBetween(@Param("first") UUID first, @Param("second") UUID second);
+
+    @Query("""
             SELECT COUNT(a) FROM ClanAlliance a
             WHERE (a.clanA.id = :clanId OR a.clanB.id = :clanId)
               AND a.status = com.accsaber.backend.model.entity.clan.ClanAllianceStatus.active

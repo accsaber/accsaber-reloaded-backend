@@ -70,6 +70,8 @@ class ClanServiceTest {
     private ClanStandingService standingService;
     @Mock
     private ClanAllianceService allianceService;
+    @Mock
+    private ClanMissionService missionService;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
 
@@ -200,7 +202,7 @@ class ClanServiceTest {
     }
 
     @Test
-    void disbandingDeactivatesClosesTheRosterEndsAlliancesAndAudits() {
+    void disbandingDeactivatesClosesTheRosterEndsAlliancesAndMissionsAndAudits() {
         UUID clanId = UUID.randomUUID();
         Clan clan = Clan.builder().id(clanId).build();
         when(roster.lock(clanId)).thenReturn(clan);
@@ -211,6 +213,7 @@ class ClanServiceTest {
         assertThat(clan.isActive()).isFalse();
         verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
         verify(allianceService).endAll(eq(clan), any());
+        verify(missionService).endAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
     }
 

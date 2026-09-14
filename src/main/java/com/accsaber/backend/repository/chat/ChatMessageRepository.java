@@ -17,6 +17,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @EntityGraph(attributePaths = { "user" })
     Page<ChatMessage> findByCampaign_IdOrderByCreatedAtDesc(UUID campaignId, Pageable pageable);
 
+    @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan" })
+    Page<ChatMessage> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
+
     @Modifying(flushAutomatically = true)
     @Query(value = """
             DELETE FROM chat_messages

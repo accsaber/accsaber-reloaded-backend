@@ -1,14 +1,20 @@
 package com.accsaber.backend.service.mission;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.model.dto.response.mission.MissionContributorResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
+import com.accsaber.backend.model.entity.mission.MissionContribution;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.mission.MissionContributionRepository;
 
@@ -22,7 +28,7 @@ public class SharedMissionContextLoader {
 
     public MissionResponse.SharedContext load(List<UserMission> missions, Long viewerId) {
         List<UUID> ids = missions.stream()
-                .filter(UserMission::isCommunity)
+                .filter(UserMission::isShared)
                 .map(UserMission::getId)
                 .toList();
         if (ids.isEmpty()) {
@@ -41,5 +47,15 @@ public class SharedMissionContextLoader {
             yours.put(view.getMissionId(), view.getContribution());
         }
         return new MissionResponse.SharedContext(contributors, yours);
+    }
+
+    public Page<MissionContributorResponse> contributors(UUID missionId, Pageable pageable) {
+        Page<MissionContribution> page = contributionRepository.findLeaderboard(missionId, pageable);
+        List<MissionContribution> content = page.getContent();
+        List<MissionContributorResponse> rows = new ArrayList<>(content.size());
+        for (int i = 0; i < content.size(); i++) {
+            rows.add(MissionContributorResponse.from(content.get(i), pageable.getOffset() + i + 1));
+        }
+        return new PageImpl<>(rows, pageable, page.getTotalElements());
     }
 }

@@ -31,6 +31,7 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
@@ -76,6 +77,8 @@ class ClanMembershipServiceTest {
     private ClanService clanService;
     @Mock
     private NotificationWebSocketHandler notificationHandler;
+    @Mock
+    private ClanChatChannel chatChannel;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanMembershipService service;
@@ -86,7 +89,7 @@ class ClanMembershipServiceTest {
     void setUp() {
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
                 scoreRepository, userRepository, roster, accessService, levelService, clanService, notificationHandler,
-                clanProperties);
+                chatChannel, clanProperties);
         lenient().when(roster.lock(CLAN_ID)).thenReturn(clan);
         lenient().when(notificationHandler.onlineAmong(anyCollection())).thenReturn(Set.of());
     }
@@ -185,6 +188,7 @@ class ClanMembershipServiceTest {
             service.remove(CLAN_ID, 2L, 2L);
 
             verify(roster).close(stint, ClanLeaveReason.left);
+            verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_left, player, null));
         }
 
         @Test
@@ -218,6 +222,7 @@ class ClanMembershipServiceTest {
             verify(accessService).require(CLAN_ID, 1L, ClanPermission.KICK);
             verify(roster).close(target, ClanLeaveReason.kicked);
             verify(auditRepository).save(any(ClanAuditEntry.class));
+            verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_kicked, officer, target.getUser()));
         }
     }
 
@@ -304,6 +309,7 @@ class ClanMembershipServiceTest {
             service.onPlayerBanned(new PlayerBannedEvent(1L));
 
             verify(roster).close(founder, ClanLeaveReason.banned);
+            verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_left, founder.getUser(), null));
             assertThat(commander.getRole()).isEqualTo(ClanRole.founder);
             verify(joinRequestRepository).expirePendingForUser(eq(1L), any());
         }

@@ -33,6 +33,7 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAlliance;
 import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
@@ -44,6 +45,7 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
+import com.accsaber.backend.repository.clan.ClanRivalRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 
@@ -71,6 +73,10 @@ class ClanAllianceServiceTest {
     private ClanCosmeticService cosmeticService;
     @Mock
     private ClanStrengthService strengthService;
+    @Mock
+    private ClanChatChannel chatChannel;
+    @Mock
+    private ClanRivalRepository rivalRepository;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
 
@@ -146,6 +152,14 @@ class ClanAllianceServiceTest {
         }
 
         @Test
+        void rivalsCannotProposeAnAlliance() {
+            when(rivalRepository.existsActiveBetween(LAPIZ_ID, OWLS_ID)).thenReturn(true);
+
+            assertThatThrownBy(() -> service.propose(LAPIZ_ID, 2L, OWLS_ID)).isInstanceOf(ConflictException.class);
+            verify(allianceRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
         void theProposerNeedsAFreeAllySlot() {
             when(allianceRepository.countActiveByClanId(OWLS_ID)).thenReturn(2L);
 
@@ -172,6 +186,8 @@ class ClanAllianceServiceTest {
             verify(auditRepository, times(2)).save(audits.capture());
             assertThat(audits.getAllValues()).extracting(ClanAuditEntry::getAction)
                     .containsOnly(ClanAuditAction.alliance_formed);
+            verify(chatChannel).announce(owls, ChatNotice.ofClan(ChatEvent.alliance_formed, lapizFounder, lapiz));
+            verify(chatChannel).announce(lapiz, ChatNotice.ofClan(ChatEvent.alliance_formed, lapizFounder, owls));
             verify(strengthService).recompute(List.of(OWLS_ID, LAPIZ_ID));
             assertThat(response.ally().id()).isEqualTo(OWLS_ID);
             assertThat(response.incoming()).isTrue();

@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -68,4 +69,25 @@ public interface ClanSeasonStandingRepository extends JpaRepository<ClanSeasonSt
             """, nativeQuery = true)
     long findLiveRank(@Param("seasonId") UUID seasonId, @Param("perSkill") double perSkill,
             @Param("standing") double standing, @Param("createdAt") Instant createdAt, @Param("clanId") UUID clanId);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO clan_season_standings (season_id, clan_id) VALUES (:seasonId, :clanId)
+            ON CONFLICT DO NOTHING
+            """, nativeQuery = true)
+    int ensureRow(@Param("seasonId") UUID seasonId, @Param("clanId") UUID clanId);
+
+    @Query(value = """
+            SELECT earned FROM clan_season_standings
+            WHERE season_id = :seasonId AND clan_id = :clanId
+            FOR UPDATE
+            """, nativeQuery = true)
+    double lockEarned(@Param("seasonId") UUID seasonId, @Param("clanId") UUID clanId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE clan_season_standings SET earned = earned + :amount, updated_at = NOW()
+            WHERE season_id = :seasonId AND clan_id = :clanId
+            """, nativeQuery = true)
+    int addEarned(@Param("seasonId") UUID seasonId, @Param("clanId") UUID clanId, @Param("amount") double amount);
 }

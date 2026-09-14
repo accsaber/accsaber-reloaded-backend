@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -28,6 +31,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.clan.ClanStandingResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanSeasonResult;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -151,5 +155,29 @@ class ClanStandingServiceTest {
         assertThat(standing.rank()).isEqualTo(4);
         assertThat(standing.baseStanding()).isEqualTo(200.0);
         assertThat(standing.earned()).isZero();
+    }
+
+    @Test
+    void aDebitClampsToWhatTheClanHasEarnedAndIsWrittenAsApplied() {
+        UUID seasonId = UUID.randomUUID();
+        UUID clanId = UUID.randomUUID();
+        when(standingRepository.lockEarned(seasonId, clanId)).thenReturn(30.0);
+        when(eventRepository.insertIfAbsent(seasonId, clanId, -30.0, "war_break", "hit-1")).thenReturn(1);
+
+        service.apply(seasonId, clanId, -50.0, ClanStandingSource.war_break, "hit-1");
+
+        verify(standingRepository).ensureRow(seasonId, clanId);
+        verify(standingRepository).addEarned(seasonId, clanId, -30.0);
+    }
+
+    @Test
+    void aSourceAlreadyBankedChangesNothing() {
+        UUID seasonId = UUID.randomUUID();
+        UUID clanId = UUID.randomUUID();
+        when(eventRepository.insertIfAbsent(seasonId, clanId, 40.0, "mission", "m-1")).thenReturn(0);
+
+        service.apply(seasonId, clanId, 40.0, ClanStandingSource.mission, "m-1");
+
+        verify(standingRepository, never()).addEarned(any(), any(), anyDouble());
     }
 }

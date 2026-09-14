@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,6 +27,8 @@ import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ChatMessageEvent;
@@ -59,7 +62,7 @@ class ChatServiceTest {
     void setUp() {
         channelId = UUID.randomUUID();
         user = User.builder().id(50L).name("Tester").build();
-        when(duplicateUserService.resolvePrimaryUserId(51L)).thenReturn(50L);
+        lenient().when(duplicateUserService.resolvePrimaryUserId(51L)).thenReturn(50L);
     }
 
     @Test
@@ -69,12 +72,13 @@ class ChatServiceTest {
         when(channel.newMessage(eq(channelId), eq(user), any()))
                 .thenAnswer(inv -> ChatMessage.builder().user(user).content(inv.getArgument(2)).build());
         when(chatRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        mapsPlainly();
 
         var response = service.sendMessage(channel, channelId, 51L, "  hello team  ");
 
         verify(channel).assertParticipant(channelId, 50L);
         verify(channel).newMessage(channelId, user, "hello team");
-        verify(channel).prune(channelId, 1000);
+        verify(channel).prune(channelId);
         ArgumentCaptor<ChatMessageEvent> event = ArgumentCaptor.forClass(ChatMessageEvent.class);
         verify(eventPublisher).publishEvent(event.capture());
         assertThat(event.getValue().channel()).isSameAs(channel);
@@ -82,6 +86,25 @@ class ChatServiceTest {
         assertThat(response.content()).isEqualTo("hello team");
         assertThat(response.author().id()).isEqualTo("50");
         assertThat(response.author().name()).isEqualTo("Tester");
+    }
+
+    private void mapsPlainly() {
+        when(channel.toResponses(any())).thenAnswer(inv -> inv.<List<ChatMessage>>getArgument(0).stream()
+                .map(m -> ChatMessageResponse.of(m, null)).toList());
+    }
+
+    @Test
+    void anAnnouncementIsSavedPrunedAndPublishedWithoutARateLimit() {
+        ChatMessage notice = ChatMessage.builder().event(ChatEvent.member_joined).user(user).build();
+        when(chatRepository.save(notice)).thenReturn(notice);
+        mapsPlainly();
+
+        var response = service.post(channel, channelId, notice);
+
+        assertThat(response.event()).isEqualTo(ChatEvent.member_joined);
+        verify(channel).prune(channelId);
+        verify(eventPublisher).publishEvent(any(ChatMessageEvent.class));
+        verify(chatRateLimitService, never()).tryAcquire(any());
     }
 
     @Test
@@ -110,6 +133,7 @@ class ChatServiceTest {
     void historyIsCheckedThenMappedFromTheChannel() {
         ChatMessage message = ChatMessage.builder().id(UUID.randomUUID()).user(user).content("hi").build();
         when(channel.findMessages(eq(channelId), any())).thenReturn(new PageImpl<>(List.of(message)));
+        mapsPlainly();
 
         var page = service.getMessages(channel, channelId, 51L, PageRequest.of(0, 50));
 

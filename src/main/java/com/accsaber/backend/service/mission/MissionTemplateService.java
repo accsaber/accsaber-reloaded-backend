@@ -193,6 +193,10 @@ public class MissionTemplateService {
                     && !template.getCompletableUntil().isAfter(template.getUnlocksAt())) {
                 throw new ValidationException("completableUntil", "must be after the unlock");
             }
+            if (template.getPool() == MissionPool.clan && template.getEventTargets() == null
+                    && template.getType().hasFixedTarget()) {
+                throw new ValidationException("targets", "required for this mission type in the clan pool");
+            }
             return;
         }
         if (template.getPool() != MissionPool.event && !template.isCommunity()) {

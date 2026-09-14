@@ -8,6 +8,8 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 import com.accsaber.backend.websocket.server.CampaignPresenceHandshakeInterceptor;
 import com.accsaber.backend.websocket.server.CampaignPresenceWebSocketHandler;
 import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
+import com.accsaber.backend.websocket.server.ClanChatHandshakeInterceptor;
+import com.accsaber.backend.websocket.server.ClanChatWebSocketHandler;
 import com.accsaber.backend.websocket.server.CrateFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MarketFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MilestoneFeedWebSocketHandler;
@@ -33,6 +35,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
         private final CrateFeedWebSocketHandler crateFeedHandler;
         private final NotificationWebSocketHandler notificationHandler;
         private final NotificationHandshakeInterceptor notificationHandshakeInterceptor;
+        private final ClanChatWebSocketHandler clanChatHandler;
+        private final ClanChatHandshakeInterceptor clanChatHandshakeInterceptor;
 
         @Override
         public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
@@ -53,6 +57,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
                                 .setAllowedOriginPatterns("*");
                 registry.addHandler(notificationHandler, "/ws/notifications")
                                 .addInterceptors(notificationHandshakeInterceptor)
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(clanChatHandler, "/ws/clans/chat")
+                                .addInterceptors(clanChatHandshakeInterceptor)
                                 .setAllowedOriginPatterns("*");
         }
 }

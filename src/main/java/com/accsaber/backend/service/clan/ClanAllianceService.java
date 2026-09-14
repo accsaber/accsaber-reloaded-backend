@@ -28,6 +28,7 @@ import com.accsaber.backend.model.entity.clan.ClanAlliance;
 import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.user.User;
@@ -35,6 +36,7 @@ import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanRivalRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -51,11 +53,13 @@ public class ClanAllianceService {
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanAuditEntryRepository auditRepository;
+    private final ClanRivalRepository rivalRepository;
     private final ClanRoster roster;
     private final ClanAccessService accessService;
     private final ClanLevelService levelService;
     private final ClanCosmeticService cosmeticService;
     private final ClanStrengthService strengthService;
+    private final ClanChatChannel chatChannel;
     private final ClanProperties clanProperties;
 
     public Page<ClanAllianceResponse> list(UUID clanId, Pageable pageable) {
@@ -82,6 +86,7 @@ public class ClanAllianceService {
         if (allianceRepository.existsOpenBetween(pair.get(0).getId(), pair.get(1).getId())) {
             throw new ConflictException("These clans already have an alliance or a proposal between them");
         }
+        assertNotRivals(clanId, allyId);
         Clan proposer = pair.get(0).getId().equals(clanId) ? pair.get(0) : pair.get(1);
         assertFreeSlot(proposer);
         ClanAlliance alliance = allianceRepository.saveAndFlush(ClanAlliance.builder()
@@ -118,7 +123,7 @@ public class ClanAllianceService {
             alliance.setEndedAt(now);
             alliance.setEndedByUser(actor);
             if (active) {
-                audit(alliance.otherThan(clan.getId()), actor, ClanAuditAction.alliance_ended, clan);
+                record(alliance.otherThan(clan.getId()), actor, ClanAuditAction.alliance_ended, clan);
             }
         }
         allianceRepository.saveAllAndFlush(open);
@@ -162,12 +167,13 @@ public class ClanAllianceService {
             throw new ForbiddenException("The other clan has to accept this proposal");
         }
         List<Clan> pair = lockPair(alliance.getClanA().getId(), alliance.getClanB().getId());
+        assertNotRivals(alliance.getClanA().getId(), alliance.getClanB().getId());
         pair.forEach(this::assertFreeSlot);
         alliance.setStatus(ClanAllianceStatus.active);
         alliance.setAcceptedAt(Instant.now());
         allianceRepository.saveAndFlush(alliance);
-        audit(pair.get(0), actor, ClanAuditAction.alliance_formed, pair.get(1));
-        audit(pair.get(1), actor, ClanAuditAction.alliance_formed, pair.get(0));
+        record(pair.get(0), actor, ClanAuditAction.alliance_formed, pair.get(1));
+        record(pair.get(1), actor, ClanAuditAction.alliance_formed, pair.get(0));
         strengthService.recompute(pair.stream().map(Clan::getId).toList());
     }
 
@@ -178,8 +184,8 @@ public class ClanAllianceService {
         alliance.setEndedByUser(actor);
         allianceRepository.saveAndFlush(alliance);
         if (to == ClanAllianceStatus.ended) {
-            audit(alliance.getClanA(), actor, ClanAuditAction.alliance_ended, alliance.getClanB());
-            audit(alliance.getClanB(), actor, ClanAuditAction.alliance_ended, alliance.getClanA());
+            record(alliance.getClanA(), actor, ClanAuditAction.alliance_ended, alliance.getClanB());
+            record(alliance.getClanB(), actor, ClanAuditAction.alliance_ended, alliance.getClanA());
             strengthService.recompute(List.of(alliance.getClanA().getId(), alliance.getClanB().getId()));
         }
     }
@@ -198,6 +204,12 @@ public class ClanAllianceService {
         return Stream.of(first, second).sorted(LOCK_ORDER).map(roster::lock).toList();
     }
 
+    private void assertNotRivals(UUID first, UUID second) {
+        if (rivalRepository.existsActiveBetween(first, second)) {
+            throw new ConflictException("Rival clans cannot be allies, drop the rivalry first");
+        }
+    }
+
     private void assertFreeSlot(Clan clan) {
         if (allianceRepository.countActiveByClanId(clan.getId())
                 >= levelService.capacityOf(clan, ClanCapacity.ally_slots)) {
@@ -211,7 +223,9 @@ public class ClanAllianceService {
         }
     }
 
-    private void audit(Clan clan, User actor, ClanAuditAction action, Clan ally) {
+    private void record(Clan clan, User actor, ClanAuditAction action, Clan ally) {
+        chatChannel.announce(clan, ChatNotice.ofClan(action == ClanAuditAction.alliance_formed
+                ? ChatEvent.alliance_formed : ChatEvent.alliance_ended, actor, ally));
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actor).action(action)
                 .details(Map.<String, Object>of("clanId", ally.getId().toString(), "name", ally.getName(),
                         "tag", ally.getTag()))
