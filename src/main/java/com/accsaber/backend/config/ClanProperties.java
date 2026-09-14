@@ -2,6 +2,7 @@ package com.accsaber.backend.config;
 
 import java.time.Duration;
 import java.time.Period;
+import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,15 @@ public class ClanProperties {
     private double playXpShare = 0.05;
     private double standingPerSkill = 10.0;
     private double rosterReferenceStrength = 300.0;
+    private List<TrustTier> trustTiers = List.of(
+            new TrustTier(Duration.ZERO, 0.0, 1),
+            new TrustTier(Duration.ofDays(30), 500.0, 2),
+            new TrustTier(Duration.ofDays(120), 2500.0, 3),
+            new TrustTier(Duration.ofDays(365), 10000.0, 4));
     private War war = new War();
+
+    public record TrustTier(Duration minAge, double minContribution, int loanCap) {
+    }
 
     @Getter
     @Setter
