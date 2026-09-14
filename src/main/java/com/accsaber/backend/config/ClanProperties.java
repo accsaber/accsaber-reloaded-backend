@@ -54,6 +54,8 @@ public class ClanProperties {
         private double breakShare = 0.2;
         private double breakDecay = 0.5;
         private double breakContribution = 50.0;
+        private double breakXp = 200.0;
+        private double breakClanXp = 150.0;
         private double loanXpShare = 0.25;
         private Duration loanCooldown = Duration.ofDays(3);
     }

@@ -226,4 +226,57 @@ class XpRebuildQueryTest {
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(120.0);
     }
+
+    private UUID warWithHit(Double xpAwarded, Instant hitAt) {
+        User rival = User.builder().id(76561190000000002L).name("Rival").country("ES").build();
+        entityManager.persist(rival);
+        Score attackerScore = Score.builder().user(user).mapDifficulty(difficulty).score(990000).scoreNoMods(990000)
+                .rank(1).rankWhenSet(1).ap(0.0).weightedAp(0.0).xpGained(0.0).active(false)
+                .supersedesReason("Worse score").build();
+        entityManager.persist(attackerScore);
+        entityManager.flush();
+        UUID red = (UUID) entityManager.createNativeQuery(
+                "INSERT INTO clans (name, tag, slug) VALUES ('Red', 'RED', 'red') RETURNING id").getSingleResult();
+        UUID blue = (UUID) entityManager.createNativeQuery(
+                "INSERT INTO clans (name, tag, slug) VALUES ('Blue', 'BLUE', 'blue') RETURNING id").getSingleResult();
+        UUID season = (UUID) entityManager.createNativeQuery("INSERT INTO clan_seasons (name, slug, starts_at, ends_at) "
+                + "VALUES ('S', 's', NOW() - INTERVAL '1 day', NOW() + INTERVAL '30 days') RETURNING id")
+                .getSingleResult();
+        UUID war = (UUID) entityManager.createNativeQuery("INSERT INTO clan_wars (season_id, attacker_clan_id, "
+                + "defender_clan_id, declared_by, arena, arena_spec, ruleset, status, starts_at) VALUES "
+                + "(?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel', 'active', NOW()) RETURNING id")
+                .setParameter(1, season).setParameter(2, red).setParameter(3, blue).setParameter(4, user.getId())
+                .getSingleResult();
+        for (Object[] side : new Object[][] { { red, user.getId() }, { blue, rival.getId() } }) {
+            entityManager.createNativeQuery("INSERT INTO clan_war_sides (war_id, clan_id, stake, stake_remaining, "
+                    + "standing_at_declare) VALUES (?1, ?2, 100, 100, 100)").setParameter(1, war)
+                    .setParameter(2, side[0]).executeUpdate();
+            entityManager.createNativeQuery("INSERT INTO clan_war_participants (war_id, user_id, clan_id, "
+                    + "standing_weight, guard) VALUES (?1, ?2, ?3, 1, 100)").setParameter(1, war)
+                    .setParameter(2, side[1]).setParameter(3, side[0]).executeUpdate();
+        }
+        entityManager.createNativeQuery("INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, "
+                + "victim_cycle, map_difficulty_id, attacker_score_id, damage, guard_after, broke, standing_moved, "
+                + "xp_awarded, created_at) VALUES (?1, ?2, ?3, 0, ?4, ?5, 100, 0, true, 10, ?6, ?7)")
+                .setParameter(1, war).setParameter(2, user.getId()).setParameter(3, rival.getId())
+                .setParameter(4, difficulty.getId()).setParameter(5, attackerScore.getId())
+                .setParameter(6, xpAwarded).setParameter(7, hitAt).executeUpdate();
+        return war;
+    }
+
+    @Test
+    @DisplayName("rebuildXpTotals and findXpTimeline both count war break XP, dated at the break")
+    void warBreakXpIsASourceOfBoth() {
+        persistScore(300.0, true, null, Instant.parse("2024-03-01T00:00:00Z"));
+        warWithHit(40.0, Instant.parse("2025-01-01T00:00:00Z"));
+        entityManager.flush();
+
+        userRepository.recalculateTotalXpForUser(user.getId());
+        List<Object[]> timeline = userRepository.findXpTimeline(user.getId());
+
+        entityManager.refresh(user);
+        assertThat(user.getTotalXp()).isEqualTo(340.0);
+        assertThat(timeline).hasSize(2);
+        assertThat(((Number) timeline.get(1)[1]).doubleValue()).isEqualTo(40.0);
+    }
 }

@@ -39,6 +39,7 @@ public class ClanWarRosterService {
     private final UserRepository userRepository;
     private final ClanStrengthService strengthService;
     private final ClanChatChannel chatChannel;
+    private final ClanWarScoreGate scoreGate;
     private final ClanProperties clanProperties;
 
     @Transactional
@@ -90,6 +91,7 @@ public class ClanWarRosterService {
         }
         assignDuelTargets(existing, war, rosters);
         participantRepository.saveAll(existing.values());
+        scoreGate.refreshAfterCommit();
     }
 
     private void assignDuelTargets(Map<Long, ClanWarParticipant> participants, ClanWar war,

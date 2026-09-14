@@ -22,10 +22,12 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.ClanArenaSpec;
 import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarSideResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanMember;
@@ -34,6 +36,7 @@ import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
@@ -41,6 +44,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -52,6 +56,7 @@ import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
+import com.accsaber.backend.service.map.MapService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -63,6 +68,8 @@ public class ClanWarService {
     private final ClanWarRepository warRepository;
     private final ClanWarSideRepository sideRepository;
     private final ClanWarParticipantRepository participantRepository;
+    private final ClanWarHitRepository hitRepository;
+    private final MapService mapService;
     private final ClanAllianceRepository allianceRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanRoster roster;
@@ -72,6 +79,7 @@ public class ClanWarService {
     private final ClanCosmeticService cosmeticService;
     private final ClanWarPoolService poolService;
     private final ClanChatChannel chatChannel;
+    private final ClanWarScoreGate scoreGate;
     private final ClanProperties clanProperties;
 
     @Transactional
@@ -172,11 +180,22 @@ public class ClanWarService {
         return page.map(p -> ClanWarParticipantResponse.of(p, clans.get(p.getClan().getId())));
     }
 
+    public Page<ClanWarHitResponse> hits(UUID warId, Pageable pageable) {
+        if (!warRepository.existsById(warId)) {
+            throw new ResourceNotFoundException("ClanWar", warId);
+        }
+        Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, pageable);
+        Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
+                page.getContent().stream().map(hit -> hit.getMapDifficulty().getId()).toList());
+        return page.map(hit -> ClanWarHitResponse.of(hit, difficulties.get(hit.getMapDifficulty().getId())));
+    }
+
     private void end(ClanWar war, ClanWarOutcome outcome, User actor) {
         war.setStatus(ClanWarStatus.ended);
         war.setOutcome(outcome);
         war.setEndedAt(Instant.now());
         warRepository.saveAndFlush(war);
+        scoreGate.refreshAfterCommit();
         chatChannel.announce(war.getAttackerClan(),
                 ChatNotice.ofWar(ChatEvent.war_ended, actor, war.getDefenderClan(), war));
         chatChannel.announce(war.getDefenderClan(),
