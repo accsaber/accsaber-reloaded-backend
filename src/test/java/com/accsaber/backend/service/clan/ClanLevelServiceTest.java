@@ -209,4 +209,18 @@ class ClanLevelServiceTest {
 
         assertThat(levelService.level(clanId).unlocked().capacities()).containsEntry(ClanCapacity.member_slots, 15);
     }
+
+    @Test
+    void aWarModeIsAvailableOnceTheClanReachesItsLevel() {
+        when(warModeRepository.findById(new ClanLevelWarMode.Key(ClanWarModeAxis.ruleset, "berserker")))
+                .thenReturn(Optional.of(ClanLevelWarMode.builder().axis(ClanWarModeAxis.ruleset).mode("berserker")
+                        .level(2).build()));
+
+        assertThat(levelService.hasWarMode(Clan.builder().totalXp(350.0).build(), ClanWarModeAxis.ruleset,
+                "berserker")).isTrue();
+        assertThat(levelService.hasWarMode(Clan.builder().totalXp(0.0).build(), ClanWarModeAxis.ruleset,
+                "berserker")).isFalse();
+        assertThat(levelService.hasWarMode(Clan.builder().totalXp(350.0).build(), ClanWarModeAxis.arena,
+                "random")).isFalse();
+    }
 }

@@ -28,6 +28,7 @@ import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.score.ScoreService;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
@@ -112,6 +113,11 @@ public class PlaylistService {
                 playlistAssembler.loadCategoryImage(OVERALL_CODE),
                 syncUrl,
                 difficulties);
+    }
+
+    public Map<String, Object> generateClanWarPlaylist(ClanWarPoolService.PlaylistSource source, String syncUrl) {
+        return playlistAssembler.assemble(source.title(), playlistAssembler.loadCategoryImage(OVERALL_CODE), syncUrl,
+                source.difficulties());
     }
 
     @Cacheable(value = "campaignPlaylists", key = "#campaign.id")
