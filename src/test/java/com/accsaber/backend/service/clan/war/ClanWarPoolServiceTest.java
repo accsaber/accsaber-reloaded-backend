@@ -60,6 +60,8 @@ import com.accsaber.backend.service.map.MapService;
 class ClanWarPoolServiceTest {
 
     @Mock
+    private ClanWarFeed feed;
+    @Mock
     private ClanWarRepository warRepository;
     @Mock
     private ClanWarSideRepository sideRepository;
@@ -84,8 +86,9 @@ class ClanWarPoolServiceTest {
 
     @BeforeEach
     void setUp() {
+        clanProperties.getWar().setMaxUnderdogShare(0.7);
         service = new ClanWarPoolService(warRepository, sideRepository, poolRepository, categoryRepository,
-                mapDifficultyRepository, accessService, cosmeticService, mapService, clanProperties);
+                mapDifficultyRepository, accessService, cosmeticService, mapService, feed, clanProperties);
         lenient().when(mapDifficultyRepository.getReferenceById(any()))
                 .thenAnswer(inv -> MapDifficulty.builder().id(inv.getArgument(0)).build());
     }
@@ -180,6 +183,7 @@ class ClanWarPoolServiceTest {
             verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null);
             assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
             assertThat(war.getStartsAt()).isAfter(Instant.now());
+            verify(feed).war(war);
         }
 
         @Test
@@ -197,6 +201,7 @@ class ClanWarPoolServiceTest {
                 assertThat(entry.getPickedByClan()).isSameAs(attacker);
             });
             assertThat(war.getStatus()).isEqualTo(ClanWarStatus.picking);
+            verify(feed, never()).war(any());
         }
 
         @Test

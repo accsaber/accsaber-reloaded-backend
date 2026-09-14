@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.player;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 
 import lombok.Builder;
@@ -18,6 +19,7 @@ public class UserRelationResponse {
     String targetName;
     String targetAvatarUrl;
     String targetCdnAvatarUrl;
+    PublicClanResponse targetClan;
     String targetCountry;
     UserRelationType type;
     Instant createdAt;

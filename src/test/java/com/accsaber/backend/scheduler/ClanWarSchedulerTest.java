@@ -20,6 +20,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
+import com.accsaber.backend.service.clan.war.ClanWarSettlementService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanWarSchedulerTest {
@@ -32,12 +33,15 @@ class ClanWarSchedulerTest {
     private ClanWarRosterService rosterService;
     @Mock
     private ClanWarService warService;
+    @Mock
+    private ClanWarSettlementService settlementService;
 
     private ClanWarScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new ClanWarScheduler(warRepository, poolService, rosterService, warService, new ClanProperties());
+        scheduler = new ClanWarScheduler(warRepository, poolService, rosterService, warService, settlementService,
+                new ClanProperties());
     }
 
     @Test
@@ -49,6 +53,8 @@ class ClanWarSchedulerTest {
         when(warRepository.findPicksDue(any())).thenReturn(List.of(brokenPick, duePick));
         when(warRepository.findStartsDue(any())).thenReturn(List.of(dueStart));
         when(warRepository.findQuietSince(any())).thenReturn(List.of(quiet));
+        UUID unsettled = UUID.randomUUID();
+        when(warRepository.findEndedUnsettled(20)).thenReturn(List.of(unsettled));
         doThrow(new IllegalStateException("boom")).when(poolService).closePicks(brokenPick);
 
         scheduler.advance();
@@ -56,5 +62,6 @@ class ClanWarSchedulerTest {
         verify(poolService).closePicks(duePick);
         verify(rosterService).start(dueStart);
         verify(warService).end(quiet, ClanWarOutcome.drawn);
+        verify(settlementService).settle(unsettled);
     }
 }

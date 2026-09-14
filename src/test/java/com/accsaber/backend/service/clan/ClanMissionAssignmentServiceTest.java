@@ -90,7 +90,6 @@ class ClanMissionAssignmentServiceTest {
                 levelService, clanProperties, transactionTemplate, backfillExecutor);
         lenient().when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
         lenient().when(rolloverService.nextRollover(eq(MissionPool.clan), any())).thenReturn(WEEK_END);
-        lenient().when(levelService.rosterFactor(clan)).thenReturn(2.0);
         lenient().when(userMissionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -120,9 +119,12 @@ class ClanMissionAssignmentServiceTest {
     }
 
     @Test
-    void aCounterOpensWithItsTargetsScaledByTheRosterFactor() {
+    void aCounterOpensWithItsTargetsScaledByHeadcount() {
+        clanProperties.setRosterReferenceMembers(5.0);
         MissionTemplate counter = template(counterTargets(25));
         slots(1, counter);
+        when(memberRepository.findOpenUserIds(clan.getId())).thenReturn(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L,
+                10L));
         when(rowFactory.build(null, counter, null)).thenReturn(UserMission.builder().template(counter)
                 .pool(MissionPool.clan).targetCount(25).build());
 
@@ -137,6 +139,8 @@ class ClanMissionAssignmentServiceTest {
 
     @Test
     void aPerMemberMissionGivesEachPlayingMemberTheirOwnRowAndCapsTheClearsAtTheRowsBuilt() {
+        clanProperties.setMissionClears(2);
+        clanProperties.setRosterReferenceMembers(2.0);
         MissionTemplate perMember = template(null);
         slots(1, perMember);
         when(memberRepository.findOpenUserIds(clan.getId())).thenReturn(List.of(1L, 2L, 3L));

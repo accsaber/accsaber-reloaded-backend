@@ -103,7 +103,7 @@ public class ClanMissionAssignmentService {
             tried.add(template.getId());
             boolean open = template.isPerMember()
                     ? openPerMember(clan, template, members, expiresAt, rng)
-                    : openPooled(clan, template, expiresAt);
+                    : openPooled(clan, template, members.size(), expiresAt);
             if (open) {
                 opened++;
             }
@@ -139,9 +139,13 @@ public class ClanMissionAssignmentService {
         }
     }
 
-    private boolean openPooled(Clan clan, MissionTemplate template, Instant expiresAt) {
+    private double headcountShare(int openMembers) {
+        return openMembers / clanProperties.getRosterReferenceMembers();
+    }
+
+    private boolean openPooled(Clan clan, MissionTemplate template, int openMembers, Instant expiresAt) {
         UserMission mission = rowFactory.build(null, template, null);
-        double factor = levelService.rosterFactor(clan);
+        double factor = headcountShare(openMembers);
         mission.setClan(clan);
         mission.setExpiresAt(expiresAt);
         mission.setTargetCount(scaled(mission.getTargetCount(), factor));
@@ -166,7 +170,7 @@ public class ClanMissionAssignmentService {
         if (rows.isEmpty()) {
             return false;
         }
-        int clears = (int) Math.ceil(clanProperties.getMissionClears() * levelService.rosterFactor(clan));
+        int clears = (int) Math.ceil(clanProperties.getMissionClears() * headcountShare(members.size()));
         UserMission parent = userMissionRepository.save(UserMission.builder()
                 .template(template)
                 .pool(MissionPool.clan)

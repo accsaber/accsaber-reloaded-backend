@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanLevelResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanLevelStepResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanUnlocksResponse;
@@ -22,6 +23,7 @@ import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.clan.ClanLevelCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLevelItem;
 import com.accsaber.backend.model.entity.clan.ClanLevelWarMode;
@@ -30,9 +32,11 @@ import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.clan.ClanItemRepository;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelCapacityRepository;
 import com.accsaber.backend.repository.clan.ClanLevelItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelWarModeRepository;
+import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.service.item.ItemMapper;
@@ -50,11 +54,13 @@ public class ClanLevelService {
 
     private final CurveRepository curveRepository;
     private final ClanRepository clanRepository;
+    private final ClanMemberRepository memberRepository;
     private final ClanXpGrantRepository grantRepository;
     private final ClanItemRepository clanItemRepository;
     private final ClanLevelCapacityRepository capacityRepository;
     private final ClanLevelWarModeRepository warModeRepository;
     private final ClanLevelItemRepository levelItemRepository;
+    private final ItemRepository itemRepository;
     private final ClanProperties clanProperties;
 
     private volatile LevelCurve cachedCurve;
@@ -82,14 +88,68 @@ public class ClanLevelService {
         return capacities().at(levelOf(clan).getLevel(), capacity);
     }
 
+    @Transactional
+    public List<ClanLevelStepResponse> setCapacity(int level, ClanCapacity capacity, int amount) {
+        capacityRepository.save(ClanLevelCapacity.builder().level(level).capacity(capacity).amount(amount).build());
+        return table();
+    }
+
+    @Transactional
+    public List<ClanLevelStepResponse> removeCapacity(int level, ClanCapacity capacity) {
+        capacityRepository.deleteById(new ClanLevelCapacity.Key(level, capacity));
+        return table();
+    }
+
+    @Transactional
+    public List<ClanLevelStepResponse> setWarMode(ClanWarModeAxis axis, String mode, int level) {
+        warModeRepository.save(ClanLevelWarMode.builder().axis(axis).mode(validMode(axis, mode)).level(level).build());
+        return table();
+    }
+
+    @Transactional
+    public List<ClanLevelStepResponse> removeWarMode(ClanWarModeAxis axis, String mode) {
+        warModeRepository.deleteById(new ClanLevelWarMode.Key(axis, validMode(axis, mode)));
+        return table();
+    }
+
+    @Transactional
+    public List<ClanLevelStepResponse> setLevelItem(int level, UUID itemId) {
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item", itemId));
+        if (!ClanCosmeticService.isClanCosmetic(item.getType())) {
+            throw new ValidationException("itemId", "must be a clan cosmetic");
+        }
+        ClanLevelItem row = levelItemRepository.findById(itemId)
+                .orElseGet(() -> ClanLevelItem.builder().item(item).build());
+        row.setLevel(level);
+        levelItemRepository.saveAndFlush(row);
+        clanItemRepository.grantToClansAtLevel(itemId, level, curve().cumulativeXpForLevel(level));
+        return table();
+    }
+
+    @Transactional
+    public List<ClanLevelStepResponse> removeLevelItem(UUID itemId) {
+        levelItemRepository.deleteById(itemId);
+        return table();
+    }
+
+    private static String validMode(ClanWarModeAxis axis, String mode) {
+        try {
+            return (axis == ClanWarModeAxis.arena ? ClanArena.valueOf(mode) : ClanRuleset.valueOf(mode)).name();
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("mode", "is not a " + axis + " mode");
+        }
+    }
+
     public boolean hasWarMode(Clan clan, ClanWarModeAxis axis, String mode) {
         return warModeRepository.findById(new ClanLevelWarMode.Key(axis, mode))
                 .map(row -> row.getLevel() <= levelOf(clan).getLevel())
                 .orElse(false);
     }
 
-    public double rosterFactor(Clan clan) {
-        return Math.max(1.0, clan.getRosterStrength() / clanProperties.getRosterReferenceStrength());
+    public double rosterFactor(Clan clan, long openMembers) {
+        double strengthShare = clan.getRosterStrength() / clanProperties.getRosterReferenceStrength();
+        double memberShare = openMembers / clanProperties.getRosterReferenceMembers();
+        return Math.max(1.0, Math.pow(strengthShare * memberShare, clanProperties.getRosterFactorExponent()));
     }
 
     @Transactional
@@ -98,7 +158,9 @@ public class ClanLevelService {
         if (clan == null) {
             return false;
         }
-        double factor = award.rosterScaled() ? rosterFactor(clan) : 1.0;
+        double factor = award.rosterScaled()
+                ? rosterFactor(clan, memberRepository.countByClan_IdAndLeftAtIsNull(clanId))
+                : 1.0;
         double amount = award.rawAmount() / factor;
         if (grantRepository.insertIfAbsent(clanId, award.source().name(), award.sourceId(), award.rawAmount(),
                 factor, amount) == 0) {

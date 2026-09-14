@@ -52,6 +52,8 @@ class ClanCosmeticServiceTest {
     private ClanRoster roster;
     @Mock
     private ClanAccessService accessService;
+    @Mock
+    private ClanRefCache refCache;
 
     @InjectMocks
     private ClanCosmeticService service;
@@ -113,6 +115,7 @@ class ClanCosmeticServiceTest {
         verify(auditRepository).save(audit.capture());
         assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.cosmetic_equipped);
         assertThat(audit.getValue().getDetails()).containsEntry("itemType", "clan_emblem");
+        verify(refCache).refreshAfterCommit(CLAN_ID);
     }
 
     @Test
@@ -120,6 +123,7 @@ class ClanCosmeticServiceTest {
         service.unequip(CLAN_ID, FOUNDER, "clan_banner");
 
         verify(auditRepository, never()).save(any());
+        verify(refCache, never()).refreshAfterCommit(any());
     }
 
     @Test
@@ -129,5 +133,6 @@ class ClanCosmeticServiceTest {
         service.unequip(CLAN_ID, FOUNDER, "clan_banner");
 
         verify(auditRepository).save(any(ClanAuditEntry.class));
+        verify(refCache).refreshAfterCommit(CLAN_ID);
     }
 }

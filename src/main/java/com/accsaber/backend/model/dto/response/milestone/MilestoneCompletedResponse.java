@@ -4,10 +4,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -22,6 +23,7 @@ public class MilestoneCompletedResponse {
     private String userCountry;
     private String userAvatarUrl;
     private String userCdnAvatarUrl;
+    private PublicClanResponse userClan;
     private Instant completedAt;
     private List<CompletedMilestone> milestones;
     private List<CompletedSet> sets;

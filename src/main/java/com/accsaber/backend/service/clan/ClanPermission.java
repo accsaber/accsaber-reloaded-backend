@@ -12,6 +12,7 @@ public enum ClanPermission {
     PROMOTE_OFFICER(ClanRole.commander),
     MANAGE_RIVALS(ClanRole.commander),
     DECLARE_WAR(ClanRole.commander),
+    LEND(ClanRole.commander),
     PROMOTE_COMMANDER(ClanRole.founder),
     MANAGE_ALLIANCES(ClanRole.founder),
     CUSTOMIZE(ClanRole.founder),

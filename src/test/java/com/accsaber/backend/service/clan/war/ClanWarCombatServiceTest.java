@@ -69,6 +69,8 @@ class ClanWarCombatServiceTest {
     private static final UUID MAP = UUID.randomUUID();
 
     @Mock
+    private ClanWarFeed feed;
+    @Mock
     private ClanWarRepository warRepository;
     @Mock
     private ClanWarSideRepository sideRepository;
@@ -108,9 +110,16 @@ class ClanWarCombatServiceTest {
 
     @BeforeEach
     void setUp() {
+        ClanProperties.War rules = clanProperties.getWar();
+        rules.setBaseDamage(25.0);
+        rules.setMissingScoreMultiplier(0.5);
+        rules.setBreakShare(0.2);
+        rules.setBreakDecay(0.5);
+        rules.setBreakXp(200.0);
+        rules.setBreakClanXp(150.0);
         service = new ClanWarCombatService(warRepository, sideRepository, participantRepository, hitRepository,
                 scoreRepository, mapDifficultyRepository, scoreGate, warService, standingService, levelService,
-                levelUpAwardService, chatChannel, clanProperties, transactionTemplate);
+                levelUpAwardService, chatChannel, feed, clanProperties, transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).season(season).attackerClan(red).defenderClan(blue)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.active)
                 .startsAt(Instant.now().minusSeconds(3600)).build();
@@ -237,6 +246,23 @@ class ClanWarCombatServiceTest {
             ChatNotice notice = new ChatNotice(ChatEvent.war_hit, attacker.getUser(), victim.getUser(), null, war);
             verify(chatChannel).announce(red, notice);
             verify(chatChannel).announce(blue, notice);
+            verify(feed).hit(war, savedHits.getFirst());
+            verify(feed, never()).war(any());
+        }
+
+        @Test
+        void aFighterOutnumberedByTheEnemyBanksLessContributionPerDamage() {
+            clanProperties.getWar().setWarSizeExponent(0.5);
+            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
+                    participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));
+            victimScore(11L, 900_000);
+            skills(50, 50);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst().getDamage()).isEqualTo(25.0);
+            assertThat(victim.getGuard()).isEqualTo(75.0);
+            assertThat(attacker.getContribution()).isEqualTo(25.0 * 0.5);
         }
 
         @Test
@@ -363,8 +389,39 @@ class ClanWarCombatServiceTest {
             verify(levelUpAwardService).addXp(2L, 150.0);
             assertThat(attacker.getContribution()).isEqualTo(25.0 + 50.0);
             verify(warService, never()).end(any(), any());
+            verify(feed).hit(war, breaking);
+            verify(feed).war(war);
             verify(chatChannel).announce(red, new ChatNotice(ChatEvent.war_break, attacker.getUser(), victim.getUser(),
                     null, war));
+        }
+
+        @Test
+        void chippersFromTheBiggerSideSplitMoreBreakXpAndContribution() {
+            clanProperties.getWar().setWarSizeExponent(1.0);
+            ClanWarParticipant chipper = participant(2L, red, 0.5);
+            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, chipper, victim));
+
+            service.fight(war.getId(), play(950_000, true));
+
+            ClanWarHit breaking = savedHits.getFirst();
+            assertThat(breaking.getDamage()).isEqualTo(25.0);
+            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 25.0 / 100.0);
+            verify(levelUpAwardService).addXp(1L, 100.0);
+            verify(levelUpAwardService).addXp(2L, 300.0);
+            assertThat(attacker.getContribution()).isEqualTo(25.0 * 2.0 + 50.0 * 2.0);
+            assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
+        }
+
+        @Test
+        void aLentAttackerAlsoBanksAShareOfTheBreakForTheClanThatLentThem() {
+            Clan lender = Clan.builder().id(UUID.randomUUID()).build();
+            attacker.setLentByClan(lender);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            String source = savedHits.getFirst().getId().toString();
+            verify(levelService).grantXp(lender.getId(), new ClanXpAward(150.0 * 0.25, ClanXpSource.war_loan, source,
+                    true));
         }
 
         @Test

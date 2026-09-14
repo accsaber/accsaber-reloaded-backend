@@ -59,7 +59,10 @@ public enum UserSettingKey {
     NOTIFICATIONS_MARKET_OUTBID("notifications.marketOutbid", Boolean.class, true, false),
     NOTIFICATIONS_MARKET_WON("notifications.marketWon", Boolean.class, true, false),
     NOTIFICATIONS_ITEM_EARNED("notifications.itemEarned", Boolean.class, true, false),
-    NOTIFICATIONS_SERVER("notifications.server", Boolean.class, true, false);
+    NOTIFICATIONS_SERVER("notifications.server", Boolean.class, true, false),
+    NOTIFICATIONS_CLAN_MEMBERSHIP("notifications.clanMembership", Boolean.class, true, false),
+    NOTIFICATIONS_CLAN_ALLIANCE("notifications.clanAlliance", Boolean.class, true, false),
+    NOTIFICATIONS_CLAN_WAR("notifications.clanWar", Boolean.class, true, false);
 
     public static final String GROUP_PRIVACY = "privacy";
     public static final String GROUP_APPEARANCE = "appearance";

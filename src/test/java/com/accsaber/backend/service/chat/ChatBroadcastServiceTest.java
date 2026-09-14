@@ -29,7 +29,7 @@ class ChatBroadcastServiceTest {
     void broadcastsTypedChatEnvelopeWithIsoTimestampThroughItsChannel() {
         UUID channelId = UUID.randomUUID();
         ChatMessageResponse message = new ChatMessageResponse(UUID.randomUUID(),
-                new PlayerRef("76561198000000000", "Tester", null, null, "us"),
+                new PlayerRef("76561198000000000", "Tester", null, null, "us", null),
                 "hello team", null, null, null, null, Instant.parse("2026-07-03T21:00:00Z"));
 
         service.onChatMessage(new ChatMessageEvent(channel, channelId, message));

@@ -3,11 +3,9 @@ package com.accsaber.backend.service.clan.war;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -25,7 +23,6 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanWarSideResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
@@ -42,9 +39,11 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ClanWarEndedEvent;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -53,6 +52,7 @@ import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanLevelService;
+import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
@@ -78,8 +78,13 @@ public class ClanWarService {
     private final ClanStandingService standingService;
     private final ClanCosmeticService cosmeticService;
     private final ClanWarPoolService poolService;
+    private final ClanWarResponses warResponses;
+    private final ClanWarFeed feed;
+    private final ClanNotifier notifier;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
+    private final ClanWarLoanRepository loanRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ClanProperties clanProperties;
 
     @Transactional
@@ -115,8 +120,12 @@ public class ClanWarService {
         sideRepository.saveAllAndFlush(List.of(side(war, attacker, actor, stake, attackerStanding),
                 side(war, defender, null, stake, defenderStanding)));
         poolService.seed(war, request.getMapDifficultyIds());
+        if (war.getStatus() == ClanWarStatus.picking) {
+            feed.war(war);
+        }
         chatChannel.announce(attacker, ChatNotice.ofWar(ChatEvent.war_declared, actor, defender, war));
         chatChannel.announce(defender, ChatNotice.ofWar(ChatEvent.war_received, actor, attacker, war));
+        notifier.warDeclared(war);
         return detail(war, clanId);
     }
 
@@ -137,7 +146,7 @@ public class ClanWarService {
             throw new ConflictException("This war is already over");
         }
         end(war, ClanWarOutcome.retreated, actor);
-        return responses(List.of(war)).getFirst();
+        return warResponses.of(war);
     }
 
     @Transactional
@@ -159,7 +168,7 @@ public class ClanWarService {
 
     public Page<ClanWarResponse> list(UUID clanId, boolean open, Pageable pageable) {
         Page<ClanWar> page = warRepository.findPage(clanId, open, pageable);
-        return new PageImpl<>(responses(page.getContent()), pageable, page.getTotalElements());
+        return new PageImpl<>(warResponses.of(page.getContent()), pageable, page.getTotalElements());
     }
 
     public ClanWarDetailResponse get(UUID warId, Long viewerId) {
@@ -195,7 +204,11 @@ public class ClanWarService {
         war.setOutcome(outcome);
         war.setEndedAt(Instant.now());
         warRepository.saveAndFlush(war);
+        loanRepository.closeOpenForWar(war.getId(), war.getEndedAt());
+        feed.war(war);
+        notifier.warEnded(war);
         scoreGate.refreshAfterCommit();
+        eventPublisher.publishEvent(new ClanWarEndedEvent(war.getId()));
         chatChannel.announce(war.getAttackerClan(),
                 ChatNotice.ofWar(ChatEvent.war_ended, actor, war.getDefenderClan(), war));
         chatChannel.announce(war.getDefenderClan(),
@@ -237,23 +250,6 @@ public class ClanWarService {
     }
 
     private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId) {
-        return new ClanWarDetailResponse(responses(List.of(war)).getFirst(), poolService.pool(war, viewerClanId));
-    }
-
-    private List<ClanWarResponse> responses(List<ClanWar> wars) {
-        if (wars.isEmpty()) {
-            return List.of();
-        }
-        Map<UUID, List<ClanWarSide>> sides = sideRepository.findByWarIds(wars.stream().map(ClanWar::getId).toList())
-                .stream().collect(Collectors.groupingBy(side -> side.getWar().getId()));
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(wars.stream()
-                .flatMap(war -> Stream.of(war.getAttackerClan(), war.getDefenderClan()))
-                .filter(Objects::nonNull)
-                .toList());
-        return wars.stream()
-                .map(war -> ClanWarResponse.of(war, sides.getOrDefault(war.getId(), List.of()).stream()
-                        .map(side -> ClanWarSideResponse.of(side, clans.get(side.getClan().getId())))
-                        .toList()))
-                .toList();
+        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId));
     }
 }

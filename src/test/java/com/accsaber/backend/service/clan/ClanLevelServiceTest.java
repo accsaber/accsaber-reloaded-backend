@@ -1,6 +1,8 @@
 package com.accsaber.backend.service.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -18,35 +20,46 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.config.ClanProperties;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanLevelStepResponse;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLevelCapacity;
+import com.accsaber.backend.model.entity.clan.ClanLevelItem;
 import com.accsaber.backend.model.entity.clan.ClanLevelWarMode;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
 import com.accsaber.backend.model.entity.clan.ClanXpSource;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
+import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelCapacityRepository;
 import com.accsaber.backend.repository.clan.ClanLevelItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelWarModeRepository;
+import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
+import com.accsaber.backend.repository.item.ItemRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ClanLevelServiceTest {
 
     @Mock
+    private ItemRepository itemRepository;
+    @Mock
     private CurveRepository curveRepository;
     @Mock
     private ClanRepository clanRepository;
+    @Mock
+    private ClanMemberRepository memberRepository;
     @Mock
     private ClanXpGrantRepository grantRepository;
     @Mock
@@ -63,8 +76,9 @@ class ClanLevelServiceTest {
 
     @BeforeEach
     void setUp() {
-        levelService = new ClanLevelService(curveRepository, clanRepository, grantRepository, clanItemRepository,
-                capacityRepository, warModeRepository, levelItemRepository, clanProperties);
+        levelService = new ClanLevelService(curveRepository, clanRepository, memberRepository, grantRepository,
+                clanItemRepository, capacityRepository, warModeRepository, levelItemRepository, itemRepository,
+                clanProperties);
         lenient().when(curveRepository.findById(UUID.fromString("acc00000-0000-0000-0000-000000000030")))
                 .thenReturn(Optional.of(Curve.builder().xParameterValue(100.0).yParameterValue(1.0).build()));
     }
@@ -121,8 +135,11 @@ class ClanLevelServiceTest {
 
         @Test
         void aRosterScaledGrantIsDividedByTheRosterFactor() {
-            clanProperties.setRosterReferenceStrength(300.0);
-            Clan clan = lockedClan(0.0, 600.0);
+            clanProperties.setRosterReferenceStrength(280.0);
+            clanProperties.setRosterReferenceMembers(5.0);
+            clanProperties.setRosterFactorExponent(0.5);
+            Clan clan = lockedClan(0.0, 560.0);
+            when(memberRepository.countByClan_IdAndLeftAtIsNull(clanId)).thenReturn(10L);
             when(grantRepository.insertIfAbsent(clanId, "daily_play", "2026-09-13", 90.0, 2.0, 45.0)).thenReturn(1);
 
             boolean granted = levelService.grantXp(clanId,
@@ -134,8 +151,19 @@ class ClanLevelServiceTest {
 
         @Test
         void aSmallRosterNeverGetsMultipliedUp() {
-            clanProperties.setRosterReferenceStrength(300.0);
-            assertThat(levelService.rosterFactor(Clan.builder().rosterStrength(50.0).build())).isEqualTo(1.0);
+            clanProperties.setRosterReferenceStrength(280.0);
+            clanProperties.setRosterReferenceMembers(5.0);
+            assertThat(levelService.rosterFactor(Clan.builder().rosterStrength(50.0).build(), 3)).isEqualTo(1.0);
+        }
+
+        @Test
+        void theFactorGrowsWithHeadcountEvenWhenStrengthStopsGrowing() {
+            clanProperties.setRosterReferenceStrength(280.0);
+            clanProperties.setRosterReferenceMembers(5.0);
+            clanProperties.setRosterFactorExponent(0.5);
+            Clan strong = Clan.builder().rosterStrength(560.0).build();
+            assertThat(levelService.rosterFactor(strong, 20)).isEqualTo(Math.sqrt(8.0));
+            assertThat(levelService.rosterFactor(strong, 50)).isEqualTo(Math.sqrt(20.0));
         }
 
         @Test
@@ -222,5 +250,49 @@ class ClanLevelServiceTest {
                 "berserker")).isFalse();
         assertThat(levelService.hasWarMode(Clan.builder().totalXp(350.0).build(), ClanWarModeAxis.arena,
                 "random")).isFalse();
+    }
+
+    @Nested
+    class Admin {
+
+        private final ItemType clanCosmetic = ItemType.builder().key("clan_cosmetic").build();
+
+        @Test
+        void aLevelItemGoesStraightToClansAlreadyPastThatLevel() {
+            Item banner = Item.builder().id(UUID.randomUUID())
+                    .type(ItemType.builder().key("clan_banner").parentType(clanCosmetic).build()).build();
+            when(itemRepository.findById(banner.getId())).thenReturn(Optional.of(banner));
+            when(levelItemRepository.findById(banner.getId())).thenReturn(Optional.empty());
+
+            levelService.setLevelItem(2, banner.getId());
+
+            ArgumentCaptor<ClanLevelItem> saved = ArgumentCaptor.forClass(ClanLevelItem.class);
+            verify(levelItemRepository).saveAndFlush(saved.capture());
+            assertThat(saved.getValue().getLevel()).isEqualTo(2);
+            assertThat(saved.getValue().getItem()).isSameAs(banner);
+            verify(clanItemRepository).grantToClansAtLevel(banner.getId(), 2, 300.0);
+        }
+
+        @Test
+        void aPlayerItemCannotBeALevelReward() {
+            Item crate = Item.builder().id(UUID.randomUUID()).type(ItemType.builder().key("crate").build()).build();
+            when(itemRepository.findById(crate.getId())).thenReturn(Optional.of(crate));
+
+            assertThatThrownBy(() -> levelService.setLevelItem(2, crate.getId()))
+                    .isInstanceOf(ValidationException.class);
+            verify(levelItemRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void aWarModeHasToBelongToItsAxis() {
+            assertThatThrownBy(() -> levelService.setWarMode(ClanWarModeAxis.arena, "berserker", 1))
+                    .isInstanceOf(ValidationException.class);
+
+            levelService.setWarMode(ClanWarModeAxis.ruleset, "berserker", 3);
+
+            ArgumentCaptor<ClanLevelWarMode> saved = ArgumentCaptor.forClass(ClanLevelWarMode.class);
+            verify(warModeRepository).save(saved.capture());
+            assertThat(saved.getValue().getLevel()).isEqualTo(3);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.accsaber.backend.repository.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -31,6 +33,9 @@ import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoanStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
 import com.accsaber.backend.model.entity.clan.ClanRival;
 import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
 import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
@@ -56,6 +61,8 @@ import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.chat.ChatMessageRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
@@ -108,6 +115,10 @@ class ClanQueryTest {
     private ClanWarPoolEntryRepository poolRepository;
     @Autowired
     private ClanWarHitRepository hitRepository;
+    @Autowired
+    private ClanWarLoanRepository loanRepository;
+    @Autowired
+    private ClanWarRewardItemRepository rewardItemRepository;
     @Autowired
     private ClanWarParticipantRepository participantRepository;
 
@@ -839,5 +850,209 @@ class ClanQueryTest {
         assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, second.getId())
                 .setParameter(5, scoreId).executeUpdate()).isInstanceOf(PersistenceException.class);
+    }
+
+    private UUID loan(UUID warId, Clan into, Clan lender, User player, String status, Instant endedAt) {
+        return (UUID) entityManager.createNativeQuery("""
+                INSERT INTO clan_war_loans (war_id, clan_id, lending_clan_id, user_id, offered_by, status, ended_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id
+                """).setParameter(1, warId).setParameter(2, into.getId()).setParameter(3, lender.getId())
+                .setParameter(4, player.getId()).setParameter(5, founder.getId()).setParameter(6, status)
+                .setParameter(7, endedAt).getSingleResult();
+    }
+
+    @Test
+    @DisplayName("loan lookups count open loans by lender, war and pair, and a war's end closes them")
+    void loanLookups() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, lapiz, rival);
+        Instant ended = Instant.now().minus(2, ChronoUnit.DAYS);
+        UUID accepted = loan(warId, lapiz, owls, officer, "accepted", null);
+        UUID pending = loan(warId, rival, owls, member, "pending", null);
+        loan(warId, lapiz, owls, commander, "ended", ended);
+        alliance(owls, lapiz, "active", Instant.now());
+        entityManager.flush();
+
+        assertThat(loanRepository.existsOpenByUserId(officer.getId())).isTrue();
+        assertThat(loanRepository.existsOpenByUserId(commander.getId())).isFalse();
+        assertThat(loanRepository.findLastEndedAt(commander.getId())).get()
+                .satisfies(at -> assertThat(at).isCloseTo(ended, within(1, ChronoUnit.MILLIS)));
+        assertThat(loanRepository.countOpenByLendingClanId(owls.getId())).isEqualTo(2);
+        assertThat(loanRepository.countOpenIntoWar(warId, lapiz.getId())).isEqualTo(1);
+        assertThat(loanRepository.countOpenBetween(owls.getId(), rival.getId())).isEqualTo(1);
+        assertThat(loanRepository.findAcceptedByWarId(warId)).extracting(ClanWarLoan::getId).containsExactly(accepted);
+        assertThat(loanRepository.findOpenByLendingClanId(owls.getId())).hasSize(2);
+        assertThat(loanRepository.findPage(warId, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(loanRepository.findPage(null, member.getId(), PageRequest.of(0, 10)).getContent())
+                .extracting(ClanWarLoan::getId).containsExactly(pending);
+        assertThat(loanRepository.findWithRefsById(pending)).isPresent();
+        assertThat(allianceRepository.findActiveBetween(lapiz.getId(), owls.getId())).isPresent();
+
+        assertThat(loanRepository.closeOpenForWar(warId, Instant.now())).isEqualTo(2);
+        entityManager.clear();
+        assertThat(loanRepository.findById(accepted)).get().satisfies(l -> {
+            assertThat(l.getStatus()).isEqualTo(ClanWarLoanStatus.ended);
+            assertThat(l.getEndedAt()).isNotNull();
+        });
+        assertThat(loanRepository.findById(pending)).get().satisfies(l -> {
+            assertThat(l.getStatus()).isEqualTo(ClanWarLoanStatus.cancelled);
+            assertThat(l.getEndedAt()).isNull();
+            assertThat(l.getResolvedAt()).isNotNull();
+        });
+    }
+
+    @Test
+    @DisplayName("settlement reads participants biggest contribution first, pays each once and finds unsettled wars")
+    void settlementLookups() {
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
+                + "contribution) VALUES (?1, ?2, ?3, 0.5, 100, ?4)";
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, member.getId())
+                .setParameter(3, owls.getId()).setParameter(4, 10.0).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, 90.0).executeUpdate();
+        warState(warId, "status = 'ended', outcome = 'attacker_won', ended_at = ?1", Instant.now());
+        Item crate = clanItem("crate", "War Crate");
+        entityManager.persist(ClanWarRewardItem.builder().item(crate).build());
+        entityManager.persist(ClanWarRewardItem.builder().item(clanItem("crate", "Retired Crate")).active(false).build());
+        entityManager.flush();
+
+        assertThat(participantRepository.findByWarIdInContributionOrder(warId))
+                .extracting(p -> p.getUser().getId()).containsExactly(founder.getId(), member.getId());
+        assertThat(warRepository.findEndedUnsettled(10)).containsExactly(warId);
+        assertThat(participantRepository.markRewarded(warId, founder.getId(), 45.0, Instant.now())).isEqualTo(1);
+        assertThat(participantRepository.markRewarded(warId, founder.getId(), 45.0, Instant.now())).isZero();
+        assertThat(participantRepository.markRewarded(warId, member.getId(), 5.0, Instant.now())).isEqualTo(1);
+        assertThat(warRepository.findEndedUnsettled(10)).isEmpty();
+        entityManager.clear();
+        assertThat(rewardItemRepository.findActiveWithItems()).singleElement()
+                .satisfies(reward -> assertThat(reward.getItem().getType().getKey()).isEqualTo("crate"));
+        assertThat(rewardItemRepository.findAllWithItems()).extracting(ClanWarRewardItem::isActive)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("a player's war record counts wars fought and won, hits, breaks both ways, Standing moved and war XP")
+    void playerWarStats() {
+        MapDifficulty difficulty = rankedAt(6.0);
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID won = war(current, owls, lapiz);
+        UUID picking = war(current, lapiz, owls);
+        User lapizStar = user(76561190000000312L, "Lapiz Star");
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
+                + "contribution, xp_awarded, rewarded_at) VALUES (?1, ?2, ?3, 1, 100, ?4, ?5, ?6)";
+        entityManager.createNativeQuery(participant).setParameter(1, won).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, 75.0).setParameter(5, 40.0)
+                .setParameter(6, Instant.now()).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, won).setParameter(2, lapizStar.getId())
+                .setParameter(3, lapiz.getId()).setParameter(4, 10.0).setParameter(5, null).setParameter(6, null)
+                .executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, picking).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, 5.0).setParameter(5, null).setParameter(6, null)
+                .executeUpdate();
+        warState(won, "status = 'ended', outcome = 'attacker_won', ended_at = ?1", Instant.now());
+        score(founder, difficulty, 0.0, Instant.now());
+        score(lapizStar, difficulty, 0.0, Instant.now());
+        entityManager.flush();
+        String scoreOf = "SELECT id FROM scores WHERE user_id = ?1";
+        UUID founderScore = (UUID) entityManager.createNativeQuery(scoreOf).setParameter(1, founder.getId())
+                .getSingleResult();
+        UUID starScore = (UUID) entityManager.createNativeQuery(scoreOf).setParameter(1, lapizStar.getId())
+                .getSingleResult();
+        String hit = "INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, victim_cycle, "
+                + "map_difficulty_id, attacker_score_id, victim_score_id, damage, guard_after, broke, standing_moved, "
+                + "xp_awarded) VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, 50, 0, ?7, ?8, ?9)";
+        entityManager.createNativeQuery(hit).setParameter(1, won).setParameter(2, founder.getId())
+                .setParameter(3, lapizStar.getId()).setParameter(4, difficulty.getId()).setParameter(5, founderScore)
+                .setParameter(6, starScore).setParameter(7, true).setParameter(8, 12.5).setParameter(9, 200.0)
+                .executeUpdate();
+        entityManager.createNativeQuery(hit).setParameter(1, won).setParameter(2, lapizStar.getId())
+                .setParameter(3, founder.getId()).setParameter(4, difficulty.getId()).setParameter(5, starScore)
+                .setParameter(6, null).setParameter(7, false).setParameter(8, 0.0).setParameter(9, null)
+                .executeUpdate();
+        entityManager.createNativeQuery(hit).setParameter(1, won).setParameter(2, lapizStar.getId())
+                .setParameter(3, founder.getId()).setParameter(4, difficulty.getId()).setParameter(5, starScore)
+                .setParameter(6, founderScore).setParameter(7, true).setParameter(8, 0.0).setParameter(9, null)
+                .executeUpdate();
+
+        ClanWarParticipantRepository.PlayerWarStatsView mine = participantRepository.findPlayerWarStats(founder.getId());
+        ClanWarParticipantRepository.PlayerWarStatsView theirs = participantRepository
+                .findPlayerWarStats(lapizStar.getId());
+        ClanWarParticipantRepository.PlayerWarStatsView nobody = participantRepository.findPlayerWarStats(member.getId());
+
+        assertThat(mine.getWarsFought()).isEqualTo(1);
+        assertThat(mine.getWarsWon()).isEqualTo(1);
+        assertThat(mine.getHits()).isEqualTo(1);
+        assertThat(mine.getBreaksDealt()).isEqualTo(1);
+        assertThat(mine.getBreaksSuffered()).isEqualTo(1);
+        assertThat(mine.getStandingMoved()).isEqualTo(12.5);
+        assertThat(mine.getContribution()).isEqualTo(80.0);
+        assertThat(mine.getWarXp()).isEqualTo(240.0);
+        assertThat(theirs.getWarsWon()).isZero();
+        assertThat(theirs.getHits()).isEqualTo(2);
+        assertThat(theirs.getBreaksSuffered()).isEqualTo(1);
+        assertThat(nobody.getWarsFought()).isZero();
+        assertThat(nobody.getWarXp()).isZero();
+    }
+
+    @Test
+    @DisplayName("a new level cosmetic reaches every active clan already past that level's XP, once")
+    void levelItemCatchUp() {
+        Item emblem = clanItem("clan_emblem", "Late Emblem");
+        Clan gone = clan("Gone", "GON", "gone");
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE clans SET total_xp = 500 WHERE id IN (?1, ?2)")
+                .setParameter(1, owls.getId()).setParameter(2, gone.getId()).executeUpdate();
+        entityManager.createNativeQuery("UPDATE clans SET active = false WHERE id = ?1")
+                .setParameter(1, gone.getId()).executeUpdate();
+
+        assertThat(clanItemRepository.grantToClansAtLevel(emblem.getId(), 2, 300.0)).isEqualTo(1);
+        assertThat(clanItemRepository.grantToClansAtLevel(emblem.getId(), 2, 300.0)).isZero();
+        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(owls.getId(), emblem.getId())).isTrue();
+        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(lapiz.getId(), emblem.getId())).isFalse();
+    }
+
+    @Test
+    @DisplayName("the clan ref cache loads open members and equipped cosmetics of active clans only, types fetched")
+    void clanRefCacheLoads() {
+        Clan gone = clan("Gone", "GON", "gone");
+        User ghost = user(76561190000000313L, "Ghost");
+        seat(gone, ghost, ClanRole.founder, Instant.now());
+        Item emblem = clanItem("clan_emblem", "Owl Emblem");
+        Item goneEmblem = clanItem("clan_emblem", "Gone Emblem");
+        entityManager.persist(ClanItem.builder().clan(owls).item(emblem).source(ClanItemSource.manual).build());
+        entityManager.persist(ClanItem.builder().clan(gone).item(goneEmblem).source(ClanItemSource.manual).build());
+        entityManager.flush();
+        entityManager.persist(ClanEquippedItem.builder().clan(owls).itemType(emblem.getType()).item(emblem).build());
+        entityManager.persist(ClanEquippedItem.builder().clan(gone).itemType(goneEmblem.getType()).item(goneEmblem)
+                .build());
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE clans SET active = false WHERE id = ?1")
+                .setParameter(1, gone.getId()).executeUpdate();
+        entityManager.createNativeQuery("UPDATE clan_members SET left_at = now(), leave_reason = 'left' WHERE user_id = ?1")
+                .setParameter(1, member.getId()).executeUpdate();
+        entityManager.clear();
+
+        assertThat(memberRepository.findAllOpenInActiveClans())
+                .extracting(m -> m.getUser().getId())
+                .containsExactlyInAnyOrder(founder.getId(), commander.getId(), officer.getId());
+        assertThat(equippedRepository.findAllOfActiveClans()).singleElement().satisfies(e -> {
+            assertThat(Hibernate.isInitialized(e.getItem().getType())).isTrue();
+            assertThat(e.getItem().getName()).isEqualTo("Owl Emblem");
+        });
+    }
+
+    @Test
+    @DisplayName("clan notifications are allowed by the notification type check")
+    void clanNotificationTypes() {
+        for (String type : List.of("clan_membership", "clan_alliance", "clan_war")) {
+            entityManager.createNativeQuery("INSERT INTO notifications (user_id, type, title) VALUES (?1, ?2, 'x')")
+                    .setParameter(1, member.getId()).setParameter(2, type).executeUpdate();
+        }
+
+        assertThat(entityManager.createNativeQuery("SELECT COUNT(*) FROM notifications WHERE user_id = ?1")
+                .setParameter(1, member.getId()).getSingleResult()).isEqualTo(3L);
     }
 }

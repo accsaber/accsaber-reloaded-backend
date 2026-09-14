@@ -2,6 +2,8 @@ package com.accsaber.backend.model.dto.response.statistics;
 
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,5 +22,6 @@ public class FirstEditionHolderResponse {
     private String userName;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private String country;
 }

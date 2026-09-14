@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -54,6 +55,7 @@ public class ClanAllianceService {
     private final ClanCosmeticService cosmeticService;
     private final ClanStrengthService strengthService;
     private final ClanChatChannel chatChannel;
+    private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 
     public Page<ClanAllianceResponse> list(UUID clanId, Pageable pageable) {
@@ -89,6 +91,7 @@ public class ClanAllianceService {
                 .proposedByClan(proposer)
                 .proposedByUser(actor)
                 .build());
+        notifier.allianceProposed(alliance, alliance.otherThan(clanId));
         return toResponse(alliance, clanId);
     }
 
@@ -104,6 +107,11 @@ public class ClanAllianceService {
             case ended -> close(alliance, ClanAllianceStatus.active, ClanAllianceStatus.ended, actor);
             case pending -> throw new ValidationException("status", "must be active, declined or ended");
         }
+        notifier.allianceChanged(alliance, alliance.otherThan(side), actor, switch (status) {
+            case active -> "accepted";
+            case declined -> "turned down";
+            default -> "ended";
+        });
         return toResponse(alliance, side);
     }
 
@@ -118,6 +126,7 @@ public class ClanAllianceService {
             alliance.setEndedByUser(actor);
             if (active) {
                 record(alliance.otherThan(clan.getId()), actor, ClanAuditAction.alliance_ended, clan);
+                notifier.allianceChanged(alliance, alliance.otherThan(clan.getId()), actor, "ended");
             }
         }
         allianceRepository.saveAllAndFlush(open);
@@ -125,6 +134,11 @@ public class ClanAllianceService {
                 .filter(a -> a.getStatus() == ClanAllianceStatus.ended)
                 .map(a -> a.otherThan(clan.getId()).getId())
                 .toList());
+    }
+
+    public Optional<ClanTrustResponse> trustBetween(UUID first, UUID second) {
+        return allianceRepository.findActiveBetween(first, second)
+                .map(alliance -> trustOf(List.of(alliance)).get(alliance.getId()));
     }
 
     private Map<UUID, ClanTrustResponse> trustOf(Collection<ClanAlliance> alliances) {

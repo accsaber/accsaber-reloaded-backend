@@ -2,6 +2,8 @@ package com.accsaber.backend.model.dto.response.player;
 
 import java.util.List;
 
+import com.accsaber.backend.model.dto.response.clan.ClanStatsResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -16,5 +18,6 @@ public class UserAllStatisticsResponse {
     private Double totalMissionXp;
     private Double totalCampaignXp;
     private Double totalEventXp;
+    private ClanStatsResponse clan;
     private List<UserCategoryStatisticsResponse> categories;
 }

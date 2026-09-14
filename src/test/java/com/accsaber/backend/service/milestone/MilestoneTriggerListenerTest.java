@@ -53,7 +53,7 @@ class MilestoneTriggerListenerTest {
     }
 
     private PlayerRef ref(Long id) {
-        return new PlayerRef(String.valueOf(id), null, null, null, null);
+        return new PlayerRef(String.valueOf(id), null, null, null, null, null);
     }
 
     @Test

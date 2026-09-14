@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,8 @@ class ClanJoinRequestServiceTest {
 
     private static final UUID CLAN_ID = UUID.randomUUID();
 
+    @Mock
+    private ClanNotifier notifier;
     @Mock
     private ClanJoinRequestRepository joinRequestRepository;
     @Mock
@@ -102,6 +105,7 @@ class ClanJoinRequestServiceTest {
             assertThat(response.direction()).isEqualTo(ClanJoinDirection.invite);
             assertThat(response.createdBy().id()).isEqualTo("1");
             verify(roster, never()).assertCanJoin(any());
+            verify(notifier).invited(any(ClanJoinRequest.class));
         }
 
         @Test
@@ -141,6 +145,7 @@ class ClanJoinRequestServiceTest {
             verify(accessService).require(CLAN_ID, 1L, ClanPermission.RESOLVE_REQUESTS);
             verify(roster).admit(clan, player, ClanRole.member);
             verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_joined, player, null));
+            verify(notifier).admitted(eq(request), any(User.class));
             assertThat(response.status()).isEqualTo(ClanJoinStatus.accepted);
             assertThat(response.resolvedBy().id()).isEqualTo("1");
         }

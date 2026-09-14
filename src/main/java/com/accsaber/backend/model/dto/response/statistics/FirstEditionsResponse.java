@@ -1,5 +1,7 @@
 package com.accsaber.backend.model.dto.response.statistics;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,6 +13,7 @@ public class FirstEditionsResponse {
     private String userName;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private String country;
     private long firstEditionCount;
 }

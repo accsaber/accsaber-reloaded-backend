@@ -56,6 +56,8 @@ class ClanMembershipServiceTest {
     private static final UUID CLAN_ID = UUID.randomUUID();
 
     @Mock
+    private ClanNotifier notifier;
+    @Mock
     private ClanRepository clanRepository;
     @Mock
     private ClanMemberRepository memberRepository;
@@ -89,7 +91,7 @@ class ClanMembershipServiceTest {
     void setUp() {
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
                 scoreRepository, userRepository, roster, accessService, levelService, clanService, notificationHandler,
-                chatChannel, clanProperties);
+                chatChannel, notifier, clanProperties);
         lenient().when(roster.lock(CLAN_ID)).thenReturn(clan);
         lenient().when(notificationHandler.onlineAmong(anyCollection())).thenReturn(Set.of());
     }
@@ -208,7 +210,7 @@ class ClanMembershipServiceTest {
 
             service.remove(CLAN_ID, 1L, 1L);
 
-            verify(clanService).disband(clan, founder);
+            verify(clanService).disband(clan, founder, null);
         }
 
         @Test
@@ -223,6 +225,7 @@ class ClanMembershipServiceTest {
             verify(roster).close(target, ClanLeaveReason.kicked);
             verify(auditRepository).save(any(ClanAuditEntry.class));
             verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_kicked, officer, target.getUser()));
+            verify(notifier).kicked(clan, target.getUser(), officer);
         }
     }
 
@@ -240,6 +243,7 @@ class ClanMembershipServiceTest {
 
             assertThat(founderStint.getRole()).isEqualTo(ClanRole.commander);
             assertThat(heir.getRole()).isEqualTo(ClanRole.founder);
+            verify(notifier).crowned(clan, heir.getUser(), founder);
         }
 
         private void roster(ClanMember... members) {
@@ -311,6 +315,7 @@ class ClanMembershipServiceTest {
             verify(roster).close(founder, ClanLeaveReason.banned);
             verify(chatChannel).announce(clan, ChatNotice.ofPlayer(ChatEvent.member_left, founder.getUser(), null));
             assertThat(commander.getRole()).isEqualTo(ClanRole.founder);
+            verify(notifier).crowned(clan, commander.getUser(), null);
             verify(joinRequestRepository).expirePendingForUser(eq(1L), any());
         }
 
@@ -322,7 +327,7 @@ class ClanMembershipServiceTest {
 
             service.onPlayerBanned(new PlayerBannedEvent(1L));
 
-            verify(clanService).disband(clan, null);
+            verify(clanService).disband(clan, null, null);
         }
 
         @Test

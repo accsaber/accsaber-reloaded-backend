@@ -59,6 +59,7 @@ public class ClanMembershipService {
     private final ClanService clanService;
     private final NotificationWebSocketHandler notificationHandler;
     private final ClanChatChannel chatChannel;
+    private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 
     public Page<ClanMemberResponse> roster(UUID clanId, Pageable pageable) {
@@ -111,6 +112,7 @@ public class ClanMembershipService {
         assertOutranks(actor, target);
         roster.close(target, ClanLeaveReason.kicked);
         chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_kicked, actorUser, target.getUser()));
+        notifier.kicked(clan, target.getUser(), actorUser);
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actorUser)
                 .action(ClanAuditAction.member_kicked).targetUser(target.getUser()).build());
     }
@@ -127,6 +129,7 @@ public class ClanMembershipService {
         crown(clan, founder, heir);
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actorUser)
                 .action(ClanAuditAction.founder_transferred).targetUser(heir.getUser()).build());
+        notifier.crowned(clan, heir.getUser(), actorUser);
         return toResponse(heir);
     }
 
@@ -169,7 +172,7 @@ public class ClanMembershipService {
         if (memberRepository.countByClan_IdAndLeftAtIsNull(clan.getId()) > 1) {
             throw new ValidationException("Hand the clan to another member before leaving it");
         }
-        clanService.disband(clan, member.getUser());
+        clanService.disband(clan, member.getUser(), null);
     }
 
     private ClanMemberResponse claimFounder(Clan clan, User claimant) {
@@ -195,7 +198,7 @@ public class ClanMembershipService {
     private void promoteSuccessor(Clan clan) {
         List<ClanMember> members = memberRepository.findRoster(clan.getId(), Pageable.unpaged()).getContent();
         if (members.isEmpty()) {
-            clanService.disband(clan, null);
+            clanService.disband(clan, null, null);
             return;
         }
         ClanMember heir = members.get(0);
@@ -203,6 +206,7 @@ public class ClanMembershipService {
         memberRepository.saveAndFlush(heir);
         auditRepository.save(ClanAuditEntry.builder().clan(clan).action(ClanAuditAction.founder_transferred)
                 .targetUser(heir.getUser()).build());
+        notifier.crowned(clan, heir.getUser(), null);
     }
 
     private void crown(Clan clan, ClanMember founder, ClanMember heir) {

@@ -56,6 +56,7 @@ public class ClanWarPoolService {
     private final ClanAccessService accessService;
     private final ClanCosmeticService cosmeticService;
     private final MapService mapService;
+    private final ClanWarFeed feed;
     private final ClanProperties clanProperties;
 
     public record PlaylistSource(String title, List<MapDifficulty> difficulties) {
@@ -221,5 +222,6 @@ public class ClanWarPoolService {
         war.setStatus(ClanWarStatus.preparing);
         war.setStartsAt(Instant.now().plus(clanProperties.getWar().getPrepDuration()));
         warRepository.saveAndFlush(war);
+        feed.war(war);
     }
 }

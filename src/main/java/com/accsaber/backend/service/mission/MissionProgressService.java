@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.mission;
 
-import com.accsaber.backend.util.Rounding;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -36,9 +34,9 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
-import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
+import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.mission.MissionContributionRepository;
@@ -49,9 +47,11 @@ import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanMissionService;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
 
@@ -524,6 +524,7 @@ public class MissionProgressService {
                 .userCountry(user.getCountry())
                 .userAvatarUrl(user.getAvatarUrl())
                 .userCdnAvatarUrl(user.getCdnAvatarUrl())
+                .userClan(ClanRefCache.forUser(userId))
                 .completedAt(mission.getCompletedAt())
                 .missionId(mission.getId())
                 .templateId(mission.getTemplate() != null ? mission.getTemplate().getId() : null)

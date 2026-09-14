@@ -28,15 +28,19 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoanStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
+import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
 
@@ -44,9 +48,15 @@ import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
 class ClanWarRosterServiceTest {
 
     @Mock
+    private ClanWarFeed feed;
+    @Mock
+    private ClanNotifier notifier;
+    @Mock
     private ClanWarRepository warRepository;
     @Mock
     private ClanWarParticipantRepository participantRepository;
+    @Mock
+    private ClanWarLoanRepository loanRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -65,8 +75,8 @@ class ClanWarRosterServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ClanWarRosterService(warRepository, participantRepository, userRepository, strengthService,
-                chatChannel, scoreGate, clanProperties);
+        service = new ClanWarRosterService(warRepository, participantRepository, loanRepository, userRepository, strengthService,
+                chatChannel, scoreGate, feed, notifier, clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .status(ClanWarStatus.preparing).startsAt(Instant.now().minusSeconds(1)).build();
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
@@ -107,6 +117,8 @@ class ClanWarRosterServiceTest {
         assertThat(participants.get(12L).getDuelTarget().getId()).isEqualTo(3L);
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_started, null, defender, war));
         verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_started, null, attacker, war));
+        verify(feed).war(war);
+        verify(notifier).warStarted(war);
     }
 
     @Test
@@ -122,6 +134,7 @@ class ClanWarRosterServiceTest {
     @Test
     void aMembershipChangeRetiresLeaversEnrolsJoinersAndRepairsTheDuels() {
         war.setStatus(ClanWarStatus.active);
+        when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
         ClanWarParticipant leaver = ClanWarParticipant.builder().war(war).user(User.builder().id(1L).build())
                 .clan(attacker).standingWeight(0.5).guard(100).build();
         ClanWarParticipant stayer = ClanWarParticipant.builder().war(war).user(User.builder().id(2L).build())
@@ -141,5 +154,27 @@ class ClanWarRosterServiceTest {
         assertThat(participants.get(2L).getGuard()).isEqualTo(40);
         assertThat(participants.get(4L).getStandingWeight()).isEqualTo(0.8);
         assertThat(participants.get(11L).getDuelTarget().getId()).isEqualTo(4L);
+    }
+
+    @Test
+    void anAcceptedLoanFightsForTheSideItWasLentToWithItsOwnClansWeight() {
+        war.setStatus(ClanWarStatus.active);
+        Clan ally = Clan.builder().id(UUID.randomUUID()).build();
+        ClanWarLoan loan = ClanWarLoan.builder().war(war).clan(attacker).lendingClan(ally)
+                .user(User.builder().id(21L).build()).status(ClanWarLoanStatus.accepted).build();
+        when(loanRepository.findAcceptedByWarId(war.getId())).thenReturn(List.of(loan));
+        rosters(List.of(new MemberStrength(1L, 50, 1.0)), List.of(new MemberStrength(11L, 60, 1.0)));
+        when(strengthService.memberStrengths(ally.getId())).thenReturn(List.of(new MemberStrength(20L, 90, 0.7),
+                new MemberStrength(21L, 70, 0.3)));
+
+        service.resync(war.getId());
+
+        Map<Long, ClanWarParticipant> participants = saved();
+        assertThat(participants).containsOnlyKeys(1L, 11L, 21L);
+        assertThat(participants.get(21L).getClan()).isSameAs(attacker);
+        assertThat(participants.get(21L).getLentByClan()).isSameAs(ally);
+        assertThat(participants.get(21L).getStandingWeight()).isEqualTo(0.3);
+        assertThat(participants.get(21L).getDuelTarget().getId()).isEqualTo(11L);
+        assertThat(participants.get(11L).getDuelTarget().getId()).isEqualTo(21L);
     }
 }

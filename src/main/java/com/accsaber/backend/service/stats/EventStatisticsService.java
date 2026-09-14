@@ -27,6 +27,7 @@ import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.repository.mission.EventRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.RequiredArgsConstructor;
 
@@ -262,6 +263,7 @@ public class EventStatisticsService {
         return queryRunner.paged(sql, params, pageable, row -> EventMissionLeaderboardResponse.builder()
                 .rank(num(row[0]))
                 .userId(String.valueOf(((Number) row[1]).longValue()))
+                .clan(ClanRefCache.forUser(((Number) row[1]).longValue()))
                 .userName((String) row[2])
                 .avatarUrl((String) row[3])
                 .cdnAvatarUrl((String) row[4])

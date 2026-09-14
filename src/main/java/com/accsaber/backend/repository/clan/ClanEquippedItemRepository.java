@@ -13,8 +13,11 @@ import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
 
 public interface ClanEquippedItemRepository extends JpaRepository<ClanEquippedItem, ClanEquippedItem.Key> {
 
-    @Query("SELECT e FROM ClanEquippedItem e JOIN FETCH e.item WHERE e.clan.id IN :clanIds")
+    @Query("SELECT e FROM ClanEquippedItem e JOIN FETCH e.item i JOIN FETCH i.type WHERE e.clan.id IN :clanIds")
     List<ClanEquippedItem> findByClanIds(@Param("clanIds") Collection<UUID> clanIds);
+
+    @Query("SELECT e FROM ClanEquippedItem e JOIN FETCH e.item i JOIN FETCH i.type WHERE e.clan.active")
+    List<ClanEquippedItem> findAllOfActiveClans();
 
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM ClanEquippedItem e WHERE e.clan.id = :clanId AND e.itemType.key = :itemTypeKey")
