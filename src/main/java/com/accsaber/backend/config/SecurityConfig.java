@@ -153,7 +153,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/item-types", "/v1/item-modifiers", "/v1/unusual-effects", "/v1/unusual-effects/grouped", "/v1/items", "/v1/items/*", "/v1/items/*/holders").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/market/listings", "/v1/market/listings/*", "/v1/market/listings/*/bids").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/news/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/v1/clans", "/v1/clans/*", "/v1/clans/*/members", "/v1/clans/*/level", "/v1/clans/*/xp", "/v1/clans/*/items", "/v1/clans/*/standing", "/v1/clans/*/standing/events", "/v1/clans/seasons/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/clans", "/v1/clans/*", "/v1/clans/*/members", "/v1/clans/*/alliances", "/v1/clans/*/level", "/v1/clans/*/xp", "/v1/clans/*/items", "/v1/clans/*/standing", "/v1/clans/*/standing/events", "/v1/clans/seasons/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/playlists/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/songsuggest", "/v1/songsuggest/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/discord/links/**").permitAll()

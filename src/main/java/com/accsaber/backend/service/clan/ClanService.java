@@ -57,6 +57,7 @@ public class ClanService {
     private final ClanLevelService levelService;
     private final ClanCosmeticService cosmeticService;
     private final ClanStandingService standingService;
+    private final ClanAllianceService allianceService;
     private final ClanProperties clanProperties;
 
     private record ListExtras(Map<UUID, Long> memberCounts, Map<UUID, PlayerRef> founders,
@@ -118,6 +119,7 @@ public class ClanService {
         clan.setActive(false);
         clanRepository.saveAndFlush(clan);
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
+        allianceService.endAll(clan, actor);
         auditRepository.save(ClanAuditEntry.builder()
                 .clan(clan).actor(actor).action(ClanAuditAction.disbanded).build());
     }

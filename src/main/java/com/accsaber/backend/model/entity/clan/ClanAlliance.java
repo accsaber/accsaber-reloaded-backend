@@ -71,4 +71,12 @@ public class ClanAlliance {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ended_by_user_id")
     private User endedByUser;
+
+    public Clan otherThan(UUID clanId) {
+        return clanA.getId().equals(clanId) ? clanB : clanA;
+    }
+
+    public boolean involves(UUID clanId) {
+        return clanA.getId().equals(clanId) || clanB.getId().equals(clanId);
+    }
 }

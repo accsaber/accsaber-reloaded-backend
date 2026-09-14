@@ -26,6 +26,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.CurveRepository;
+import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.service.score.APCalculationService;
@@ -39,6 +40,8 @@ class ClanStrengthServiceTest {
     private ClanRepository clanRepository;
     @Mock
     private ClanMemberRepository memberRepository;
+    @Mock
+    private ClanAllianceRepository allianceRepository;
     @Mock
     private CategoryRepository categoryRepository;
     @Mock
@@ -109,14 +112,20 @@ class ClanStrengthServiceTest {
     }
 
     @Test
-    void aMembershipChangeRecomputesThatClan() {
+    void aMembershipChangeRecomputesThatClanAndItsAllies() {
         UUID clanId = UUID.randomUUID();
+        UUID allyId = UUID.randomUUID();
         Clan clan = Clan.builder().id(clanId).build();
-        when(clanRepository.findAllById(List.of(clanId))).thenReturn(List.of(clan));
-        when(memberRepository.findOpenMemberSkills(List.of(clanId), OVERALL)).thenReturn(List.of(skill(clanId, 50.0)));
+        Clan ally = Clan.builder().id(allyId).build();
+        List<UUID> both = List.of(clanId, allyId);
+        when(allianceRepository.findActiveAllyIds(List.of(clanId))).thenReturn(List.of(allyId));
+        when(clanRepository.findAllById(both)).thenReturn(List.of(clan, ally));
+        when(memberRepository.findOpenMemberSkills(both, OVERALL)).thenReturn(List.of(skill(clanId, 50.0)));
+        when(memberRepository.findFoughtAllyTopSkills(eq(both), eq(OVERALL), any())).thenReturn(List.of(skill(allyId, 50.0)));
 
         strengthService.onMembershipChanged(new ClanMembershipChangedEvent(clanId));
 
         assertThat(clan.getRosterStrength()).isEqualTo(50.0);
+        assertThat(ally.getAllyStrength()).isEqualTo(50.0);
     }
 }

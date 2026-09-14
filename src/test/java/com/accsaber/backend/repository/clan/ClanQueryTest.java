@@ -27,6 +27,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
 import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
 import com.accsaber.backend.model.entity.clan.ClanItem;
 import com.accsaber.backend.model.entity.clan.ClanItemSource;
@@ -80,6 +81,8 @@ class ClanQueryTest {
     private ClanSeasonStandingRepository standingRepository;
     @Autowired
     private ClanWarParticipantRepository participantRepository;
+    @Autowired
+    private ClanAllianceRepository allianceRepository;
 
     private Clan owls;
     private Clan lapiz;
@@ -317,6 +320,17 @@ class ClanQueryTest {
         return id;
     }
 
+    private UUID alliance(Clan first, Clan second, String status, Instant acceptedAt) {
+        return (UUID) entityManager.createNativeQuery("""
+                INSERT INTO clan_alliances (clan_a_id, clan_b_id, proposed_by_clan_id, proposed_by_user_id, status,
+                    accepted_at)
+                VALUES (LEAST(CAST(?1 AS uuid), CAST(?2 AS uuid)), GREATEST(CAST(?1 AS uuid), CAST(?2 AS uuid)), ?1, ?3,
+                    ?4, ?5)
+                RETURNING id
+                """).setParameter(1, first.getId()).setParameter(2, second.getId()).setParameter(3, founder.getId())
+                .setParameter(4, status).setParameter(5, acceptedAt).getSingleResult();
+    }
+
     @Test
     @DisplayName("roster strength reads every open member's overall skill")
     void memberSkillsForStrength() {
@@ -340,13 +354,7 @@ class ClanQueryTest {
         seat(lapiz, lapizBench, ClanRole.member, Instant.now().minus(5, ChronoUnit.DAYS));
         skill(lapizStar, 90.0);
         skill(lapizBench, 50.0);
-        UUID low = (UUID) entityManager.createNativeQuery("SELECT LEAST(CAST(?1 AS uuid), CAST(?2 AS uuid))")
-                .setParameter(1, owls.getId()).setParameter(2, lapiz.getId()).getSingleResult();
-        UUID high = low.equals(owls.getId()) ? lapiz.getId() : owls.getId();
-        entityManager.createNativeQuery("INSERT INTO clan_alliances (clan_a_id, clan_b_id, proposed_by_clan_id, "
-                + "proposed_by_user_id, status, accepted_at) VALUES (?1, ?2, ?1, ?3, 'active', NOW())")
-                .setParameter(1, low).setParameter(2, high).setParameter(3, founder.getId()).executeUpdate();
-        entityManager.flush();
+        alliance(owls, lapiz, "active", Instant.now());
 
         assertThat(memberRepository.findFoughtAllyTopSkills(List.of(owls.getId()), overall().getId(), Instant.now()))
                 .isEmpty();
@@ -422,5 +430,70 @@ class ClanQueryTest {
         assertThat(contributors).extracting(ClanWarParticipantRepository.ContributorView::getUserId)
                 .containsExactly(officer.getId(), founder.getId());
         assertThat(contributors.get(0).getContribution()).isEqualTo(70.0);
+    }
+
+    @Test
+    @DisplayName("alliance lookups see both sides of the ordered pair and only open rows")
+    void allianceLookups() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        Clan former = clan("Former", "FRM", "former");
+        alliance(owls, lapiz, "active", Instant.now());
+        alliance(rival, owls, "pending", null);
+        alliance(owls, former, "ended", Instant.now().minus(9, ChronoUnit.DAYS));
+        UUID low = (UUID) entityManager.createNativeQuery("SELECT LEAST(CAST(?1 AS uuid), CAST(?2 AS uuid))")
+                .setParameter(1, owls.getId()).setParameter(2, lapiz.getId()).getSingleResult();
+        UUID high = low.equals(owls.getId()) ? lapiz.getId() : owls.getId();
+        entityManager.clear();
+
+        assertThat(allianceRepository.findPageByClanIdAndStatus(owls.getId(), ClanAllianceStatus.active,
+                Pageable.unpaged()).getContent()).singleElement()
+                .satisfies(a -> assertThat(a.otherThan(owls.getId()).getName()).isEqualTo("El Lápiz"));
+        assertThat(allianceRepository.findPageByClanIdAndStatus(lapiz.getId(), ClanAllianceStatus.active,
+                PageRequest.of(0, 5)).getTotalElements()).isEqualTo(1);
+        assertThat(allianceRepository.findOpenByClanId(owls.getId())).hasSize(2);
+        assertThat(allianceRepository.existsOpenBetween(low, high)).isTrue();
+        assertThat(allianceRepository.countActiveByClanId(owls.getId())).isEqualTo(1);
+        assertThat(allianceRepository.findActiveAllyIds(List.of(owls.getId()))).containsExactly(lapiz.getId());
+        assertThat(allianceRepository.findActiveAllyIds(List.of(lapiz.getId()))).containsExactly(owls.getId());
+    }
+
+    @Test
+    @DisplayName("trust sums what lent players put up across the alliance since it formed, in both directions")
+    void trustContributionsCountLoansSinceTheAllianceFormed() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        User lapizLender = user(76561190000000308L, "Lapiz Lender");
+        seat(lapiz, lapizLender, ClanRole.member, Instant.now().minus(60, ChronoUnit.DAYS));
+        UUID allianceId = alliance(owls, lapiz, "active", Instant.now().minus(20, ChronoUnit.DAYS));
+        UUID current = season(Instant.now().minus(40, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID lapizWar = war(current, lapiz, rival);
+        UUID owlsWar = war(current, owls, rival);
+        UUID olderWar = war(current, rival, lapiz);
+        loan(lapizWar, lapiz, owls, officer, "ended", Instant.now().minus(5, ChronoUnit.DAYS), 120.0);
+        loan(owlsWar, owls, lapiz, lapizLender, "accepted", Instant.now().minus(2, ChronoUnit.DAYS), 30.0);
+        loan(olderWar, lapiz, owls, member, "ended", Instant.now().minus(30, ChronoUnit.DAYS), 500.0);
+        loan(lapizWar, lapiz, owls, commander, "declined", Instant.now().minus(4, ChronoUnit.DAYS), 700.0);
+
+        assertThat(allianceRepository.findTrustContributions(List.of(allianceId)))
+                .singleElement()
+                .satisfies(view -> {
+                    assertThat(view.getAllianceId()).isEqualTo(allianceId);
+                    assertThat(view.getContribution()).isEqualTo(150.0);
+                });
+    }
+
+    private void loan(UUID warId, Clan borrower, Clan lender, User player, String status, Instant createdAt,
+            double contribution) {
+        entityManager.createNativeQuery("""
+                INSERT INTO clan_war_loans (war_id, clan_id, lending_clan_id, user_id, offered_by, status, created_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                """).setParameter(1, warId).setParameter(2, borrower.getId()).setParameter(3, lender.getId())
+                .setParameter(4, player.getId()).setParameter(5, founder.getId()).setParameter(6, status)
+                .setParameter(7, createdAt).executeUpdate();
+        entityManager.createNativeQuery("""
+                INSERT INTO clan_war_participants (war_id, user_id, clan_id, lent_by_clan_id, standing_weight, guard,
+                    contribution)
+                VALUES (?1, ?2, ?3, ?4, 0.5, 100, ?5)
+                """).setParameter(1, warId).setParameter(2, player.getId()).setParameter(3, borrower.getId())
+                .setParameter(4, lender.getId()).setParameter(5, contribution).executeUpdate();
     }
 }

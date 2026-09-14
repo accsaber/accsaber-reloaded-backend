@@ -9,6 +9,7 @@ public enum ClanPermission {
     KICK(ClanRole.officer),
     PROMOTE_OFFICER(ClanRole.commander),
     PROMOTE_COMMANDER(ClanRole.founder),
+    MANAGE_ALLIANCES(ClanRole.founder),
     CUSTOMIZE(ClanRole.founder),
     TRANSFER(ClanRole.founder),
     DISBAND(ClanRole.founder);
