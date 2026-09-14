@@ -211,6 +211,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 FROM clan_war_hits h
                 WHERE h.xp_awarded IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR h.attacker_user_id = CAST(:userId AS bigint))
+                UNION ALL
+                SELECT wp.user_id, 'war', CAST(wp.xp_awarded AS numeric)
+                FROM clan_war_participants wp
+                WHERE wp.rewarded_at IS NOT NULL
+                  AND (CAST(:userId AS bigint) IS NULL OR wp.user_id = CAST(:userId AS bigint))
             ),
             totals AS (
                 SELECT user_id,
@@ -291,6 +296,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
                           AND b.victim_cycle = h.victim_cycle AND b.broke), h.xp_awarded
                 FROM clan_war_hits h
                 WHERE h.attacker_user_id = :userId AND h.xp_awarded IS NOT NULL
+                UNION ALL
+                SELECT wp.rewarded_at, wp.xp_awarded
+                FROM clan_war_participants wp
+                WHERE wp.user_id = :userId AND wp.rewarded_at IS NOT NULL
             ) e
             WHERE e.xp IS NOT NULL AND e.xp <> 0
             ORDER BY e.ts ASC NULLS FIRST

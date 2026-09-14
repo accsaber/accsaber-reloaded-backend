@@ -40,6 +40,7 @@ import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
@@ -199,6 +200,7 @@ public class MilestoneEvaluationService {
                 .userCountry(user.getCountry())
                 .userAvatarUrl(user.getAvatarUrl())
                 .userCdnAvatarUrl(user.getCdnAvatarUrl())
+                .userClan(ClanRefCache.forUser(userId))
                 .completedAt(Instant.now())
                 .milestones(milestonePayloads.isEmpty() ? null : milestonePayloads)
                 .sets(setPayloads.isEmpty() ? null : setPayloads)

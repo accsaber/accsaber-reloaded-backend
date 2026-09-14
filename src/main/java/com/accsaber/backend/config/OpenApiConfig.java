@@ -193,6 +193,9 @@ public class OpenApiConfig {
                                                 .description("""
                                                                 Curating, publishing and moderating campaigns, and editing them \
                                                                 while they are already live."""),
+                                new Tag().name("Admin - Clans")
+                                                .description("""
+                                                                Tuning the clan level table, running clan seasons and the war                                                                 reward pool, and stepping in when a clan breaks the rules."""),
                                 new Tag().name("Admin - Items and Crates")
                                                 .description("""
                                                                 The item catalog itself. Types and items, what is inside a crate \

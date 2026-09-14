@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.campaign;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 
 import lombok.Builder;
@@ -20,6 +21,7 @@ public class CampaignCollaboratorResponse {
     private String userName;
     private String userAvatarUrl;
     private String userCdnAvatarUrl;
+    private PublicClanResponse userClan;
     private String userCountry;
     private CampaignCollaboratorStatus status;
     private String invitedById;

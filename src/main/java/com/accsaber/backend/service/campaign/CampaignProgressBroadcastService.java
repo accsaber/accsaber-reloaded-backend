@@ -13,13 +13,14 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.websocket.server.CampaignProgressBroadcast;
 import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -67,6 +68,7 @@ public class CampaignProgressBroadcastService {
     private static CampaignLeaderboardPlayer toPlayer(User user) {
         return CampaignLeaderboardPlayer.builder()
                 .userId(String.valueOf(user.getId()))
+                .clan(ClanRefCache.forUser(user.getId()))
                 .userName(user.getName())
                 .country(user.getCountry())
                 .avatarUrl(user.getAvatarUrl())

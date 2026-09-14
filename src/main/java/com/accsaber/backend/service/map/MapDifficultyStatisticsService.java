@@ -1,11 +1,8 @@
 package com.accsaber.backend.service.map;
 
-import com.accsaber.backend.util.Rounding;
-
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Instant;
-import com.accsaber.backend.util.TimeRangeUtil;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,6 +22,9 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.map.MapDifficultyStatisticsRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
+import com.accsaber.backend.util.Rounding;
+import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
 
@@ -142,6 +142,7 @@ public class MapDifficultyStatisticsService {
         return TopScoreSnapshot.builder()
                 .scoreId(s.getId())
                 .userId(String.valueOf(user.getId()))
+                .clan(ClanRefCache.forUser(user.getId()))
                 .userName(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .cdnAvatarUrl(user.getCdnAvatarUrl())

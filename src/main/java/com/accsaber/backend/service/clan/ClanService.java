@@ -21,6 +21,7 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
+import com.accsaber.backend.model.dto.request.clan.ModerateClanRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanAuditEntryResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
@@ -61,6 +62,8 @@ public class ClanService {
     private final ClanAllianceService allianceService;
     private final ClanMissionService missionService;
     private final ClanWarService warService;
+    private final ClanNotifier notifier;
+    private final ClanRefCache refCache;
     private final ClanProperties clanProperties;
 
     private record ListExtras(Map<UUID, Long> memberCounts, Map<UUID, PlayerRef> founders,
@@ -110,15 +113,37 @@ public class ClanService {
     }
 
     @Transactional
+    public ClanResponse moderate(UUID clanId, ModerateClanRequest request) {
+        Clan clan = roster.lock(clanId);
+        Map<String, Object> changes = applyChanges(clan, request.getChanges());
+        if (changes.isEmpty()) {
+            return toResponse(clan);
+        }
+        saveUnique(clan);
+        changes.put("reason", request.getReason());
+        auditRepository.save(ClanAuditEntry.builder()
+                .clan(clan).action(ClanAuditAction.profile_updated).details(changes).build());
+        return toResponse(clan);
+    }
+
+    @Transactional
     public void disband(UUID clanId, Long playerId) {
         User actor = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
         accessService.require(clanId, actor.getId(), ClanPermission.DISBAND);
-        disband(clan, actor);
+        disband(clan, actor, null);
     }
 
     @Transactional
-    public void disband(Clan clan, User actor) {
+    public void disbandByStaff(UUID clanId, String reason) {
+        Clan clan = roster.lock(clanId);
+        List<Long> members = memberRepository.findOpenUserIds(clanId);
+        disband(clan, null, reason);
+        notifier.disbandedByStaff(clan, members, reason);
+    }
+
+    @Transactional
+    public void disband(Clan clan, User actor, String reason) {
         clan.setActive(false);
         clanRepository.saveAndFlush(clan);
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
@@ -126,7 +151,8 @@ public class ClanService {
         missionService.endAll(clan.getId());
         warService.forfeitAll(clan.getId());
         auditRepository.save(ClanAuditEntry.builder()
-                .clan(clan).actor(actor).action(ClanAuditAction.disbanded).build());
+                .clan(clan).actor(actor).action(ClanAuditAction.disbanded)
+                .details(reason == null ? null : Map.<String, Object>of("reason", reason)).build());
     }
 
     public Page<ClanAuditEntryResponse> audit(UUID clanId, Long playerId, Pageable pageable) {
@@ -178,7 +204,9 @@ public class ClanService {
 
     private Clan saveUnique(Clan clan) {
         try {
-            return clanRepository.saveAndFlush(clan);
+            Clan saved = clanRepository.saveAndFlush(clan);
+            refCache.refreshAfterCommit(saved.getId());
+            return saved;
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("An active clan already uses that name or tag");
         }

@@ -4,10 +4,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMetadata;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,6 +21,7 @@ public class ScoreResponse {
     private String userName;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private String country;
     private UUID mapDifficultyId;
     private UUID mapId;

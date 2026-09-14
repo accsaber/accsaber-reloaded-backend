@@ -10,6 +10,7 @@ import com.accsaber.backend.websocket.server.CampaignPresenceWebSocketHandler;
 import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
 import com.accsaber.backend.websocket.server.ClanChatHandshakeInterceptor;
 import com.accsaber.backend.websocket.server.ClanChatWebSocketHandler;
+import com.accsaber.backend.websocket.server.ClanFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.CrateFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MarketFeedWebSocketHandler;
 import com.accsaber.backend.websocket.server.MilestoneFeedWebSocketHandler;
@@ -37,6 +38,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         private final NotificationHandshakeInterceptor notificationHandshakeInterceptor;
         private final ClanChatWebSocketHandler clanChatHandler;
         private final ClanChatHandshakeInterceptor clanChatHandshakeInterceptor;
+        private final ClanFeedWebSocketHandler clanFeedHandler;
 
         @Override
         public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
@@ -60,6 +62,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
                                 .setAllowedOriginPatterns("*");
                 registry.addHandler(clanChatHandler, "/ws/clans/chat")
                                 .addInterceptors(clanChatHandshakeInterceptor)
+                                .setAllowedOriginPatterns("*");
+                registry.addHandler(clanFeedHandler, "/ws/clans/feed")
                                 .setAllowedOriginPatterns("*");
         }
 }

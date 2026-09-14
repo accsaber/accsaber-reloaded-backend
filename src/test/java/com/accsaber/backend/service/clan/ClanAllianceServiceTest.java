@@ -45,9 +45,9 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
-import com.accsaber.backend.repository.clan.ClanRivalRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanRivalRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ClanAllianceServiceTest {
@@ -55,6 +55,8 @@ class ClanAllianceServiceTest {
     private static final UUID OWLS_ID = new UUID(1L, 1L);
     private static final UUID LAPIZ_ID = new UUID(-1L, 1L);
 
+    @Mock
+    private ClanNotifier notifier;
     @Mock
     private ClanAllianceRepository allianceRepository;
     @Mock
@@ -136,6 +138,7 @@ class ClanAllianceServiceTest {
             assertThat(response.ally().id()).isEqualTo(OWLS_ID);
             assertThat(response.incoming()).isFalse();
             assertThat(response.trust()).isNull();
+            verify(notifier).allianceProposed(saved.getValue(), owls);
         }
 
         @Test
@@ -188,6 +191,7 @@ class ClanAllianceServiceTest {
             verify(chatChannel).announce(owls, ChatNotice.ofClan(ChatEvent.alliance_formed, lapizFounder, lapiz));
             verify(chatChannel).announce(lapiz, ChatNotice.ofClan(ChatEvent.alliance_formed, lapizFounder, owls));
             verify(strengthService).recompute(List.of(OWLS_ID, LAPIZ_ID));
+            verify(notifier).allianceChanged(alliance, owls, lapizFounder, "accepted");
             assertThat(response.ally().id()).isEqualTo(OWLS_ID);
             assertThat(response.incoming()).isTrue();
             assertThat(response.trust().level()).isZero();
@@ -308,5 +312,17 @@ class ClanAllianceServiceTest {
                 return contribution;
             }
         };
+    }
+
+    @Test
+    void trustBetweenTwoClansReadsTheirActiveAlliance() {
+        ClanAlliance seasoned = alliance(ClanAllianceStatus.active, owls, Instant.now().minus(40, ChronoUnit.DAYS));
+        when(allianceRepository.findActiveBetween(LAPIZ_ID, OWLS_ID)).thenReturn(Optional.of(seasoned));
+        when(allianceRepository.findTrustContributions(List.of(seasoned.getId())))
+                .thenReturn(List.of(trust(seasoned.getId(), 600.0)));
+
+        assertThat(service.trustBetween(LAPIZ_ID, OWLS_ID)).get()
+                .satisfies(trust -> assertThat(trust.loanCap()).isEqualTo(2));
+        assertThat(service.trustBetween(OWLS_ID, UUID.randomUUID())).isEmpty();
     }
 }

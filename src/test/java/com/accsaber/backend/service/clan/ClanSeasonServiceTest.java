@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -28,8 +29,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.accsaber.backend.config.ClanProperties;
+import com.accsaber.backend.exception.ConflictException;
+import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
+import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanSeasonResult;
@@ -43,12 +49,15 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.service.item.ItemService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanSeasonServiceTest {
 
+    @Mock
+    private ItemRepository itemRepository;
     @Mock
     private ClanSeasonRepository seasonRepository;
     @Mock
@@ -72,8 +81,9 @@ class ClanSeasonServiceTest {
     @BeforeEach
     void setUp() {
         clanProperties.setSeasonLength(Period.ofMonths(6));
+        clanProperties.setMissionContribution(100.0);
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
-                clanItemRepository, standingService, warService, itemService, clanProperties);
+                clanItemRepository, standingService, warService, itemService, itemRepository, clanProperties);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
     }
@@ -219,6 +229,66 @@ class ClanSeasonServiceTest {
             service.close(seasonId);
 
             verify(seasonRepository, never()).findContributors(eq(seasonId), eq(second), anyDouble());
+        }
+    }
+
+    @Nested
+    class Admin {
+
+        private final Instant start = Instant.parse("2027-01-01T00:00:00Z");
+
+        private ClanSeasonRequest request(String name, Instant startsAt, Instant endsAt) {
+            ClanSeasonRequest request = new ClanSeasonRequest();
+            request.setName(name);
+            request.setStartsAt(startsAt);
+            request.setEndsAt(endsAt);
+            return request;
+        }
+
+        @Test
+        void aNewSeasonTakesItsSlugFromItsName() {
+            when(seasonRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.create(request("Winter Clash", start, start.plus(90, ChronoUnit.DAYS)));
+
+            assertThat(response.slug()).isEqualTo("winter-clash");
+        }
+
+        @Test
+        void aSeasonHasToEndAfterItStarts() {
+            assertThatThrownBy(() -> service.create(request("Backwards", start, start)))
+                    .isInstanceOf(ValidationException.class);
+            verify(seasonRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void anOverlappingSeasonIsAConflict() {
+            when(seasonRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("overlap"));
+
+            assertThatThrownBy(() -> service.create(request("Overlap", start, start.plus(1, ChronoUnit.DAYS))))
+                    .isInstanceOf(ConflictException.class);
+        }
+
+        @Test
+        void aClosedSeasonCannotChange() {
+            ClanSeason closed = ClanSeason.builder().id(UUID.randomUUID()).closedAt(Instant.now()).build();
+            when(seasonRepository.findById(closed.getId())).thenReturn(Optional.of(closed));
+
+            assertThatThrownBy(() -> service.update(closed.getId(), request("Renamed", null, null)))
+                    .isInstanceOf(ConflictException.class);
+        }
+
+        @Test
+        void aRewardBandCannotRunBackwards() {
+            ClanSeason open = ClanSeason.builder().id(UUID.randomUUID()).build();
+            when(seasonRepository.findById(open.getId())).thenReturn(Optional.of(open));
+            ClanSeasonRewardRequest reward = new ClanSeasonRewardRequest();
+            reward.setRankFrom(5);
+            reward.setRankTo(1);
+            reward.setItemId(UUID.randomUUID());
+
+            assertThatThrownBy(() -> service.addReward(open.getId(), reward)).isInstanceOf(ValidationException.class);
+            verify(rewardRepository, never()).save(any());
         }
     }
 }

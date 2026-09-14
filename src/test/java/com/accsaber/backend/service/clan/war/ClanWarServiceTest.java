@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
@@ -45,9 +46,11 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.ClanWarEndedEvent;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -56,6 +59,7 @@ import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanLevelService;
+import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
@@ -64,6 +68,10 @@ import com.accsaber.backend.service.map.MapService;
 @ExtendWith(MockitoExtension.class)
 class ClanWarServiceTest {
 
+    @Mock
+    private ClanWarFeed feed;
+    @Mock
+    private ClanNotifier notifier;
     @Mock
     private ClanWarRepository warRepository;
     @Mock
@@ -94,6 +102,10 @@ class ClanWarServiceTest {
     private ClanWarHitRepository hitRepository;
     @Mock
     private MapService mapService;
+    @Mock
+    private ClanWarLoanRepository loanRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanWarService service;
@@ -107,7 +119,8 @@ class ClanWarServiceTest {
     void setUp() {
         service = new ClanWarService(warRepository, sideRepository, participantRepository, hitRepository, mapService,
                 allianceRepository, memberRepository, roster, accessService, levelService, standingService,
-                cosmeticService, poolService, chatChannel, scoreGate, clanProperties);
+                cosmeticService, poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
+                scoreGate, loanRepository, eventPublisher, clanProperties);
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()),
@@ -164,6 +177,8 @@ class ClanWarServiceTest {
                     war.getValue()));
             verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_received, commander, attacker,
                     war.getValue()));
+            verify(feed).war(war.getValue());
+            verify(notifier).warDeclared(war.getValue());
         }
 
         @Test
@@ -306,6 +321,8 @@ class ClanWarServiceTest {
 
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.drawn);
         verify(chatChannel, never()).announce(any(), any());
+        verify(feed, never()).war(any());
+        verify(notifier, never()).warEnded(any());
     }
 
     @Test
@@ -319,6 +336,10 @@ class ClanWarServiceTest {
 
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.forfeited);
         verify(scoreGate).refreshAfterCommit();
+        verify(loanRepository).closeOpenForWar(war.getId(), war.getEndedAt());
+        verify(eventPublisher).publishEvent(new ClanWarEndedEvent(war.getId()));
+        verify(feed).war(war);
+        verify(notifier).warEnded(war);
     }
 
     @Test

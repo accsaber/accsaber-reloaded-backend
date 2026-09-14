@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.score;
 
-import com.accsaber.backend.util.Rounding;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
@@ -43,6 +41,7 @@ import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.campaign.CampaignEvaluationService;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.item.StrangeTrackingService;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService;
@@ -54,6 +53,7 @@ import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
 import com.accsaber.backend.util.HmdMapper;
 import com.accsaber.backend.util.MapDifficultyMetrics;
+import com.accsaber.backend.util.Rounding;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -1103,6 +1103,7 @@ public class ScoreService {
                 return ScoreResponse.builder()
                                 .id(s.getId())
                                 .userId(String.valueOf(user.getId()))
+                                .clan(ClanRefCache.forUser(user.getId()))
                                 .userName(user.getName())
                                 .avatarUrl(user.getAvatarUrl())
                                 .cdnAvatarUrl(user.getCdnAvatarUrl())

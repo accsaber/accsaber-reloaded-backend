@@ -1,6 +1,8 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -17,14 +19,17 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
+import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
 
@@ -36,10 +41,13 @@ public class ClanWarRosterService {
 
     private final ClanWarRepository warRepository;
     private final ClanWarParticipantRepository participantRepository;
+    private final ClanWarLoanRepository loanRepository;
     private final UserRepository userRepository;
     private final ClanStrengthService strengthService;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
+    private final ClanWarFeed feed;
+    private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 
     @Transactional
@@ -51,6 +59,8 @@ public class ClanWarRosterService {
         war.setStatus(ClanWarStatus.active);
         warRepository.saveAndFlush(war);
         sync(war);
+        feed.war(war);
+        notifier.warStarted(war);
         for (Clan clan : List.of(war.getAttackerClan(), war.getDefenderClan())) {
             chatChannel.announce(clan, ChatNotice.ofWar(ChatEvent.war_started, null, other(war, clan), war));
         }
@@ -59,15 +69,23 @@ public class ClanWarRosterService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onMembershipChanged(ClanMembershipChangedEvent event) {
-        for (UUID warId : warRepository.findActiveIdsByClanId(event.clanId())) {
-            warRepository.findByIdForUpdate(warId).ifPresent(this::sync);
-        }
+        warRepository.findActiveIdsByClanId(event.clanId()).forEach(this::resync);
+    }
+
+    @Transactional
+    public void resync(UUID warId) {
+        warRepository.findByIdForUpdate(warId)
+                .filter(war -> war.getStatus() == ClanWarStatus.active)
+                .ifPresent(this::sync);
     }
 
     private void sync(ClanWar war) {
+        List<ClanWarLoan> loans = loanRepository.findAcceptedByWarId(war.getId());
         Map<UUID, List<MemberStrength>> rosters = Map.of(
-                war.getAttackerClan().getId(), strengthService.memberStrengths(war.getAttackerClan().getId()),
-                war.getDefenderClan().getId(), strengthService.memberStrengths(war.getDefenderClan().getId()));
+                war.getAttackerClan().getId(), roster(war.getAttackerClan(), loans),
+                war.getDefenderClan().getId(), roster(war.getDefenderClan(), loans));
+        Map<Long, Clan> lentBy = loans.stream()
+                .collect(Collectors.toMap(loan -> loan.getUser().getId(), ClanWarLoan::getLendingClan));
         Map<Long, ClanWarParticipant> existing = participantRepository.findByWarId(war.getId()).stream()
                 .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity()));
         Instant now = Instant.now();
@@ -83,6 +101,7 @@ public class ClanWarRosterService {
                             .war(war)
                             .user(userRepository.getReferenceById(member.userId()))
                             .clan(clan)
+                            .lentByClan(lentBy.get(member.userId()))
                             .standingWeight(member.share())
                             .guard(clanProperties.getWar().getGuard())
                             .build());
@@ -92,6 +111,21 @@ public class ClanWarRosterService {
         assignDuelTargets(existing, war, rosters);
         participantRepository.saveAll(existing.values());
         scoreGate.refreshAfterCommit();
+    }
+
+    private List<MemberStrength> roster(Clan clan, List<ClanWarLoan> loans) {
+        List<MemberStrength> roster = new ArrayList<>(strengthService.memberStrengths(clan.getId()));
+        Map<UUID, List<ClanWarLoan>> lentByClan = loans.stream()
+                .filter(loan -> loan.getClan().getId().equals(clan.getId()))
+                .collect(Collectors.groupingBy(loan -> loan.getLendingClan().getId()));
+        lentByClan.forEach((lendingClanId, lent) -> {
+            List<Long> lentIds = lent.stream().map(loan -> loan.getUser().getId()).toList();
+            strengthService.memberStrengths(lendingClanId).stream()
+                    .filter(member -> lentIds.contains(member.userId()))
+                    .forEach(roster::add);
+        });
+        roster.sort(Comparator.comparingDouble(MemberStrength::skill).reversed().thenComparing(MemberStrength::userId));
+        return roster;
     }
 
     private void assignDuelTargets(Map<Long, ClanWarParticipant> participants, ClanWar war,

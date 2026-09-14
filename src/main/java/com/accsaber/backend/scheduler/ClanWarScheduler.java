@@ -15,6 +15,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
+import com.accsaber.backend.service.clan.war.ClanWarSettlementService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,10 +25,13 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ClanWarScheduler {
 
+    private static final int SETTLEMENT_BATCH = 20;
+
     private final ClanWarRepository warRepository;
     private final ClanWarPoolService poolService;
     private final ClanWarRosterService rosterService;
     private final ClanWarService warService;
+    private final ClanWarSettlementService settlementService;
     private final ClanProperties clanProperties;
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
@@ -37,6 +41,7 @@ public class ClanWarScheduler {
         each(warRepository.findStartsDue(now), rosterService::start);
         Instant quietCutoff = now.minus(clanProperties.getWar().getDrawAfterQuietDays(), ChronoUnit.DAYS);
         each(warRepository.findQuietSince(quietCutoff), warId -> warService.end(warId, ClanWarOutcome.drawn));
+        each(warRepository.findEndedUnsettled(SETTLEMENT_BATCH), settlementService::settle);
     }
 
     private void each(List<UUID> warIds, Consumer<UUID> step) {

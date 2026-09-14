@@ -41,6 +41,7 @@ public class ClanJoinRequestService {
     private final ClanAccessService accessService;
     private final ClanCosmeticService cosmeticService;
     private final ClanChatChannel chatChannel;
+    private final ClanNotifier notifier;
 
     @Transactional
     public ClanJoinRequestResponse create(UUID clanId, Long playerId, Long invitedUserId) {
@@ -58,6 +59,9 @@ public class ClanJoinRequestService {
                 .direction(invite ? ClanJoinDirection.invite : ClanJoinDirection.request)
                 .createdBy(actor)
                 .build());
+        if (invite) {
+            notifier.invited(request);
+        }
         return toResponse(request);
     }
 
@@ -92,6 +96,9 @@ public class ClanJoinRequestService {
             Clan clan = roster.lock(request.getClan().getId());
             roster.admit(clan, request.getUser(), ClanRole.member);
             chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_joined, request.getUser(), null));
+            if (request.getDirection() == ClanJoinDirection.request) {
+                notifier.admitted(request, actor);
+            }
         }
         return toResponse(request);
     }

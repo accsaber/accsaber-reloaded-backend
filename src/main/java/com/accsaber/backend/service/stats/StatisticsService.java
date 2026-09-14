@@ -28,6 +28,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanPlayerStatsService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.score.APCalculationService;
 import com.accsaber.backend.util.Rounding;
@@ -55,11 +56,18 @@ public class StatisticsService {
     private final UserCampaignScoreRepository userCampaignScoreRepository;
 
     private DuplicateUserService duplicateUserService;
+    private ClanPlayerStatsService clanPlayerStatsService;
 
     @Autowired
     @Lazy
     public void setDuplicateUserService(DuplicateUserService duplicateUserService) {
         this.duplicateUserService = duplicateUserService;
+    }
+
+    @Autowired
+    @Lazy
+    public void setClanPlayerStatsService(ClanPlayerStatsService clanPlayerStatsService) {
+        this.clanPlayerStatsService = clanPlayerStatsService;
     }
 
     @Transactional
@@ -141,6 +149,7 @@ public class StatisticsService {
                 .totalMilestoneSetBonusXp(userMilestoneSetBonusRepository.sumSetBonusXpByUserId(resolved))
                 .totalMissionXp(user.getMissionXp())
                 .totalCampaignXp(user.getCampaignXp())
+                .clan(clanPlayerStatsService.forUser(resolved))
                 .categories(findCategoryStatsByUser(userId))
                 .build();
     }

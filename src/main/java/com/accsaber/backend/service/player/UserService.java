@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -325,6 +326,7 @@ public class UserService {
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .cdnAvatarUrl(user.getCdnAvatarUrl())
+                .clan(ClanRefCache.forUser(user.getId()))
                 .country(user.getCountry())
                 .bio(user.getBio())
                 .xpRanking(user.getXpRanking())

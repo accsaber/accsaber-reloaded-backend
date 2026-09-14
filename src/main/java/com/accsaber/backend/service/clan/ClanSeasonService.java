@@ -7,20 +7,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.config.ClanProperties;
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
+import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanSeasonRewardResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanStandingResponse;
 import com.accsaber.backend.model.entity.clan.ClanItemSource;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanSeasonResult;
 import com.accsaber.backend.model.entity.clan.ClanSeasonReward;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRepository;
@@ -29,6 +36,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +53,7 @@ public class ClanSeasonService {
     private final ClanStandingService standingService;
     private final ClanWarService warService;
     private final ItemService itemService;
+    private final ItemRepository itemRepository;
     private final ClanProperties clanProperties;
 
     public Page<ClanSeasonResponse> list(Pageable pageable) {
@@ -57,6 +66,87 @@ public class ClanSeasonService {
 
     public Page<ClanStandingResponse> standings(String slugOrId, Pageable pageable) {
         return standingService.ranking(standingService.resolveSeason(slugOrId), pageable);
+    }
+
+    @Transactional
+    public ClanSeasonResponse create(ClanSeasonRequest request) {
+        if (request.getName() == null || request.getStartsAt() == null || request.getEndsAt() == null) {
+            throw new ValidationException("name, startsAt and endsAt are required");
+        }
+        ClanSeason season = ClanSeason.builder()
+                .name(request.getName())
+                .slug(request.getSlug() != null ? request.getSlug() : Slugs.slugify(request.getName()))
+                .startsAt(request.getStartsAt())
+                .endsAt(request.getEndsAt())
+                .build();
+        return ClanSeasonResponse.of(saveSeason(season));
+    }
+
+    @Transactional
+    public ClanSeasonResponse update(UUID seasonId, ClanSeasonRequest request) {
+        ClanSeason season = openSeason(seasonId);
+        if (request.getName() != null) {
+            season.setName(request.getName());
+        }
+        if (request.getSlug() != null) {
+            season.setSlug(request.getSlug());
+        }
+        if (request.getStartsAt() != null) {
+            season.setStartsAt(request.getStartsAt());
+        }
+        if (request.getEndsAt() != null) {
+            season.setEndsAt(request.getEndsAt());
+        }
+        return ClanSeasonResponse.of(saveSeason(season));
+    }
+
+    public List<ClanSeasonRewardResponse> rewards(UUID seasonId) {
+        return rewardRepository.findBySeasonId(seasonId).stream().map(ClanSeasonRewardResponse::of).toList();
+    }
+
+    @Transactional
+    public ClanSeasonRewardResponse addReward(UUID seasonId, ClanSeasonRewardRequest request) {
+        ClanSeason season = openSeason(seasonId);
+        if (request.getRankFrom() > request.getRankTo()) {
+            throw new ValidationException("rankTo", "must not be below rankFrom");
+        }
+        ClanSeasonReward reward = rewardRepository.save(ClanSeasonReward.builder()
+                .season(season)
+                .rankFrom(request.getRankFrom())
+                .rankTo(request.getRankTo())
+                .item(itemRepository.findById(request.getItemId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId())))
+                .quantity(request.getQuantity() != null ? request.getQuantity() : 1)
+                .build());
+        return ClanSeasonRewardResponse.of(reward);
+    }
+
+    @Transactional
+    public void removeReward(UUID rewardId) {
+        ClanSeasonReward reward = rewardRepository.findById(rewardId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClanSeasonReward", rewardId));
+        openSeason(reward.getSeason().getId());
+        rewardRepository.delete(reward);
+    }
+
+    private ClanSeason openSeason(UUID seasonId) {
+        ClanSeason season = seasonRepository.findById(seasonId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClanSeason", seasonId));
+        if (season.getClosedAt() != null) {
+            throw new ConflictException("This season is closed");
+        }
+        return season;
+    }
+
+    private ClanSeason saveSeason(ClanSeason season) {
+        if (!season.getEndsAt().isAfter(season.getStartsAt())) {
+            throw new ValidationException("endsAt", "must be after startsAt");
+        }
+        try {
+            return seasonRepository.saveAndFlush(season);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("That season overlaps another one or reuses its slug");
+        }
     }
 
     @Transactional

@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.notification;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -57,6 +58,17 @@ public class NotificationService {
         eventPublisher.publishEvent(
                 new NotificationCreatedEvent(resolved, NotificationMapper.toResponse(saved)));
         return true;
+    }
+
+    @Transactional
+    public int notifyAll(Collection<Long> userIds, NotificationType type, Long actorId, String title, String linkTo) {
+        int delivered = 0;
+        for (Long userId : userIds) {
+            if (notify(userId, type, actorId, title, linkTo)) {
+                delivered++;
+            }
+        }
+        return delivered;
     }
 
     @Transactional

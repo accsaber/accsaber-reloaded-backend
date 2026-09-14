@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -33,6 +35,7 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
+import com.accsaber.backend.model.dto.request.clan.ModerateClanRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
@@ -75,6 +78,10 @@ class ClanServiceTest {
     private ClanMissionService missionService;
     @Mock
     private ClanWarService warService;
+    @Mock
+    private ClanNotifier notifier;
+    @Mock
+    private ClanRefCache refCache;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
 
@@ -179,6 +186,7 @@ class ClanServiceTest {
             verify(auditRepository).save(audit.capture());
             assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.profile_updated);
             assertThat(audit.getValue().getDetails()).containsEntry("name", "Early Birds");
+            verify(refCache).refreshAfterCommit(clanId);
         }
 
         @Test
@@ -219,6 +227,52 @@ class ClanServiceTest {
         verify(missionService).endAll(clanId);
         verify(warService).forfeitAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
+    }
+
+    @Nested
+    class Staff {
+
+        private final UUID clanId = UUID.randomUUID();
+        private final Clan clan = Clan.builder().id(clanId).name("Night Owls").tag("NOW").slug("night-owls").build();
+
+        @BeforeEach
+        void lock() {
+            when(roster.lock(clanId)).thenReturn(clan);
+        }
+
+        @Test
+        void aModerationRenameSkipsTheFounderCheckAndAuditsTheReason() {
+            UpdateClanRequest changes = new UpdateClanRequest();
+            changes.setName("Early Birds");
+            ModerateClanRequest request = new ModerateClanRequest();
+            request.setChanges(changes);
+            request.setReason("offensive name");
+
+            clanService.moderate(clanId, request);
+
+            verify(accessService, never()).require(any(), any(), any());
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getActor()).isNull();
+            assertThat(audit.getValue().getDetails()).containsEntry("name", "Early Birds")
+                    .containsEntry("reason", "offensive name");
+        }
+
+        @Test
+        void aStaffDisbandTellsEveryoneWhoWasInTheClanWhy() {
+            when(memberRepository.findOpenUserIds(clanId)).thenReturn(List.of(1L, 2L));
+
+            clanService.disbandByStaff(clanId, "cheating");
+
+            InOrder order = inOrder(memberRepository, roster, notifier);
+            order.verify(memberRepository).findOpenUserIds(clanId);
+            order.verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
+            order.verify(notifier).disbandedByStaff(clan, List.of(1L, 2L), "cheating");
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.disbanded);
+            assertThat(audit.getValue().getDetails()).containsEntry("reason", "cheating");
+        }
     }
 
     @Test

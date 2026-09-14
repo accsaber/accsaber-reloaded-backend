@@ -26,6 +26,7 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.RequiredArgsConstructor;
 
@@ -273,6 +274,7 @@ public class UserRelationService {
                 .targetName(other.getName())
                 .targetAvatarUrl(other.getAvatarUrl())
                 .targetCdnAvatarUrl(other.getCdnAvatarUrl())
+                .targetClan(ClanRefCache.forUser(other.getId()))
                 .targetCountry(other.getCountry())
                 .type(r.getType())
                 .createdAt(r.getCreatedAt())

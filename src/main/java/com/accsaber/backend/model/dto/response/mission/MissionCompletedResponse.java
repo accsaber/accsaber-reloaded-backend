@@ -3,10 +3,11 @@ package com.accsaber.backend.model.dto.response.mission;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -21,6 +22,7 @@ public class MissionCompletedResponse {
     private String userCountry;
     private String userAvatarUrl;
     private String userCdnAvatarUrl;
+    private PublicClanResponse userClan;
     private Instant completedAt;
 
     private UUID missionId;

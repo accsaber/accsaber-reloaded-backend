@@ -1,5 +1,7 @@
 package com.accsaber.backend.model.dto.response.campaign;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -12,4 +14,5 @@ public class CampaignLeaderboardPlayer {
     private String country;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
 }

@@ -47,12 +47,19 @@ class ClanMissionServiceTest {
     @Mock
     private ClanStandingService standingService;
     @Spy
-    private ClanProperties clanProperties = new ClanProperties();
+    private ClanProperties clanProperties = pinned();
 
     @InjectMocks
     private ClanMissionService service;
 
     private final Clan clan = Clan.builder().id(UUID.randomUUID()).build();
+
+    private static ClanProperties pinned() {
+        ClanProperties properties = new ClanProperties();
+        properties.setMissionXp(400.0);
+        properties.setMissionStanding(40.0);
+        return properties;
+    }
 
     private UserMission mission(double xpMultiplier) {
         return UserMission.builder().id(UUID.randomUUID()).pool(MissionPool.clan).clan(clan)

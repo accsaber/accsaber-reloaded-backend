@@ -279,4 +279,21 @@ class XpRebuildQueryTest {
         assertThat(timeline).hasSize(2);
         assertThat(((Number) timeline.get(1)[1]).doubleValue()).isEqualTo(40.0);
     }
+
+    @Test
+    @DisplayName("rebuildXpTotals and findXpTimeline both count settled war participation XP")
+    void warParticipationXpIsASourceOfBoth() {
+        UUID war = warWithHit(null, Instant.parse("2025-01-01T00:00:00Z"));
+        entityManager.createNativeQuery("UPDATE clan_war_participants SET xp_awarded = 75, rewarded_at = ?1 "
+                + "WHERE war_id = ?2 AND user_id = ?3").setParameter(1, Instant.parse("2025-02-01T00:00:00Z"))
+                .setParameter(2, war).setParameter(3, user.getId()).executeUpdate();
+        entityManager.flush();
+
+        userRepository.recalculateTotalXpForUser(user.getId());
+        List<Object[]> timeline = userRepository.findXpTimeline(user.getId());
+
+        entityManager.refresh(user);
+        assertThat(user.getTotalXp()).isEqualTo(75.0);
+        assertThat(timeline).singleElement().satisfies(row -> assertThat(((Number) row[1]).doubleValue()).isEqualTo(75.0));
+    }
 }

@@ -92,4 +92,11 @@ public interface ClanAllianceRepository extends JpaRepository<ClanAlliance, UUID
             GROUP BY a.id
             """, nativeQuery = true)
     List<TrustView> findTrustContributions(@Param("allianceIds") Collection<UUID> allianceIds);
+
+    @Query("""
+            SELECT a FROM ClanAlliance a
+            WHERE a.status = com.accsaber.backend.model.entity.clan.ClanAllianceStatus.active
+              AND ((a.clanA.id = :first AND a.clanB.id = :second) OR (a.clanA.id = :second AND a.clanB.id = :first))
+            """)
+    Optional<ClanAlliance> findActiveBetween(@Param("first") UUID first, @Param("second") UUID second);
 }

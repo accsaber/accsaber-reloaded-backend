@@ -2,7 +2,9 @@ package com.accsaber.backend.model.dto.response.supporter;
 
 import java.time.Instant;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.supporter.SupporterAccount;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.Builder;
 import lombok.Value;
@@ -15,6 +17,7 @@ public class SupporterCreditsRowResponse {
     String name;
     String avatarUrl;
     String cdnAvatarUrl;
+    PublicClanResponse clan;
     String country;
     String currentTier;
     String currentTierDisplayName;
@@ -28,6 +31,7 @@ public class SupporterCreditsRowResponse {
                 .name(account.getUser().getName())
                 .avatarUrl(account.getUser().getAvatarUrl())
                 .cdnAvatarUrl(account.getUser().getCdnAvatarUrl())
+                .clan(ClanRefCache.forUser(account.getUserId()))
                 .country(account.getUser().getCountry())
                 .lifetimeSupportedCents(account.getLifetimeSupportedCents())
                 .tierStartedAt(account.getTierStartedAt())

@@ -12,7 +12,10 @@ public enum NotificationType {
     market_outbid(UserSettingKey.NOTIFICATIONS_MARKET_OUTBID),
     market_won(UserSettingKey.NOTIFICATIONS_MARKET_WON),
     item_earned(UserSettingKey.NOTIFICATIONS_ITEM_EARNED),
-    server(UserSettingKey.NOTIFICATIONS_SERVER);
+    server(UserSettingKey.NOTIFICATIONS_SERVER),
+    clan_membership(UserSettingKey.NOTIFICATIONS_CLAN_MEMBERSHIP),
+    clan_alliance(UserSettingKey.NOTIFICATIONS_CLAN_ALLIANCE),
+    clan_war(UserSettingKey.NOTIFICATIONS_CLAN_WAR);
 
     private final UserSettingKey preference;
 

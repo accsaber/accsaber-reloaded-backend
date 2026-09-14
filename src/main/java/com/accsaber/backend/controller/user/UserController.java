@@ -114,7 +114,9 @@ public class UserController {
     }
 
     @Operation(summary = "Get a player's stats in every category", description = "One call that gives you the current stats for "
-            + "all categories at once, plus the XP breakdown. Reach for this rather than looping the single category route.")
+            + "all categories at once, plus the XP breakdown and their clan side: the clan they are in, their rank there, "
+            + "and their war record across every clan they have fought for. Reach for this rather than looping the single "
+            + "category route.")
     @GetMapping("/{userId}/statistics/all")
     public ResponseEntity<UserAllStatisticsResponse> getAllUserStatistics(@PathVariable Long userId) {
         return ResponseEntity.ok(statisticsService.findAllByUser(userId));

@@ -57,7 +57,7 @@ class CrateBroadcastServiceTest {
                 .build();
 
         PlayerRef player = new PlayerRef(String.valueOf(USER_ID), "Tikugato", "https://cdn.example/a.png",
-                "https://cdn.accsaber/a.webp", "us");
+                "https://cdn.accsaber/a.webp", "us", null);
 
         service.onCrateOpened(new CrateOpenedEvent(new CrateOpenBroadcast("crate_opened", player, open)));
 

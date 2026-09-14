@@ -119,4 +119,13 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             WHERE p.left_at IS NULL
             """, nativeQuery = true)
     List<Long> findActiveParticipantIds();
+
+    @Query(value = """
+            SELECT w.id FROM clan_wars w
+            WHERE w.status = 'ended'
+              AND EXISTS (SELECT 1 FROM clan_war_participants p WHERE p.war_id = w.id AND p.rewarded_at IS NULL)
+            ORDER BY w.ended_at
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UUID> findEndedUnsettled(@Param("limit") int limit);
 }

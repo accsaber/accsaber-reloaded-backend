@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.statistics.CampaignNodeDifficulty
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -193,6 +194,7 @@ public class CampaignStatisticsService {
 
         return queryRunner.paged(sql, params, pageable, row -> CampaignCompletorResponse.builder()
                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                 .userName((String) row[1])
                 .avatarUrl((String) row[2])
                 .cdnAvatarUrl((String) row[3])
@@ -231,6 +233,7 @@ public class CampaignStatisticsService {
             long completions = num(row[8]);
             return CampaignCreatorResponse.builder()
                     .userId(String.valueOf(((Number) row[0]).longValue()))
+                    .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                     .userName((String) row[1])
                     .avatarUrl((String) row[2])
                     .cdnAvatarUrl((String) row[3])

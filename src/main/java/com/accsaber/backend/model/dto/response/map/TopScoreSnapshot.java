@@ -3,6 +3,8 @@ package com.accsaber.backend.model.dto.response.map;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.Builder;
 import lombok.Value;
 
@@ -15,6 +17,7 @@ public class TopScoreSnapshot {
     String userName;
     String avatarUrl;
     String cdnAvatarUrl;
+    PublicClanResponse clan;
     Integer score;
     Double accuracy;
     Double ap;

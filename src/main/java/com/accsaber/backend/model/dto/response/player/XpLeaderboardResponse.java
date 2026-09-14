@@ -1,6 +1,8 @@
 package com.accsaber.backend.model.dto.response.player;
 
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +21,7 @@ public class XpLeaderboardResponse {
     private String country;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private Double totalXp;
     private Integer level;
     private boolean playerInactive;

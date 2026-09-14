@@ -7,6 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -122,6 +124,15 @@ class NotificationServiceTest {
         notificationService.notify(null, NotificationType.trade_offer, ACTOR, "title", "/x");
 
         verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    void notifyingManyCountsOnlyWhoWasReachedAndSkipsTheActor() {
+        int delivered = notificationService.notifyAll(List.of(RECIPIENT, ACTOR), NotificationType.clan_war, ACTOR,
+                "Your war has started", "/clans/wars/abc");
+
+        assertThat(delivered).isEqualTo(1);
+        verify(notificationRepository).save(any());
     }
 
     @Test

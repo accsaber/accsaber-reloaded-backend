@@ -12,7 +12,7 @@ import com.accsaber.backend.model.entity.clan.ClanSeasonReward;
 public interface ClanSeasonRewardRepository extends JpaRepository<ClanSeasonReward, UUID> {
 
     @Query("""
-            SELECT r FROM ClanSeasonReward r JOIN FETCH r.item
+            SELECT r FROM ClanSeasonReward r JOIN FETCH r.item i JOIN FETCH i.type t LEFT JOIN FETCH t.parentType
             WHERE r.season.id = :seasonId
             ORDER BY r.rankFrom ASC
             """)

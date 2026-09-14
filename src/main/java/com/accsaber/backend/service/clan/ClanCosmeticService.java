@@ -45,6 +45,7 @@ public class ClanCosmeticService {
     private final ItemRepository itemRepository;
     private final ClanRoster roster;
     private final ClanAccessService accessService;
+    private final ClanRefCache refCache;
 
     public Page<ClanItemResponse> owned(UUID clanId, Pageable pageable) {
         Set<UUID> equipped = equippedByClanIds(List.of(clanId)).getOrDefault(clanId, List.of()).stream()
@@ -88,6 +89,7 @@ public class ClanCosmeticService {
         slot.setItem(item);
         equippedRepository.saveAndFlush(slot);
         audit(clan, actor, type.getKey(), itemId);
+        refCache.refreshAfterCommit(clanId);
         return equippedByClanIds(List.of(clanId)).getOrDefault(clanId, List.of());
     }
 
@@ -102,6 +104,7 @@ public class ClanCosmeticService {
         accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
         if (equippedRepository.deleteSlot(clanId, itemTypeKey) > 0) {
             audit(clan, actor, itemTypeKey, null);
+            refCache.refreshAfterCommit(clanId);
         }
     }
 
