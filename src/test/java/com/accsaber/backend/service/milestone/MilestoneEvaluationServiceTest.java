@@ -51,6 +51,7 @@ import com.accsaber.backend.service.item.ItemService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
+import com.accsaber.backend.service.mission.MissionProgressService;
 
 @ExtendWith(MockitoExtension.class)
 class MilestoneEvaluationServiceTest {
@@ -79,6 +80,8 @@ class MilestoneEvaluationServiceTest {
         private UserItemLinkRepository userItemLinkRepository;
         @Mock
         private ApplicationEventPublisher eventPublisher;
+        @Mock
+        private MissionProgressService missionProgressService;
 
         @InjectMocks
         private MilestoneEvaluationService service;
@@ -523,6 +526,7 @@ class MilestoneEvaluationServiceTest {
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
                         verify(levelUpAwardService).addXp(USER_ID, (double) (300));
+                        verify(missionProgressService).creditXp(USER_ID, (double) (300));
                         verify(userRepository, never()).save(any(User.class));
                 }
 
@@ -577,6 +581,7 @@ class MilestoneEvaluationServiceTest {
                         service.evaluateSingleMilestoneForUser(USER_ID, milestone);
 
                         verify(levelUpAwardService).addXp(USER_ID, (double) (300));
+                        verify(missionProgressService).creditXp(USER_ID, (double) (300));
                 }
 
                 @Test
@@ -1033,6 +1038,7 @@ class MilestoneEvaluationServiceTest {
                         verify(userMilestoneSetBonusRepository).save(captor.capture());
                         assertThat(captor.getValue().getClaimedAt()).isEqualTo(earnedAt);
                         verify(levelUpAwardService).addXp(USER_ID, 250.0);
+                        verify(missionProgressService).creditXp(USER_ID, 250.0);
                 }
 
                 @Test

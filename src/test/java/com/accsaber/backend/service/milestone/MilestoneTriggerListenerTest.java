@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,31 +15,41 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
+import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
+import com.accsaber.backend.model.event.CampaignDistinctionEvent;
 import com.accsaber.backend.model.event.InventoryChangedEvent;
 import com.accsaber.backend.model.event.MarketListingEvent;
+import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.service.milestone.source.MilestoneTrigger;
 
 class MilestoneTriggerListenerTest {
 
     private static final Long USER_ID = 76561198000000001L;
     private static final Long OTHER_ID = 76561198000000002L;
+    private static final Long THIRD_ID = 76561198000000003L;
 
     private MilestoneEvaluationService evaluationService;
     private CampaignRepository campaignRepository;
+    private UserCampaignRepository userCampaignRepository;
+    private CampaignCollaboratorRepository campaignCollaboratorRepository;
 
     @BeforeEach
     void setUp() {
         evaluationService = mock(MilestoneEvaluationService.class);
         campaignRepository = mock(CampaignRepository.class);
+        userCampaignRepository = mock(UserCampaignRepository.class);
+        campaignCollaboratorRepository = mock(CampaignCollaboratorRepository.class);
     }
 
     private MilestoneTriggerListener listener(long quietSeconds, long maxWaitSeconds) {
-        return new MilestoneTriggerListener(evaluationService, campaignRepository, Runnable::run, quietSeconds,
-                maxWaitSeconds);
+        return new MilestoneTriggerListener(evaluationService, campaignRepository, userCampaignRepository,
+                campaignCollaboratorRepository, Runnable::run, quietSeconds, maxWaitSeconds);
     }
 
     private MarketUserRef ref(Long id) {
@@ -133,6 +144,23 @@ class MilestoneTriggerListenerTest {
 
         verify(evaluationService).evaluateForTrigger(USER_ID, MilestoneTrigger.CAMPAIGN);
         verify(evaluationService).evaluateForTrigger(OTHER_ID, MilestoneTrigger.CAMPAIGN);
+    }
+
+    @Test
+    void campaignDistinctionDispatchesCreatorCollaboratorsAndCompletersOnce() {
+        UUID campaignId = UUID.randomUUID();
+        when(campaignRepository.findCreatorIdByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(USER_ID));
+        when(campaignCollaboratorRepository.findUserIdsByCampaignAndStatus(campaignId,
+                CampaignCollaboratorStatus.ACCEPTED)).thenReturn(List.of(OTHER_ID));
+        when(userCampaignRepository.findUserIdsByCampaignAndStatuses(campaignId,
+                List.of(UserCampaignStatus.COMPLETED))).thenReturn(List.of(USER_ID, THIRD_ID));
+        MilestoneTriggerListener listener = listener(0, 0);
+
+        listener.onCampaignDistinction(new CampaignDistinctionEvent(campaignId));
+
+        verify(evaluationService, times(1)).evaluateForTrigger(USER_ID, MilestoneTrigger.CAMPAIGN);
+        verify(evaluationService, times(1)).evaluateForTrigger(OTHER_ID, MilestoneTrigger.CAMPAIGN);
+        verify(evaluationService, times(1)).evaluateForTrigger(THIRD_ID, MilestoneTrigger.CAMPAIGN);
     }
 
     @Test

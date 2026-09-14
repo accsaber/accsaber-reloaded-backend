@@ -32,6 +32,13 @@ public interface CampaignCollaboratorRepository extends JpaRepository<CampaignCo
                         @Param("userId") Long userId,
                         @Param("status") CampaignCollaboratorStatus status, Pageable pageable);
 
+        @Query("""
+                        SELECT c.user.id FROM CampaignCollaborator c
+                        WHERE c.campaign.id = :campaignId AND c.status = :status AND c.active = true
+                        """)
+        List<Long> findUserIdsByCampaignAndStatus(@Param("campaignId") UUID campaignId,
+                        @Param("status") CampaignCollaboratorStatus status);
+
         boolean existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(UUID campaignId, Long userId,
                         CampaignCollaboratorStatus status);
 

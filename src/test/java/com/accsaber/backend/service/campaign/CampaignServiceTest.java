@@ -31,6 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 
 import com.accsaber.backend.config.CdnProperties;
@@ -49,6 +50,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressResponse
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.entity.campaign.Campaign;
+import com.accsaber.backend.model.event.CampaignDistinctionEvent;
 import com.accsaber.backend.model.entity.campaign.CampaignBackgroundPlacement;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionItem;
@@ -168,6 +170,8 @@ class CampaignServiceTest {
         private PlaylistService playlistService;
         @Mock
         private CdnProperties cdnProperties;
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
 
         @InjectMocks
         private CampaignService campaignService;
@@ -543,6 +547,7 @@ class CampaignServiceTest {
                         assertThat(result.getLovedBy().getId()).isEqualTo(curator.getId());
                         assertThat(result.getLovedBy().getUsername()).isEqualTo("curator");
                         assertThat(result.getLovedBy().getRole()).isEqualTo(StaffRole.CAMPAIGN_CURATOR);
+                        verify(eventPublisher).publishEvent(new CampaignDistinctionEvent(campaign.getId()));
                 }
 
                 @Test
@@ -558,6 +563,7 @@ class CampaignServiceTest {
                         assertThat(result.isLoved()).isFalse();
                         assertThat(result.getLovedAt()).isNull();
                         assertThat(result.getLovedBy()).isNull();
+                        verify(eventPublisher, never()).publishEvent(any(CampaignDistinctionEvent.class));
                 }
 
                 @Test
@@ -838,6 +844,7 @@ class CampaignServiceTest {
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.CURATED);
                         assertThat(result.getCuratedBy()).isNotNull();
                         assertThat(result.getCuratedBy().getId()).isEqualTo(curator.getId());
+                        verify(eventPublisher).publishEvent(new CampaignDistinctionEvent(campaign.getId()));
                 }
         }
 

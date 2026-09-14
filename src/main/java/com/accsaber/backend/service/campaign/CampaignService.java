@@ -100,6 +100,7 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.CampaignDistinctionEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.ModifierRepository;
 import com.accsaber.backend.repository.campaign.CampaignBarrierAffectedDifficultyRepository;
@@ -507,6 +508,7 @@ public class CampaignService {
         campaign.setCuratedBy(curator);
         Campaign saved = campaignRepository.save(campaign);
         campaignEvaluationService.applyCuratedTransition(saved.getId());
+        eventPublisher.publishEvent(new CampaignDistinctionEvent(saved.getId()));
         return toCampaignResponse(saved);
     }
 
@@ -520,7 +522,11 @@ public class CampaignService {
         campaign.setLoved(loved);
         campaign.setLovedAt(loved ? Instant.now() : null);
         campaign.setLovedBy(loved ? curator : null);
-        return toCampaignResponse(campaignRepository.save(campaign));
+        Campaign saved = campaignRepository.save(campaign);
+        if (loved) {
+            eventPublisher.publishEvent(new CampaignDistinctionEvent(saved.getId()));
+        }
+        return toCampaignResponse(saved);
     }
 
     @Transactional

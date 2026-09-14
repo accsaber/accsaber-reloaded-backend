@@ -2,6 +2,8 @@ package com.accsaber.backend.service.milestone;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,13 +18,18 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
+import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
+import com.accsaber.backend.model.event.CampaignDistinctionEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.model.event.CrateOpenedEvent;
 import com.accsaber.backend.model.event.InventoryChangedEvent;
 import com.accsaber.backend.model.event.MarketListingEvent;
 import com.accsaber.backend.model.event.MissionCompletedEvent;
+import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.service.milestone.source.MilestoneTrigger;
 
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +40,8 @@ public class MilestoneTriggerListener {
 
     private final MilestoneEvaluationService evaluationService;
     private final CampaignRepository campaignRepository;
+    private final UserCampaignRepository userCampaignRepository;
+    private final CampaignCollaboratorRepository campaignCollaboratorRepository;
     private final Executor taskExecutor;
     private final Duration inventoryQuiet;
     private final Duration inventoryMaxWait;
@@ -40,11 +49,15 @@ public class MilestoneTriggerListener {
 
     public MilestoneTriggerListener(MilestoneEvaluationService evaluationService,
             CampaignRepository campaignRepository,
+            UserCampaignRepository userCampaignRepository,
+            CampaignCollaboratorRepository campaignCollaboratorRepository,
             @Qualifier("taskExecutor") Executor taskExecutor,
             @Value("${accsaber.milestones.inventory-quiet-seconds:10}") long inventoryQuietSeconds,
             @Value("${accsaber.milestones.inventory-max-wait-seconds:60}") long inventoryMaxWaitSeconds) {
         this.evaluationService = evaluationService;
         this.campaignRepository = campaignRepository;
+        this.userCampaignRepository = userCampaignRepository;
+        this.campaignCollaboratorRepository = campaignCollaboratorRepository;
         this.taskExecutor = taskExecutor;
         this.inventoryQuiet = Duration.ofSeconds(inventoryQuietSeconds);
         this.inventoryMaxWait = Duration.ofSeconds(inventoryMaxWaitSeconds);
@@ -133,6 +146,18 @@ public class MilestoneTriggerListener {
             return;
         }
         dispatch(event.userId(), MilestoneTrigger.CAMPAIGN);
+    }
+
+    @Async("taskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onCampaignDistinction(CampaignDistinctionEvent event) {
+        LinkedHashSet<Long> userIds = new LinkedHashSet<>();
+        campaignRepository.findCreatorIdByIdAndActiveTrue(event.campaignId()).ifPresent(userIds::add);
+        userIds.addAll(campaignCollaboratorRepository.findUserIdsByCampaignAndStatus(
+                event.campaignId(), CampaignCollaboratorStatus.ACCEPTED));
+        userIds.addAll(userCampaignRepository.findUserIdsByCampaignAndStatuses(
+                event.campaignId(), List.of(UserCampaignStatus.COMPLETED)));
+        userIds.forEach(userId -> dispatch(userId, MilestoneTrigger.CAMPAIGN));
     }
 
     private Long userId(MarketUserRef ref) {

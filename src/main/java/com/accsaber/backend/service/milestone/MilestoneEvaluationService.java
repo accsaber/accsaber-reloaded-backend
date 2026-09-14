@@ -46,6 +46,7 @@ import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
 import com.accsaber.backend.service.milestone.source.MilestoneSourceRegistry;
 import com.accsaber.backend.service.milestone.source.MilestoneTrigger;
+import com.accsaber.backend.service.mission.MissionProgressService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,7 @@ public class MilestoneEvaluationService {
     private final ItemService itemService;
     private final UserItemLinkRepository userItemLinkRepository;
     private final LevelUpAwardService levelUpAwardService;
+    private final MissionProgressService missionProgressService;
     private final MilestoneSourceRegistry sourceRegistry;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -411,6 +413,7 @@ public class MilestoneEvaluationService {
         }
         if (claimSetBonus(userId, set, earnedAt) && set.getSetBonusXp() > 0) {
             levelUpAwardService.addXp(userId, set.getSetBonusXp());
+            missionProgressService.creditXp(userId, set.getSetBonusXp());
         }
         return grantMissingSetItems(userId, set);
     }
@@ -452,6 +455,7 @@ public class MilestoneEvaluationService {
         }
         if (total > 0) {
             levelUpAwardService.addXp(userId, total);
+            missionProgressService.creditXp(userId, total);
         }
     }
 
