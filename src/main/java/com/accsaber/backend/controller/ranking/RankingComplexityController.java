@@ -74,6 +74,19 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
+    @Operation(summary = "One map's leaderboard under a set of constants", description = "The same page as the map leaderboard endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several maps after one tuning pass does not run the whole pool again each time.")
+    @PostMapping("/preview/difficulties/{mapDifficultyId}/leaderboard")
+    public ResponseEntity<MapLeaderboard> previewLeaderboard(
+            @PathVariable UUID mapDifficultyId,
+            @Valid @RequestBody ComplexityRaterSpec rater,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "false") boolean absolute) {
+        return ResponseEntity.ok(comparisonService.previewLeaderboard(rater, mapDifficultyId,
+                new ComplexityComparisonService.Paging(page, size, sort, absolute)));
+    }
+
     @Operation(summary = "The player leaderboard under the stored scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")
     @GetMapping("/players")
     public ResponseEntity<PlayerBoard> players(

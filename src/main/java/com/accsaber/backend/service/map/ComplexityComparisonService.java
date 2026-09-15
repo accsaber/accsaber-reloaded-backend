@@ -106,9 +106,18 @@ public class ComplexityComparisonService {
 
     @Transactional(readOnly = true)
     public MapLeaderboard leaderboard(UUID mapDifficultyId, Paging paging) {
+        return leaderboard(scenarioService.stored(), mapDifficultyId, paging);
+    }
+
+    @Transactional(readOnly = true)
+    public MapLeaderboard previewLeaderboard(ComplexityRaterSpec spec, UUID mapDifficultyId, Paging paging) {
+        return leaderboard(previewStates(spec), mapDifficultyId, paging);
+    }
+
+    private MapLeaderboard leaderboard(Map<ComplexityScenario, ScenarioState> states, UUID mapDifficultyId,
+            Paging paging) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
-        Map<ComplexityScenario, ScenarioState> states = scenarioService.stored();
         DifficultyRow header = header(difficulty, states);
         Map<ComplexityScenario, Map<Long, Play>> playsByScenario = new EnumMap<>(ComplexityScenario.class);
         states.forEach((scenario, state) -> playsByScenario.put(scenario, state.playsByDifficulty()
