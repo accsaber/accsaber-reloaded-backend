@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.config.ComplexityRaterProperties;
 import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -255,6 +256,32 @@ class ComplexityComparisonServiceTest {
         org.mockito.ArgumentCaptor<Iterable<Long>> ids = org.mockito.ArgumentCaptor.captor();
         org.mockito.Mockito.verify(userRepository).findAllById(ids.capture());
         assertThat(ids.getValue()).containsExactlyInAnyOrder(3L, 4L);
+    }
+
+    @Test
+    void previewLeaderboardRanksTheMapUnderTheConstantsInTheBody() {
+        List<ComplexityScenarioService.Play> now = List.of(
+                new ComplexityScenarioService.Play(1L, first.getId(), tech.getId(), 0.99, 900.0, 900.0, 1, 1),
+                new ComplexityScenarioService.Play(2L, first.getId(), tech.getId(), 0.98, 850.0, 850.0, 2, 1));
+        List<ComplexityScenarioService.Play> preview = List.of(
+                new ComplexityScenarioService.Play(1L, first.getId(), tech.getId(), 0.99, 700.0, 700.0, 1, 1),
+                new ComplexityScenarioService.Play(2L, first.getId(), tech.getId(), 0.98, 650.0, 650.0, 2, 1));
+        when(mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(first.getId()))
+                .thenReturn(java.util.Optional.of(first));
+        when(scenarioService.state(ComplexityScenario.CURRENT)).thenReturn(board(now));
+        when(scenarioService.preview(any(), any())).thenReturn(board(preview));
+        when(estimateService.estimatesFor(List.of(first.getId()))).thenReturn(Map.of());
+        when(userRepository.findAllById(any())).thenReturn(List.of());
+
+        var leaderboard = service.previewLeaderboard(new ComplexityRaterSpec(), first.getId(),
+                new ComplexityComparisonService.Paging(0, 50, null, false));
+
+        assertThat(leaderboard.getRows()).extracting(r -> r.getScenarios().get(ComplexityScenario.PREVIEW).getAp())
+                .containsExactly(700.0, 650.0);
+        assertThat(leaderboard.getRows()).extracting(r -> r.getScenarios().get(ComplexityScenario.CURRENT).getAp())
+                .containsExactly(900.0, 850.0);
+        assertThat(leaderboard.getRows().get(0).getScenarios()).doesNotContainKey(ComplexityScenario.NEW_SCRIPT);
+        org.mockito.Mockito.verify(scenarioService, org.mockito.Mockito.never()).stored();
     }
 
     private static ComplexityComparisonService.MapFilter filter(Boolean pinned) {
