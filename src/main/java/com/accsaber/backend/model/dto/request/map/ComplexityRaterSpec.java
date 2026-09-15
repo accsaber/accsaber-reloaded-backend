@@ -70,6 +70,8 @@ public class ComplexityRaterSpec {
 
         private double bottomUpSlope;
 
+        private double topDownSlope;
+
         private double midDiagDoubleSlope;
 
         private double notesSlope;

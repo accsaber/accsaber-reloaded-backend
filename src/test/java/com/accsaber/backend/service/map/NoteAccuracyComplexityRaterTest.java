@@ -150,6 +150,21 @@ class NoteAccuracyComplexityRaterTest {
     }
 
     @Test
+    void topRowDownSwingsPriceThroughTheirOwnSlope() {
+        properties.getCategories().get("tech_acc").setTopDownSlope(3.0);
+        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
+        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc",
+                NoteAccuracyComplexityRater.NO_BOARD, null);
+        response.setTopDownShare(0.135);
+        NoteAccuracyComplexityRater.Rating pattern = rater.rate(response, "tech_acc",
+                NoteAccuracyComplexityRater.NO_BOARD, null);
+
+        assertThat(clean.inputs()).containsEntry("topDownShare", 0.0);
+        assertThat(pattern.complexity()).isCloseTo(clean.complexity() + 0.405, within(0.051));
+        assertThat(chart(pattern)).containsEntry("topDownSlope", 3.0);
+    }
+
+    @Test
     void midRowDiagonalDoublesPriceThroughTheirOwnSlope() {
         properties.getCategories().get("tech_acc").setMidDiagDoubleSlope(5.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));

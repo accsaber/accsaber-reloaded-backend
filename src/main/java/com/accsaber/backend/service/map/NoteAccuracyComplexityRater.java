@@ -40,8 +40,8 @@ public class NoteAccuracyComplexityRater {
     public record Rating(double complexity, Map<String, Object> inputs) {
     }
 
-    private record Terms(double mean, double worst, double reset, double dot, double bottomUp, double midDiagDouble,
-            int notes, double nps, double njs, BoardEase board) {
+    private record Terms(double mean, double worst, double reset, double dot, double bottomUp, double topDown,
+            double midDiagDouble, int notes, double nps, double njs, BoardEase board) {
     }
 
     private final MapZipCache zipCache;
@@ -79,7 +79,8 @@ public class NoteAccuracyComplexityRater {
                 || !currentModelHash.equals(inputs.path("modelHash").asText(null))
                 || !inputs.hasNonNull("meanNoteAccuracy") || !inputs.hasNonNull("worstBands")
                 || !inputs.hasNonNull("resetShare") || !inputs.hasNonNull("dotShare")
-                || !inputs.hasNonNull("bottomUpShare") || !inputs.hasNonNull("midDiagDoubleShare")
+                || !inputs.hasNonNull("bottomUpShare") || !inputs.hasNonNull("topDownShare")
+                || !inputs.hasNonNull("midDiagDoubleShare")
                 || !inputs.hasNonNull("njs")) {
             return Optional.empty();
         }
@@ -125,6 +126,7 @@ public class NoteAccuracyComplexityRater {
         inputs.put("resetShare", Rounding.round(notes.getResetShare(), 6));
         inputs.put("dotShare", Rounding.round(notes.getDotShare(), 6));
         inputs.put("bottomUpShare", Rounding.round(notes.getBottomUpShare(), 6));
+        inputs.put("topDownShare", Rounding.round(notes.getTopDownShare(), 6));
         inputs.put("midDiagDoubleShare", Rounding.round(notes.getMidDiagDoubleShare(), 6));
         putBoard(inputs, board);
         return price(inputs, properties.toSpec(), categoryCode).orElseThrow();
@@ -155,7 +157,8 @@ public class NoteAccuracyComplexityRater {
         int notes = (int) number(inputs, "notes", 0);
         double duration = number(inputs, "duration", 0.0);
         Terms terms = new Terms(mean, worst, number(inputs, "resetShare", 0.0), number(inputs, "dotShare", 0.0),
-                number(inputs, "bottomUpShare", 0.0), number(inputs, "midDiagDoubleShare", 0.0), notes,
+                number(inputs, "bottomUpShare", 0.0), number(inputs, "topDownShare", 0.0),
+                number(inputs, "midDiagDoubleShare", 0.0), notes,
                 duration > 0.0 ? notes / duration : 0.0, number(inputs, "njs", 0.0), board);
         Coefficients chart = spec.getCategories().get(categoryCode);
         Coefficients boardLine = spec.getBoardCategories().get(categoryCode);
@@ -184,6 +187,7 @@ public class NoteAccuracyComplexityRater {
                 + c.getResetSlope() * terms.reset()
                 + c.getDotSlope() * terms.dot()
                 + c.getBottomUpSlope() * terms.bottomUp()
+                + c.getTopDownSlope() * terms.topDown()
                 + c.getMidDiagDoubleSlope() * terms.midDiagDouble()
                 + c.getNotesSlope() * Math.log(Math.max(1, terms.notes()))
                 + (terms.nps() <= 0.0 ? 0.0 : c.getNpsSlope() * Math.log(terms.nps()))
@@ -223,6 +227,7 @@ public class NoteAccuracyComplexityRater {
         out.put("resetSlope", c.getResetSlope());
         out.put("dotSlope", c.getDotSlope());
         out.put("bottomUpSlope", c.getBottomUpSlope());
+        out.put("topDownSlope", c.getTopDownSlope());
         out.put("midDiagDoubleSlope", c.getMidDiagDoubleSlope());
         out.put("notesSlope", c.getNotesSlope());
         out.put("npsSlope", c.getNpsSlope());

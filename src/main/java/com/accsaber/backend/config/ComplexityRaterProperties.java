@@ -15,7 +15,7 @@ import lombok.Data;
 @ConfigurationProperties(prefix = "accsaber.complexity.rater")
 public class ComplexityRaterProperties {
 
-    private String version = "note-acc-2026-09-28";
+    private String version = "note-acc-2026-09-29";
     private double worstShare = 0.05;
     private Board board = new Board();
     private Map<String, Coefficients> categories = new LinkedHashMap<>();
@@ -39,6 +39,7 @@ public class ComplexityRaterProperties {
         private double resetSlope;
         private double dotSlope;
         private double bottomUpSlope;
+        private double topDownSlope;
         private double midDiagDoubleSlope;
         private double notesSlope;
         private double npsSlope;
@@ -53,6 +54,7 @@ public class ComplexityRaterProperties {
             spec.setResetSlope(resetSlope);
             spec.setDotSlope(dotSlope);
             spec.setBottomUpSlope(bottomUpSlope);
+            spec.setTopDownSlope(topDownSlope);
             spec.setMidDiagDoubleSlope(midDiagDoubleSlope);
             spec.setNotesSlope(notesSlope);
             spec.setNpsSlope(npsSlope);
