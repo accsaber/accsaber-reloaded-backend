@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.staff;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -44,15 +45,7 @@ public class StaffUserService {
         if (staffUserRepository.existsByUserIdAndActiveTrue(userId)) {
             throw new ConflictException("This account already has staff access or a pending request");
         }
-        if (request.getUsername() != null
-                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
-                        request.getUsername(), StaffRole.RANKING).isPresent()) {
-            throw new ConflictException("Username already taken for this role: " + request.getUsername());
-        }
-        if (request.getEmail() != null
-                && staffUserRepository.findByEmailAndActiveTrue(request.getEmail()).isPresent()) {
-            throw new ConflictException("Email already in use: " + request.getEmail());
-        }
+        assertIdentifiersFree(request.getUsername(), request.getEmail(), StaffRole.RANKING);
 
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
@@ -104,9 +97,7 @@ public class StaffUserService {
     }
 
     public StaffUserResponse getById(UUID id) {
-        return staffUserRepository.findByIdAndActiveTrue(id)
-                .map(this::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+        return toResponse(requireActive(id));
     }
 
     @Transactional
@@ -114,15 +105,7 @@ public class StaffUserService {
         if (request.getUsername() == null && request.getEmail() == null) {
             throw new ValidationException("At least one of username or email is required");
         }
-        if (request.getUsername() != null
-                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
-                        request.getUsername(), request.getRole()).isPresent()) {
-            throw new ConflictException("Username already taken for this role: " + request.getUsername());
-        }
-        if (request.getEmail() != null
-                && staffUserRepository.findByEmailAndActiveTrue(request.getEmail()).isPresent()) {
-            throw new ConflictException("Email already in use: " + request.getEmail());
-        }
+        assertIdentifiersFree(request.getUsername(), request.getEmail(), request.getRole());
 
         StaffUser.StaffUserBuilder builder = StaffUser.builder()
                 .email(request.getEmail())
@@ -148,20 +131,11 @@ public class StaffUserService {
             throw new ValidationException("At least one of username or email is required");
         }
 
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(staffId)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + staffId));
-
-        if (request.getUsername() != null
-                && !request.getUsername().equals(staffUser.getUsername())
-                && staffUserRepository.findByUsernameAndRoleAndActiveTrue(
-                        request.getUsername(), staffUser.getRole()).isPresent()) {
-            throw new ConflictException("Username already taken for this role: " + request.getUsername());
-        }
-        if (request.getEmail() != null
-                && !request.getEmail().equals(staffUser.getEmail())
-                && staffUserRepository.findByEmailAndActiveTrue(request.getEmail()).isPresent()) {
-            throw new ConflictException("Email already in use: " + request.getEmail());
-        }
+        StaffUser staffUser = requireActive(staffId);
+        assertIdentifiersFree(
+                Objects.equals(request.getUsername(), staffUser.getUsername()) ? null : request.getUsername(),
+                Objects.equals(request.getEmail(), staffUser.getEmail()) ? null : request.getEmail(),
+                staffUser.getRole());
 
         if (request.getUsername() != null)
             staffUser.setUsername(request.getUsername());
@@ -183,8 +157,7 @@ public class StaffUserService {
 
     @Transactional
     public StaffUserResponse linkUser(UUID staffId, Long userId) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(staffId)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + staffId));
+        StaffUser staffUser = requireActive(staffId);
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
         staffUser.setUser(user);
@@ -193,12 +166,10 @@ public class StaffUserService {
 
     @Transactional
     public StaffUserResponse updateStatus(UUID id, StaffUserStatus status) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+        StaffUser staffUser = requireActive(id);
         staffUser.setStatus(status);
         if (status != StaffUserStatus.ACCEPTED) {
-            staffUser.setRefreshToken(null);
-            staffUser.setTokenExpiresAt(null);
+            clearTokens(staffUser);
         }
         invalidateLinkedPlayerSessions(staffUser);
         return toResponse(staffUserRepository.save(staffUser));
@@ -206,8 +177,7 @@ public class StaffUserService {
 
     @Transactional
     public StaffUserResponse updateRole(UUID id, StaffRole role) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+        StaffUser staffUser = requireActive(id);
         staffUser.setRole(role);
         invalidateLinkedPlayerSessions(staffUser);
         return toResponse(staffUserRepository.save(staffUser));
@@ -215,23 +185,62 @@ public class StaffUserService {
 
     @Transactional
     public void forceChangePassword(UUID id, String newPassword) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+        StaffUser staffUser = requireActive(id);
         staffUser.setPassword(passwordEncoder.encode(newPassword));
-        staffUser.setRefreshToken(null);
-        staffUser.setTokenExpiresAt(null);
+        clearTokens(staffUser);
         staffUserRepository.save(staffUser);
     }
 
     @Transactional
-    public void deactivate(UUID id) {
-        StaffUser staffUser = staffUserRepository.findByIdAndActiveTrue(id)
+    public StaffUserResponse setActive(UUID id, boolean active) {
+        StaffUser staffUser = requireExisting(id);
+        if (staffUser.isActive() == active) {
+            return toResponse(staffUser);
+        }
+        if (active) {
+            assertIdentifiersFree(staffUser.getUsername(), staffUser.getEmail(), staffUser.getRole());
+        } else {
+            clearTokens(staffUser);
+            invalidateLinkedPlayerSessions(staffUser);
+        }
+        staffUser.setActive(active);
+        return toResponse(staffUserRepository.save(staffUser));
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        StaffUser staffUser = requireExisting(id);
+        if (staffUserRepository.hasAuthoredRecords(id)) {
+            throw new ConflictException(
+                    "Staff user " + id + " authored news posts or admin actions, deactivate them instead");
+        }
+        staffUserRepository.detachStaffReferences(id);
+        invalidateLinkedPlayerSessions(staffUser);
+        staffUserRepository.delete(staffUser);
+    }
+
+    private StaffUser requireActive(UUID id) {
+        return staffUserRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
-        staffUser.setActive(false);
+    }
+
+    private StaffUser requireExisting(UUID id) {
+        return staffUserRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found: " + id));
+    }
+
+    private void assertIdentifiersFree(String username, String email, StaffRole role) {
+        if (username != null && staffUserRepository.findByUsernameAndRoleAndActiveTrue(username, role).isPresent()) {
+            throw new ConflictException("Username already taken for this role: " + username);
+        }
+        if (email != null && staffUserRepository.findByEmailAndActiveTrue(email).isPresent()) {
+            throw new ConflictException("Email already in use: " + email);
+        }
+    }
+
+    private void clearTokens(StaffUser staffUser) {
         staffUser.setRefreshToken(null);
         staffUser.setTokenExpiresAt(null);
-        invalidateLinkedPlayerSessions(staffUser);
-        staffUserRepository.save(staffUser);
     }
 
     private void invalidateLinkedPlayerSessions(StaffUser staffUser) {

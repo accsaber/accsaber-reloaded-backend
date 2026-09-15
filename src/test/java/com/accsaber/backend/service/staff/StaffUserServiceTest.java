@@ -3,6 +3,7 @@ package com.accsaber.backend.service.staff;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -98,19 +99,78 @@ class StaffUserServiceTest {
     }
 
     @Test
-    void deactivate_existingStaff_clearsTokensAndSetsInactive() {
+    void setActive_false_clearsTokensAndSetsInactive() {
         StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
         staffUser.setRefreshToken("some-token");
         UUID staffId = staffUser.getId();
 
-        when(staffUserRepository.findByIdAndActiveTrue(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.findById(staffId)).thenReturn(Optional.of(staffUser));
         when(staffUserRepository.save(any())).thenReturn(staffUser);
 
-        staffUserService.deactivate(staffId);
+        staffUserService.setActive(staffId, false);
 
         assertThat(staffUser.isActive()).isFalse();
         assertThat(staffUser.getRefreshToken()).isNull();
         assertThat(staffUser.getTokenExpiresAt()).isNull();
+    }
+
+    @Test
+    void setActive_true_reactivatesWhenIdentifiersAreFree() {
+        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
+        staffUser.setActive(false);
+        UUID staffId = staffUser.getId();
+
+        when(staffUserRepository.findById(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue(staffUser.getUsername(), StaffRole.RANKING))
+                .thenReturn(Optional.empty());
+        when(staffUserRepository.save(any())).thenReturn(staffUser);
+
+        StaffUserResponse response = staffUserService.setActive(staffId, true);
+
+        assertThat(response.isActive()).isTrue();
+    }
+
+    @Test
+    void setActive_true_usernameTakenByActiveAccount_throwsConflict() {
+        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
+        staffUser.setActive(false);
+        UUID staffId = staffUser.getId();
+
+        when(staffUserRepository.findById(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.findByUsernameAndRoleAndActiveTrue(staffUser.getUsername(), StaffRole.RANKING))
+                .thenReturn(Optional.of(buildStaffUser(StaffRole.RANKING)));
+
+        assertThatThrownBy(() -> staffUserService.setActive(staffId, true))
+                .isInstanceOf(ConflictException.class);
+        verify(staffUserRepository, never()).save(any());
+    }
+
+    @Test
+    void delete_withoutAuthoredRecords_detachesReferencesAndDeletes() {
+        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
+        UUID staffId = staffUser.getId();
+
+        when(staffUserRepository.findById(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.hasAuthoredRecords(staffId)).thenReturn(false);
+
+        staffUserService.delete(staffId);
+
+        verify(staffUserRepository).detachStaffReferences(staffId);
+        verify(staffUserRepository).delete(staffUser);
+    }
+
+    @Test
+    void delete_withAuthoredRecords_throwsConflict() {
+        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
+        UUID staffId = staffUser.getId();
+
+        when(staffUserRepository.findById(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.hasAuthoredRecords(staffId)).thenReturn(true);
+
+        assertThatThrownBy(() -> staffUserService.delete(staffId))
+                .isInstanceOf(ConflictException.class);
+        verify(staffUserRepository, never()).detachStaffReferences(any());
+        verify(staffUserRepository, never()).delete(any());
     }
 
     @Test

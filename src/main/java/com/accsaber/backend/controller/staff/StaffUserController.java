@@ -101,10 +101,20 @@ public class StaffUserController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Deactivate a staff user")
+    @Operation(summary = "Activate or deactivate a staff user", description = "Pass active=false to lock the account out "
+            + "(its tokens and the linked player's sessions are revoked) and active=true to bring it back. Reactivating "
+            + "fails with 409 when another active account already holds the same username for that role or the same email.")
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<StaffUserResponse> setActive(@PathVariable UUID id, @RequestParam boolean active) {
+        return ResponseEntity.ok(staffUserService.setActive(id, active));
+    }
+
+    @Operation(summary = "Permanently delete a staff user", description = "Removes the account and its map votes, and "
+            + "clears it from batches, map difficulties, leaderboard aliases, campaign curated/loved credits, account "
+            + "merges and item awards. Fails with 409 when the account authored news posts or admin actions.")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deactivate(@PathVariable UUID id) {
-        staffUserService.deactivate(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        staffUserService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
