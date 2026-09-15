@@ -78,7 +78,7 @@ public class StaffAuthService {
 
     @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
-        StaffUser staffUser = staffUserRepository.findByRefreshToken(request.getRefreshToken())
+        StaffUser staffUser = staffUserRepository.findByRefreshTokenAndActiveTrue(request.getRefreshToken())
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired refresh token"));
 
         if (staffUser.getTokenExpiresAt() == null || staffUser.getTokenExpiresAt().isBefore(Instant.now())) {

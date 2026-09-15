@@ -33,7 +33,7 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
 
     Optional<StaffUser> findByEmailIgnoreCaseAndActiveTrue(String email);
 
-    Optional<StaffUser> findByRefreshToken(String refreshToken);
+    Optional<StaffUser> findByRefreshTokenAndActiveTrue(String refreshToken);
 
     Optional<StaffUser> findByIdAndActiveTrue(UUID id);
 

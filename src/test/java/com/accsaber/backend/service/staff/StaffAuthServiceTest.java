@@ -119,7 +119,7 @@ class StaffAuthServiceTest {
                 RefreshTokenRequest request = new RefreshTokenRequest();
                 request.setRefreshToken("valid-refresh");
 
-                when(staffUserRepository.findByRefreshToken("valid-refresh")).thenReturn(Optional.of(staffUser));
+                when(staffUserRepository.findByRefreshTokenAndActiveTrue("valid-refresh")).thenReturn(Optional.of(staffUser));
                 when(jwtService.generateAccessToken(staffUser)).thenReturn("new-access-token");
                 when(jwtService.generateRefreshToken()).thenReturn("new-refresh-token");
                 when(staffUserRepository.save(any())).thenReturn(staffUser);
@@ -171,7 +171,7 @@ class StaffAuthServiceTest {
                 RefreshTokenRequest request = new RefreshTokenRequest();
                 request.setRefreshToken("valid-refresh");
 
-                when(staffUserRepository.findByRefreshToken("valid-refresh")).thenReturn(Optional.of(staffUser));
+                when(staffUserRepository.findByRefreshTokenAndActiveTrue("valid-refresh")).thenReturn(Optional.of(staffUser));
 
                 assertThatThrownBy(() -> staffAuthService.refresh(request))
                                 .isInstanceOf(ForbiddenException.class)
@@ -188,7 +188,7 @@ class StaffAuthServiceTest {
                 RefreshTokenRequest request = new RefreshTokenRequest();
                 request.setRefreshToken("valid-refresh");
 
-                when(staffUserRepository.findByRefreshToken("valid-refresh")).thenReturn(Optional.of(staffUser));
+                when(staffUserRepository.findByRefreshTokenAndActiveTrue("valid-refresh")).thenReturn(Optional.of(staffUser));
 
                 assertThatThrownBy(() -> staffAuthService.refresh(request))
                                 .isInstanceOf(ForbiddenException.class)
@@ -204,7 +204,7 @@ class StaffAuthServiceTest {
                 RefreshTokenRequest request = new RefreshTokenRequest();
                 request.setRefreshToken("expired-refresh");
 
-                when(staffUserRepository.findByRefreshToken("expired-refresh")).thenReturn(Optional.of(staffUser));
+                when(staffUserRepository.findByRefreshTokenAndActiveTrue("expired-refresh")).thenReturn(Optional.of(staffUser));
 
                 assertThatThrownBy(() -> staffAuthService.refresh(request))
                                 .isInstanceOf(UnauthorizedException.class);
@@ -215,7 +215,7 @@ class StaffAuthServiceTest {
                 RefreshTokenRequest request = new RefreshTokenRequest();
                 request.setRefreshToken("unknown");
 
-                when(staffUserRepository.findByRefreshToken("unknown")).thenReturn(Optional.empty());
+                when(staffUserRepository.findByRefreshTokenAndActiveTrue("unknown")).thenReturn(Optional.empty());
 
                 assertThatThrownBy(() -> staffAuthService.refresh(request))
                                 .isInstanceOf(UnauthorizedException.class);

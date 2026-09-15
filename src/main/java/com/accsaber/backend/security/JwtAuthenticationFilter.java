@@ -116,7 +116,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .orElse(null);
         }
         if (JwtService.TYPE_STAFF.equals(type)) {
-            return staffUserRepository.findByIdAndActiveTrue(jwtService.extractStaffId(token))
+            return staffUserRepository
+                    .findByIdAndActiveTrueAndStatus(jwtService.extractStaffId(token), StaffUserStatus.ACCEPTED)
                     .map(StaffUserDetails::new)
                     .orElse(null);
         }
