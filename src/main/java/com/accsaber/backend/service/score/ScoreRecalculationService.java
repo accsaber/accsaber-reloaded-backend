@@ -97,6 +97,7 @@ public class ScoreRecalculationService {
             log.error("XP reweight failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
         }
         userRepository.recalculateTotalXpForAllActiveUsers();
+        evaluateMilestones(affected);
         log.info("Recalculation complete for difficulty {} ({} users affected)", difficulty.getId(), affected.size());
         return CompletableFuture.completedFuture(null);
     }
@@ -139,12 +140,6 @@ public class ScoreRecalculationService {
         futures.forEach(CompletableFuture::join);
 
         coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
-
-        boolean anyChanges = affectedByCategory.values().stream().anyMatch(s -> !s.isEmpty());
-        if (anyChanges) {
-            log.info("Batch recalculation: rebuilding XP totals");
-            userRepository.recalculateTotalXpForAllActiveUsers();
-        }
 
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Batch recalculation complete for {} difficulties, {} users affected",
@@ -200,8 +195,6 @@ public class ScoreRecalculationService {
 
         coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
 
-        userRepository.recalculateTotalXpForAllActiveUsers();
-
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Raw AP recalculation complete for {} difficulties, {} users affected",
                 difficulties.size(), totalUsers);
@@ -252,6 +245,7 @@ public class ScoreRecalculationService {
                 .map(c -> c.getId())
                 .toList();
 
+        Set<Long> allUsers = new HashSet<>();
         for (UUID categoryId : categoryIds) {
             List<UserCategoryStatistics> stats = userCategoryStatisticsRepository
                     .findActiveByCategoryOrderByApDesc(categoryId);
@@ -265,9 +259,11 @@ public class ScoreRecalculationService {
 
             batchRecalculateStats(userIds, categoryId);
             rankingService.updateRankings(categoryId);
+            allUsers.addAll(userIds);
             log.info("Weighted AP recalculation complete for category {} ({} users)", categoryId, userIds.size());
         }
         overallStatisticsService.updateOverallRankings();
+        evaluateMilestones(allUsers);
         log.info("Weighted AP recalculation complete for all categories");
     }
 
@@ -346,27 +342,17 @@ public class ScoreRecalculationService {
         }
         statsFutures.forEach(CompletableFuture::join);
 
-        log.info("Batch recalculation: overall statistics and milestones for {} players", allUsers.size());
-        AtomicInteger playersDone = new AtomicInteger();
-        List<CompletableFuture<Void>> userFutures = allUsers.stream()
+        log.info("Batch recalculation: overall statistics for {} players", overallUsers.size());
+        List<CompletableFuture<Void>> overallFutures = overallUsers.stream()
                 .map(userId -> CompletableFuture.runAsync(() -> {
                     try {
-                        if (overallUsers.contains(userId)) {
-                            overallStatisticsService.recalculate(userId, false);
-                        }
-                        milestoneEvaluationService.evaluateAllForUser(userId);
+                        overallStatisticsService.recalculate(userId, false);
                     } catch (Exception ex) {
-                        log.error("Per-user post-recalc failed for user {}: {}",
-                                userId, ex.getMessage());
-                    } finally {
-                        int done = playersDone.incrementAndGet();
-                        if (done % 500 == 0) {
-                            log.info("Batch recalculation: {}/{} players processed", done, allUsers.size());
-                        }
+                        log.error("Overall stats recalc failed for user {}: {}", userId, ex.getMessage());
                     }
                 }, backfillExecutor))
                 .toList();
-        userFutures.forEach(CompletableFuture::join);
+        overallFutures.forEach(CompletableFuture::join);
 
         log.info("Batch recalculation: category rankings");
         for (UUID categoryId : affectedByCategory.keySet()) {
@@ -389,6 +375,31 @@ public class ScoreRecalculationService {
         }
         log.info("Batch recalculation: skills");
         resweepSkills(affectedByCategory.keySet());
+
+        log.info("Batch recalculation: rebuilding XP totals");
+        userRepository.recalculateTotalXpForAllActiveUsers();
+
+        log.info("Batch recalculation: milestones for {} players", allUsers.size());
+        evaluateMilestones(allUsers);
+    }
+
+    private void evaluateMilestones(Set<Long> userIds) {
+        AtomicInteger done = new AtomicInteger();
+        List<CompletableFuture<Void>> futures = userIds.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        milestoneEvaluationService.evaluateAllForUser(userId);
+                    } catch (Exception ex) {
+                        log.error("Milestone evaluation failed for user {}: {}", userId, ex.getMessage());
+                    } finally {
+                        int count = done.incrementAndGet();
+                        if (count % 500 == 0) {
+                            log.info("Milestone evaluation: {}/{} players processed", count, userIds.size());
+                        }
+                    }
+                }, backfillExecutor))
+                .toList();
+        futures.forEach(CompletableFuture::join);
     }
 
     private void resweepSkills(Set<UUID> categoryIds) {
@@ -409,7 +420,6 @@ public class ScoreRecalculationService {
                 .map(userId -> CompletableFuture.runAsync(() -> {
                     try {
                         statisticsService.recalculate(userId, categoryId, false);
-                        milestoneEvaluationService.evaluateAllForUser(userId);
                     } catch (Exception e) {
                         log.error("Stats recalc failed for user {}: {}", userId, e.getMessage());
                     }
