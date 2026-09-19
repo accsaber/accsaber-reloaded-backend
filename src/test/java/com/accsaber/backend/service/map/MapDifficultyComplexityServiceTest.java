@@ -157,6 +157,23 @@ class MapDifficultyComplexityServiceTest {
         }
 
         @Test
+        void unrankedDifficulty_overwritesActiveRecordInPlace() {
+            MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.QUALIFIED);
+            MapDifficultyComplexity existing = buildComplexity(diff, 5.0, true);
+            when(complexityRepository.findActiveForUpdate(diff.getId()))
+                    .thenReturn(Optional.of(existing));
+            when(complexityRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            complexityService.setComplexity(diff, 8.0, "Set by hand", 42L);
+
+            verify(complexityRepository, times(1)).saveAndFlush(existing);
+            assertThat(existing.isActive()).isTrue();
+            assertThat(existing.getComplexity()).isEqualByComparingTo(8.0);
+            assertThat(existing.getSupersedesReason()).isEqualTo("Set by hand");
+            assertThat(existing.getSupersedesAuthor()).isEqualTo(42L);
+        }
+
+        @Test
         void newVersion_linksToOldViaSupersedes_andCarriesAuditFields() {
             MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.RANKED);
             MapDifficultyComplexity existing = buildComplexity(diff, 5.0, true);

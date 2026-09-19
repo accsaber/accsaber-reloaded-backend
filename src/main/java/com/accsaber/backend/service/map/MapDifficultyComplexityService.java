@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -48,10 +49,12 @@ public class MapDifficultyComplexityService {
                 .findActiveForUpdate(mapDifficulty.getId())
                 .orElse(null);
 
-        boolean isQueue = mapDifficulty.getStatus() == com.accsaber.backend.model.entity.map.MapDifficultyStatus.QUEUE;
+        boolean unranked = mapDifficulty.getStatus() != MapDifficultyStatus.RANKED;
 
-        if (isQueue && current != null) {
+        if (unranked && current != null) {
             current.setComplexity(complexity);
+            current.setSupersedesReason(reason);
+            current.setSupersedesAuthor(authorId);
             complexityRepository.saveAndFlush(current);
             return complexity;
         }
