@@ -1441,10 +1441,7 @@ public class CampaignService {
         List<CampaignDifficultyProgressResponse> progress = new ArrayList<>(difficulties.size());
         for (CampaignDifficulty d : difficulties) {
             List<CampaignConnectionResponse> prereqs = ctx.prereqsByDifficulty.getOrDefault(d.getId(), List.of());
-            CampaignPrerequisiteMode mode = d.getPrerequisiteMode() != null
-                    ? d.getPrerequisiteMode()
-                    : CampaignPrerequisiteMode.OR;
-            NodeWindow window = displayWindow(prereqs, mode, completionTimes, since, agnostic);
+            NodeWindow window = displayWindow(prereqs, d.pathMode(), completionTimes, since, agnostic);
             boolean unlocked = window != null;
             UserMapDifficultyBests bests = null;
             Score reference = null;
@@ -1559,10 +1556,7 @@ public class CampaignService {
         List<BarrierProgressResponse> result = new ArrayList<>(barriers.size());
         for (CampaignDifficulty b : barriers) {
             List<CampaignConnectionResponse> prereqs = ctx.prereqsByDifficulty.getOrDefault(b.getId(), List.of());
-            CampaignPrerequisiteMode mode = b.getPrerequisiteMode() != null
-                    ? b.getPrerequisiteMode()
-                    : CampaignPrerequisiteMode.OR;
-            boolean unlocked = agnostic || prereqsSatisfied(prereqs, mode, completedIds);
+            boolean unlocked = agnostic || prereqsSatisfied(prereqs, b.pathMode(), completedIds);
             List<UUID> affected = ctx.affectedByBarrier.getOrDefault(b.getId(), List.of());
             result.add(BarrierProgressResponse.builder()
                     .barrier(toBarrierResponse(b, prereqs, affected,

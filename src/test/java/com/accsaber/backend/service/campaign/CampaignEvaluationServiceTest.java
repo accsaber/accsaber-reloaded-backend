@@ -336,7 +336,7 @@ class CampaignEvaluationServiceTest {
                                 .id(UUID.randomUUID()).campaign(campaign).active(true).barrier(true)
                                 .barrierConditionType(BarrierConditionType.COMPLETION_COUNT)
                                 .barrierConditionValue(target)
-                                .prerequisiteMode(CampaignPrerequisiteMode.OR).build();
+                                .prerequisiteMode(CampaignPrerequisiteMode.AND).build();
                 Score score = row(mdA, 950000, PLAYED);
                 UserCampaign uc = inProgressCampaign();
 
@@ -349,7 +349,7 @@ class CampaignEvaluationServiceTest {
                                 .thenReturn(List.of(a, c, d, bar));
                 when(campaignDifficultyPathRepository
                                 .findByCampaignDifficulty_Campaign_IdAndActiveTrue(campaign.getId()))
-                                .thenReturn(List.of(edge(a, bar)));
+                                .thenReturn(List.of(edge(a, bar), edge(c, bar), edge(d, bar)));
                 when(userCampaignScoreRepository.findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(user.getId(),
                                 List.of(campaign.getId()))).thenReturn(List.of(progress(c)));
                 when(userCampaignScoreRepository.findByUser_IdAndCampaignDifficulty_IdAndActiveTrue(anyLong(), any()))

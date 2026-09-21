@@ -822,9 +822,7 @@ public class CampaignEvaluationService {
         Set<UUID> barrierIds = new HashSet<>();
         for (CampaignDifficulty d : difficulties) {
             byId.put(d.getId(), d);
-            modes.put(d.getId(), d.getPrerequisiteMode() != null
-                    ? d.getPrerequisiteMode()
-                    : CampaignPrerequisiteMode.OR);
+            modes.put(d.getId(), d.pathMode());
             if (d.isBarrier()) {
                 barrierIds.add(d.getId());
             }

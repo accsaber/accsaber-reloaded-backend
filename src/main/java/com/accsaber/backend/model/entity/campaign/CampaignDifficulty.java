@@ -143,4 +143,11 @@ public class CampaignDifficulty {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public CampaignPrerequisiteMode pathMode() {
+        if (barrier && barrierConditionType == BarrierConditionType.COMPLETION_COUNT) {
+            return CampaignPrerequisiteMode.OR;
+        }
+        return prerequisiteMode != null ? prerequisiteMode : CampaignPrerequisiteMode.OR;
+    }
 }
