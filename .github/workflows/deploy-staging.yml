@@ -64,6 +64,6 @@ jobs:
           : "${COOLIFY_URL:?is empty, staging was not redeployed}"
           : "${COOLIFY_TOKEN:?is empty, staging was not redeployed}"
           : "${COOLIFY_UUID:?COOLIFY_STAGING_UUID is empty, staging was not redeployed}"
-          curl --fail-with-body -sS -X GET \
+          curl --fail-with-body -sS -X POST \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             "${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_UUID}&force=false"

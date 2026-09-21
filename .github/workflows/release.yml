@@ -124,6 +124,6 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_UUID: ${{ secrets.COOLIFY_PROD_UUID }}
         run: |
-          curl --fail-with-body -sS -X GET \
+          curl --fail-with-body -sS -X POST \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             "${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_UUID}&force=false"
