@@ -37,8 +37,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ClanCosmeticService {
 
-    private static final String CLAN_COSMETIC_TYPE = "clan_cosmetic";
-
     private final ClanItemRepository clanItemRepository;
     private final ClanEquippedItemRepository equippedRepository;
     private final ClanAuditEntryRepository auditRepository;
@@ -78,7 +76,7 @@ public class ClanCosmeticService {
         accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
         Item item = itemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item", itemId));
         ItemType type = item.getType();
-        if (!isClanCosmetic(type)) {
+        if (!type.isClanCosmetic()) {
             throw new ValidationException("itemId", "is not a clan cosmetic");
         }
         if (!clanItemRepository.existsByClan_IdAndItem_Id(clanId, itemId)) {
@@ -91,10 +89,6 @@ public class ClanCosmeticService {
         audit(clan, actor, type.getKey(), itemId);
         refCache.refreshAfterCommit(clanId);
         return equippedByClanIds(List.of(clanId)).getOrDefault(clanId, List.of());
-    }
-
-    public static boolean isClanCosmetic(ItemType type) {
-        return type.getParentType() != null && CLAN_COSMETIC_TYPE.equals(type.getParentType().getKey());
     }
 
     @Transactional

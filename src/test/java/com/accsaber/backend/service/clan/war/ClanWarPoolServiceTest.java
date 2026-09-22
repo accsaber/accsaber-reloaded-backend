@@ -45,12 +45,14 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarPoolSource;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanPermission;
@@ -61,6 +63,8 @@ class ClanWarPoolServiceTest {
 
     @Mock
     private ClanWarFeed feed;
+    @Mock
+    private ScoreRepository scoreRepository;
     @Mock
     private ClanWarRepository warRepository;
     @Mock
@@ -88,7 +92,7 @@ class ClanWarPoolServiceTest {
     void setUp() {
         clanProperties.getWar().setMaxUnderdogShare(0.7);
         service = new ClanWarPoolService(warRepository, sideRepository, poolRepository, categoryRepository,
-                mapDifficultyRepository, accessService, cosmeticService, mapService, feed, clanProperties);
+                mapDifficultyRepository, accessService, cosmeticService, mapService, scoreRepository, feed, clanProperties);
         lenient().when(mapDifficultyRepository.getReferenceById(any()))
                 .thenAnswer(inv -> MapDifficulty.builder().id(inv.getArgument(0)).build());
     }
@@ -296,9 +300,37 @@ class ClanWarPoolServiceTest {
         when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()))));
 
-        assertThat(service.pool(war, attacker.getId())).hasSize(1);
-        assertThat(service.pool(war, defender.getId())).isEmpty();
-        assertThat(service.pool(war, null)).isEmpty();
+        assertThat(service.pool(war, attacker.getId(), null)).hasSize(1);
+        assertThat(service.pool(war, defender.getId(), null)).isEmpty();
+        assertThat(service.pool(war, null, null)).isEmpty();
+    }
+
+    @Test
+    void poolRowsCarryTheViewersBestAndNothingForAnonymous() {
+        ClanWar war = war(ClanArena.mixed, ClanWarStatus.active, new ClanArenaSpec(null, null, null, 4, 2, 2));
+        MapDifficulty played = MapDifficulty.builder().id(UUID.randomUUID()).maxScore(1_000_000).build();
+        MapDifficulty unplayed = MapDifficulty.builder().id(UUID.randomUUID()).maxScore(1_000_000).build();
+        when(poolRepository.findByWarId(war.getId())).thenReturn(List.of(
+                ClanWarPoolEntry.builder().mapDifficulty(played).source(ClanWarPoolSource.random).build(),
+                ClanWarPoolEntry.builder().mapDifficulty(unplayed).source(ClanWarPoolSource.random).build()));
+        when(mapService.getDifficultyResponsesPublic(anyCollection())).thenReturn(Map.of());
+        when(cosmeticService.publicRefs(anyCollection())).thenReturn(Map.of());
+        when(scoreRepository.findActiveByUserAndMapDifficultyIdIn(eq(7L), anyCollection())).thenReturn(List.of(
+                Score.builder().id(UUID.randomUUID()).mapDifficulty(played).score(985_000).scoreNoMods(985_000)
+                        .ap(412.5).weightedAp(400.0).rank(3).timeSet(Instant.now()).build()));
+
+        var rows = service.pool(war, null, 7L);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).viewerScore()).satisfies(best -> {
+            assertThat(best.getScore()).isEqualTo(985_000);
+            assertThat(best.getAccuracy()).isEqualTo(0.985);
+            assertThat(best.getAp()).isEqualTo(412.5);
+            assertThat(best.getRank()).isEqualTo(3);
+        });
+        assertThat(rows.get(1).viewerScore()).isNull();
+        assertThat(service.pool(war, null, null)).extracting(r -> r.viewerScore()).containsOnlyNulls();
+        verify(scoreRepository).findActiveByUserAndMapDifficultyIdIn(any(), anyCollection());
     }
 
     @Test

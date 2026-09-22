@@ -24,7 +24,6 @@ import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanXpAward;
 import com.accsaber.backend.service.item.ItemService;
@@ -65,7 +64,7 @@ public class ClanWarSettlementService {
             levelService.grantXp(winner.getId(), new ClanXpAward(clanProperties.getWar().getWinClanXp(),
                     ClanXpSource.war_win, warId.toString(), true));
             transactionTemplate.executeWithoutResult(status -> rewards.stream()
-                    .filter(reward -> ClanCosmeticService.isClanCosmetic(reward.getItem().getType()))
+                    .filter(reward -> reward.getItem().getType().isClanCosmetic())
                     .forEach(reward -> clanItemRepository.grantItem(winner.getId(), reward.getItem().getId(),
                             ClanItemSource.war.name(), warId.toString())));
         }
@@ -95,7 +94,7 @@ public class ClanWarSettlementService {
                     return;
                 }
                 rewards.stream()
-                        .filter(reward -> !ClanCosmeticService.isClanCosmetic(reward.getItem().getType()))
+                        .filter(reward -> !reward.getItem().getType().isClanCosmetic())
                         .filter(reward -> reward.getTopContributors() == null
                                 || winnerRank <= reward.getTopContributors())
                         .forEach(reward -> itemService.awardSystem(userId, reward.getItem().getId(),

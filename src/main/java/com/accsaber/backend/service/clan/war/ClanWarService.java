@@ -126,7 +126,7 @@ public class ClanWarService {
         chatChannel.announce(attacker, ChatNotice.ofWar(ChatEvent.war_declared, actor, defender, war));
         chatChannel.announce(defender, ChatNotice.ofWar(ChatEvent.war_received, actor, attacker, war));
         notifier.warDeclared(war);
-        return detail(war, clanId);
+        return detail(war, clanId, actor.getId());
     }
 
     @Transactional
@@ -177,7 +177,7 @@ public class ClanWarService {
         UUID viewerClanId = viewerId == null ? null : memberRepository.findOpenByUserId(viewerId)
                 .map(member -> member.getClan().getId())
                 .orElse(null);
-        return detail(war, viewerClanId);
+        return detail(war, viewerClanId, viewerId);
     }
 
     public Page<ClanWarParticipantResponse> participants(UUID warId, Pageable pageable) {
@@ -249,7 +249,7 @@ public class ClanWarService {
                 .build();
     }
 
-    private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId) {
-        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId));
+    private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId, Long viewerId) {
+        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId));
     }
 }

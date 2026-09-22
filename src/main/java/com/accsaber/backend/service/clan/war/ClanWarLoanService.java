@@ -127,8 +127,8 @@ public class ClanWarLoanService {
         return responses(List.of(loan)).getFirst();
     }
 
-    public Page<ClanWarLoanResponse> list(UUID warId, Long userId, Pageable pageable) {
-        Page<ClanWarLoan> page = loanRepository.findPage(warId, userId, pageable);
+    public Page<ClanWarLoanResponse> list(UUID warId, Long userId, ClanWarLoanStatus status, Pageable pageable) {
+        Page<ClanWarLoan> page = loanRepository.findPage(warId, userId, status, pageable);
         return new PageImpl<>(responses(page.getContent()), pageable, page.getTotalElements());
     }
 

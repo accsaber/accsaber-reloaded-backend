@@ -62,9 +62,10 @@ class ClanRefCacheTest {
     }
 
     @Test
-    void everyMemberSharesTheirClansRefWithItsNameCosmeticsButNotTheBanner() {
+    void everyMemberSharesTheirClansRefWithItsTagCardAndNothingElse() {
         when(equippedRepository.findAllOfActiveClans())
-                .thenReturn(List.of(equipped(owls, "clan_emblem"), equipped(owls, "clan_banner")));
+                .thenReturn(List.of(equipped(owls, "clan_tag_card"), equipped(owls, "clan_banner"),
+                        equipped(owls, "clan_title_effect")));
         when(memberRepository.findAllOpenInActiveClans())
                 .thenReturn(List.of(member(owls, 1L), member(owls, 2L), member(lapiz, 3L)));
 
@@ -72,7 +73,7 @@ class ClanRefCacheTest {
 
         PublicClanResponse first = ClanRefCache.forUser(1L);
         assertThat(first.tag()).isEqualTo("NOW");
-        assertThat(first.equipped()).extracting(item -> item.getTypeKey()).containsExactly("clan_emblem");
+        assertThat(first.equipped()).extracting(item -> item.getTypeKey()).containsExactly("clan_tag_card");
         assertThat(ClanRefCache.forUser("2")).isSameAs(first);
         assertThat(ClanRefCache.forUser(3L).equipped()).isEmpty();
         assertThat(ClanRefCache.forUser(4L)).isNull();

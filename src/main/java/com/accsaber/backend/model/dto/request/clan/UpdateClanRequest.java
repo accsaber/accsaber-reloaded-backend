@@ -21,5 +21,8 @@ public class UpdateClanRequest {
     @CleanText
     private String description;
 
+    @Pattern(regexp = "^(#[0-9a-fA-F]{6})?$")
+    private String tagColor;
+
     private Boolean acceptingRequests;
 }

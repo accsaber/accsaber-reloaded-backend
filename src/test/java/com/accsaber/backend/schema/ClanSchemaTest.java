@@ -99,7 +99,7 @@ class ClanSchemaTest {
         List<String> children = entityManager.createNativeQuery("SELECT child.key FROM item_types child "
                 + "JOIN item_types parent ON parent.id = child.parent_type_id "
                 + "WHERE parent.key = 'clan_cosmetic' ORDER BY child.key").getResultList();
-        assertThat(children).containsExactly("clan_banner", "clan_emblem", "clan_tag_effect");
+        assertThat(children).containsExactly("clan_banner", "clan_tag_card", "clan_title_effect");
         assertThat(((Number) single("SELECT amount FROM clan_level_capacities "
                 + "WHERE level = 0 AND capacity = 'member_slots'")).intValue()).isEqualTo(10);
         assertThat(((Number) single("SELECT COUNT(*) FROM clan_level_war_modes WHERE level = 0")).intValue())
@@ -107,16 +107,17 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("clan cosmetic types reuse the badge, background and title render contracts")
+    @DisplayName("clan cosmetic types reuse the border colour, background and title render contracts")
     void cosmeticTypesReuseRenderContracts() {
-        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_emblem') = "
-                + "(SELECT value_schema FROM item_types WHERE key = 'badge')")).isEqualTo(true);
+        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_tag_card') = "
+                + "(SELECT value_schema FROM item_types WHERE key = 'profile_border_color')")).isEqualTo(true);
+        assertThat(single("SELECT COUNT(*) FROM item_types WHERE key = 'clan_card'")).isEqualTo(0L);
         assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_banner') = "
                 + "(SELECT value_schema FROM item_types WHERE key = 'profile_background')")).isEqualTo(true);
         assertThat(single("SELECT jsonb_exists(value_schema -> 'properties', 'text') FROM item_types "
-                + "WHERE key = 'clan_tag_effect'")).isEqualTo(false);
+                + "WHERE key = 'clan_title_effect'")).isEqualTo(false);
         assertThat(single("SELECT CAST(value_schema -> 'required' AS text) FROM item_types "
-                + "WHERE key = 'clan_tag_effect'")).isEqualTo("[\"states\"]");
+                + "WHERE key = 'clan_title_effect'")).isEqualTo("[\"states\"]");
     }
 
     @Test
@@ -125,6 +126,16 @@ class ClanSchemaTest {
         clan("Valid", "AB12");
 
         assertThatThrownBy(() -> clan("Lowercase", "abc")).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a tag colour is a lowercase six digit hex or nothing")
+    void tagColourShapeIsEnforced() {
+        UUID clan = clan("Painted", "PNT");
+        sql("UPDATE clans SET tag_color = '#22c55e' WHERE id = ?1", clan);
+
+        assertThatThrownBy(() -> sql("UPDATE clans SET tag_color = 'green' WHERE id = ?1", clan))
+                .isInstanceOf(PersistenceException.class);
     }
 
     @Test
@@ -173,13 +184,13 @@ class ClanSchemaTest {
     @DisplayName("a clan can only equip a cosmetic it owns, in the slot of that cosmetic's type")
     void equippedCosmeticMustBeOwnedAndMatchItsSlot() {
         UUID red = clan("Red", "RED");
-        UUID emblem = item("clan_emblem", "Red Emblem");
-        sql("INSERT INTO clan_items (clan_id, item_id, source) VALUES (?1, ?2, 'manual')", red, emblem);
+        UUID card = item("clan_tag_card", "Red Card");
+        sql("INSERT INTO clan_items (clan_id, item_id, source) VALUES (?1, ?2, 'manual')", red, card);
         sql("INSERT INTO clan_equipped_items (clan_id, item_type_id, item_id) VALUES (?1, ?2, ?3)",
-                red, itemType("clan_emblem"), emblem);
+                red, itemType("clan_tag_card"), card);
 
         assertThatThrownBy(() -> sql("INSERT INTO clan_equipped_items (clan_id, item_type_id, item_id) "
-                + "VALUES (?1, ?2, ?3)", red, itemType("clan_banner"), emblem))
+                + "VALUES (?1, ?2, ?3)", red, itemType("clan_banner"), card))
                 .isInstanceOf(PersistenceException.class);
     }
 

@@ -93,28 +93,28 @@ class ClanCosmeticServiceTest {
 
     @Test
     void aCosmeticTheClanDoesNotOwnIsNotFound() {
-        Item emblem = item(clanCosmetic, "clan_emblem");
+        Item card = item(clanCosmetic, "clan_tag_card");
 
-        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, emblem.getId()))
+        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, card.getId()))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(equippedRepository, never()).saveAndFlush(any());
     }
 
     @Test
     void equippingFillsTheSlotForTheItemTypeAndIsAudited() {
-        Item emblem = item(clanCosmetic, "clan_emblem");
-        when(clanItemRepository.existsByClan_IdAndItem_Id(CLAN_ID, emblem.getId())).thenReturn(true);
+        Item card = item(clanCosmetic, "clan_tag_card");
+        when(clanItemRepository.existsByClan_IdAndItem_Id(CLAN_ID, card.getId())).thenReturn(true);
 
-        service.equip(CLAN_ID, FOUNDER, emblem.getId());
+        service.equip(CLAN_ID, FOUNDER, card.getId());
 
         ArgumentCaptor<ClanEquippedItem> slot = ArgumentCaptor.forClass(ClanEquippedItem.class);
         verify(equippedRepository).saveAndFlush(slot.capture());
-        assertThat(slot.getValue().getItemType()).isSameAs(emblem.getType());
-        assertThat(slot.getValue().getItem()).isSameAs(emblem);
+        assertThat(slot.getValue().getItemType()).isSameAs(card.getType());
+        assertThat(slot.getValue().getItem()).isSameAs(card);
         ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
         verify(auditRepository).save(audit.capture());
         assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.cosmetic_equipped);
-        assertThat(audit.getValue().getDetails()).containsEntry("itemType", "clan_emblem");
+        assertThat(audit.getValue().getDetails()).containsEntry("itemType", "clan_tag_card");
         verify(refCache).refreshAfterCommit(CLAN_ID);
     }
 

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.controller.clan.ClanController;
 import com.accsaber.backend.model.dto.request.clan.ClanCapacityRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
@@ -34,6 +35,7 @@ import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanSeasonService;
 import com.accsaber.backend.service.clan.ClanService;
 import com.accsaber.backend.service.clan.war.ClanWarRewardService;
+import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,6 +54,7 @@ public class AdminClanController {
     private final ClanLevelService levelService;
     private final ClanSeasonService seasonService;
     private final ClanWarRewardService warRewardService;
+    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "Set how much of a capacity a level adds",
             description = "Capacities stack, so the amount here is added on top of every lower level's. Returns the "
@@ -161,12 +164,17 @@ public class AdminClanController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Change a clan's name, tag or description",
-            description = "For clans breaking the rules. The reason lands in the clan's audit log.")
+    @Operation(summary = "Change a clan's name, tag, description or tag colour, or take its icon down",
+            description = "For clans breaking the rules. Send removeIcon to clear an uploaded icon. The reason lands "
+                    + "in the clan's audit log.")
     @PatchMapping("/{clanId}")
     public ResponseEntity<ClanResponse> moderate(@PathVariable UUID clanId,
             @Valid @RequestBody ModerateClanRequest request) {
-        return ResponseEntity.ok(clanService.moderate(clanId, request));
+        ClanResponse clan = clanService.moderate(clanId, request);
+        if (request.isRemoveIcon()) {
+            mediaProcessingService.deleteIfExists(ClanController.CLAN_ICON_SUBDIR, clanId.toString());
+        }
+        return ResponseEntity.ok(clan);
     }
 
     @Operation(summary = "Disband a clan",

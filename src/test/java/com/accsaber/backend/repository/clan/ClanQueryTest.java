@@ -298,7 +298,7 @@ class ClanQueryTest {
     @Test
     @DisplayName("levelling grants the cosmetics of every level crossed, once each")
     void levelItemsGrantForTheCrossedRangeOnly() {
-        Item levelOne = clanItem("clan_emblem", "Level One Emblem");
+        Item levelOne = clanItem("clan_tag_card", "Level One Card");
         Item levelThree = clanItem("clan_banner", "Level Three Banner");
         entityManager.persist(ClanLevelItem.builder().item(levelOne).level(1).build());
         entityManager.persist(ClanLevelItem.builder().item(levelThree).level(3).build());
@@ -313,16 +313,16 @@ class ClanQueryTest {
     @Test
     @DisplayName("equipped cosmetics load for many clans in one query")
     void equippedLoadsForManyClans() {
-        Item emblem = clanItem("clan_emblem", "Owl Emblem");
-        entityManager.persist(ClanItem.builder().clan(owls).item(emblem).source(ClanItemSource.manual).build());
-        entityManager.persist(ClanEquippedItem.builder().clan(owls).itemType(emblem.getType()).item(emblem).build());
+        Item card = clanItem("clan_tag_card", "Owl Card");
+        entityManager.persist(ClanItem.builder().clan(owls).item(card).source(ClanItemSource.manual).build());
+        entityManager.persist(ClanEquippedItem.builder().clan(owls).itemType(card.getType()).item(card).build());
         entityManager.flush();
         entityManager.clear();
 
         List<ClanEquippedItem> equipped = equippedRepository.findByClanIds(List.of(owls.getId(), lapiz.getId()));
 
-        assertThat(equipped).extracting(e -> e.getItem().getName()).containsExactly("Owl Emblem");
-        assertThat(equippedRepository.deleteSlot(owls.getId(), "clan_emblem")).isEqualTo(1);
+        assertThat(equipped).extracting(e -> e.getItem().getName()).containsExactly("Owl Card");
+        assertThat(equippedRepository.deleteSlot(owls.getId(), "clan_tag_card")).isEqualTo(1);
     }
 
     private Category overall() {
@@ -883,9 +883,13 @@ class ClanQueryTest {
         assertThat(loanRepository.countOpenBetween(owls.getId(), rival.getId())).isEqualTo(1);
         assertThat(loanRepository.findAcceptedByWarId(warId)).extracting(ClanWarLoan::getId).containsExactly(accepted);
         assertThat(loanRepository.findOpenByLendingClanId(owls.getId())).hasSize(2);
-        assertThat(loanRepository.findPage(warId, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
-        assertThat(loanRepository.findPage(null, member.getId(), PageRequest.of(0, 10)).getContent())
+        assertThat(loanRepository.findPage(warId, null, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(loanRepository.findPage(null, member.getId(), null, PageRequest.of(0, 10)).getContent())
                 .extracting(ClanWarLoan::getId).containsExactly(pending);
+        assertThat(loanRepository.findPage(warId, null, ClanWarLoanStatus.pending, PageRequest.of(0, 10)).getContent())
+                .extracting(ClanWarLoan::getId).containsExactly(pending);
+        assertThat(loanRepository.findPage(warId, null, ClanWarLoanStatus.accepted, PageRequest.of(0, 10)).getContent())
+                .extracting(ClanWarLoan::getId).containsExactly(accepted);
         assertThat(loanRepository.findWithRefsById(pending)).isPresent();
         assertThat(allianceRepository.findActiveBetween(lapiz.getId(), owls.getId())).isPresent();
 
@@ -1000,7 +1004,7 @@ class ClanQueryTest {
     @Test
     @DisplayName("a new level cosmetic reaches every active clan already past that level's XP, once")
     void levelItemCatchUp() {
-        Item emblem = clanItem("clan_emblem", "Late Emblem");
+        Item card = clanItem("clan_tag_card", "Late Card");
         Clan gone = clan("Gone", "GON", "gone");
         entityManager.flush();
         entityManager.createNativeQuery("UPDATE clans SET total_xp = 500 WHERE id IN (?1, ?2)")
@@ -1008,10 +1012,10 @@ class ClanQueryTest {
         entityManager.createNativeQuery("UPDATE clans SET active = false WHERE id = ?1")
                 .setParameter(1, gone.getId()).executeUpdate();
 
-        assertThat(clanItemRepository.grantToClansAtLevel(emblem.getId(), 2, 300.0)).isEqualTo(1);
-        assertThat(clanItemRepository.grantToClansAtLevel(emblem.getId(), 2, 300.0)).isZero();
-        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(owls.getId(), emblem.getId())).isTrue();
-        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(lapiz.getId(), emblem.getId())).isFalse();
+        assertThat(clanItemRepository.grantToClansAtLevel(card.getId(), 2, 300.0)).isEqualTo(1);
+        assertThat(clanItemRepository.grantToClansAtLevel(card.getId(), 2, 300.0)).isZero();
+        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(owls.getId(), card.getId())).isTrue();
+        assertThat(clanItemRepository.existsByClan_IdAndItem_Id(lapiz.getId(), card.getId())).isFalse();
     }
 
     @Test
@@ -1020,13 +1024,13 @@ class ClanQueryTest {
         Clan gone = clan("Gone", "GON", "gone");
         User ghost = user(76561190000000313L, "Ghost");
         seat(gone, ghost, ClanRole.founder, Instant.now());
-        Item emblem = clanItem("clan_emblem", "Owl Emblem");
-        Item goneEmblem = clanItem("clan_emblem", "Gone Emblem");
-        entityManager.persist(ClanItem.builder().clan(owls).item(emblem).source(ClanItemSource.manual).build());
-        entityManager.persist(ClanItem.builder().clan(gone).item(goneEmblem).source(ClanItemSource.manual).build());
+        Item card = clanItem("clan_tag_card", "Owl Card");
+        Item goneCard = clanItem("clan_tag_card", "Gone Card");
+        entityManager.persist(ClanItem.builder().clan(owls).item(card).source(ClanItemSource.manual).build());
+        entityManager.persist(ClanItem.builder().clan(gone).item(goneCard).source(ClanItemSource.manual).build());
         entityManager.flush();
-        entityManager.persist(ClanEquippedItem.builder().clan(owls).itemType(emblem.getType()).item(emblem).build());
-        entityManager.persist(ClanEquippedItem.builder().clan(gone).itemType(goneEmblem.getType()).item(goneEmblem)
+        entityManager.persist(ClanEquippedItem.builder().clan(owls).itemType(card.getType()).item(card).build());
+        entityManager.persist(ClanEquippedItem.builder().clan(gone).itemType(goneCard.getType()).item(goneCard)
                 .build());
         entityManager.flush();
         entityManager.createNativeQuery("UPDATE clans SET active = false WHERE id = ?1")
@@ -1040,7 +1044,7 @@ class ClanQueryTest {
                 .containsExactlyInAnyOrder(founder.getId(), commander.getId(), officer.getId());
         assertThat(equippedRepository.findAllOfActiveClans()).singleElement().satisfies(e -> {
             assertThat(Hibernate.isInitialized(e.getItem().getType())).isTrue();
-            assertThat(e.getItem().getName()).isEqualTo("Owl Emblem");
+            assertThat(e.getItem().getName()).isEqualTo("Owl Card");
         });
     }
 
