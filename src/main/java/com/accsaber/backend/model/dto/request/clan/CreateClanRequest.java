@@ -23,4 +23,7 @@ public class CreateClanRequest {
     @Size(max = 500)
     @CleanText
     private String description;
+
+    @Pattern(regexp = "^(#[0-9a-fA-F]{6})?$")
+    private String tagColor;
 }

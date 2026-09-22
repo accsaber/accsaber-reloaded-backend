@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoanStatus;
 
 public interface ClanWarLoanRepository extends JpaRepository<ClanWarLoan, UUID> {
 
@@ -58,13 +59,16 @@ public interface ClanWarLoanRepository extends JpaRepository<ClanWarLoan, UUID> 
             SELECT l FROM ClanWarLoan l
             JOIN FETCH l.war JOIN FETCH l.clan JOIN FETCH l.lendingClan JOIN FETCH l.user JOIN FETCH l.offeredBy
             WHERE (:warId IS NULL OR l.war.id = :warId) AND (:userId IS NULL OR l.user.id = :userId)
+              AND (:status IS NULL OR l.status = :status)
             ORDER BY l.createdAt DESC
             """,
             countQuery = """
             SELECT COUNT(l) FROM ClanWarLoan l
             WHERE (:warId IS NULL OR l.war.id = :warId) AND (:userId IS NULL OR l.user.id = :userId)
+              AND (:status IS NULL OR l.status = :status)
             """)
-    Page<ClanWarLoan> findPage(@Param("warId") UUID warId, @Param("userId") Long userId, Pageable pageable);
+    Page<ClanWarLoan> findPage(@Param("warId") UUID warId, @Param("userId") Long userId,
+            @Param("status") ClanWarLoanStatus status, Pageable pageable);
 
     @Modifying(flushAutomatically = true)
     @Query("""

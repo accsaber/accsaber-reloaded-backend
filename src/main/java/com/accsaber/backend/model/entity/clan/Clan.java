@@ -42,6 +42,12 @@ public class Clan {
 
     private String description;
 
+    @Column(name = "icon_url")
+    private String iconUrl;
+
+    @Column(name = "tag_color")
+    private String tagColor;
+
     @Column(name = "accepting_requests", nullable = false)
     @Builder.Default
     private boolean acceptingRequests = true;

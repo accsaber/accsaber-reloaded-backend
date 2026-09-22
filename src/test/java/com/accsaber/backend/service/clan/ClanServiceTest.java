@@ -134,6 +134,14 @@ class ClanServiceTest {
         }
 
         @Test
+        void theTagColourIsStoredLowercase() {
+            CreateClanRequest request = request("Night Owls", "NOW");
+            request.setTagColor("#FFAA00");
+
+            assertThat(clanService.create(PLAYER, request).clan().tagColor()).isEqualTo("#ffaa00");
+        }
+
+        @Test
         void aTakenSlugGetsTheTagAppended() {
             when(clanRepository.existsBySlugAndActiveTrue("night-owls")).thenReturn(true);
 
@@ -201,6 +209,45 @@ class ClanServiceTest {
         }
 
         @Test
+        void aNewIconIsSavedAuditedAndReachesTheTagCache() {
+            clanService.setIcon(clanId, PLAYER, "https://cdn.test/clan-icons/x.png?v=1");
+
+            verify(accessService).require(clanId, PLAYER, ClanPermission.CUSTOMIZE);
+            assertThat(clan.getIconUrl()).isEqualTo("https://cdn.test/clan-icons/x.png?v=1");
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getDetails()).containsEntry("icon", "updated");
+            verify(refCache).refreshAfterCommit(clanId);
+        }
+
+        @Test
+        void aTagColourChangeIsAudited() {
+            UpdateClanRequest request = new UpdateClanRequest();
+            request.setTagColor("#22C55E");
+
+            clanService.update(clanId, PLAYER, request);
+
+            assertThat(clan.getTagColor()).isEqualTo("#22c55e");
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getDetails()).containsEntry("tagColor", "#22c55e");
+        }
+
+        @Test
+        void aBlankTagColourClearsIt() {
+            clan.setTagColor("#22c55e");
+            UpdateClanRequest request = new UpdateClanRequest();
+            request.setTagColor("");
+
+            clanService.update(clanId, PLAYER, request);
+
+            assertThat(clan.getTagColor()).isNull();
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getDetails()).containsEntry("tagColor", "cleared");
+        }
+
+        @Test
         void nothingChangedWritesNothing() {
             UpdateClanRequest request = new UpdateClanRequest();
             request.setTag("now");
@@ -256,6 +303,23 @@ class ClanServiceTest {
             assertThat(audit.getValue().getActor()).isNull();
             assertThat(audit.getValue().getDetails()).containsEntry("name", "Early Birds")
                     .containsEntry("reason", "offensive name");
+        }
+
+        @Test
+        void staffCanTakeAnIconDownWithNoOtherChange() {
+            clan.setIconUrl("https://cdn.test/clan-icons/x.png");
+            ModerateClanRequest request = new ModerateClanRequest();
+            request.setChanges(new UpdateClanRequest());
+            request.setRemoveIcon(true);
+            request.setReason("not safe for work");
+
+            clanService.moderate(clanId, request);
+
+            assertThat(clan.getIconUrl()).isNull();
+            ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
+            verify(auditRepository).save(audit.capture());
+            assertThat(audit.getValue().getDetails()).containsEntry("icon", "removed")
+                    .containsEntry("reason", "not safe for work");
         }
 
         @Test

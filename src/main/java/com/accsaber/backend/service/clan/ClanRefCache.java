@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClanRefCache {
 
-    private static final String PAGE_ONLY_COSMETIC = "clan_banner";
+    private static final String TAG_COSMETIC = "clan_tag_card";
 
     private static volatile Map<Long, PublicClanResponse> byUser = Map.of();
 
@@ -50,7 +50,7 @@ public class ClanRefCache {
     @PostConstruct
     @Scheduled(fixedDelay = 600_000, initialDelay = 600_000)
     public synchronized void reload() {
-        Map<UUID, List<ItemResponse>> equipped = nameCosmetics(equippedRepository.findAllOfActiveClans());
+        Map<UUID, List<ItemResponse>> equipped = tagCosmetics(equippedRepository.findAllOfActiveClans());
         Map<UUID, PublicClanResponse> refs = new HashMap<>();
         Map<Long, PublicClanResponse> next = new HashMap<>();
         for (ClanMember member : memberRepository.findAllOpenInActiveClans()) {
@@ -84,15 +84,15 @@ public class ClanRefCache {
         next.values().removeIf(ref -> ref.id().equals(clanId));
         clanRepository.findByIdAndActiveTrue(clanId).ifPresent(clan -> {
             PublicClanResponse ref = PublicClanResponse.of(clan,
-                    nameCosmetics(equippedRepository.findByClanIds(List.of(clanId))).getOrDefault(clanId, List.of()));
+                    tagCosmetics(equippedRepository.findByClanIds(List.of(clanId))).getOrDefault(clanId, List.of()));
             memberRepository.findOpenUserIds(clanId).forEach(userId -> next.put(userId, ref));
         });
         byUser = Map.copyOf(next);
     }
 
-    private static Map<UUID, List<ItemResponse>> nameCosmetics(List<ClanEquippedItem> equipped) {
+    private static Map<UUID, List<ItemResponse>> tagCosmetics(List<ClanEquippedItem> equipped) {
         return equipped.stream()
-                .filter(e -> !PAGE_ONLY_COSMETIC.equals(e.getItem().getType().getKey()))
+                .filter(e -> TAG_COSMETIC.equals(e.getItem().getType().getKey()))
                 .collect(Collectors.groupingBy(e -> e.getClan().getId(),
                         Collectors.mapping(e -> ItemMapper.toItemResponse(e.getItem()), Collectors.toList())));
     }

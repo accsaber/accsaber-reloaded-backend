@@ -876,6 +876,9 @@ public class ItemService {
 
     private UserItemLink awardOrMerge(Long userId, Item item, Set<ItemModifier> explicitModifiers, long quantity,
             ItemSource source, String sourceId, StaffUser staff, String reason) {
+        if (item.getType().isClanCosmetic()) {
+            throw new ValidationException("itemId", "is a clan cosmetic and only a clan can own it");
+        }
         if (item.isUniquePerUser() && userItemLinkRepository.existsByUser_IdAndItem_Id(userId, item.getId())) {
             throw new ConflictException("Player already owns '" + item.getName() + "', which is a unique item");
         }

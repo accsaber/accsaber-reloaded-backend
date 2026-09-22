@@ -13,6 +13,8 @@ public class ModerateClanRequest {
     @Valid
     private UpdateClanRequest changes;
 
+    private boolean removeIcon;
+
     @NotBlank
     @Size(max = 500)
     private String reason;

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarPoolEntryResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.score.MyScoreSummary;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
@@ -34,10 +36,12 @@ import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.map.MapService;
+import com.accsaber.backend.util.CampaignScoreMetrics;
 
 import lombok.RequiredArgsConstructor;
 
@@ -56,6 +60,7 @@ public class ClanWarPoolService {
     private final ClanAccessService accessService;
     private final ClanCosmeticService cosmeticService;
     private final MapService mapService;
+    private final ScoreRepository scoreRepository;
     private final ClanWarFeed feed;
     private final ClanProperties clanProperties;
 
@@ -131,20 +136,37 @@ public class ClanWarPoolService {
         lock(war);
     }
 
-    public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId) {
+    public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId, Long viewerId) {
         List<ClanWarPoolEntry> entries = poolRepository.findByWarId(war.getId()).stream()
                 .filter(entry -> war.getStatus() != ClanWarStatus.picking || (entry.getPickedByClan() != null
                         && entry.getPickedByClan().getId().equals(viewerClanId)))
                 .toList();
-        Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
-                entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList());
+        List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
+        Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
                 List.of(war.getAttackerClan(), war.getDefenderClan()));
+        Map<UUID, MyScoreSummary> viewerScores = viewerScores(viewerId, difficultyIds);
         return entries.stream()
                 .map(entry -> new ClanWarPoolEntryResponse(difficulties.get(entry.getMapDifficulty().getId()),
                         entry.getPickedByClan() == null ? null : clans.get(entry.getPickedByClan().getId()),
-                        entry.getSource()))
+                        entry.getSource(), viewerScores.get(entry.getMapDifficulty().getId())))
                 .toList();
+    }
+
+    private Map<UUID, MyScoreSummary> viewerScores(Long viewerId, List<UUID> difficultyIds) {
+        if (viewerId == null || difficultyIds.isEmpty()) {
+            return Map.of();
+        }
+        return scoreRepository.findActiveByUserAndMapDifficultyIdIn(viewerId, difficultyIds).stream()
+                .collect(Collectors.toMap(score -> score.getMapDifficulty().getId(), score -> MyScoreSummary.builder()
+                        .id(score.getId())
+                        .score(score.getScore())
+                        .accuracy(CampaignScoreMetrics.accuracy(score))
+                        .ap(score.getAp())
+                        .weightedAp(score.getWeightedAp())
+                        .rank(score.getRank())
+                        .timeSet(score.getTimeSet())
+                        .build(), (first, second) -> first));
     }
 
     public PlaylistSource playlistSource(UUID warId) {

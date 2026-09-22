@@ -115,7 +115,7 @@ public class ClanLevelService {
     @Transactional
     public List<ClanLevelStepResponse> setLevelItem(int level, UUID itemId) {
         Item item = itemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item", itemId));
-        if (!ClanCosmeticService.isClanCosmetic(item.getType())) {
+        if (!item.getType().isClanCosmetic()) {
             throw new ValidationException("itemId", "must be a clan cosmetic");
         }
         ClanLevelItem row = levelItemRepository.findById(itemId)

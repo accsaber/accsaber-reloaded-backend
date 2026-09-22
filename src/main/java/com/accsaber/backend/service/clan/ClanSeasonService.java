@@ -203,7 +203,7 @@ public class ClanSeasonService {
                 if (rank < reward.getRankFrom() || rank > reward.getRankTo()) {
                     continue;
                 }
-                if (ClanCosmeticService.isClanCosmetic(reward.getItem().getType())) {
+                if (reward.getItem().getType().isClanCosmetic()) {
                     clanItemRepository.grantItem(clanId, reward.getItem().getId(), ClanItemSource.season.name(),
                             season.getId().toString());
                     continue;

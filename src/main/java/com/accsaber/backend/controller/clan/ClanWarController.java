@@ -30,6 +30,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarLoanResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
+import com.accsaber.backend.model.entity.clan.war.ClanWarLoanStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.clan.war.ClanWarLoanService;
@@ -155,21 +156,26 @@ public class ClanWarController {
         return ResponseEntity.ok(loanService.resolve(loanId, principal.getUserId(), request.getStatus()));
     }
 
-    @Operation(summary = "List your loans", description = "Every loan offered for you, newest first.")
+    @Operation(summary = "List your loans",
+            description = "Every loan offered for you, newest first. Filter with status, for example pending.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/wars/loans")
     public ResponseEntity<Page<ClanWarLoanResponse>> myLoans(
             @AuthenticationPrincipal PlayerUserDetails principal,
+            @RequestParam(required = false) ClanWarLoanStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(loanService.list(null, principal.getUserId(), pageable));
+        return ResponseEntity.ok(loanService.list(null, principal.getUserId(), status, pageable));
     }
 
-    @Operation(summary = "List a war's loans", description = "Every loan offered into this war, newest first.")
+    @Operation(summary = "List a war's loans",
+            description = "Every loan offered into this war, newest first. Filter with status, for example pending "
+                    + "or accepted.")
     @GetMapping("/wars/{warId}/loans")
     public ResponseEntity<Page<ClanWarLoanResponse>> warLoans(
             @PathVariable UUID warId,
+            @RequestParam(required = false) ClanWarLoanStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(loanService.list(warId, null, pageable));
+        return ResponseEntity.ok(loanService.list(warId, null, status, pageable));
     }
 
     @Operation(summary = "List a war's participants",

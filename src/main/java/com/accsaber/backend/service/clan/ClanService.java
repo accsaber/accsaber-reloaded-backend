@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -91,6 +92,7 @@ public class ClanService {
                 .tag(tag)
                 .slug(slugFor(name, tag, null))
                 .description(request.getDescription())
+                .tagColor(normalizedColor(request.getTagColor()))
                 .build());
         roster.seat(clan, founder, ClanRole.founder);
         levelService.grantStartingItems(clan.getId());
@@ -112,10 +114,30 @@ public class ClanService {
         return toResponse(clan);
     }
 
+    public void assertCanCustomize(UUID clanId, Long playerId) {
+        accessService.require(clanId, accessService.player(playerId).getId(), ClanPermission.CUSTOMIZE);
+    }
+
+    @Transactional
+    public ClanResponse setIcon(UUID clanId, Long playerId, String iconUrl) {
+        User actor = accessService.player(playerId);
+        Clan clan = roster.lock(clanId);
+        accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
+        clan.setIconUrl(iconUrl);
+        saveUnique(clan);
+        auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actor)
+                .action(ClanAuditAction.profile_updated).details(iconChange(iconUrl)).build());
+        return toResponse(clan);
+    }
+
     @Transactional
     public ClanResponse moderate(UUID clanId, ModerateClanRequest request) {
         Clan clan = roster.lock(clanId);
         Map<String, Object> changes = applyChanges(clan, request.getChanges());
+        if (request.isRemoveIcon() && clan.getIconUrl() != null) {
+            clan.setIconUrl(null);
+            changes.putAll(iconChange(null));
+        }
         if (changes.isEmpty()) {
             return toResponse(clan);
         }
@@ -184,11 +206,26 @@ public class ClanService {
             clan.setDescription(request.getDescription());
             changes.put("description", clan.getDescription());
         }
+        if (request.getTagColor() != null) {
+            String tagColor = normalizedColor(request.getTagColor());
+            if (!Objects.equals(tagColor, clan.getTagColor())) {
+                clan.setTagColor(tagColor);
+                changes.put("tagColor", tagColor == null ? "cleared" : tagColor);
+            }
+        }
         if (request.getAcceptingRequests() != null && request.getAcceptingRequests() != clan.isAcceptingRequests()) {
             clan.setAcceptingRequests(request.getAcceptingRequests());
             changes.put("acceptingRequests", clan.isAcceptingRequests());
         }
         return changes;
+    }
+
+    private static Map<String, Object> iconChange(String iconUrl) {
+        return new LinkedHashMap<>(Map.of("icon", iconUrl == null ? "removed" : "updated"));
+    }
+
+    private static String normalizedColor(String color) {
+        return color == null || color.isBlank() ? null : color.toLowerCase(Locale.ROOT);
     }
 
     private String slugFor(String name, String tag, String currentSlug) {

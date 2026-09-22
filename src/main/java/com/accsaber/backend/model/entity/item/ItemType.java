@@ -34,6 +34,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ItemType {
 
+    private static final String CLAN_COSMETIC = "clan_cosmetic";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -65,4 +67,8 @@ public class ItemType {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public boolean isClanCosmetic() {
+        return parentType != null && CLAN_COSMETIC.equals(parentType.getKey());
+    }
 }
