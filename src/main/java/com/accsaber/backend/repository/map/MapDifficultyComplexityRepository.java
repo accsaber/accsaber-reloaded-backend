@@ -64,7 +64,7 @@ public interface MapDifficultyComplexityRepository extends JpaRepository<MapDiff
                         JOIN d.map m
                         LEFT JOIN c.supersedes p
                         WHERE c.round.id IN :roundIds
-                        ORDER BY m.songName, d.difficulty
+                        ORDER BY c.createdAt, c.id
                         """)
         List<ReweightRoundMapRow> findMapRowsByRoundIds(@Param("roundIds") List<UUID> roundIds);
 }

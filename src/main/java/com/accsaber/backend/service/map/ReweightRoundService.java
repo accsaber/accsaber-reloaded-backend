@@ -1,5 +1,9 @@
 package com.accsaber.backend.service.map;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.dto.projection.ReweightRoundMapRow;
 import com.accsaber.backend.model.dto.response.CategoryResponse;
-import com.accsaber.backend.model.dto.response.map.ReweightRoundResponse;
+import com.accsaber.backend.model.dto.response.map.ReweightDayResponse;
 import com.accsaber.backend.model.entity.map.ReweightRound;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 import com.accsaber.backend.repository.map.ReweightRoundRepository;
@@ -49,26 +53,29 @@ public class ReweightRoundService {
     }
 
     @Cacheable("reweightRounds")
-    public List<ReweightRoundResponse> findForCategory(UUID categoryId) {
+    public List<ReweightDayResponse> findForCategory(UUID categoryId) {
         CategoryResponse category = categoryService.findById(categoryId);
         List<ReweightRound> rounds = OVERALL_CODE.equals(category.getCode())
                 ? roundRepository.findLiveCategoriesOldestFirst()
                 : roundRepository.findByCategoryOldestFirst(categoryId);
-        Map<UUID, List<ReweightRoundResponse.MapChange>> maps = loadMapChanges(rounds);
-        return rounds.stream().map(r -> toResponse(r, maps.get(r.getId()))).toList();
+        Collection<List<ReweightRound>> days = rounds.stream()
+                .collect(Collectors.groupingBy(r -> LocalDate.ofInstant(r.getCreatedAt(), ZoneOffset.UTC),
+                        LinkedHashMap::new, Collectors.toList()))
+                .values();
+        Map<UUID, List<ReweightRoundMapRow>> rows = loadMapRows(days);
+        return days.stream().map(day -> toResponse(day, rows)).toList();
     }
 
-    private Map<UUID, List<ReweightRoundResponse.MapChange>> loadMapChanges(List<ReweightRound> rounds) {
-        List<UUID> smallRoundIds = rounds.stream()
-                .filter(r -> r.getMapCount() <= MAP_DETAIL_LIMIT)
-                .map(ReweightRound::getId)
+    private Map<UUID, List<ReweightRoundMapRow>> loadMapRows(Collection<List<ReweightRound>> days) {
+        List<UUID> detailedRoundIds = days.stream()
+                .filter(day -> mapCount(day) <= MAP_DETAIL_LIMIT)
+                .flatMap(day -> day.stream().map(ReweightRound::getId))
                 .toList();
-        if (smallRoundIds.isEmpty()) {
+        if (detailedRoundIds.isEmpty()) {
             return Map.of();
         }
-        return complexityRepository.findMapRowsByRoundIds(smallRoundIds).stream()
-                .collect(Collectors.groupingBy(ReweightRoundMapRow::roundId,
-                        Collectors.mapping(ReweightRoundService::toMapChange, Collectors.toList())));
+        return complexityRepository.findMapRowsByRoundIds(detailedRoundIds).stream()
+                .collect(Collectors.groupingBy(ReweightRoundMapRow::roundId));
     }
 
     private static ReweightRound toRound(List<RankedChange> changes) {
@@ -94,27 +101,45 @@ public class ReweightRoundService {
                 .build();
     }
 
-    private static ReweightRoundResponse toResponse(ReweightRound round, List<ReweightRoundResponse.MapChange> maps) {
-        return ReweightRoundResponse.builder()
-                .id(round.getId())
-                .at(round.getCreatedAt())
-                .categoryCode(round.getCategory().getCode())
-                .reason(round.getReason())
-                .mapCount(round.getMapCount())
-                .buffs(round.getBuffs())
-                .nerfs(round.getNerfs())
-                .maps(round.getMapCount() <= MAP_DETAIL_LIMIT ? Objects.requireNonNullElse(maps, List.of()) : null)
+    private static ReweightDayResponse toResponse(List<ReweightRound> day, Map<UUID, List<ReweightRoundMapRow>> rows) {
+        ReweightRound first = day.getFirst();
+        int mapCount = mapCount(day);
+        List<String> reasons = day.stream().map(ReweightRound::getReason).distinct().toList();
+        return ReweightDayResponse.builder()
+                .day(LocalDate.ofInstant(first.getCreatedAt(), ZoneOffset.UTC))
+                .at(first.getCreatedAt())
+                .categoryCodes(day.stream().map(r -> r.getCategory().getCode()).distinct().toList())
+                .reason(reasons.size() == 1 ? reasons.getFirst() : null)
+                .mapCount(mapCount)
+                .buffs(day.stream().mapToInt(ReweightRound::getBuffs).sum())
+                .nerfs(day.stream().mapToInt(ReweightRound::getNerfs).sum())
+                .maps(mapCount <= MAP_DETAIL_LIMIT ? mapChanges(day, rows) : null)
                 .build();
     }
 
-    private static ReweightRoundResponse.MapChange toMapChange(ReweightRoundMapRow row) {
-        return ReweightRoundResponse.MapChange.builder()
-                .mapId(row.mapId())
-                .mapDifficultyId(row.mapDifficultyId())
-                .songName(row.songName())
-                .difficulty(row.difficulty())
-                .from(row.from())
-                .to(row.to())
-                .build();
+    private static int mapCount(List<ReweightRound> day) {
+        return day.stream().mapToInt(ReweightRound::getMapCount).sum();
+    }
+
+    private static List<ReweightDayResponse.MapChange> mapChanges(List<ReweightRound> day,
+            Map<UUID, List<ReweightRoundMapRow>> rows) {
+        Map<UUID, ReweightRoundMapRow> firsts = new LinkedHashMap<>();
+        Map<UUID, Double> lasts = new HashMap<>();
+        for (ReweightRound round : day) {
+            for (ReweightRoundMapRow row : rows.getOrDefault(round.getId(), List.of())) {
+                firsts.putIfAbsent(row.mapDifficultyId(), row);
+                lasts.put(row.mapDifficultyId(), row.to());
+            }
+        }
+        return firsts.values().stream()
+                .map(row -> ReweightDayResponse.MapChange.builder()
+                        .mapId(row.mapId())
+                        .mapDifficultyId(row.mapDifficultyId())
+                        .songName(row.songName())
+                        .difficulty(row.difficulty())
+                        .from(row.from())
+                        .to(lasts.get(row.mapDifficultyId()))
+                        .build())
+                .toList();
     }
 }

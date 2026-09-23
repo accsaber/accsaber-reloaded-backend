@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,7 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.model.dto.projection.ReweightRoundMapRow;
 import com.accsaber.backend.model.dto.response.CategoryResponse;
-import com.accsaber.backend.model.dto.response.map.ReweightRoundResponse;
+import com.accsaber.backend.model.dto.response.map.ReweightDayResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -47,6 +48,7 @@ class ReweightRoundServiceTest {
 
     private final Category trueAcc = category("true_acc");
     private final Category techAcc = category("tech_acc");
+    private final Category overall = category("overall");
 
     @Test
     void opensOneRoundPerCategoryWithBuffsAndNerfs() {
@@ -75,40 +77,52 @@ class ReweightRoundServiceTest {
     }
 
     @Test
-    void listsMapsOnlyForRoundsOfFiveOrFewer() {
-        ReweightRound small = round(trueAcc, 2);
-        ReweightRound large = round(trueAcc, 40);
-        when(categoryService.findById(trueAcc.getId())).thenReturn(response(trueAcc));
-        when(roundRepository.findByCategoryOldestFirst(trueAcc.getId())).thenReturn(List.of(small, large));
-        when(complexityRepository.findMapRowsByRoundIds(List.of(small.getId()))).thenReturn(List.of(
-                new ReweightRoundMapRow(small.getId(), UUID.randomUUID(), UUID.randomUUID(), "Liar Liar",
-                        Difficulty.EXPERT_PLUS, 6.0, 5.4)));
+    void mergesEveryRoundOfOneDayIntoOneEntry() {
+        Instant morning = Instant.parse("2026-09-18T09:00:00Z");
+        ReweightRound byHand = round(trueAcc, 1, 1, 0, morning, "Downpour fix");
+        ReweightRound script = round(techAcc, 188, 121, 67, morning.plusSeconds(3600), "September");
+        ReweightRound nextDay = round(trueAcc, 40, 20, 20, Instant.parse("2026-09-19T01:00:00Z"), "Follow up");
+        when(categoryService.findById(overall.getId())).thenReturn(response(overall));
+        when(roundRepository.findLiveCategoriesOldestFirst()).thenReturn(List.of(byHand, script, nextDay));
 
-        List<ReweightRoundResponse> result = roundService.findForCategory(trueAcc.getId());
+        List<ReweightDayResponse> result = roundService.findForCategory(overall.getId());
 
-        assertThat(result).extracting(ReweightRoundResponse::getId).containsExactly(small.getId(), large.getId());
-        assertThat(result.get(0).getMaps()).singleElement()
-                .satisfies(m -> {
-                    assertThat(m.getSongName()).isEqualTo("Liar Liar");
-                    assertThat(m.getFrom()).isEqualTo(6.0);
-                    assertThat(m.getTo()).isEqualTo(5.4);
-                });
-        assertThat(result.get(1).getMaps()).isNull();
-        assertThat(result.get(1).getCategoryCode()).isEqualTo("true_acc");
+        assertThat(result).hasSize(2);
+        ReweightDayResponse first = result.getFirst();
+        assertThat(first.getDay()).isEqualTo(LocalDate.of(2026, 9, 18));
+        assertThat(first.getAt()).isEqualTo(morning);
+        assertThat(first.getCategoryCodes()).containsExactly("true_acc", "tech_acc");
+        assertThat(first.getMapCount()).isEqualTo(189);
+        assertThat(first.getBuffs()).isEqualTo(122);
+        assertThat(first.getNerfs()).isEqualTo(67);
+        assertThat(first.getReason()).isNull();
+        assertThat(first.getMaps()).isNull();
+        assertThat(result.get(1).getReason()).isEqualTo("Follow up");
+        verify(roundRepository, never()).findByCategoryOldestFirst(any());
+        verify(complexityRepository, never()).findMapRowsByRoundIds(any());
     }
 
     @Test
-    void overallReadsEveryLiveCategory() {
-        Category overall = category("overall");
-        ReweightRound large = round(techAcc, 30);
-        when(categoryService.findById(overall.getId())).thenReturn(response(overall));
-        when(roundRepository.findLiveCategoriesOldestFirst()).thenReturn(List.of(large));
+    void smallDaysListEachMapOnceFromTheFirstValueToTheLast() {
+        Instant morning = Instant.parse("2026-09-18T09:00:00Z");
+        ReweightRound early = round(trueAcc, 1, 1, 0, morning, "fix");
+        ReweightRound late = round(trueAcc, 2, 1, 1, morning.plusSeconds(600), "fix");
+        UUID downpour = UUID.randomUUID();
+        UUID fancy = UUID.randomUUID();
+        when(categoryService.findById(trueAcc.getId())).thenReturn(response(trueAcc));
+        when(roundRepository.findByCategoryOldestFirst(trueAcc.getId())).thenReturn(List.of(early, late));
+        when(complexityRepository.findMapRowsByRoundIds(List.of(early.getId(), late.getId()))).thenReturn(List.of(
+                row(early, downpour, "Downpour.vip", 1.0, 1.4),
+                row(late, downpour, "Downpour.vip", 1.4, 1.3),
+                row(late, fancy, "FANCY", 1.4, 1.8)));
 
-        List<ReweightRoundResponse> result = roundService.findForCategory(overall.getId());
+        ReweightDayResponse day = roundService.findForCategory(trueAcc.getId()).getFirst();
 
-        assertThat(result).singleElement().extracting(ReweightRoundResponse::getCategoryCode).isEqualTo("tech_acc");
-        verify(roundRepository, never()).findByCategoryOldestFirst(any());
-        verify(complexityRepository, never()).findMapRowsByRoundIds(any());
+        assertThat(day.getReason()).isEqualTo("fix");
+        assertThat(day.getMaps()).extracting(ReweightDayResponse.MapChange::getSongName)
+                .containsExactly("Downpour.vip", "FANCY");
+        assertThat(day.getMaps().getFirst().getFrom()).isEqualTo(1.0);
+        assertThat(day.getMaps().getFirst().getTo()).isEqualTo(1.3);
     }
 
     private static RankedChange change(Category category, double from, double to, String reason) {
@@ -126,8 +140,15 @@ class ReweightRoundServiceTest {
         return Category.builder().id(UUID.randomUUID()).code(code).build();
     }
 
-    private static ReweightRound round(Category category, int mapCount) {
-        return ReweightRound.builder().id(UUID.randomUUID()).category(category).mapCount(mapCount)
-                .createdAt(Instant.now()).build();
+    private static ReweightRound round(Category category, int mapCount, int buffs, int nerfs, Instant at,
+            String reason) {
+        return ReweightRound.builder().id(UUID.randomUUID()).category(category).mapCount(mapCount).buffs(buffs)
+                .nerfs(nerfs).createdAt(at).reason(reason).build();
+    }
+
+    private static ReweightRoundMapRow row(ReweightRound round, UUID difficultyId, String song, double from,
+            double to) {
+        return new ReweightRoundMapRow(round.getId(), UUID.randomUUID(), difficultyId, song, Difficulty.EXPERT_PLUS,
+                from, to);
     }
 }

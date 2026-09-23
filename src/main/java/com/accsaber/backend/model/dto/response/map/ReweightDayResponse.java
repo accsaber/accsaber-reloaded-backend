@@ -1,6 +1,7 @@
 package com.accsaber.backend.model.dto.response.map;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,11 +13,11 @@ import lombok.Value;
 
 @Value
 @Builder
-public class ReweightRoundResponse {
+public class ReweightDayResponse {
 
-    UUID id;
+    LocalDate day;
     Instant at;
-    String categoryCode;
+    List<String> categoryCodes;
     String reason;
     int mapCount;
     int buffs;

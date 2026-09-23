@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.CategoryResponse;
-import com.accsaber.backend.model.dto.response.map.ReweightRoundResponse;
+import com.accsaber.backend.model.dto.response.map.ReweightDayResponse;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.map.ReweightRoundService;
 
@@ -41,12 +41,13 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.findById(categoryService.resolveId(category)));
     }
 
-    @Operation(summary = "List a category's reweight rounds", description = "Every time the ranking team changes the "
-            + "complexity of ranked maps, that lands as one round per category, oldest first. It is meant for drawing markers "
-            + "on history charts. Overall gives you the rounds of every live category. The maps changed in a round come "
-            + "along with it when there are five or fewer of them, and maps is null on bigger rounds.")
+    @Operation(summary = "List a category's reweight days", description = "Every day the ranking team changed the "
+            + "complexity of ranked maps, as one entry per UTC day, oldest first. It is meant for drawing markers on history "
+            + "charts. Overall merges every live category into the same day, so categoryCodes says which ones moved. The maps "
+            + "changed that day come along when there are five or fewer of them, from the first value of the day to the "
+            + "last, and maps is null on bigger days.")
     @GetMapping("/{category}/reweights")
-    public ResponseEntity<List<ReweightRoundResponse>> listReweights(@PathVariable String category) {
+    public ResponseEntity<List<ReweightDayResponse>> listReweights(@PathVariable String category) {
         return ResponseEntity.ok(reweightRoundService.findForCategory(categoryService.resolveId(category)));
     }
 }
