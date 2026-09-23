@@ -1,9 +1,11 @@
 package com.accsaber.backend.service.map;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.ReweightRound;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -74,6 +77,41 @@ public class MapDifficultyComplexityService {
                 .build();
         complexityRepository.saveAndFlush(newVersion);
         return complexity;
+    }
+
+    public record RankedChange(MapDifficulty difficulty, MapDifficultyComplexity current, double complexity,
+            String reason) {
+
+        public Double from() {
+            return current == null ? null : current.getComplexity();
+        }
+    }
+
+    @Transactional
+    public Map<UUID, MapDifficultyComplexity> lockActive(List<UUID> difficultyIds) {
+        return complexityRepository.findActiveForUpdateIn(difficultyIds).stream()
+                .collect(Collectors.toMap(c -> c.getMapDifficulty().getId(), Function.identity()));
+    }
+
+    @Transactional
+    public void supersedeAll(List<RankedChange> changes, Map<UUID, ReweightRound> roundsByCategory, Long authorId) {
+        List<MapDifficultyComplexity> rows = new ArrayList<>(changes.size() * 2);
+        for (RankedChange change : changes) {
+            if (change.current() != null) {
+                change.current().setActive(false);
+                rows.add(change.current());
+            }
+            rows.add(MapDifficultyComplexity.builder()
+                    .mapDifficulty(change.difficulty())
+                    .complexity(change.complexity())
+                    .supersedes(change.current())
+                    .supersedesReason(change.reason())
+                    .supersedesAuthor(authorId)
+                    .round(roundsByCategory.get(change.difficulty().getCategory().getId()))
+                    .active(true)
+                    .build());
+        }
+        complexityRepository.saveAll(rows);
     }
 
     private MapComplexityHistoryResponse toHistoryResponse(MapDifficultyComplexity c) {

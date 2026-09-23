@@ -3,6 +3,7 @@ package com.accsaber.backend.service.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,7 +16,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,8 +24,8 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
-import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
+import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -52,6 +52,12 @@ class ReweightServiceTest {
 
     @Mock
     private ComplexityScenarioService scenarioService;
+
+    @Mock
+    private MapDifficultyComplexityService complexityService;
+
+    @Mock
+    private ReweightRoundService roundService;
 
     @InjectMocks
     private ReweightService reweightService;
@@ -85,15 +91,16 @@ class ReweightServiceTest {
                     .id(diff.getId()).status(MapDifficultyStatus.RANKED).build();
 
             when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
-            when(mapService.updateComplexity(eq(diff.getId()), any(UpdateMapComplexityRequest.class), any(), any()))
-                    .thenReturn(expected);
             when(mapService.getDifficultyResponse(diff.getId())).thenReturn(expected);
 
             MapDifficultyResponse result = reweightService.reweight(
                     diff.getId(), (double) (8.5), "Reweight", null, null);
 
             assertThat(result).isEqualTo(expected);
-            verify(mapService).updateComplexity(eq(diff.getId()), any(), any(), any());
+            verify(complexityService).supersedeAll(argThat(changes -> changes.size() == 1
+                    && changes.getFirst().difficulty() == diff && changes.getFirst().complexity() == 8.5
+                    && "Reweight".equals(changes.getFirst().reason())), any(), any());
+            verify(roundService).open(argThat(changes -> changes.size() == 1));
             verify(scoreRecalculationService).recalculateDifficultyAsync(diff.getId());
             verify(mapService).evictRankedDifficultiesCache();
         }
@@ -234,8 +241,9 @@ class ReweightServiceTest {
 
             reweightService.bulkReweight(List.of(item1, item2), "Bulk reweight", 1L, UUID.randomUUID());
 
-            verify(mapService).updateComplexity(eq(diff1.getId()), any(), eq(1L), any());
-            verify(mapService).updateComplexity(eq(diff2.getId()), any(), eq(1L), any());
+            verify(complexityService).supersedeAll(argThat(changes -> changes.size() == 2
+                    && changes.get(0).complexity() == 8.0 && changes.get(1).complexity() == 9.0), any(), eq(1L));
+            verify(roundService).open(argThat(changes -> changes.size() == 2));
             verify(scoreRecalculationService).recalculateBatchAsync(List.of(diff1, diff2));
             verify(mapService).evictRankedDifficultiesCache();
         }
@@ -262,6 +270,7 @@ class ReweightServiceTest {
                 .id(UUID.randomUUID())
                 .difficulty(Difficulty.EXPERT_PLUS)
                 .characteristic("Standard")
+                .category(Category.builder().id(UUID.randomUUID()).code("true_acc").build())
                 .status(status)
                 .active(true)
                 .build();
@@ -290,10 +299,10 @@ class ReweightServiceTest {
 
         reweightService.reweightBatch(batchId, List.of(item), 1L, null);
 
-        ArgumentCaptor<UpdateMapComplexityRequest> request = ArgumentCaptor.captor();
-        verify(mapService).updateComplexity(eq(inBatch.getId()), request.capture(), eq(1L), any());
-        assertThat(request.getValue().getComplexity()).isEqualTo(9.5);
-        assertThat(request.getValue().getReason()).isEqualTo("july round");
+        verify(complexityService).supersedeAll(argThat(changes -> changes.getFirst().difficulty() == inBatch
+                && changes.getFirst().complexity() == 9.5 && "july round".equals(changes.getFirst().reason())),
+                any(), eq(1L));
+        verify(mapService, never()).updateComplexity(any(), any(), any(), any());
         verify(scoreRecalculationService).recalculateBatchAsync(List.of(inBatch));
         verify(scenarioService).evict();
     }
@@ -305,7 +314,8 @@ class ReweightServiceTest {
 
         reweightService.setComplexityByHand(ranked.getId(), 7.5, "hand override", 1L, null);
 
-        verify(mapService).updateComplexity(eq(ranked.getId()), any(), eq(1L), any());
+        verify(complexityService).supersedeAll(argThat(changes -> changes.getFirst().complexity() == 7.5), any(),
+                eq(1L));
         verify(scoreRecalculationService).recalculateDifficultyAsync(ranked.getId());
         verify(mapService).setComplexityPinned(ranked.getId(), true, null);
     }
@@ -319,6 +329,7 @@ class ReweightServiceTest {
 
         verify(mapService).updateComplexity(eq(queued.getId()), any(), eq(1L), any());
         verify(scoreRecalculationService, never()).recalculateDifficultyAsync(any());
+        verify(roundService, never()).open(any());
         verify(mapService).setComplexityPinned(queued.getId(), true, null);
     }
 }

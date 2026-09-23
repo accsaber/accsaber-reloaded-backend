@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.map;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +23,10 @@ import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
+import com.accsaber.backend.service.map.MapDifficultyComplexityService.RankedChange;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,8 @@ public class ReweightService {
     private final ScoreRecalculationService scoreRecalculationService;
     private final BatchRepository batchRepository;
     private final ComplexityScenarioService scenarioService;
+    private final MapDifficultyComplexityService complexityService;
+    private final ReweightRoundService roundService;
 
     @Transactional
     public MapDifficultyResponse setComplexityByHand(UUID mapDifficultyId, Double complexity, String reason,
@@ -66,14 +71,13 @@ public class ReweightService {
             throw new ValidationException("Reweight is only allowed on RANKED difficulties");
         }
 
-        UpdateMapComplexityRequest req = new UpdateMapComplexityRequest();
-        req.setComplexity(complexity);
-        req.setReason(reason);
-        mapService.updateComplexity(mapDifficultyId, req, staffUserId, staffId);
+        writeChanges(List.of(difficulty), Map.of(mapDifficultyId, new Change(complexity, reason)),
+                staffUserId, staffId);
 
         afterCommit(() -> {
             scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId);
             scenarioService.rebuildAsync();
+            roundService.evictCache();
         });
         mapService.evictRankedDifficultiesCache();
         scenarioService.evict();
@@ -169,21 +173,30 @@ public class ReweightService {
             throw new ValidationException("Difficulties not found or not RANKED: " + missing);
         }
 
-        for (MapDifficulty difficulty : difficulties) {
-            Change change = changes.get(difficulty.getId());
-            UpdateMapComplexityRequest req = new UpdateMapComplexityRequest();
-            req.setComplexity(change.complexity());
-            req.setReason(change.reason());
-            mapService.updateComplexity(difficulty.getId(), req, staffUserId, staffId);
-        }
+        writeChanges(difficulties, changes, staffUserId, staffId);
 
         afterCommit(() -> {
             scoreRecalculationService.recalculateBatchAsync(difficulties);
             scenarioService.rebuildAsync();
+            roundService.evictCache();
         });
         mapService.evictRankedDifficultiesCache();
         scenarioService.evict();
         log.info("Triggered reweight for {} difficulties", difficulties.size());
+    }
+
+    private void writeChanges(List<MapDifficulty> difficulties, Map<UUID, Change> changes, Long staffUserId,
+            UUID staffId) {
+        Map<UUID, MapDifficultyComplexity> current = complexityService.lockActive(
+                difficulties.stream().map(MapDifficulty::getId).toList());
+        List<RankedChange> ranked = new ArrayList<>(difficulties.size());
+        for (MapDifficulty difficulty : difficulties) {
+            Change change = changes.get(difficulty.getId());
+            difficulty.setLastUpdatedBy(staffId);
+            ranked.add(new RankedChange(difficulty, current.get(difficulty.getId()), change.complexity(),
+                    change.reason()));
+        }
+        complexityService.supersedeAll(ranked, roundService.open(ranked), staffUserId);
     }
 
     private record Change(Double complexity, String reason) {

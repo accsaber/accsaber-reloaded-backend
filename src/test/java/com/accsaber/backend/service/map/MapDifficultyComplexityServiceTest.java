@@ -20,11 +20,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
+import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.ReweightRound;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityRepository;
+import com.accsaber.backend.service.map.MapDifficultyComplexityService.RankedChange;
 
 @ExtendWith(MockitoExtension.class)
 class MapDifficultyComplexityServiceTest {
@@ -193,6 +196,29 @@ class MapDifficultyComplexityServiceTest {
             assertThat(newVersion.getComplexity()).isEqualByComparingTo(8.0);
         }
 
+    }
+
+    @Test
+    void supersedeAll_deactivatesCurrentAndStampsTheCategoryRound() {
+        Category category = Category.builder().id(UUID.randomUUID()).code("true_acc").build();
+        MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.RANKED);
+        diff.setCategory(category);
+        MapDifficultyComplexity existing = buildComplexity(diff, 5.0, true);
+        ReweightRound round = ReweightRound.builder().id(UUID.randomUUID()).category(category).build();
+
+        complexityService.supersedeAll(List.of(new RankedChange(diff, existing, 6.0, "september")),
+                Map.of(category.getId(), round), 42L);
+
+        ArgumentCaptor<List<MapDifficultyComplexity>> captor = ArgumentCaptor.captor();
+        verify(complexityRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(2);
+        assertThat(existing.isActive()).isFalse();
+        MapDifficultyComplexity newVersion = captor.getValue().get(1);
+        assertThat(newVersion.getSupersedes()).isSameAs(existing);
+        assertThat(newVersion.getRound()).isSameAs(round);
+        assertThat(newVersion.getComplexity()).isEqualTo(6.0);
+        assertThat(newVersion.getSupersedesAuthor()).isEqualTo(42L);
+        assertThat(newVersion.isActive()).isTrue();
     }
 
     private MapDifficulty buildDifficulty(UUID id) {
