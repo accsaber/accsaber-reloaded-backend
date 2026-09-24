@@ -40,6 +40,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
@@ -189,7 +190,10 @@ public class MissionAssignmentService {
         List<MissionTemplate> daily = templateRepository.findByPoolAndActiveTrue(MissionPool.daily);
         List<MissionTemplate> weekly = templateRepository.findByPoolAndActiveTrue(MissionPool.weekly);
         List<Item> poolable = itemRepository.findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
-        return new MissionPoolCache(daily, weekly, poolable, new ConcurrentHashMap<>());
+        Item eventCrate = itemRepository.findByType_Key("crate").stream()
+                .filter(i -> i.isActive() && ItemService.isActiveCrateSentinel(i))
+                .findFirst().orElse(null);
+        return new MissionPoolCache(daily, weekly, poolable, eventCrate, new ConcurrentHashMap<>());
     }
 
     private void purgeAndRollPool(MissionPool pool, boolean freshSeed) {

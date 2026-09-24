@@ -11,5 +11,6 @@ public record MissionPoolCache(
         List<MissionTemplate> daily,
         List<MissionTemplate> weekly,
         List<Item> poolableItems,
+        Item eventCrate,
         ConcurrentHashMap<UUID, Double> mapWrApByDifficulty) {
 }
