@@ -17,6 +17,7 @@ public class StatsDiffResponse {
     private Double milestoneSetBonusXpDiff;
     private Double missionXpDiff;
     private Double campaignXpDiff;
+    private Double eventXpDiff;
     private Double averageAccDiff;
     private Double averageApDiff;
     private Integer rankingDiff;

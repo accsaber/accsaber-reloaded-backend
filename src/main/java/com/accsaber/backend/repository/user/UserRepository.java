@@ -109,6 +109,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.campaignXp = u.campaignXp + :xp WHERE u.id = :id")
     void addCampaignXp(@Param("id") Long id, @Param("xp") Double xp);
 
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.eventXp = u.eventXp + :xp WHERE u.id = :id")
+    void addEventXp(@Param("id") Long id, @Param("xp") Double xp);
+
     @Query("SELECT u.totalXp FROM User u WHERE u.id = :id")
     java.util.Optional<Double> findTotalXpById(@Param("id") Long id);
 
@@ -190,19 +195,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 WHERE uc.active = true AND uc.completion_rewards_paid = true
                   AND (CAST(:userId AS bigint) IS NULL OR uc.user_id = CAST(:userId AS bigint))
                 UNION ALL
-                SELECT um.user_id, 'mission', CAST(um.xp_reward AS numeric)
+                SELECT um.user_id,
+                    CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
+                    CAST(um.xp_reward AS numeric)
                 FROM user_missions um
+                JOIN mission_templates mt ON mt.id = um.template_id
                 WHERE um.status = 'completed'
                   AND um.user_id IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR um.user_id = CAST(:userId AS bigint))
                 UNION ALL
-                SELECT cmc.user_id, 'mission', CAST(cm.xp_reward AS numeric)
+                SELECT cmc.user_id,
+                    CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
+                    CAST(cm.xp_reward AS numeric)
                 FROM community_mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
+                JOIN mission_templates mt ON mt.id = cm.template_id
                 WHERE cmc.rewarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR cmc.user_id = CAST(:userId AS bigint))
                 UNION ALL
-                SELECT uep.user_id, 'mission', CAST(uep.bonus_xp AS numeric)
+                SELECT uep.user_id, 'event', CAST(uep.bonus_xp AS numeric)
                 FROM user_event_profiles uep
                 WHERE uep.bonus_awarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR uep.user_id = CAST(:userId AS bigint))
@@ -211,7 +222,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 SELECT user_id,
                     COALESCE(SUM(xp), 0) AS total_xp,
                     COALESCE(SUM(xp) FILTER (WHERE bucket = 'campaign'), 0) AS campaign_xp,
-                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'mission'), 0) AS mission_xp
+                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'mission'), 0) AS mission_xp,
+                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'event'), 0) AS event_xp
                 FROM sources
                 GROUP BY user_id
             )
@@ -219,6 +231,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             SET total_xp = COALESCE(t.total_xp, 0),
                 campaign_xp = COALESCE(t.campaign_xp, 0),
                 mission_xp = COALESCE(t.mission_xp, 0),
+                event_xp = COALESCE(t.event_xp, 0),
                 updated_at = NOW()
             FROM users target
             LEFT JOIN totals t ON t.user_id = target.id
@@ -227,7 +240,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND (CAST(:userId AS bigint) IS NULL OR u.id = CAST(:userId AS bigint))
               AND (u.total_xp IS DISTINCT FROM COALESCE(t.total_xp, 0)
                 OR u.campaign_xp IS DISTINCT FROM COALESCE(t.campaign_xp, 0)
-                OR u.mission_xp IS DISTINCT FROM COALESCE(t.mission_xp, 0))
+                OR u.mission_xp IS DISTINCT FROM COALESCE(t.mission_xp, 0)
+                OR u.event_xp IS DISTINCT FROM COALESCE(t.event_xp, 0))
             """, nativeQuery = true)
     void rebuildXpTotals(@Param("userId") Long userId);
 

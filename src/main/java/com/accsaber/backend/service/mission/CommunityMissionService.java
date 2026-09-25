@@ -161,7 +161,7 @@ public class CommunityMissionService {
         }
         int xpReward = mission.getXpReward() != null ? mission.getXpReward() : 0;
         UUID itemRewardId = mission.getItemReward() != null ? mission.getItemReward().getId() : null;
-        String missionName = mission.getTemplate().getName();
+        MissionTemplate template = mission.getTemplate();
         if (xpReward <= 0 && itemRewardId == null) {
             markAllRewarded(missionId);
             return;
@@ -175,7 +175,7 @@ public class CommunityMissionService {
             }
             int paidInPage = 0;
             for (CommunityMissionContribution contribution : page) {
-                if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId, missionName)) {
+                if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId, template)) {
                     paidInPage++;
                 }
             }
@@ -187,23 +187,23 @@ public class CommunityMissionService {
             paid += paidInPage;
         }
         if (paid > 0) {
-            log.info("Paid community mission '{}' rewards to {} contributors", missionName, paid);
+            log.info("Paid community mission '{}' rewards to {} contributors", template.getName(), paid);
         }
     }
 
-    private boolean payOne(UUID missionId, Long userId, int xpReward, UUID itemRewardId, String missionName) {
+    private boolean payOne(UUID missionId, Long userId, int xpReward, UUID itemRewardId, MissionTemplate template) {
         try {
             return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
                 if (contributionRepository.markRewarded(missionId, userId, Instant.now()) == 0) {
                     return false;
                 }
                 if (xpReward > 0) {
-                    levelUpAwardService.addMissionXp(userId, (double) (xpReward));
+                    levelUpAwardService.addMissionXp(userId, template, (double) (xpReward));
                     missionProgressService.creditXp(userId, (double) (xpReward));
                 }
                 if (itemRewardId != null) {
                     itemService.awardSystem(userId, itemRewardId, ItemSource.mission, missionId.toString(),
-                            "Community mission reward: " + missionName);
+                            "Community mission reward: " + template.getName());
                 }
                 return true;
             }));

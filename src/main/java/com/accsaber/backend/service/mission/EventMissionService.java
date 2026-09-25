@@ -298,7 +298,7 @@ public class EventMissionService {
         }
         int bonusXp = event.getBonusXp() != null ? event.getBonusXp() : 0;
         if (bonusXp > 0) {
-            levelUpAwardService.addMissionXp(userId, (double) (bonusXp));
+            levelUpAwardService.addEventXp(userId, (double) (bonusXp));
         }
         for (Item item : event.getBonusItems()) {
             try {

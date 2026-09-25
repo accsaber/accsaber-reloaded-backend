@@ -219,13 +219,33 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
         int claimCommunityCompletion(@Param("id") UUID id, @Param("now") Instant now);
 
         @Query(value = """
-                        SELECT COALESCE(SUM(xp_reward), 0)
-                        FROM user_missions
-                        WHERE user_id = :userId
-                          AND status = 'completed'
-                          AND completed_at >= NOW() - INTERVAL '24 hours'
+                        SELECT COALESCE(SUM(um.xp_reward), 0)
+                        FROM user_missions um
+                        JOIN mission_templates mt ON mt.id = um.template_id
+                        WHERE um.user_id = :userId
+                          AND um.status = 'completed'
+                          AND um.completed_at >= NOW() - INTERVAL '24 hours'
+                          AND mt.event_id IS NULL
                         """, nativeQuery = true)
         double sumMissionXpGainedLast24h(@Param("userId") Long userId);
+
+        @Query(value = """
+                        SELECT COALESCE(SUM(e.xp), 0) FROM (
+                            SELECT um.xp_reward AS xp
+                            FROM user_missions um
+                            JOIN mission_templates mt ON mt.id = um.template_id
+                            WHERE um.user_id = :userId
+                              AND um.status = 'completed'
+                              AND um.completed_at >= NOW() - INTERVAL '24 hours'
+                              AND mt.event_id IS NOT NULL
+                            UNION ALL
+                            SELECT uep.bonus_xp
+                            FROM user_event_profiles uep
+                            WHERE uep.user_id = :userId
+                              AND uep.bonus_awarded_at >= NOW() - INTERVAL '24 hours'
+                        ) e
+                        """, nativeQuery = true)
+        double sumEventXpGainedLast24h(@Param("userId") Long userId);
 
         long countByUser_IdAndTemplate_IdAndStatus(Long userId, UUID templateId, MissionStatus status);
 

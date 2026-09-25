@@ -15,5 +15,6 @@ public class UserAllStatisticsResponse {
     private Double totalMilestoneSetBonusXp;
     private Double totalMissionXp;
     private Double totalCampaignXp;
+    private Double totalEventXp;
     private List<UserCategoryStatisticsResponse> categories;
 }

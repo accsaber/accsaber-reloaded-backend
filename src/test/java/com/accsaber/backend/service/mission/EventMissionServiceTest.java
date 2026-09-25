@@ -218,7 +218,7 @@ class EventMissionServiceTest {
                         assertThat(first).isEqualTo(5000);
                         assertThat(second).isZero();
                         verify(levelUpAwardService, times(1))
-                                        .addMissionXp(USER_ID, (double) (5000));
+                                        .addEventXp(USER_ID, (double) (5000));
                         assertThat(profile.getBonusAwardedAt()).isNotNull();
                 }
 

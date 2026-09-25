@@ -507,7 +507,7 @@ class MissionProgressServiceTest {
                         assertThat(rewarding.getStatus()).isEqualTo(MissionStatus.completed);
                         assertThat(window.getStatus()).isEqualTo(MissionStatus.completed);
                         verify(levelUpAwardService, times(1))
-                                        .addMissionXp(eq(USER_ID), eq((double) (100)));
+                                        .addMissionXp(eq(USER_ID), any(), eq((double) (100)));
                         verify(eventMissionService, times(1)).onEventMissionCompleted(eq(window), eq(USER_ID));
                 }
         }

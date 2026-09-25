@@ -226,4 +226,55 @@ class XpRebuildQueryTest {
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(120.0);
     }
+
+    @Test
+    @DisplayName("rebuildXpTotals splits event missions and event bonuses out of mission XP")
+    void rebuildXpTotalsSplitsEventXpFromMissionXp() {
+        UUID eventId = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO events (title, slug, starts_at, ends_at, bonus_xp)
+                VALUES ('Event', 'event-xp-rebuild', NOW() - INTERVAL '7 days', NOW() + INTERVAL '7 days', 500)
+                RETURNING id
+                """).getSingleResult();
+        UUID dailyTemplate = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO mission_templates (code, name, description, type, pool)
+                VALUES ('daily_rebuild', 'Daily', 'Daily', 'PLAY_N_MAPS', 'daily')
+                RETURNING id
+                """).getSingleResult();
+        UUID eventTemplate = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO mission_templates (code, name, description, type, pool, event_id)
+                VALUES ('event_rebuild', 'Event', 'Event', 'PLAY_N_MAPS', 'event', :eventId)
+                RETURNING id
+                """)
+                .setParameter("eventId", eventId)
+                .getSingleResult();
+        persistCompletedMission(dailyTemplate, "daily", 100);
+        persistCompletedMission(eventTemplate, "event", 200);
+        entityManager.createNativeQuery("""
+                INSERT INTO user_event_profiles (event_id, user_id, bonus_xp, bonus_awarded_at)
+                VALUES (:eventId, :userId, 500, NOW())
+                """)
+                .setParameter("eventId", eventId)
+                .setParameter("userId", user.getId())
+                .executeUpdate();
+        entityManager.flush();
+
+        userRepository.recalculateTotalXpForUser(user.getId());
+
+        entityManager.refresh(user);
+        assertThat(user.getMissionXp()).isEqualTo(100.0);
+        assertThat(user.getEventXp()).isEqualTo(700.0);
+        assertThat(user.getTotalXp()).isEqualTo(800.0);
+    }
+
+    private void persistCompletedMission(UUID templateId, String pool, int xpReward) {
+        entityManager.createNativeQuery("""
+                INSERT INTO user_missions (user_id, template_id, pool, xp_reward, status, expires_at, completed_at)
+                VALUES (:userId, :templateId, :pool, :xpReward, 'completed', NOW() + INTERVAL '1 day', NOW())
+                """)
+                .setParameter("userId", user.getId())
+                .setParameter("templateId", templateId)
+                .setParameter("pool", pool)
+                .setParameter("xpReward", xpReward)
+                .executeUpdate();
+    }
 }

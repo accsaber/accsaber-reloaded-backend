@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.milestone.LevelThresholdRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -32,7 +33,11 @@ public class LevelUpAwardService {
     }
 
     @Transactional
-    public void addMissionXp(Long userId, Double delta) {
+    public void addMissionXp(Long userId, MissionTemplate template, Double delta) {
+        if (template.isEventTied()) {
+            addEventXp(userId, delta);
+            return;
+        }
         if (delta == null || Math.signum(delta) <= 0)
             return;
         userRepository.addMissionXp(userId, delta);
@@ -44,6 +49,14 @@ public class LevelUpAwardService {
         if (delta == null || Math.signum(delta) <= 0)
             return;
         userRepository.addCampaignXp(userId, delta);
+        addXp(userId, delta);
+    }
+
+    @Transactional
+    public void addEventXp(Long userId, Double delta) {
+        if (delta == null || Math.signum(delta) <= 0)
+            return;
+        userRepository.addEventXp(userId, delta);
         addXp(userId, delta);
     }
 

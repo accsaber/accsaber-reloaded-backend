@@ -448,7 +448,7 @@ public class MissionProgressService {
 
         if (mission.getXpReward() > 0) {
             int xpReward = mission.getXpReward();
-            levelUpAwardService.addMissionXp(userId, (double) (xpReward));
+            levelUpAwardService.addMissionXp(userId, mission.getTemplate(), (double) (xpReward));
             creditXpToWindowMissions(userId, xpReward, completedAt);
         }
         if (mission.getItemReward() != null && !mission.isItemAwarded()) {

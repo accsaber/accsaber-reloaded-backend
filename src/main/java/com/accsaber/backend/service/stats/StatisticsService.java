@@ -141,6 +141,7 @@ public class StatisticsService {
                 .totalMilestoneSetBonusXp(userMilestoneSetBonusRepository.sumSetBonusXpByUserId(resolved))
                 .totalMissionXp(user.getMissionXp())
                 .totalCampaignXp(user.getCampaignXp())
+                .totalEventXp(user.getEventXp())
                 .categories(findCategoryStatsByUser(userId))
                 .build();
     }
@@ -184,11 +185,13 @@ public class StatisticsService {
         double milestoneSetBonusXpDiff = userMilestoneSetBonusRepository.sumSetBonusXpGainedLast24h(resolved);
         double missionXpDiff = userMissionRepository.sumMissionXpGainedLast24h(resolved);
         double campaignXpDiff = userCampaignScoreRepository.sumCampaignXpGainedSince(resolved, since);
+        double eventXpDiff = userMissionRepository.sumEventXpGainedLast24h(resolved);
         boolean hasAnyXp = scoreXpDiff > 0
                 || milestoneXpDiff > 0
                 || milestoneSetBonusXpDiff > 0
                 || missionXpDiff > 0
-                || campaignXpDiff > 0;
+                || campaignXpDiff > 0
+                || eventXpDiff > 0;
 
         Optional<UserCategoryStatistics> baseOpt = statisticsRepository
                 .findLatestBeforeLastDay(resolved, categoryCode);
@@ -203,6 +206,7 @@ public class StatisticsService {
                         .milestoneSetBonusXpDiff(milestoneSetBonusXpDiff)
                         .missionXpDiff(missionXpDiff)
                         .campaignXpDiff(campaignXpDiff)
+                        .eventXpDiff(eventXpDiff)
                         .from(since)
                         .to(Instant.now())
                         .build());
@@ -221,6 +225,7 @@ public class StatisticsService {
                 .milestoneSetBonusXpDiff(Rounding.round(milestoneSetBonusXpDiff, SCALE))
                 .missionXpDiff(Rounding.round(missionXpDiff, SCALE))
                 .campaignXpDiff(Rounding.round(campaignXpDiff, SCALE))
+                .eventXpDiff(Rounding.round(eventXpDiff, SCALE))
                 .averageAccDiff(diffNullable(latest.getAverageAcc(), base.getAverageAcc()))
                 .averageApDiff(diffNullable(latest.getAverageAp(), base.getAverageAp()))
                 .rankingDiff(diffNullableInt(latest.getRanking(), base.getRanking()))

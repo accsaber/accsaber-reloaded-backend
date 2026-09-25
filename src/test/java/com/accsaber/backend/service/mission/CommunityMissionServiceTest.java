@@ -167,7 +167,7 @@ class CommunityMissionServiceTest {
 
             verify(contributionRepository, never()).findUnrewarded(any(), any());
             verify(contributionRepository, never()).markRewarded(any(), anyLong(), any());
-            verify(levelUpAwardService, never()).addMissionXp(anyLong(), any());
+            verify(levelUpAwardService, never()).addMissionXp(anyLong(), any(), any());
             verify(itemService, never()).awardSystem(anyLong(), any(), any(), any(), any());
         }
     }
@@ -189,8 +189,8 @@ class CommunityMissionServiceTest {
             service.payRewards(missionId);
 
             InOrder order = inOrder(levelUpAwardService);
-            order.verify(levelUpAwardService).addMissionXp(11L, 250.0);
-            order.verify(levelUpAwardService).addMissionXp(22L, 250.0);
+            order.verify(levelUpAwardService).addMissionXp(eq(11L), any(), eq(250.0));
+            order.verify(levelUpAwardService).addMissionXp(eq(22L), any(), eq(250.0));
             verify(itemService).awardSystem(eq(11L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
             verify(itemService).awardSystem(eq(22L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
             verify(missionProgressService).creditXp(11L, 250.0);
@@ -210,7 +210,7 @@ class CommunityMissionServiceTest {
 
             service.payRewards(missionId);
 
-            verify(levelUpAwardService, never()).addMissionXp(anyLong(), any());
+            verify(levelUpAwardService, never()).addMissionXp(anyLong(), any(), any());
             verify(itemService, never()).awardSystem(anyLong(), any(), any(), any(), any());
         }
     }
