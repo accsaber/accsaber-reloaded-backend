@@ -54,6 +54,7 @@ public final class HmdMapper {
             Map.entry(72, "Varjo XR-3"),
             Map.entry(73, "MeganeX Superlight"),
             Map.entry(74, "Somnium VR1"),
+            Map.entry(75, "Steam Frame"),
             Map.entry(128, "Vive Cosmos"),
             Map.entry(256, "Quest 2"),
             Map.entry(512, "Quest 3"),

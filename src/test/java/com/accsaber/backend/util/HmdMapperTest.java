@@ -21,6 +21,7 @@ class HmdMapperTest {
             assertThat(HmdMapper.fromBeatLeaderId(128)).isEqualTo("Vive Cosmos");
             assertThat(HmdMapper.fromBeatLeaderId(16)).isEqualTo("Rift S");
             assertThat(HmdMapper.fromBeatLeaderId(70)).isEqualTo("PSVR 2");
+            assertThat(HmdMapper.fromBeatLeaderId(75)).isEqualTo("Steam Frame");
         }
 
         @Test

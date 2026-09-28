@@ -90,8 +90,9 @@ public final class PlatformScoreMapper {
     }
 
     private static String resolveHmd(ScoreSaberScoreResponse ss) {
-        if (ss.getDevice() != null && ss.getDevice().getHmd() != null && !ss.getDevice().getHmd().isBlank()) {
-            return ss.getDevice().getHmd();
+        String device = ss.getDevice() != null ? ss.getDevice().getHmd() : null;
+        if (device != null && !device.isBlank() && !device.equalsIgnoreCase("Unknown")) {
+            return device;
         }
         return HmdMapper.fromBeatLeaderId(ss.getLegacyHmdId());
     }

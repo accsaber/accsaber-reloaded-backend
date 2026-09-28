@@ -203,6 +203,17 @@ class PlatformScoreMapperTest {
         }
 
         @Test
+        void unknownDevice_leavesHmdEmptyForBeatLeaderToFill() {
+            ScoreSaberScoreResponse ss = buildScoreSaberScore();
+            ss.getDevice().setHmd("Unknown");
+
+            SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, null, MAP_DIFF_ID, USER_ID,
+                    MODIFIER_MAP);
+
+            assertThat(result.getHmd()).isNull();
+        }
+
+        @Test
         void populatesStreak115AndBombsFromStats() {
             ScoreSaberScoreResponse ss = buildScoreSaberScore();
             com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats stats = new com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats();
