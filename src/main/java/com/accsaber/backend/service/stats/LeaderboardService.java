@@ -24,6 +24,7 @@ import com.accsaber.backend.repository.user.UserCategoryRankingHistoryRepository
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserXpRankingHistoryRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.supporter.SupporterService;
 import com.accsaber.backend.util.HmdMapper;
@@ -155,6 +156,7 @@ public class LeaderboardService {
                 .ranking(user.getXpRanking())
                 .countryRanking(user.getXpCountryRanking())
                 .userId(String.valueOf(user.getId()))
+                .clan(ClanRefCache.forUser(user.getId()))
                 .userName(user.getName())
                 .country(user.getCountry())
                 .avatarUrl(user.getAvatarUrl())
@@ -172,6 +174,7 @@ public class LeaderboardService {
                 .ranking(stats.getRanking())
                 .countryRanking(stats.getCountryRanking())
                 .userId(String.valueOf(stats.getUser().getId()))
+                .clan(ClanRefCache.forUser(stats.getUser().getId()))
                 .userName(stats.getUser().getName())
                 .country(stats.getUser().getCountry())
                 .avatarUrl(stats.getUser().getAvatarUrl())

@@ -3,7 +3,7 @@ package com.accsaber.backend.model.event;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.accsaber.backend.model.dto.response.market.MarketUserRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
 
 public record MarketListingEvent(
@@ -11,7 +11,7 @@ public record MarketListingEvent(
         String type,
         MarketListingStatus status,
         Long amount,
-        MarketUserRef actor,
-        MarketUserRef seller,
+        PlayerRef actor,
+        PlayerRef seller,
         Instant endsAt) {
 }

@@ -13,6 +13,7 @@ import com.accsaber.backend.model.entity.score.SnipeSort;
 import com.accsaber.backend.model.entity.score.SnipeUnplayed;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.map.BatchRepository;
+import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -47,6 +48,7 @@ public class PlaylistController {
         private final BatchRepository batchRepository;
         private final CampaignRepository campaignRepository;
         private final SnipeService snipeService;
+        private final ClanWarPoolService clanWarPoolService;
 
         @Operation(summary = "Download the playlist for a category", description = "Every ranked map in a category as a Beat "
                         + "Saber playlist file. Drop it in your playlists folder or hand the URL to a mod manager, and the "
@@ -141,6 +143,19 @@ public class PlaylistController {
         public ResponseEntity<Map<String, Object>> getBatchPlaylist(
                         @Parameter(description = "ID of batch") @PathVariable UUID batchId) {
                 return buildBatchPlaylistResponse(batchId);
+        }
+
+        @Operation(summary = "Download a clan war pool as a playlist", description = "Every map in a war's pool, live "
+                        + "once the pool locks so both clans can practise it before the fighting starts.")
+        @GetMapping(value = "/clan-war/{warId}", produces = "application/json")
+        public ResponseEntity<Map<String, Object>> getClanWarPlaylist(
+                        @Parameter(description = "ID of the war") @PathVariable UUID warId) {
+                ClanWarPoolService.PlaylistSource source = clanWarPoolService.playlistSource(warId);
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path("/v1/playlists/clan-war/{warId}")
+                                .buildAndExpand(warId)
+                                .toUriString();
+                return ResponseEntity.ok(playlistService.generateClanWarPlaylist(source, syncUrl));
         }
 
         @Operation(summary = "Download a campaign as a playlist", description = "Every map used in a campaign, so you can grab "

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
 import com.accsaber.backend.model.entity.user.UserPinnedScore;
+import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
@@ -27,6 +29,7 @@ import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -47,6 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final UserNameHistoryRepository userNameHistoryRepository;
     private final UserPinnedScoreRepository userPinnedScoreRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
@@ -188,6 +192,7 @@ public class UserService {
         if (!banned) {
             self.recalculateAfterUnban(userId);
         } else {
+            eventPublisher.publishEvent(new PlayerBannedEvent(userId));
             self.recalculateAfterBan(userId);
         }
     }
@@ -321,6 +326,7 @@ public class UserService {
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .cdnAvatarUrl(user.getCdnAvatarUrl())
+                .clan(ClanRefCache.forUser(user.getId()))
                 .country(user.getCountry())
                 .bio(user.getBio())
                 .xpRanking(user.getXpRanking())

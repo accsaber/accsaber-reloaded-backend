@@ -122,7 +122,7 @@ class MarketListingCreateTest {
         MarketListingResponse res = listingService.create(SELLER_ID, request(null, 500L, null));
 
         assertThat(res.getSeller()).isNotNull();
-        assertThat(res.getSeller().getName()).isEqualTo("seller");
+        assertThat(res.getSeller().name()).isEqualTo("seller");
         assertThat(res.getItem()).isNotNull();
         assertThat(res.getItem().getItem().getName()).isEqualTo("A thing");
     }

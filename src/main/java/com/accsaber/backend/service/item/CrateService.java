@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
 import com.accsaber.backend.model.entity.item.CrateModifier;
@@ -38,7 +39,6 @@ import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.item.UnusualEffectRepository;
 import com.accsaber.backend.repository.item.UserCrateOpenRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
-import com.accsaber.backend.service.market.MarketMapper;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.websocket.server.CrateOpenBroadcast;
 
@@ -284,7 +284,7 @@ public class CrateService {
         UserCrateOpen saved = userCrateOpenRepository.save(open);
 
         eventPublisher.publishEvent(new CrateOpenedEvent(new CrateOpenBroadcast("crate_opened",
-                MarketMapper.toUserRef(saved.getUser()), ItemMapper.toCrateOpenResponse(saved))));
+                PlayerRef.of(saved.getUser()), ItemMapper.toCrateOpenResponse(saved))));
         return saved;
     }
 

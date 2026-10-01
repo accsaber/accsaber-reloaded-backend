@@ -207,7 +207,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 SELECT cmc.user_id,
                     CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
                     CAST(cm.xp_reward AS numeric)
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 JOIN mission_templates mt ON mt.id = cm.template_id
                 WHERE cmc.rewarded_at IS NOT NULL
@@ -217,6 +217,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 FROM user_event_profiles uep
                 WHERE uep.bonus_awarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR uep.user_id = CAST(:userId AS bigint))
+                UNION ALL
+                SELECT h.attacker_user_id, 'war', CAST(h.xp_awarded AS numeric)
+                FROM clan_war_hits h
+                WHERE h.xp_awarded IS NOT NULL
+                  AND (CAST(:userId AS bigint) IS NULL OR h.attacker_user_id = CAST(:userId AS bigint))
+                UNION ALL
+                SELECT wp.user_id, 'war', CAST(wp.xp_awarded AS numeric)
+                FROM clan_war_participants wp
+                WHERE wp.rewarded_at IS NOT NULL
+                  AND (CAST(:userId AS bigint) IS NULL OR wp.user_id = CAST(:userId AS bigint))
             ),
             totals AS (
                 SELECT user_id,
@@ -287,13 +297,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 WHERE um.user_id = :userId AND um.status = 'completed'
                 UNION ALL
                 SELECT cmc.rewarded_at, cm.xp_reward
-                FROM community_mission_contributions cmc
+                FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
                 WHERE cmc.user_id = :userId AND cmc.rewarded_at IS NOT NULL
                 UNION ALL
                 SELECT uep.bonus_awarded_at, uep.bonus_xp
                 FROM user_event_profiles uep
                 WHERE uep.user_id = :userId AND uep.bonus_awarded_at IS NOT NULL
+                UNION ALL
+                SELECT (SELECT b.created_at FROM clan_war_hits b
+                        WHERE b.war_id = h.war_id AND b.victim_user_id = h.victim_user_id
+                          AND b.victim_cycle = h.victim_cycle AND b.broke), h.xp_awarded
+                FROM clan_war_hits h
+                WHERE h.attacker_user_id = :userId AND h.xp_awarded IS NOT NULL
+                UNION ALL
+                SELECT wp.rewarded_at, wp.xp_awarded
+                FROM clan_war_participants wp
+                WHERE wp.user_id = :userId AND wp.rewarded_at IS NOT NULL
             ) e
             WHERE e.xp IS NOT NULL AND e.xp <> 0
             ORDER BY e.ts ASC NULLS FIRST

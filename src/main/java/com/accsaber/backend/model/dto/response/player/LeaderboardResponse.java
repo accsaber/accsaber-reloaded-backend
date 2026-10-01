@@ -2,6 +2,8 @@ package com.accsaber.backend.model.dto.response.player;
 
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +22,7 @@ public class LeaderboardResponse {
     private String country;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private Double ap;
     private Double averageAcc;
     private Double averageAp;

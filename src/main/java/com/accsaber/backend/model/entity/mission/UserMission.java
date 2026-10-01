@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.user.User;
@@ -51,6 +52,14 @@ public class UserMission {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private MissionPool pool;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clan_id")
+    private Clan clan;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_mission_id")
+    private UserMission parentMission;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
@@ -142,5 +151,9 @@ public class UserMission {
 
     public boolean isCommunity() {
         return pool == MissionPool.community;
+    }
+
+    public boolean isShared() {
+        return isCommunity() || (pool == MissionPool.clan && parentMission == null);
     }
 }

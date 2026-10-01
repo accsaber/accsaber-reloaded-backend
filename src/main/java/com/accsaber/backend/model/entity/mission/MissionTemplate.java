@@ -164,4 +164,8 @@ public class MissionTemplate {
     public boolean isEventTied() {
         return event != null;
     }
+
+    public boolean isPerMember() {
+        return pool == MissionPool.clan && eventTargets == null;
+    }
 }

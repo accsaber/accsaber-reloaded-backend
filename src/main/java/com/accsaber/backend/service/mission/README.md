@@ -211,17 +211,17 @@ Targets are fixed in `event_targets` like event missions, so none of the band/sk
 
 Every player submitting a score hits the same row, so the shared counter is bumped by a native atomic `progress_count = progress_count + :n`. **Never touch it through JPA.** Two concurrent submissions doing read-modify-write on a managed entity silently lose one of the increments, and nothing would ever tell you. `contribute()` deliberately calls no setter on the shared mission.
 
-Completion is claimed by a conditional native UPDATE that only fires when the row is still active and already past its target. Whichever transaction gets the 1 back owns the payout and publishes `CommunityMissionCompletedEvent`. Everyone else gets 0 and does nothing, so the reward fan-out happens once even under a pile-up.
+Completion is claimed by a conditional native UPDATE that only fires when the row is still active and already past its target. Whichever transaction gets the 1 back owns the payout and publishes `SharedMissionCompletedEvent`. Everyone else gets 0 and does nothing, so the reward fan-out happens once even under a pile-up.
 
 ### Contributions are the authority, the bar is not
 
-`community_mission_contributions` holds one row per player per mission. `acceptContribution` is a single statement that snapshots the prior value in a CTE, upserts with `LEAST(..., COALESCE(cap, ...))`, and returns **the accepted delta**. That delta is what gets banked, which is what keeps the bar equal to the sum of contributions even when a cap clips someone. `CommunityContributionQueryTest` pins this against a real Postgres, so run it if you go near that SQL.
+`mission_contributions` holds one row per player per mission. `acceptContribution` is a single statement that snapshots the prior value in a CTE, upserts with `LEAST(..., COALESCE(cap, ...))`, and returns **the accepted delta**. That delta is what gets banked, which is what keeps the bar equal to the sum of contributions even when a cap clips someone. `MissionContributionQueryTest` pins this against a real Postgres, so run it if you go near that SQL.
 
 Per-player cap is `event_targets.maxPerUser`, null meaning uncapped. BINARY types are hard-capped at 1 in code whatever the template says, which is what turns "get 95% on this map" into "500 different players get 95% on this map" instead of one person replaying it.
 
 ### Who gets paid
 
-Every contributor, XP and item both. `CommunityMissionService.payRewards` walks them in `first_at` order because level and milestone reward items are serialized and serials go out in grant order. It pages, gives each player their own transaction, and stamps `rewarded_at` before awarding, so a crash mid-payout resumes instead of double-paying. The hourly sweep retries anyone still unpaid and opens missions whose window has come round.
+Every contributor, XP and item both. `SharedMissionService.payRewards` walks them in `first_at` order because level and milestone reward items are serialized and serials go out in grant order. It pages, gives each player their own transaction, and stamps `rewarded_at` before awarding, so a crash mid-payout resumes instead of double-paying. The hourly sweep retries anyone still unpaid and opens missions whose window has come round.
 
 ### Two things that are deliberate
 

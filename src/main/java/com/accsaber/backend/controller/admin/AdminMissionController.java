@@ -21,7 +21,7 @@ import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.UserMission;
-import com.accsaber.backend.service.mission.CommunityMissionService;
+import com.accsaber.backend.service.mission.SharedMissionService;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.mission.MissionQueryService;
 import com.accsaber.backend.service.mission.MissionTemplateService;
@@ -41,7 +41,7 @@ public class AdminMissionController {
     private final MissionTemplateService templateService;
     private final MissionAssignmentService assignmentService;
     private final MissionQueryService queryService;
-    private final CommunityMissionService communityMissionService;
+    private final SharedMissionService sharedMissionService;
 
     @Operation(summary = "List all mission templates")
     @GetMapping("/templates")
@@ -107,7 +107,7 @@ public class AdminMissionController {
                     + "still closed, or past its completion cap. Returns how many it opened.")
     @PostMapping("/community/open")
     public ResponseEntity<Integer> openCommunityMissions() {
-        return ResponseEntity.ok(communityMissionService.openMissing());
+        return ResponseEntity.ok(sharedMissionService.openMissing());
     }
 
     @Operation(summary = "Force a fresh mission rollout for ALL eligible users",

@@ -21,7 +21,7 @@ public class MissionQueryService {
     private final UserMissionRepository userMissionRepository;
 
     public List<UserMission> listActive(Long userId) {
-        return userMissionRepository.findCurrentByUser(userId, Instant.now());
+        return withoutClanRows(userMissionRepository.findCurrentByUser(userId, Instant.now()));
     }
 
     public List<UserMission> listActiveByPool(Long userId, MissionPool pool) {
@@ -29,6 +29,10 @@ public class MissionQueryService {
     }
 
     public List<UserMission> listCompleted(Long userId) {
-        return userMissionRepository.findByUser_IdAndStatus(userId, MissionStatus.completed);
+        return withoutClanRows(userMissionRepository.findByUser_IdAndStatus(userId, MissionStatus.completed));
+    }
+
+    private static List<UserMission> withoutClanRows(List<UserMission> missions) {
+        return missions.stream().filter(m -> m.getPool() != MissionPool.clan).toList();
     }
 }

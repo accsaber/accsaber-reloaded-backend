@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.mission;
 
-import com.accsaber.backend.util.Rounding;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -36,21 +34,24 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
-import com.accsaber.backend.model.event.CommunityMissionCompletedEvent;
 import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
+import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.mission.CommunityMissionContributionRepository;
+import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanMissionService;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
+import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
 
@@ -62,7 +63,7 @@ public class MissionProgressService {
     private static final String OVERALL_CODE = "overall";
 
     private final UserMissionRepository userMissionRepository;
-    private final CommunityMissionContributionRepository contributionRepository;
+    private final MissionContributionRepository contributionRepository;
     private final UserEventProfileRepository eventProfileRepository;
     private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
@@ -75,6 +76,7 @@ public class MissionProgressService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final UserRelationRepository userRelationRepository;
     private final ModifierCacheService modifierCacheService;
+    private final ClanMissionService clanMissionService;
 
     @Value("${accsaber.missions.enabled:false}")
     private boolean missionsEnabled;
@@ -105,7 +107,7 @@ public class MissionProgressService {
                 completeMission(mission, event.userId(), completedAt);
             }
         }
-        for (UserMission mission : communityMissionsFor(MissionTrigger.CAMPAIGN, ctx)) {
+        for (UserMission mission : sharedMissionsFor(MissionTrigger.CAMPAIGN, ctx)) {
             contribute(mission, event.userId(), evalCampaignComplete(mission, event));
         }
     }
@@ -119,8 +121,8 @@ public class MissionProgressService {
                 .toList();
     }
 
-    private List<UserMission> communityMissionsFor(MissionTrigger trigger, EvalContext ctx) {
-        List<UserMission> open = userMissionRepository.findActiveCommunity();
+    private List<UserMission> sharedMissionsFor(MissionTrigger trigger, EvalContext ctx) {
+        List<UserMission> open = userMissionRepository.findActiveSharedFor(ctx.userId);
         if (open.isEmpty()) {
             return List.of();
         }
@@ -144,7 +146,7 @@ public class MissionProgressService {
                         latestScore.getTimeSet() != null ? latestScore.getTimeSet() : Instant.now());
             }
         }
-        for (UserMission mission : communityMissionsFor(MissionTrigger.SCORE, ctx)) {
+        for (UserMission mission : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
             if (!isCreditable(mission, latestScore))
                 continue;
             contribute(mission, userId, evaluate(mission, latestScore, ctx));
@@ -183,10 +185,13 @@ public class MissionProgressService {
             return;
         }
         boolean banksAp = mission.getTemplate().getType().getAxis() == MissionProgressAxis.AP;
-        userMissionRepository.bankCommunityProgress(mission.getId(),
+        userMissionRepository.bankSharedProgress(mission.getId(),
                 banksAp ? 0 : (int) accepted, banksAp ? accepted : 0.0);
-        if (userMissionRepository.claimCommunityCompletion(mission.getId(), now) == 1) {
-            eventPublisher.publishEvent(new CommunityMissionCompletedEvent(mission.getId()));
+        if (userMissionRepository.claimSharedCompletion(mission.getId(), now) == 1) {
+            if (mission.getPool() == MissionPool.clan) {
+                clanMissionService.bankCompletion(mission);
+            }
+            eventPublisher.publishEvent(new SharedMissionCompletedEvent(mission.getId()));
         }
     }
 
@@ -470,6 +475,14 @@ public class MissionProgressService {
         }
 
         publishCompletionEvent(userId, mission);
+        contributeToParent(mission, userId, completedAt);
+    }
+
+    private void contributeToParent(UserMission mission, Long userId, Instant completedAt) {
+        UserMission parent = mission.getParentMission();
+        if (parent != null && parent.getStatus() == MissionStatus.active && parent.getExpiresAt().isAfter(completedAt)) {
+            contribute(parent, userId, 1);
+        }
     }
 
     @Transactional
@@ -493,7 +506,7 @@ public class MissionProgressService {
             }
         }
         EvalContext ctx = new EvalContext(userId);
-        for (UserMission window : communityMissionsFor(MissionTrigger.SCORE, ctx)) {
+        for (UserMission window : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
             if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW)
                 continue;
             contribute(window, userId, xpAmount);
@@ -511,6 +524,7 @@ public class MissionProgressService {
                 .userCountry(user.getCountry())
                 .userAvatarUrl(user.getAvatarUrl())
                 .userCdnAvatarUrl(user.getCdnAvatarUrl())
+                .userClan(ClanRefCache.forUser(userId))
                 .completedAt(mission.getCompletedAt())
                 .missionId(mission.getId())
                 .templateId(mission.getTemplate() != null ? mission.getTemplate().getId() : null)

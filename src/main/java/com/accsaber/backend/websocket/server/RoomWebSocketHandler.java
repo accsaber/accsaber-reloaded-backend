@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +34,24 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
             return;
         }
         session.getAttributes().put(ATTR_ROOM_KEY, key);
-        rooms.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet())
-                .add(new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT, BUFFER_SIZE_LIMIT));
+        WebSocketSession decorated = new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT,
+                BUFFER_SIZE_LIMIT);
+        AtomicBoolean opened = new AtomicBoolean();
+        rooms.compute(key, (k, room) -> {
+            Set<WebSocketSession> target = room == null ? ConcurrentHashMap.newKeySet() : room;
+            opened.set(target.isEmpty());
+            target.add(decorated);
+            return target;
+        });
+        if (opened.get()) {
+            onRoomOpened(key);
+        }
+    }
+
+    protected void onRoomOpened(K key) {
+    }
+
+    protected void onRoomEmptied(K key) {
     }
 
     @Override
@@ -45,6 +63,28 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         log.warn("Transport error for session {}: {}", session.getId(), exception.getMessage());
         remove(session);
+    }
+
+    protected boolean hasSessions(K key) {
+        Set<WebSocketSession> room = rooms.get(key);
+        return room != null && !room.isEmpty();
+    }
+
+    protected void closeWhere(K key, Predicate<WebSocketSession> predicate) {
+        Set<WebSocketSession> room = rooms.get(key);
+        if (room == null) {
+            return;
+        }
+        for (WebSocketSession session : room) {
+            if (predicate.test(session)) {
+                try {
+                    session.close(CloseStatus.POLICY_VIOLATION);
+                } catch (IOException e) {
+                    log.warn("Failed to close session {}: {}", session.getId(), e.getMessage());
+                }
+                room.remove(session);
+            }
+        }
     }
 
     protected void sendToRoom(K key, String json) {
@@ -71,13 +111,14 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
         if (key == null) {
             return;
         }
-        Set<WebSocketSession> room = rooms.get(key);
-        if (room == null) {
-            return;
-        }
-        room.removeIf(s -> s.getId().equals(session.getId()));
-        if (room.isEmpty()) {
-            rooms.remove(key, room);
+        AtomicBoolean emptied = new AtomicBoolean();
+        rooms.computeIfPresent(key, (k, room) -> {
+            room.removeIf(s -> s.getId().equals(session.getId()));
+            emptied.set(room.isEmpty());
+            return room.isEmpty() ? null : room;
+        });
+        if (emptied.get()) {
+            onRoomEmptied(key);
         }
     }
 }

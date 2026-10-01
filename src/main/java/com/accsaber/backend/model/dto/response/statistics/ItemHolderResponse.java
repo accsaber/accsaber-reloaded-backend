@@ -3,6 +3,8 @@ package com.accsaber.backend.model.dto.response.statistics;
 import java.time.Instant;
 import java.util.List;
 
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,6 +16,7 @@ public class ItemHolderResponse {
     private String userName;
     private String avatarUrl;
     private String cdnAvatarUrl;
+    private PublicClanResponse clan;
     private String country;
     private long quantity;
     private Long lowestSerial;

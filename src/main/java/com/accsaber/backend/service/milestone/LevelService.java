@@ -16,7 +16,7 @@ import com.accsaber.backend.model.entity.milestone.LevelThreshold;
 import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.milestone.LevelThresholdRepository;
-import com.accsaber.backend.util.Rounding;
+import com.accsaber.backend.util.LevelCurve;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,69 +26,27 @@ import lombok.RequiredArgsConstructor;
 public class LevelService {
 
     private static final UUID LEVEL_CURVE_ID = UUID.fromString("acc00000-0000-0000-0000-000000000004");
+    private static final int LEVEL_COST_CAP = 100;
 
     private final LevelThresholdRepository levelThresholdRepository;
     private final CurveRepository curveRepository;
     private final ItemRepository itemRepository;
 
-    private volatile Curve cachedLevelCurve;
+    private volatile LevelCurve cachedLevelCurve;
     private final Object curveLock = new Object();
 
     public LevelResponse calculateLevel(Double totalXp) {
-        if (totalXp == null || totalXp.compareTo(0.0) <= 0) {
-            return LevelResponse.builder()
-                    .level(0)
-                    .title(null)
-                    .totalXp(0.0)
-                    .xpForCurrentLevel(0.0)
-                    .xpForNextLevel(xpForLevel(1))
-                    .progressPercent(0.0)
-                    .build();
-        }
-
-        int level = 0;
-        Double cumulative = 0.0;
-
-        while (true) {
-            int nextLevel = level + 1;
-            Double xpNeeded = xpForLevel(nextLevel);
-            Double nextCumulative = (cumulative + xpNeeded);
-            if (nextCumulative.compareTo(totalXp) > 0) {
-                break;
-            }
-            cumulative = nextCumulative;
-            level = nextLevel;
-        }
-
-        Double xpIntoCurrentLevel = (totalXp - cumulative);
-        Double xpNeededForNext = xpForLevel(level + 1);
-        Double progress = xpNeededForNext.compareTo(0.0) > 0
-                ? Rounding.round((xpIntoCurrentLevel * (double) (100)) / xpNeededForNext, 2)
-                : 0.0;
-
-        String title = levelThresholdRepository.findHighestTitleAtOrBelow(level)
-                .map(LevelThreshold::getTitle)
-                .orElse(null);
-
-        return LevelResponse.builder()
-                .level(level)
-                .title(title)
-                .totalXp(totalXp)
-                .xpForCurrentLevel(xpIntoCurrentLevel)
-                .xpForNextLevel(xpNeededForNext)
-                .progressPercent(progress)
-                .build();
+        double xp = totalXp == null || totalXp <= 0 ? 0.0 : totalXp;
+        LevelCurve.Progress progress = getLevelCurve().progressAt(xp);
+        String title = xp <= 0 ? null
+                : levelThresholdRepository.findHighestTitleAtOrBelow(progress.level())
+                        .map(LevelThreshold::getTitle)
+                        .orElse(null);
+        return LevelResponse.of(progress, xp, title);
     }
 
     public double xpForLevel(int n) {
-        if (n <= 0) {
-            return 0.0;
-        }
-        Curve curve = getLevelCurve();
-        double base = curve.getXParameterValue();
-        double exponent = curve.getYParameterValue();
-        int effectiveN = Math.min(n, 100);
-        return Math.floor(base * Math.pow(effectiveN, exponent));
+        return getLevelCurve().xpForLevel(n);
     }
 
     public List<LevelThreshold> getAllThresholds() {
@@ -145,14 +103,15 @@ public class LevelService {
         cachedLevelCurve = null;
     }
 
-    private Curve getLevelCurve() {
-        Curve curve = cachedLevelCurve;
+    private LevelCurve getLevelCurve() {
+        LevelCurve curve = cachedLevelCurve;
         if (curve == null) {
             synchronized (curveLock) {
                 curve = cachedLevelCurve;
                 if (curve == null) {
-                    curve = curveRepository.findById(LEVEL_CURVE_ID)
+                    Curve stored = curveRepository.findById(LEVEL_CURVE_ID)
                             .orElseThrow(() -> new IllegalStateException("Level curve not found"));
+                    curve = new LevelCurve(stored.getXParameterValue(), stored.getYParameterValue(), LEVEL_COST_CAP);
                     cachedLevelCurve = curve;
                 }
             }

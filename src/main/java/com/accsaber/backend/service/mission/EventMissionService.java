@@ -63,7 +63,7 @@ public class EventMissionService {
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
     private final MissionRowFactory missionRowFactory;
-    private final CommunityContextLoader communityContextLoader;
+    private final SharedMissionContextLoader sharedMissionContextLoader;
     private final TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -371,7 +371,7 @@ public class EventMissionService {
         Map<UUID, List<UserMission>> byTemplate = userMissionRepository.findByUserAndEvent(userId, event.getId())
                 .stream().collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         List<UserMission> communityRows = userMissionRepository.findCommunity(event.getId(), false);
-        MissionResponse.CommunityContext communityCtx = communityContextLoader.load(communityRows, userId);
+        MissionResponse.SharedContext sharedCtx = sharedMissionContextLoader.load(communityRows, userId);
         Map<UUID, List<UserMission>> communityByTemplate = communityRows.stream()
                 .collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         Instant now = Instant.now();
@@ -391,7 +391,7 @@ public class EventMissionService {
             long completions = rows.stream().filter(m -> m.getStatus() == MissionStatus.completed).count();
             return EventProgressResponse.EventMissionProgressResponse.builder()
                     .mission(MissionResponse.fromTemplate(t, event, now, ctx))
-                    .current(current != null ? MissionResponse.from(current, communityCtx) : null)
+                    .current(current != null ? MissionResponse.from(current, sharedCtx) : null)
                     .completions(completions)
                     .completed(completions > 0)
                     .weekLocked(weekLocked)

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
@@ -34,6 +35,7 @@ import com.accsaber.backend.model.entity.user.MergeScoreAction;
 import com.accsaber.backend.model.entity.user.MergeScoreAction.ActionType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserDuplicateLink;
+import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
@@ -78,6 +80,8 @@ class DuplicateUserServiceTest {
         private com.accsaber.backend.service.skill.SkillService skillService;
         @Mock
         private EntityManager entityManager;
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
 
         private DuplicateUserService service;
         private User primaryUser;
@@ -90,7 +94,7 @@ class DuplicateUserServiceTest {
                                 linkRepository, mergeScoreActionRepository, userRepository, scoreRepository,
                                 modifierLinkRepository, staffUserRepository, categoryRepository,
                                 statisticsService, overallStatisticsService, rankingService, skillService,
-                                entityManager);
+                                entityManager, eventPublisher);
                 service.setSelf(service);
 
                 primaryUser = User.builder()
@@ -266,6 +270,7 @@ class DuplicateUserServiceTest {
                         assertThat(secScore2.isActive()).isFalse();
 
                         assertThat(secondaryUser.isActive()).isFalse();
+                        verify(eventPublisher).publishEvent(new PlayersMergedEvent(PRIMARY_ID, SECONDARY_ID));
 
                         assertThat(primaryUser.getTotalXp())
                                         .isEqualByComparingTo(1000.0);

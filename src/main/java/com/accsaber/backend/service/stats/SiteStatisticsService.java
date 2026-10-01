@@ -40,6 +40,7 @@ import com.accsaber.backend.model.dto.response.statistics.UserMapImprovementsRes
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.score.ScoreService;
 import com.accsaber.backend.util.HmdMapper;
 import com.accsaber.backend.util.TimeRangeUtil;
@@ -217,6 +218,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> UserImprovementsResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -265,6 +267,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> UserMapImprovementsResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -305,6 +308,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> MilestoneCollectorResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -459,6 +463,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> MostItemsResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -491,6 +496,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> MostCratesOpenedResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -530,6 +536,7 @@ public class SiteStatisticsService {
                 return queryRunner.paged(sql, params, pageable, row -> RarestUnboxedResponse.builder()
                                 .linkId((UUID) row[0])
                                 .userId(String.valueOf(((Number) row[1]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[1]).longValue()))
                                 .userName((String) row[2])
                                 .avatarUrl((String) row[3])
                                 .cdnAvatarUrl((String) row[4])
@@ -569,6 +576,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> InventoryValueResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -599,6 +607,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> FirstEditionsResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -635,6 +644,7 @@ public class SiteStatisticsService {
                                 .linkId((UUID) row[5])
                                 .serialNumber(row[6] != null ? ((Number) row[6]).longValue() : null)
                                 .userId(String.valueOf(((Number) row[7]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[7]).longValue()))
                                 .userName((String) row[8])
                                 .avatarUrl((String) row[9])
                                 .cdnAvatarUrl((String) row[10])
@@ -665,6 +675,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> CollectionCompletionResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -753,6 +764,7 @@ public class SiteStatisticsService {
 
             return queryRunner.paged(sql, params, pageable, row -> ItemHolderResponse.builder()
                             .userId(String.valueOf(((Number) row[0]).longValue()))
+                            .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                             .userName((String) row[1])
                             .avatarUrl((String) row[2])
                             .cdnAvatarUrl((String) row[3])
@@ -810,6 +822,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> BiggestTraderResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])
@@ -840,6 +853,7 @@ public class SiteStatisticsService {
 
                 return queryRunner.paged(sql, params, pageable, row -> EssenceEarnedResponse.builder()
                                 .userId(String.valueOf(((Number) row[0]).longValue()))
+                                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
                                 .userName((String) row[1])
                                 .avatarUrl((String) row[2])
                                 .cdnAvatarUrl((String) row[3])

@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.model.dto.response.mission.CommunityContributorResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionContributorResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
-import com.accsaber.backend.service.mission.CommunityMissionService;
+import com.accsaber.backend.service.mission.SharedMissionService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Missions and Events")
 public class CommunityMissionController {
 
-    private final CommunityMissionService communityMissionService;
+    private final SharedMissionService sharedMissionService;
 
     @Operation(summary = "List community missions",
             description = "Missions the whole playerbase chips away at together, so the progress on one is everybody's "
@@ -42,7 +42,7 @@ public class CommunityMissionController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @RequestParam(required = false) UUID eventId,
             @RequestParam(defaultValue = "true") boolean active) {
-        return ResponseEntity.ok(communityMissionService.list(eventId, active, viewerId(principal)));
+        return ResponseEntity.ok(sharedMissionService.list(eventId, active, viewerId(principal)));
     }
 
     @Operation(summary = "Get one community mission",
@@ -52,7 +52,7 @@ public class CommunityMissionController {
     public ResponseEntity<MissionResponse> get(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID id) {
-        return ResponseEntity.ok(communityMissionService.get(id, viewerId(principal)));
+        return ResponseEntity.ok(sharedMissionService.get(id, viewerId(principal)));
     }
 
     @Operation(summary = "List who contributed to a community mission",
@@ -60,9 +60,9 @@ public class CommunityMissionController {
                     + "got there earliest. Once the mission is done, rewardedAt tells you whether that player has been "
                     + "paid out yet.")
     @GetMapping("/{id}/contributors")
-    public ResponseEntity<Page<CommunityContributorResponse>> contributors(@PathVariable UUID id,
+    public ResponseEntity<Page<MissionContributorResponse>> contributors(@PathVariable UUID id,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(communityMissionService.leaderboard(id, pageable));
+        return ResponseEntity.ok(sharedMissionService.leaderboard(id, pageable));
     }
 
     private Long viewerId(PlayerUserDetails principal) {

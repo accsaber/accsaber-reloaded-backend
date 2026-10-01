@@ -30,6 +30,7 @@ import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignLeaderboardRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.RequiredArgsConstructor;
 
@@ -126,6 +127,7 @@ public class CampaignLeaderboardService {
     private static CampaignLeaderboardPlayer player(Object[] row) {
         return CampaignLeaderboardPlayer.builder()
                 .userId(String.valueOf(asLong(row[0])))
+                .clan(ClanRefCache.forUser(asLong(row[0])))
                 .userName(asString(row[1]))
                 .country(asString(row[2]))
                 .avatarUrl(asString(row[3]))

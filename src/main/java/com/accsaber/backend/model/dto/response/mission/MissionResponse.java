@@ -29,6 +29,7 @@ import lombok.Getter;
 public class MissionResponse {
 
     private UUID id;
+    private UUID parentMissionId;
     private String code;
     private String name;
     private String description;
@@ -78,18 +79,19 @@ public class MissionResponse {
     private Integer maxCompletions;
 
     public static MissionResponse from(UserMission m) {
-        return from(m, CommunityContext.EMPTY);
+        return from(m, SharedContext.EMPTY);
     }
 
-    public static MissionResponse from(UserMission m, CommunityContext community) {
+    public static MissionResponse from(UserMission m, SharedContext sharedContext) {
         MissionTemplate template = m.getTemplate();
-        boolean shared = m.isCommunity();
-        Event event = shared ? template.getEvent() : null;
+        boolean community = m.isCommunity();
+        Event event = community ? template.getEvent() : null;
         return MissionResponse.builder()
                 .id(m.getId())
-                .code(shared ? template.getCode() : null)
-                .week(shared ? template.weekOf(event) : null)
-                .endsWithWeek(shared ? template.getCompletableUntil() != null : null)
+                .parentMissionId(m.getParentMission() != null ? m.getParentMission().getId() : null)
+                .code(community ? template.getCode() : null)
+                .week(community ? template.weekOf(event) : null)
+                .endsWithWeek(community ? template.getCompletableUntil() != null : null)
                 .name(template.getName())
                 .description(renderDescription(m))
                 .type(template.getType().name())
@@ -123,8 +125,8 @@ public class MissionResponse {
                         m.getTargetAp()))
                 .xpReward(m.getXpReward())
                 .itemReward(m.getItemReward() != null ? ItemMapper.toItemResponse(m.getItemReward()) : null)
-                .contributors(community.contributors(m))
-                .yourContribution(community.yourContribution(m))
+                .contributors(sharedContext.contributors(m))
+                .yourContribution(sharedContext.yourContribution(m))
                 .assignedAt(m.getAssignedAt())
                 .expiresAt(m.getExpiresAt())
                 .completedAt(m.getCompletedAt())
@@ -247,18 +249,18 @@ public class MissionResponse {
                         category != null ? category.getName() : null));
     }
 
-    public record CommunityContext(
+    public record SharedContext(
             Map<UUID, Long> contributorsByMission,
             Map<UUID, Double> contributionByMission) {
 
-        public static final CommunityContext EMPTY = new CommunityContext(Map.of(), Map.of());
+        public static final SharedContext EMPTY = new SharedContext(Map.of(), Map.of());
 
         public Long contributors(UserMission m) {
-            return m.isCommunity() ? contributorsByMission.getOrDefault(m.getId(), 0L) : null;
+            return m.isShared() ? contributorsByMission.getOrDefault(m.getId(), 0L) : null;
         }
 
         public Double yourContribution(UserMission m) {
-            return m.isCommunity() ? contributionByMission.get(m.getId()) : null;
+            return m.isShared() ? contributionByMission.get(m.getId()) : null;
         }
     }
 

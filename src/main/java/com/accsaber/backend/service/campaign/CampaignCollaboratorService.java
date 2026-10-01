@@ -18,6 +18,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 import lombok.RequiredArgsConstructor;
@@ -117,6 +118,15 @@ public class CampaignCollaboratorService {
                 .toList();
     }
 
+    public boolean isParticipant(UUID campaignId, Long userId) {
+        Long creatorId = campaignRepository.findCreatorIdByIdAndActiveTrue(campaignId).orElse(null);
+        if (userId.equals(creatorId)) {
+            return true;
+        }
+        return collaboratorRepository.existsByCampaign_IdAndUser_IdAndStatusAndActiveTrue(
+                campaignId, userId, CampaignCollaboratorStatus.ACCEPTED);
+    }
+
     public Page<CampaignCollaboratorResponse> listMyCollaborations(Long userId,
             CampaignCollaboratorStatus status, Pageable pageable) {
         Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
@@ -160,6 +170,7 @@ public class CampaignCollaboratorService {
                 .userName(user.getName())
                 .userAvatarUrl(user.getAvatarUrl())
                 .userCdnAvatarUrl(user.getCdnAvatarUrl())
+                .userClan(ClanRefCache.forUser(user.getId()))
                 .userCountry(user.getCountry())
                 .status(collaborator.getStatus())
                 .invitedById(collaborator.getInvitedBy() != null
