@@ -79,4 +79,41 @@ class ScorePayloadFieldsTest {
             assertThat(existing.getBombHits()).isEqualTo(7);
         }
     }
+
+    @Nested
+    @DisplayName("merge hmd")
+    class MergeHmd {
+
+        private SubmitScoreRequest hmd(String hmd, Long blScoreId, Long ssScoreId) {
+            SubmitScoreRequest request = new SubmitScoreRequest();
+            request.setHmd(hmd);
+            request.setBlScoreId(blScoreId);
+            request.setSsScoreId(ssScoreId);
+            return request;
+        }
+
+        @Test
+        void beatLeaderOverridesThePluginsEchoedHeadset() {
+            Score existing = Score.builder().hmd("Rift S").build();
+
+            assertThat(ScorePayloadFields.merge(existing, hmd("Steam Frame", 34847842L, null))).isTrue();
+            assertThat(existing.getHmd()).isEqualTo("Steam Frame");
+        }
+
+        @Test
+        void scoreSaberOverridesThePluginsEchoedHeadset() {
+            Score existing = Score.builder().hmd("Rift S").build();
+
+            assertThat(ScorePayloadFields.merge(existing, hmd("Steam Frame", null, 94400443L))).isTrue();
+            assertThat(existing.getHmd()).isEqualTo("Steam Frame");
+        }
+
+        @Test
+        void pluginDoesNotOverwriteThePlatformHeadset() {
+            Score existing = Score.builder().hmd("Steam Frame").blScoreId(34847842L).build();
+
+            assertThat(ScorePayloadFields.merge(existing, hmd("Rift S", null, null))).isFalse();
+            assertThat(existing.getHmd()).isEqualTo("Steam Frame");
+        }
+    }
 }

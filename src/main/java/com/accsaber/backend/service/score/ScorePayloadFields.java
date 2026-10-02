@@ -18,11 +18,17 @@ final class ScorePayloadFields {
             Function<SubmitScoreRequest, T> fromRequest,
             Function<Score, T> fromScore,
             BiConsumer<Score, T> setOnScore,
-            BinaryOperator<T> resolve) {
+            BinaryOperator<T> resolve,
+            boolean platformWins) {
 
         Binding(Function<SubmitScoreRequest, T> fromRequest, Function<Score, T> fromScore,
                 BiConsumer<Score, T> setOnScore) {
-            this(fromRequest, fromScore, setOnScore, (current, incoming) -> current);
+            this(fromRequest, fromScore, setOnScore, (current, incoming) -> current, false);
+        }
+
+        Binding(Function<SubmitScoreRequest, T> fromRequest, Function<Score, T> fromScore,
+                BiConsumer<Score, T> setOnScore, BinaryOperator<T> resolve) {
+            this(fromRequest, fromScore, setOnScore, resolve, false);
         }
     }
 
@@ -38,7 +44,8 @@ final class ScorePayloadFields {
             new Binding<Integer>(SubmitScoreRequest::getStreak115, Score::getStreak115, Score::setStreak115,
                     BinaryOperator.maxBy(Comparator.naturalOrder())),
             new Binding<>(SubmitScoreRequest::getPlayCount, Score::getPlayCount, Score::setPlayCount),
-            new Binding<>(SubmitScoreRequest::getHmd, Score::getHmd, Score::setHmd),
+            new Binding<String>(SubmitScoreRequest::getHmd, Score::getHmd, Score::setHmd,
+                    (current, incoming) -> current, true),
             new Binding<>(SubmitScoreRequest::getTimeSet, Score::getTimeSet, Score::setTimeSet));
 
     static void applyAll(Score target, SubmitScoreRequest source) {
@@ -71,12 +78,18 @@ final class ScorePayloadFields {
             return false;
         }
         T current = b.fromScore().apply(target);
-        T resolved = current == null ? incoming : b.resolve().apply(current, incoming);
+        T resolved = current == null || (b.platformWins() && fromPlatform(source))
+                ? incoming
+                : b.resolve().apply(current, incoming);
         if (resolved.equals(current)) {
             return false;
         }
         b.setOnScore().accept(target, resolved);
         return true;
+    }
+
+    private static boolean fromPlatform(SubmitScoreRequest source) {
+        return source.getBlScoreId() != null || source.getSsScoreId() != null;
     }
 
     private static <T> void copyOne(Binding<T> b, Score from, Score to) {

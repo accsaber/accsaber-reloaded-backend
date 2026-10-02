@@ -1178,8 +1178,9 @@ public class ScoreImportService {
         if (score.getMisses() == null && blScore.getMissedNotes() != null) {
             score.setMisses(blScore.getMissedNotes());
         }
-        if (score.getHmd() == null && blScore.getHmd() != null) {
-            score.setHmd(com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd()));
+        String blHmd = com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd());
+        if (blHmd != null) {
+            score.setHmd(blHmd);
         }
         if (score.getTimeSet() == null && blScore.getTimepost() != null && blScore.getTimepost() > 0) {
             score.setTimeSet(Instant.ofEpochSecond(blScore.getTimepost()));
