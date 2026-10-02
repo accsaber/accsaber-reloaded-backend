@@ -90,7 +90,7 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("V158 seeds the clan curves, cosmetic types, starting capacities and launch war modes")
+    @DisplayName("V171 seeds the clan curves, cosmetic types, starting capacities and launch war modes")
     void seedsArePresent() {
         assertThat(((Number) single("SELECT COUNT(*) FROM curves WHERE id IN "
                 + "('acc00000-0000-0000-0000-000000000030', 'acc00000-0000-0000-0000-000000000031')")).intValue())
