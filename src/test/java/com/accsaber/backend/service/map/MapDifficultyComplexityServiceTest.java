@@ -2,6 +2,7 @@ package com.accsaber.backend.service.map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -209,11 +211,13 @@ class MapDifficultyComplexityServiceTest {
         complexityService.supersedeAll(List.of(new RankedChange(diff, existing, 6.0, "september")),
                 Map.of(category.getId(), round), 42L);
 
+        InOrder order = inOrder(complexityRepository);
+        order.verify(complexityRepository).saveAllAndFlush(List.of(existing));
         ArgumentCaptor<List<MapDifficultyComplexity>> captor = ArgumentCaptor.captor();
-        verify(complexityRepository).saveAll(captor.capture());
-        assertThat(captor.getValue()).hasSize(2);
+        order.verify(complexityRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
         assertThat(existing.isActive()).isFalse();
-        MapDifficultyComplexity newVersion = captor.getValue().get(1);
+        MapDifficultyComplexity newVersion = captor.getValue().getFirst();
         assertThat(newVersion.getSupersedes()).isSameAs(existing);
         assertThat(newVersion.getRound()).isSameAs(round);
         assertThat(newVersion.getComplexity()).isEqualTo(6.0);
