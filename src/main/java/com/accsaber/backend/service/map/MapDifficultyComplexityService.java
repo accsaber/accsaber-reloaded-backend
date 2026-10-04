@@ -95,13 +95,14 @@ public class MapDifficultyComplexityService {
 
     @Transactional
     public void supersedeAll(List<RankedChange> changes, Map<UUID, ReweightRound> roundsByCategory, Long authorId) {
-        List<MapDifficultyComplexity> rows = new ArrayList<>(changes.size() * 2);
+        List<MapDifficultyComplexity> deactivated = new ArrayList<>(changes.size());
+        List<MapDifficultyComplexity> versions = new ArrayList<>(changes.size());
         for (RankedChange change : changes) {
             if (change.current() != null) {
                 change.current().setActive(false);
-                rows.add(change.current());
+                deactivated.add(change.current());
             }
-            rows.add(MapDifficultyComplexity.builder()
+            versions.add(MapDifficultyComplexity.builder()
                     .mapDifficulty(change.difficulty())
                     .complexity(change.complexity())
                     .supersedes(change.current())
@@ -111,7 +112,8 @@ public class MapDifficultyComplexityService {
                     .active(true)
                     .build());
         }
-        complexityRepository.saveAll(rows);
+        complexityRepository.saveAllAndFlush(deactivated);
+        complexityRepository.saveAll(versions);
     }
 
     private MapComplexityHistoryResponse toHistoryResponse(MapDifficultyComplexity c) {
