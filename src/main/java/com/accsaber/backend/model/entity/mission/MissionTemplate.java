@@ -165,7 +165,11 @@ public class MissionTemplate {
         return event != null;
     }
 
+    public boolean isClan() {
+        return pool == MissionPool.clan;
+    }
+
     public boolean isPerMember() {
-        return pool == MissionPool.clan && eventTargets == null;
+        return isClan() && eventTargets == null;
     }
 }

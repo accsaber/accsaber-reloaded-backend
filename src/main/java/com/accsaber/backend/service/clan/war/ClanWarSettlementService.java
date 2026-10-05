@@ -88,7 +88,7 @@ public class ClanWarSettlementService {
                     return;
                 }
                 if (xp > 0) {
-                    levelUpAwardService.addXp(userId, xp);
+                    levelUpAwardService.addClanXp(userId, xp);
                 }
                 if (winnerRank == 0) {
                     return;

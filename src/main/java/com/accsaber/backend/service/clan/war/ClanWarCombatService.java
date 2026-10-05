@@ -233,7 +233,7 @@ public class ClanWarCombatService {
             xpByChipper.merge(chip.getAttacker().getId(), chip.getXpAwarded(), Double::sum);
         }
         xpByChipper.forEach((chipperId, xp) -> {
-            levelUpAwardService.addXp(chipperId, xp);
+            levelUpAwardService.addClanXp(chipperId, xp);
             ClanWarParticipant chipper = roster.get(chipperId);
             if (chipper != null) {
                 chipper.setContribution(chipper.getContribution() + config.getBreakContribution() * share);

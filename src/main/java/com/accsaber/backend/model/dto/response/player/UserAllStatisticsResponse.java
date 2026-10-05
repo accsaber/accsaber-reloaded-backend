@@ -18,6 +18,7 @@ public class UserAllStatisticsResponse {
     private Double totalMissionXp;
     private Double totalCampaignXp;
     private Double totalEventXp;
+    private Double totalClanXp;
     private ClanStatsResponse clan;
     private List<UserCategoryStatisticsResponse> categories;
 }

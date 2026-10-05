@@ -65,6 +65,10 @@ public class User {
     @Builder.Default
     private double eventXp = 0.0;
 
+    @Column(name = "clan_xp", nullable = false)
+    @Builder.Default
+    private double clanXp = 0.0;
+
     @Column(name = "item_essence", nullable = false)
     @Builder.Default
     private long itemEssence = 0L;

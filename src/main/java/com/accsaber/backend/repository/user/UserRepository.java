@@ -114,6 +114,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.eventXp = u.eventXp + :xp WHERE u.id = :id")
     void addEventXp(@Param("id") Long id, @Param("xp") Double xp);
 
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.clanXp = u.clanXp + :xp WHERE u.id = :id")
+    void addClanXp(@Param("id") Long id, @Param("xp") Double xp);
+
     @Query("SELECT u.totalXp FROM User u WHERE u.id = :id")
     java.util.Optional<Double> findTotalXpById(@Param("id") Long id);
 
@@ -196,7 +201,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                   AND (CAST(:userId AS bigint) IS NULL OR uc.user_id = CAST(:userId AS bigint))
                 UNION ALL
                 SELECT um.user_id,
-                    CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
+                    CASE WHEN mt.pool = 'clan' THEN 'clan' WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
                     CAST(um.xp_reward AS numeric)
                 FROM user_missions um
                 JOIN mission_templates mt ON mt.id = um.template_id
@@ -205,7 +210,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                   AND (CAST(:userId AS bigint) IS NULL OR um.user_id = CAST(:userId AS bigint))
                 UNION ALL
                 SELECT cmc.user_id,
-                    CASE WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
+                    CASE WHEN mt.pool = 'clan' THEN 'clan' WHEN mt.event_id IS NOT NULL THEN 'event' ELSE 'mission' END,
                     CAST(cm.xp_reward AS numeric)
                 FROM mission_contributions cmc
                 JOIN user_missions cm ON cm.id = cmc.user_mission_id
@@ -218,12 +223,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 WHERE uep.bonus_awarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR uep.user_id = CAST(:userId AS bigint))
                 UNION ALL
-                SELECT h.attacker_user_id, 'war', CAST(h.xp_awarded AS numeric)
+                SELECT h.attacker_user_id, 'clan', CAST(h.xp_awarded AS numeric)
                 FROM clan_war_hits h
                 WHERE h.xp_awarded IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR h.attacker_user_id = CAST(:userId AS bigint))
                 UNION ALL
-                SELECT wp.user_id, 'war', CAST(wp.xp_awarded AS numeric)
+                SELECT wp.user_id, 'clan', CAST(wp.xp_awarded AS numeric)
                 FROM clan_war_participants wp
                 WHERE wp.rewarded_at IS NOT NULL
                   AND (CAST(:userId AS bigint) IS NULL OR wp.user_id = CAST(:userId AS bigint))
@@ -233,7 +238,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     COALESCE(SUM(xp), 0) AS total_xp,
                     COALESCE(SUM(xp) FILTER (WHERE bucket = 'campaign'), 0) AS campaign_xp,
                     COALESCE(SUM(xp) FILTER (WHERE bucket = 'mission'), 0) AS mission_xp,
-                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'event'), 0) AS event_xp
+                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'event'), 0) AS event_xp,
+                    COALESCE(SUM(xp) FILTER (WHERE bucket = 'clan'), 0) AS clan_xp
                 FROM sources
                 GROUP BY user_id
             )
@@ -242,6 +248,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 campaign_xp = COALESCE(t.campaign_xp, 0),
                 mission_xp = COALESCE(t.mission_xp, 0),
                 event_xp = COALESCE(t.event_xp, 0),
+                clan_xp = COALESCE(t.clan_xp, 0),
                 updated_at = NOW()
             FROM users target
             LEFT JOIN totals t ON t.user_id = target.id
@@ -251,7 +258,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND (u.total_xp IS DISTINCT FROM COALESCE(t.total_xp, 0)
                 OR u.campaign_xp IS DISTINCT FROM COALESCE(t.campaign_xp, 0)
                 OR u.mission_xp IS DISTINCT FROM COALESCE(t.mission_xp, 0)
-                OR u.event_xp IS DISTINCT FROM COALESCE(t.event_xp, 0))
+                OR u.event_xp IS DISTINCT FROM COALESCE(t.event_xp, 0)
+                OR u.clan_xp IS DISTINCT FROM COALESCE(t.clan_xp, 0))
             """, nativeQuery = true)
     void rebuildXpTotals(@Param("userId") Long userId);
 

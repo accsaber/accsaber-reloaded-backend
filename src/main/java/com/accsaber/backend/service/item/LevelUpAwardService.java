@@ -34,6 +34,10 @@ public class LevelUpAwardService {
 
     @Transactional
     public void addMissionXp(Long userId, MissionTemplate template, Double delta) {
+        if (template.isClan()) {
+            addClanXp(userId, delta);
+            return;
+        }
         if (template.isEventTied()) {
             addEventXp(userId, delta);
             return;
@@ -57,6 +61,14 @@ public class LevelUpAwardService {
         if (delta == null || Math.signum(delta) <= 0)
             return;
         userRepository.addEventXp(userId, delta);
+        addXp(userId, delta);
+    }
+
+    @Transactional
+    public void addClanXp(Long userId, Double delta) {
+        if (delta == null || Math.signum(delta) <= 0)
+            return;
+        userRepository.addClanXp(userId, delta);
         addXp(userId, delta);
     }
 

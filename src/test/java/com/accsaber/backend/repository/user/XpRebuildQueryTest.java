@@ -26,6 +26,7 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
+import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 import jakarta.persistence.EntityManager;
 
@@ -45,6 +46,8 @@ class XpRebuildQueryTest {
     private UserCategoryStatisticsRepository statisticsRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private UserMissionRepository userMissionRepository;
 
     private User user;
     private Category trueAcc;
@@ -266,6 +269,47 @@ class XpRebuildQueryTest {
         assertThat(user.getTotalXp()).isEqualTo(800.0);
     }
 
+    @Test
+    @DisplayName("rebuildXpTotals moves clan missions out of mission XP into clan XP")
+    void rebuildXpTotalsPutsClanMissionsInClanXp() {
+        UUID clanTemplate = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO mission_templates (code, name, description, type, pool)
+                VALUES ('clan_rebuild', 'Clan', 'Clan', 'PLAY_N_MAPS', 'clan')
+                RETURNING id
+                """).getSingleResult();
+        UUID clan = (UUID) entityManager.createNativeQuery(
+                "INSERT INTO clans (name, tag, slug) VALUES ('Red', 'RED', 'red') RETURNING id").getSingleResult();
+        UUID parent = (UUID) entityManager.createNativeQuery("""
+                INSERT INTO user_missions (template_id, pool, clan_id, xp_reward, status, expires_at, completed_at)
+                VALUES (:templateId, 'clan', :clanId, 150, 'completed', NOW() + INTERVAL '1 day', NOW())
+                RETURNING id
+                """)
+                .setParameter("templateId", clanTemplate)
+                .setParameter("clanId", clan)
+                .getSingleResult();
+        entityManager.createNativeQuery("""
+                INSERT INTO user_missions (user_id, template_id, pool, clan_id, parent_mission_id, xp_reward,
+                    status, expires_at, completed_at)
+                VALUES (:userId, :templateId, 'clan', :clanId, :parentId, 150, 'completed',
+                    NOW() + INTERVAL '1 day', NOW())
+                """)
+                .setParameter("userId", user.getId())
+                .setParameter("templateId", clanTemplate)
+                .setParameter("clanId", clan)
+                .setParameter("parentId", parent)
+                .executeUpdate();
+        entityManager.flush();
+
+        userRepository.recalculateTotalXpForUser(user.getId());
+
+        entityManager.refresh(user);
+        assertThat(user.getClanXp()).isEqualTo(150.0);
+        assertThat(user.getMissionXp()).isZero();
+        assertThat(user.getTotalXp()).isEqualTo(150.0);
+        assertThat(userMissionRepository.sumClanXpGainedLast24h(user.getId())).isEqualTo(150.0);
+        assertThat(userMissionRepository.sumMissionXpGainedLast24h(user.getId())).isZero();
+    }
+
     private void persistCompletedMission(UUID templateId, String pool, int xpReward) {
         entityManager.createNativeQuery("""
                 INSERT INTO user_missions (user_id, template_id, pool, xp_reward, status, expires_at, completed_at)
@@ -327,6 +371,7 @@ class XpRebuildQueryTest {
 
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(340.0);
+        assertThat(user.getClanXp()).isEqualTo(40.0);
         assertThat(timeline).hasSize(2);
         assertThat(((Number) timeline.get(1)[1]).doubleValue()).isEqualTo(40.0);
     }
@@ -345,6 +390,7 @@ class XpRebuildQueryTest {
 
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(75.0);
+        assertThat(user.getClanXp()).isEqualTo(75.0);
         assertThat(timeline).singleElement().satisfies(row -> assertThat(((Number) row[1]).doubleValue()).isEqualTo(75.0));
     }
 }

@@ -120,10 +120,10 @@ class ClanWarSettlementServiceTest {
         verify(levelService).grantXp(red.getId(), new ClanXpAward(1000.0, ClanXpSource.war_win,
                 war.getId().toString(), true));
         verify(clanItemRepository).grantItem(red.getId(), banner.getItem().getId(), "war", war.getId().toString());
-        verify(levelUpAwardService).addXp(1L, 150.0);
-        verify(levelUpAwardService).addXp(11L, 100.0);
-        verify(levelUpAwardService).addXp(2L, 50.0);
-        verify(levelUpAwardService, never()).addXp(eq(3L), anyDouble());
+        verify(levelUpAwardService).addClanXp(1L, 150.0);
+        verify(levelUpAwardService).addClanXp(11L, 100.0);
+        verify(levelUpAwardService).addClanXp(2L, 50.0);
+        verify(levelUpAwardService, never()).addClanXp(eq(3L), anyDouble());
         verify(participantRepository).markRewarded(eq(war.getId()), eq(3L), eq(0.0), any());
         InOrder order = inOrder(itemService);
         order.verify(itemService).awardSystem(eq(1L), eq(crate.getItem().getId()), eq(ItemSource.clan_war),
@@ -147,7 +147,7 @@ class ClanWarSettlementServiceTest {
 
         verify(levelService, never()).grantXp(any(), any());
         verify(rewardItemRepository, never()).findActiveWithItems();
-        verify(levelUpAwardService).addXp(1L, 20.0);
+        verify(levelUpAwardService).addClanXp(1L, 20.0);
     }
 
     @Test

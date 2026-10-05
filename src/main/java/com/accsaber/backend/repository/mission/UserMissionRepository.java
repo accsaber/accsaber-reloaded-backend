@@ -322,6 +322,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND um.status = 'completed'
                           AND um.completed_at >= NOW() - INTERVAL '24 hours'
                           AND mt.event_id IS NULL
+                          AND mt.pool <> 'clan'
                         """, nativeQuery = true)
         double sumMissionXpGainedLast24h(@Param("userId") Long userId);
 
@@ -342,6 +343,41 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         ) e
                         """, nativeQuery = true)
         double sumEventXpGainedLast24h(@Param("userId") Long userId);
+
+        @Query(value = """
+                        SELECT COALESCE(SUM(e.xp), 0) FROM (
+                            SELECT um.xp_reward AS xp
+                            FROM user_missions um
+                            JOIN mission_templates mt ON mt.id = um.template_id
+                            WHERE um.user_id = :userId
+                              AND um.status = 'completed'
+                              AND um.completed_at >= NOW() - INTERVAL '24 hours'
+                              AND mt.pool = 'clan'
+                            UNION ALL
+                            SELECT cm.xp_reward
+                            FROM mission_contributions mc
+                            JOIN user_missions cm ON cm.id = mc.user_mission_id
+                            JOIN mission_templates mt ON mt.id = cm.template_id
+                            WHERE mc.user_id = :userId
+                              AND mc.rewarded_at >= NOW() - INTERVAL '24 hours'
+                              AND mt.pool = 'clan'
+                            UNION ALL
+                            SELECT h.xp_awarded
+                            FROM clan_war_hits h
+                            WHERE h.attacker_user_id = :userId
+                              AND h.xp_awarded IS NOT NULL
+                              AND EXISTS (SELECT 1 FROM clan_war_hits b
+                                  WHERE b.war_id = h.war_id AND b.victim_user_id = h.victim_user_id
+                                    AND b.victim_cycle = h.victim_cycle AND b.broke
+                                    AND b.created_at >= NOW() - INTERVAL '24 hours')
+                            UNION ALL
+                            SELECT wp.xp_awarded
+                            FROM clan_war_participants wp
+                            WHERE wp.user_id = :userId
+                              AND wp.rewarded_at >= NOW() - INTERVAL '24 hours'
+                        ) e
+                        """, nativeQuery = true)
+        double sumClanXpGainedLast24h(@Param("userId") Long userId);
 
         long countByUser_IdAndTemplate_IdAndStatus(Long userId, UUID templateId, MissionStatus status);
 

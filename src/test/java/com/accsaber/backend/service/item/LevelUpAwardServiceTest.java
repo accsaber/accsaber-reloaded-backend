@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.entity.mission.Event;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.milestone.LevelThresholdRepository;
@@ -80,6 +81,17 @@ class LevelUpAwardServiceTest {
         verify(userRepository).addXp(50L, 100.0);
     }
 
+    @Test
+    void missionXpFromAClanTemplateLandsInTheClanBucket() {
+        when(userRepository.findTotalXpById(50L)).thenReturn(Optional.of(0.0));
+        when(levelService.calculateLevel(any())).thenReturn(LevelResponse.builder().level(0).build());
+        service.addMissionXp(50L, MissionTemplate.builder().pool(MissionPool.clan).build(), 100.0);
+
+        verify(userRepository).addClanXp(50L, 100.0);
+        verify(userRepository, never()).addMissionXp(any(), any());
+        verify(userRepository).addXp(50L, 100.0);
+    }
+
     static Stream<Arguments> bucketedXpGrants() {
         return Stream.of(
                 Arguments.of("campaign",
@@ -87,7 +99,10 @@ class LevelUpAwardServiceTest {
                         (Consumer<UserRepository>) r -> verify(r, never()).addCampaignXp(any(), any())),
                 Arguments.of("event",
                         (BiConsumer<LevelUpAwardService, Double>) (s, xp) -> s.addEventXp(50L, xp),
-                        (Consumer<UserRepository>) r -> verify(r, never()).addEventXp(any(), any())));
+                        (Consumer<UserRepository>) r -> verify(r, never()).addEventXp(any(), any())),
+                Arguments.of("clan",
+                        (BiConsumer<LevelUpAwardService, Double>) (s, xp) -> s.addClanXp(50L, xp),
+                        (Consumer<UserRepository>) r -> verify(r, never()).addClanXp(any(), any())));
     }
 
     @ParameterizedTest(name = "{0}")
