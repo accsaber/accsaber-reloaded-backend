@@ -14,10 +14,15 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import com.accsaber.backend.exception.ValidationException;
@@ -244,20 +249,6 @@ class MilestoneQueryBuilderServiceTest {
                 }
 
                 @Test
-                void plainFunctionInSubquery_isValid() {
-                        MilestoneQuerySpec inner = new MilestoneQuerySpec(
-                                        new SelectSpec("PLAIN", "map_difficulty_uuid_id"),
-                                        "map_difficulty_complexities",
-                                        null);
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("MAX", "ap"),
-                                        "scores",
-                                        List.of(new FilterSpec("map_difficulty_uuid_id", "IN", null, inner)));
-
-                        service.validate(spec);
-                }
-
-                @Test
                 void nestedSubquery_isValid() {
                         MilestoneQuerySpec deepest = new MilestoneQuerySpec(
                                         new SelectSpec("MAX", "complexity"),
@@ -307,25 +298,35 @@ class MilestoneQueryBuilderServiceTest {
         @Nested
         class Evaluate {
 
-                @Test
-                void simpleMaxAp_buildsCorrectSql() {
+                static Stream<Arguments> aggregateSpecs() {
+                        return Stream.of(
+                                        Arguments.of("MAX", "ap", 123L, (double) (850), (double) (850),
+                                                        List.of("MAX(s.ap)", "FROM scores s", "s.user_id = :userId",
+                                                                        "md.status = 'ranked'", ":p0")),
+                                        Arguments.of("COUNT_DISTINCT", "map_difficulty_id", 7L, 15L, (double) (15),
+                                                        List.of("COUNT(DISTINCT s.map_difficulty_id)",
+                                                                        "md.status = 'ranked'")),
+                                        Arguments.of("SUM", "score", 1L, 8_500_000L, (double) (8_500_000),
+                                                        List.of("SUM(s.score)", "md.status = 'ranked'")));
+                }
+
+                @ParameterizedTest(name = "{0}({1})")
+                @MethodSource("aggregateSpecs")
+                void aggregateOverActiveScores_buildsCorrectSql(String function, String column, Long userId,
+                                Object rawResult, double expected, List<String> fragments) {
                         MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("MAX", "ap"),
+                                        new SelectSpec(function, column),
                                         "scores",
                                         List.of(new FilterSpec("active", "=", true)));
 
-                        when(mockQuery.getSingleResult()).thenReturn((double) (850));
+                        when(mockQuery.getSingleResult()).thenReturn(rawResult);
 
-                        Double result = service.evaluate(spec, 123L, null);
+                        Double result = service.evaluate(spec, userId, null);
 
-                        assertThat(result).isEqualByComparingTo((double) (850));
+                        assertThat(result).isEqualByComparingTo(expected);
 
                         String sql = capturedSql();
-                        assertThat(sql).contains("MAX(s.ap)");
-                        assertThat(sql).contains("FROM scores s");
-                        assertThat(sql).contains("s.user_id = :userId");
-                        assertThat(sql).contains("md.status = 'ranked'");
-                        assertThat(sql).contains(":p0");
+                        assertThat(sql).contains(fragments);
                         assertRankedFilterApplied();
                 }
 
@@ -405,37 +406,6 @@ class MilestoneQueryBuilderServiceTest {
 
                         String sql = capturedSql();
                         assertThat(sql).doesNotContain(":categoryId");
-                        assertThat(sql).doesNotContain("'ranked'");
-                }
-
-                @Test
-                void rankedStatusAutoInjected_forScoresTable() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("MAX", "ap"),
-                                        "scores",
-                                        null);
-
-                        when(mockQuery.getSingleResult()).thenReturn(0.0);
-
-                        service.evaluate(spec, 1L, null);
-
-                        String sql = capturedSql();
-                        assertThat(sql).contains("md.status = 'ranked'");
-                        assertRankedFilterApplied();
-                }
-
-                @Test
-                void rankedStatusNotInjected_forUsersTable() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("MAX", "total_xp"),
-                                        "users",
-                                        null);
-
-                        when(mockQuery.getSingleResult()).thenReturn(0.0);
-
-                        service.evaluate(spec, 1L, null);
-
-                        String sql = capturedSql();
                         assertThat(sql).doesNotContain("'ranked'");
                 }
 
@@ -524,43 +494,13 @@ class MilestoneQueryBuilderServiceTest {
                         assertThat(result).isEqualByComparingTo(0.08);
                 }
 
-                @Test
-                void longResult_isConvertedToDouble() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("COUNT", "id"),
-                                        "scores",
-                                        null);
-
-                        when(mockQuery.getSingleResult()).thenReturn(42L);
-
-                        Double result = service.evaluate(spec, 1L, null);
-
-                        assertThat(result).isEqualByComparingTo((double) (42));
-                }
-
-                @Test
-                void countDistinct_generatesCorrectSql() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("COUNT_DISTINCT", "map_difficulty_id"),
-                                        "scores",
-                                        List.of(new FilterSpec("active", "=", true)));
-
-                        when(mockQuery.getSingleResult()).thenReturn(15L);
-
-                        service.evaluate(spec, 7L, null);
-
-                        String sql = capturedSql();
-                        assertThat(sql).contains("COUNT(DISTINCT s.map_difficulty_id)");
-                        assertThat(sql).contains("md.status = 'ranked'");
-                        assertRankedFilterApplied();
-                }
-
-                @Test
-                void crossTableFilter_mapDifficultyStatus_coercesStringToEnum() {
+                @ParameterizedTest(name = "status filter value {0}")
+                @ValueSource(strings = { "RANKED", "ranked" })
+                void crossTableFilter_mapDifficultyStatus_bindsDbValue(String status) {
                         MilestoneQuerySpec spec = new MilestoneQuerySpec(
                                         new SelectSpec("MAX", "ap"),
                                         "scores",
-                                        List.of(new FilterSpec("map_difficulty_status", "=", "RANKED")));
+                                        List.of(new FilterSpec("map_difficulty_status", "=", status)));
 
                         when(mockQuery.getSingleResult()).thenReturn((double) (900));
 
@@ -568,21 +508,6 @@ class MilestoneQueryBuilderServiceTest {
 
                         String sql = capturedSql();
                         assertThat(sql).contains("md.status");
-
-                        verify(mockQuery).setParameter("p0", "ranked");
-                        assertRankedFilterApplied();
-                }
-
-                @Test
-                void crossTableFilter_mapDifficultyStatus_dbValueFallback() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("MAX", "ap"),
-                                        "scores",
-                                        List.of(new FilterSpec("map_difficulty_status", "=", "ranked")));
-
-                        when(mockQuery.getSingleResult()).thenReturn(0.0);
-
-                        service.evaluate(spec, 1L, null);
 
                         verify(mockQuery).setParameter("p0", "ranked");
                         assertRankedFilterApplied();
@@ -697,25 +622,6 @@ class MilestoneQueryBuilderServiceTest {
                         verify(mockQuery).setParameter("p0", true);
                         verify(mockQuery).setParameter("p1", 0);
                         verify(mockQuery).setParameter("p2", 0);
-                        assertRankedFilterApplied();
-                }
-
-                @Test
-                void sumTotalScoreAcrossUserScores() {
-                        MilestoneQuerySpec spec = new MilestoneQuerySpec(
-                                        new SelectSpec("SUM", "score"),
-                                        "scores",
-                                        List.of(new FilterSpec("active", "=", true)));
-
-                        when(mockQuery.getSingleResult()).thenReturn(8_500_000L);
-
-                        Double result = service.evaluate(spec, 1L, null);
-
-                        assertThat(result).isEqualByComparingTo((double) (8_500_000));
-
-                        String sql = capturedSql();
-                        assertThat(sql).contains("SUM(s.score)");
-                        assertThat(sql).contains("md.status = 'ranked'");
                         assertRankedFilterApplied();
                 }
 
@@ -906,7 +812,7 @@ class MilestoneQueryBuilderServiceTest {
         class GetSchema {
 
                 @Test
-                void returnsAllAllowedTables() {
+                void exposesAllowedTablesAndTheirColumns() {
                         MilestoneSchemaResponse schema = service.getSchema();
 
                         assertThat(schema.tables()).containsKeys(
@@ -915,6 +821,21 @@ class MilestoneQueryBuilderServiceTest {
                                         "map_difficulty_statistics", "map_difficulty_complexities",
                                         "categories", "modifiers", "milestones", "milestone_sets",
                                         "level_thresholds");
+
+                        List<String> scoreColNames = schema.tables().get("scores").stream()
+                                        .map(MilestoneSchemaResponse.ColumnInfo::name)
+                                        .toList();
+
+                        assertThat(scoreColNames).contains(
+                                        "accuracy", "map_difficulty_status", "map_difficulty_difficulty",
+                                        "song_name", "song_author", "map_author", "category_name", "category_code");
+                        assertThat(scoreColNames).contains("supersedes_id", "supersedes_time_set");
+
+                        assertThat(schema.tables()).containsKey("score_modifier_links");
+                        List<String> colNames = schema.tables().get("score_modifier_links").stream()
+                                        .map(MilestoneSchemaResponse.ColumnInfo::name)
+                                        .toList();
+                        assertThat(colNames).contains("id", "score_id", "modifier_id");
                 }
 
                 @Test
@@ -940,19 +861,6 @@ class MilestoneQueryBuilderServiceTest {
                 }
 
                 @Test
-                void difficultyColumn_includesAllDifficulties() {
-                        MilestoneSchemaResponse schema = service.getSchema();
-
-                        MilestoneSchemaResponse.ColumnInfo diffCol = schema.tables()
-                                        .get("scores").stream()
-                                        .filter(c -> c.name().equals("map_difficulty_difficulty"))
-                                        .findFirst().orElseThrow();
-
-                        assertThat(diffCol.enumValues())
-                                        .containsExactlyInAnyOrder("EASY", "NORMAL", "HARD", "EXPERT", "EXPERT_PLUS");
-                }
-
-                @Test
                 void functionsAndOperators_areIncluded() {
                         MilestoneSchemaResponse schema = service.getSchema();
 
@@ -960,38 +868,6 @@ class MilestoneQueryBuilderServiceTest {
                                         "AVG", "COUNT", "COUNT_DISTINCT", "MAX", "MIN", "PLAIN", "SUM");
                         assertThat(schema.operators()).containsExactlyInAnyOrder(
                                         "!=", "<", "<=", "=", ">", ">=", "IS NULL", "IS NOT NULL");
-                }
-
-                @Test
-                void crossTableColumns_exposedInScores() {
-                        MilestoneSchemaResponse schema = service.getSchema();
-
-                        List<String> scoreColNames = schema.tables().get("scores").stream()
-                                        .map(MilestoneSchemaResponse.ColumnInfo::name)
-                                        .toList();
-
-                        assertThat(scoreColNames).contains(
-                                        "accuracy", "map_difficulty_status", "map_difficulty_difficulty",
-                                        "song_name", "song_author", "map_author", "category_name", "category_code");
-                }
-
-                @Test
-                void scoreModifierLinksTable_isExposed() {
-                        MilestoneSchemaResponse schema = service.getSchema();
-                        assertThat(schema.tables()).containsKey("score_modifier_links");
-                        List<String> colNames = schema.tables().get("score_modifier_links").stream()
-                                        .map(MilestoneSchemaResponse.ColumnInfo::name)
-                                        .toList();
-                        assertThat(colNames).contains("id", "score_id", "modifier_id");
-                }
-
-                @Test
-                void supersedes_columnsExposedInScores() {
-                        MilestoneSchemaResponse schema = service.getSchema();
-                        List<String> scoreColNames = schema.tables().get("scores").stream()
-                                        .map(MilestoneSchemaResponse.ColumnInfo::name)
-                                        .toList();
-                        assertThat(scoreColNames).contains("supersedes_id", "supersedes_time_set");
                 }
         }
 

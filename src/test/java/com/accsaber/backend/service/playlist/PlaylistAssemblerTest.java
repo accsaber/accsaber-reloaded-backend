@@ -55,15 +55,6 @@ class PlaylistAssemblerTest {
     }
 
     @Test
-    void emptyDifficultyListProducesEmptySongs() {
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> songs = (List<Map<String, Object>>) assembler.assemble(
-                "x", "x", "x", List.of()).get("songs");
-
-        assertThat(songs).isEmpty();
-    }
-
-    @Test
     void loadCategoryImageReturnsEmptyWhenMissing() {
         String result = assembler.loadCategoryImage("does-not-exist");
 

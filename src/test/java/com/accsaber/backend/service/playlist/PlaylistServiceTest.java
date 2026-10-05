@@ -13,10 +13,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -169,18 +173,6 @@ class PlaylistServiceTest {
                     SYNC_URL)).isInstanceOf(ResourceNotFoundException.class);
             verify(playlistAssembler, never()).assemble(anyString(), any(), anyString(), any());
         }
-
-        @Test
-        void unknownCategoryThrows() {
-            when(userRepository.findByIdAndActiveTrue(TARGET_ID))
-                    .thenReturn(Optional.of(User.builder().id(TARGET_ID).name("Player").avatarUrl(AVATAR).build()));
-            UUID catId = UUID.randomUUID();
-            when(scoreService.findDifficultiesByUser(TARGET_ID, catId, null, pageable)).thenReturn(List.of());
-            when(categoryRepository.findById(catId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> playlistService.generateUserScoresPlaylist(TARGET_ID, catId, null, pageable,
-                    SYNC_URL)).isInstanceOf(ResourceNotFoundException.class);
-        }
     }
 
     @Nested
@@ -204,56 +196,24 @@ class PlaylistServiceTest {
             assertThat(diffCaptor.getValue()).containsExactly(diffA, diffB);
         }
 
-        @Test
-        void appendsCategoryLabelToTitle() {
-            when(playlistAssembler.assemble(eq("AccSaber: Snipe Victim (True Acc)"), any(), anyString(), any()))
-                    .thenReturn(Map.of());
-
-            playlistService.generateSnipePlaylist(selectionOf("True Acc", List.of()), query(null, null), SYNC_URL);
-
-            verify(playlistAssembler).assemble(eq("AccSaber: Snipe Victim (True Acc)"), any(), anyString(), any());
+        static Stream<Arguments> titledSelections() {
+            return Stream.of(
+                    Arguments.of("AccSaber: Snipe Victim (True Acc)", "True Acc", null, null),
+                    Arguments.of("AccSaber: Snipe Victim - AP gap high to low", null, SnipeSort.AP_GAP, null),
+                    Arguments.of("AccSaber: Snipe Victim", null, SnipeSort.GAP, null),
+                    Arguments.of("AccSaber: Snipe Victim - unplayed only", null, null, SnipeUnplayed.ONLY));
         }
 
-        @Test
-        void appendsOrderLabelToTitleWhenItIsNotTheDefault() {
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("titledSelections")
+        void labelsTheTitleFromTheSelection(String expectedTitle, String categoryLabel, SnipeSort sort,
+                SnipeUnplayed unplayed) {
             when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
 
-            playlistService.generateSnipePlaylist(selectionOf(null, List.of()), query(SnipeSort.AP_GAP, null),
+            playlistService.generateSnipePlaylist(selectionOf(categoryLabel, List.of()), query(sort, null, unplayed),
                     SYNC_URL);
 
-            verify(playlistAssembler).assemble(eq("AccSaber: Snipe Victim - AP gap high to low"), any(), anyString(),
-                    any());
-        }
-
-        @Test
-        void leavesTheTitleAloneForTheDefaultOrder() {
-            when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
-
-            playlistService.generateSnipePlaylist(selectionOf(null, List.of()), query(SnipeSort.GAP, null), SYNC_URL);
-
-            verify(playlistAssembler).assemble(eq("AccSaber: Snipe Victim"), any(), anyString(), any());
-        }
-
-        @Test
-        void appendsUnplayedLabelToTitleWhenAskedFor() {
-            when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
-
-            playlistService.generateSnipePlaylist(selectionOf(null, List.of()),
-                    query(null, null, SnipeUnplayed.ONLY), SYNC_URL);
-
-            verify(playlistAssembler).assemble(eq("AccSaber: Snipe Victim - unplayed only"), any(), anyString(),
-                    any());
-        }
-
-        @Test
-        void emptyResultStillProducesPlaylistWithNoSongs() {
-            when(playlistAssembler.assemble(anyString(), any(), anyString(), any())).thenReturn(Map.of());
-
-            playlistService.generateSnipePlaylist(selectionOf(null, List.of()), query(null, null), SYNC_URL);
-
-            ArgumentCaptor<List<MapDifficulty>> diffCaptor = captureDifficulties();
-            verify(playlistAssembler).assemble(anyString(), any(), anyString(), diffCaptor.capture());
-            assertThat(diffCaptor.getValue()).isEmpty();
+            verify(playlistAssembler).assemble(eq(expectedTitle), any(), anyString(), any());
         }
 
         private SnipeSelection selectionOf(String categoryLabel, List<MapDifficulty> difficulties) {

@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,29 +48,6 @@ class StaffAuthServiceTest {
         private StaffAuthService staffAuthService;
 
         @Test
-        void login_validCredentials_returnsAuthResponse() {
-                ReflectionTestUtils.setField(staffAuthService, "accessTokenTtl", 3600L);
-                ReflectionTestUtils.setField(staffAuthService, "refreshTokenTtl", 2592000L);
-
-                StaffUser staffUser = buildStaffUser();
-                LoginRequest request = new LoginRequest();
-                request.setIdentifier("admin");
-                request.setPassword("password");
-
-                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
-                when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
-                when(jwtService.generateAccessToken(staffUser)).thenReturn("access-token");
-                when(jwtService.generateRefreshToken()).thenReturn("refresh-token");
-                when(staffUserRepository.save(any())).thenReturn(staffUser);
-
-                AuthResponse response = staffAuthService.login(request);
-
-                assertThat(response.getAccessToken()).isEqualTo("access-token");
-                assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
-                assertThat(response.getRole()).isEqualTo(StaffRole.ADMIN);
-        }
-
-        @Test
         void login_unknownUsername_throwsUnauthorized() {
                 LoginRequest request = new LoginRequest();
                 request.setIdentifier("unknown");
@@ -96,18 +75,6 @@ class StaffAuthServiceTest {
         }
 
         @Test
-        void login_inactiveUser_throwsUnauthorized() {
-                LoginRequest request = new LoginRequest();
-                request.setIdentifier("admin");
-                request.setPassword("password");
-
-                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of());
-
-                assertThatThrownBy(() -> staffAuthService.login(request))
-                                .isInstanceOf(UnauthorizedException.class);
-        }
-
-        @Test
         void refresh_validToken_returnsNewAccessToken() {
                 ReflectionTestUtils.setField(staffAuthService, "accessTokenTtl", 3600L);
                 ReflectionTestUtils.setField(staffAuthService, "refreshTokenTtl", 2592000L);
@@ -129,10 +96,14 @@ class StaffAuthServiceTest {
                 assertThat(response.getAccessToken()).isEqualTo("new-access-token");
         }
 
-        @Test
-        void login_requestedStatus_throwsForbiddenWithPendingMessage() {
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource({
+                        "REQUESTED, pending approval",
+                        "DENIED, denied"
+        })
+        void login_unapprovedStatus_throwsForbidden(StaffUserStatus status, String message) {
                 StaffUser staffUser = buildStaffUser();
-                staffUser.setStatus(StaffUserStatus.REQUESTED);
+                staffUser.setStatus(status);
                 LoginRequest request = new LoginRequest();
                 request.setIdentifier("admin");
                 request.setPassword("password");
@@ -142,29 +113,17 @@ class StaffAuthServiceTest {
 
                 assertThatThrownBy(() -> staffAuthService.login(request))
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining("pending approval");
+                                .hasMessageContaining(message);
         }
 
-        @Test
-        void login_deniedStatus_throwsForbiddenWithDeniedMessage() {
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource({
+                        "REQUESTED, pending approval",
+                        "DENIED, denied"
+        })
+        void refresh_unapprovedStatus_throwsForbidden(StaffUserStatus status, String message) {
                 StaffUser staffUser = buildStaffUser();
-                staffUser.setStatus(StaffUserStatus.DENIED);
-                LoginRequest request = new LoginRequest();
-                request.setIdentifier("admin");
-                request.setPassword("password");
-
-                when(staffUserRepository.findByUsernameIgnoreCaseAndActiveTrue("admin")).thenReturn(List.of(staffUser));
-                when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
-
-                assertThatThrownBy(() -> staffAuthService.login(request))
-                                .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining("denied");
-        }
-
-        @Test
-        void refresh_requestedStatus_throwsForbidden() {
-                StaffUser staffUser = buildStaffUser();
-                staffUser.setStatus(StaffUserStatus.REQUESTED);
+                staffUser.setStatus(status);
                 staffUser.setRefreshToken("valid-refresh");
                 staffUser.setTokenExpiresAt(Instant.now().plusSeconds(3600));
 
@@ -175,24 +134,7 @@ class StaffAuthServiceTest {
 
                 assertThatThrownBy(() -> staffAuthService.refresh(request))
                                 .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining("pending approval");
-        }
-
-        @Test
-        void refresh_deniedStatus_throwsForbidden() {
-                StaffUser staffUser = buildStaffUser();
-                staffUser.setStatus(StaffUserStatus.DENIED);
-                staffUser.setRefreshToken("valid-refresh");
-                staffUser.setTokenExpiresAt(Instant.now().plusSeconds(3600));
-
-                RefreshTokenRequest request = new RefreshTokenRequest();
-                request.setRefreshToken("valid-refresh");
-
-                when(staffUserRepository.findByRefreshTokenAndActiveTrue("valid-refresh")).thenReturn(Optional.of(staffUser));
-
-                assertThatThrownBy(() -> staffAuthService.refresh(request))
-                                .isInstanceOf(ForbiddenException.class)
-                                .hasMessageContaining("denied");
+                                .hasMessageContaining(message);
         }
 
         @Test

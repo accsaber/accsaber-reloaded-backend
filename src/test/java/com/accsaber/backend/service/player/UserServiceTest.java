@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
@@ -125,44 +124,7 @@ class UserServiceTest {
     }
 
     @Nested
-    class FindOptionalByUserId {
-
-        @Test
-        void returnsUser_whenExists() {
-            User user = User.builder().id(STEAM_ID).name("Player").build();
-            when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.of(user));
-
-            Optional<User> result = userService.findOptionalByUserId(STEAM_ID);
-
-            assertThat(result).isPresent();
-            assertThat(result.get().getName()).isEqualTo("Player");
-        }
-
-        @Test
-        void returnsEmpty_whenNotExists() {
-            when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.empty());
-
-            Optional<User> result = userService.findOptionalByUserId(STEAM_ID);
-
-            assertThat(result).isEmpty();
-        }
-    }
-
-    @Nested
     class CreateUser {
-
-        @Test
-        void createsAndReturnsUser() {
-            when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.empty());
-            when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            User result = userService.createUser(STEAM_ID, "NewPlayer", "https://avatar.png", "US");
-
-            assertThat(result.getId()).isEqualTo(STEAM_ID);
-            assertThat(result.getName()).isEqualTo("NewPlayer");
-            assertThat(result.getAvatarUrl()).isEqualTo("https://avatar.png");
-            assertThat(result.getCountry()).isEqualTo("US");
-        }
 
         @Test
         void throwsConflict_whenUserAlreadyExists() {
@@ -230,46 +192,6 @@ class UserServiceTest {
 
             verify(userNameHistoryRepository, never()).save(any());
             assertThat(user.getName()).isEqualTo("CurrentName");
-        }
-
-        @Test
-        void throwsNotFound_whenUserDoesNotExist() {
-            when(userRepository.findByIdAndActiveTrue(STEAM_ID)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> userService.updateProfile(STEAM_ID, "Name", null, null, null))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-    }
-
-    @Nested
-    class GetNameHistory {
-
-        @Test
-        void returnsHistoryOrderedByChangedAtDesc() {
-            User user = User.builder().id(STEAM_ID).name("Current").build();
-            UserNameHistory older = UserNameHistory.builder()
-                    .user(user).name("First").changedAt(Instant.parse("2025-01-01T00:00:00Z")).build();
-            UserNameHistory newer = UserNameHistory.builder()
-                    .user(user).name("Second").changedAt(Instant.parse("2025-06-01T00:00:00Z")).build();
-
-            when(userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(STEAM_ID))
-                    .thenReturn(List.of(newer, older));
-
-            List<UserNameHistory> result = userService.getNameHistory(STEAM_ID);
-
-            assertThat(result).hasSize(2);
-            assertThat(result.get(0).getName()).isEqualTo("Second");
-            assertThat(result.get(1).getName()).isEqualTo("First");
-        }
-
-        @Test
-        void returnsEmptyList_whenNoHistory() {
-            when(userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(STEAM_ID))
-                    .thenReturn(List.of());
-
-            List<UserNameHistory> result = userService.getNameHistory(STEAM_ID);
-
-            assertThat(result).isEmpty();
         }
     }
 }

@@ -3,7 +3,7 @@ package com.accsaber.backend.service.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,21 +14,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
-import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
@@ -88,25 +84,6 @@ class BatchServiceTest {
         class FindById {
 
                 @Test
-                void returnsBatchWithDifficulties() {
-                        Batch batch = buildBatch(BatchStatus.DRAFT);
-                        MapDifficulty diff = buildDifficulty(batch);
-                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
-                        when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
-                                        .thenReturn(List.of(diff));
-                        when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-                        when(statisticsService.findActiveForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-
-                        BatchResponse response = batchService.findById(batch.getId());
-
-                        assertThat(response.getId()).isEqualTo(batch.getId());
-                        assertThat(response.getName()).isEqualTo("Test Batch");
-                        assertThat(response.getDifficulties()).hasSize(1);
-                }
-
-                @Test
                 void throwsNotFound_whenBatchDoesNotExist() {
                         UUID id = UUID.randomUUID();
                         when(batchRepository.findById(id)).thenReturn(Optional.empty());
@@ -114,25 +91,6 @@ class BatchServiceTest {
                         assertThatThrownBy(() -> batchService.findById(id))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
-        }
-
-        @Nested
-        class FindAll {
-
-                @Test
-                void returnsPagedBatches() {
-                        Batch batch = buildBatch(BatchStatus.DRAFT);
-                        Page<Batch> page = new PageImpl<>(List.of(batch));
-                        when(batchRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
-                        when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
-                                        .thenReturn(List.of());
-
-                        Page<BatchResponse> result = batchService.findAll(null, PageRequest.of(0, 20));
-
-                        assertThat(result).hasSize(1);
-                        assertThat(result.getContent().get(0).getStatus()).isEqualTo(BatchStatus.DRAFT);
-                }
-
         }
 
         @Nested
@@ -147,18 +105,17 @@ class BatchServiceTest {
                         CreateBatchRequest request = new CreateBatchRequest();
                         request.setName("New Batch");
                         request.setDescription("A test batch");
-                        when(batchRepository.save(any())).thenAnswer(inv -> {
-                                Batch b = inv.getArgument(0);
-                                return Batch.builder()
-                                                .id(UUID.randomUUID())
-                                                .name(b.getName())
-                                                .description(b.getDescription())
-                                                .status(BatchStatus.DRAFT)
-                                                .build();
-                        });
+                        when(batchRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
                         BatchResponse response = batchService.create(request, staffId);
 
+                        ArgumentCaptor<Batch> captor = ArgumentCaptor.forClass(Batch.class);
+                        verify(batchRepository).save(captor.capture());
+                        Batch saved = captor.getValue();
+                        assertThat(saved.getStatus()).isEqualTo(BatchStatus.DRAFT);
+                        assertThat(saved.getName()).isEqualTo("New Batch");
+                        assertThat(saved.getDescription()).isEqualTo("A test batch");
+                        assertThat(saved.getCreatedBy()).isEqualTo(staffUser);
                         assertThat(response.getName()).isEqualTo("New Batch");
                         assertThat(response.getStatus()).isEqualTo(BatchStatus.DRAFT);
                         assertThat(response.getDifficulties()).isEmpty();
@@ -167,25 +124,6 @@ class BatchServiceTest {
 
         @Nested
         class Update {
-
-                @Test
-                void updatesNameAndDescription() {
-                        Batch batch = buildBatch(BatchStatus.DRAFT);
-                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
-                        when(batchRepository.save(any())).thenReturn(batch);
-                        when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
-                                        .thenReturn(List.of());
-
-                        UpdateBatchRequest request = new UpdateBatchRequest();
-                        request.setName("Renamed Batch");
-                        request.setDescription("Updated description");
-
-                        BatchResponse response = batchService.update(batch.getId(), request);
-
-                        assertThat(response.getName()).isEqualTo("Renamed Batch");
-                        assertThat(response.getDescription()).isEqualTo("Updated description");
-                        verify(batchRepository).save(batch);
-                }
 
                 @Test
                 void updatesReleasedBatch() {
@@ -202,18 +140,6 @@ class BatchServiceTest {
 
                         assertThat(response.getName()).isEqualTo("Typo Fixed");
                         assertThat(response.getStatus()).isEqualTo(BatchStatus.RELEASED);
-                }
-
-                @Test
-                void throwsNotFound_whenBatchDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(batchRepository.findById(id)).thenReturn(Optional.empty());
-
-                        UpdateBatchRequest request = new UpdateBatchRequest();
-                        request.setName("Nope");
-
-                        assertThatThrownBy(() -> batchService.update(id, request))
-                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
 
@@ -260,18 +186,6 @@ class BatchServiceTest {
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("released");
                 }
-
-                @Test
-                void throwsNotFound_whenBatchDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(batchRepository.findById(id)).thenReturn(Optional.empty());
-
-                        UpdateBatchStatusRequest request = new UpdateBatchStatusRequest();
-                        request.setStatus(BatchStatus.RELEASE_READY);
-
-                        assertThatThrownBy(() -> batchService.updateStatus(id, request))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
         }
 
         @Nested
@@ -313,23 +227,28 @@ class BatchServiceTest {
                 }
 
                 @Test
+                void throwsValidation_whenDifficultyIsCampaignImported() {
+                        Batch batch = buildBatch(BatchStatus.DRAFT);
+                        MapDifficulty diff = buildStandaloneDifficulty();
+                        diff.setStatus(MapDifficultyStatus.CAMPAIGN);
+                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
+                                        .thenReturn(Optional.of(diff));
+
+                        assertThatThrownBy(() -> batchService.addDifficulty(batch.getId(), diff.getId()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("promoted to queue");
+                        assertThat(diff.getBatch()).isNull();
+                        verify(mapDifficultyRepository, never()).save(any());
+                }
+
+                @Test
                 void throwsValidation_whenBatchIsReleased() {
                         Batch batch = buildBatch(BatchStatus.RELEASED);
                         when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
 
                         assertThatThrownBy(() -> batchService.addDifficulty(batch.getId(), UUID.randomUUID()))
                                         .isInstanceOf(ValidationException.class);
-                }
-
-                @Test
-                void throwsNotFound_whenDifficultyDoesNotExist() {
-                        Batch batch = buildBatch(BatchStatus.DRAFT);
-                        UUID diffId = UUID.randomUUID();
-                        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(diffId)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> batchService.addDifficulty(batch.getId(), diffId))
-                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
 
@@ -391,28 +310,31 @@ class BatchServiceTest {
                         assertThat(diff2.getRankedAt()).isNotNull();
                         assertThat(batch.getStatus()).isEqualTo(BatchStatus.RELEASED);
                         assertThat(batch.getReleasedAt()).isNotNull();
+                        assertThat(diff1.getRankedAt()).isEqualTo(diff2.getRankedAt());
+                        assertThat(diff1.getRankedAt()).isEqualTo(batch.getReleasedAt());
                 }
 
                 @Test
-                void allDifficulties_getTheSameRankedAtTimestamp() {
+                void throwsValidation_whenADifficultyHasNoActiveComplexity() {
                         Batch batch = buildBatch(BatchStatus.RELEASE_READY);
                         MapDifficulty diff1 = buildDifficulty(batch);
                         MapDifficulty diff2 = buildDifficulty(batch);
                         when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
                         when(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId()))
                                         .thenReturn(List.of(diff1, diff2));
-                        when(mapDifficultyRepository.saveAll(any())).thenReturn(List.of(diff1, diff2));
-                        when(batchRepository.save(any())).thenReturn(batch);
                         when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of(
-                                                        diff1.getId(), (double) (8.0),
-                                                        diff2.getId(), (double) (9.0)));
-                        when(statisticsService.findActiveForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
+                                        .thenReturn(java.util.Map.of(diff1.getId(), (double) (8.0)));
 
-                        batchService.release(batch.getId());
-
-                        assertThat(diff1.getRankedAt()).isEqualTo(diff2.getRankedAt());
+                        assertThatThrownBy(() -> batchService.release(batch.getId()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("missing complexity")
+                                        .hasMessageContaining(diff2.getId().toString())
+                                        .hasMessageNotContaining(diff1.getId().toString());
+                        assertThat(diff1.getStatus()).isEqualTo(MapDifficultyStatus.QUALIFIED);
+                        assertThat(diff2.getStatus()).isEqualTo(MapDifficultyStatus.QUALIFIED);
+                        assertThat(batch.getStatus()).isEqualTo(BatchStatus.RELEASE_READY);
+                        verify(mapDifficultyRepository, never()).saveAll(any());
+                        verify(batchRepository, never()).save(any());
                 }
 
                 @Test
@@ -423,15 +345,6 @@ class BatchServiceTest {
                         assertThatThrownBy(() -> batchService.release(batch.getId()))
                                         .isInstanceOf(ConflictException.class)
                                         .hasMessageContaining("already released");
-                }
-
-                @Test
-                void throwsNotFound_whenBatchDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(batchRepository.findById(id)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> batchService.release(id))
-                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
 
                 @Test

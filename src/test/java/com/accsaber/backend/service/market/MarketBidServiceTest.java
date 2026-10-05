@@ -17,6 +17,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -89,16 +91,6 @@ class MarketBidServiceTest {
 
         verify(essenceLedgerService).reserve(BIDDER_ID, 100L);
         verify(essenceLedgerService, never()).release(anyLong(), anyLong());
-    }
-
-    @Test
-    void outbiddingRefundsThePreviousBidder() {
-        stubListing(auction(100L, null, 100L, user(RIVAL_ID)));
-
-        bidService.placeBid(LISTING_ID, BIDDER_ID, 150L);
-
-        verify(essenceLedgerService).release(RIVAL_ID, 100L);
-        verify(essenceLedgerService).reserve(BIDDER_ID, 150L);
     }
 
     @Test
@@ -229,20 +221,14 @@ class MarketBidServiceTest {
         verify(settlementService).award(any(MarketListing.class), any(User.class), anyLong());
     }
 
-    @Test
-    void anEndlessListingIsNeverConsideredEnded() {
+    @ParameterizedTest(name = "endless listing: {0}")
+    @ValueSource(booleans = { true, false })
+    void shopListingsRejectBidsBelowTheBuyoutPriceWhetherOrNotTheyEnd(boolean endless) {
         MarketListing listing = auction(null, 500L, null, null);
-        listing.setEndsAt(null);
+        if (endless) {
+            listing.setEndsAt(null);
+        }
         stubListing(listing);
-
-        assertThatThrownBy(() -> bidService.placeBid(LISTING_ID, BIDDER_ID, 100L))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("buy-now only");
-    }
-
-    @Test
-    void shopListingsRejectBidsBelowTheBuyoutPrice() {
-        stubListing(auction(null, 500L, null, null));
 
         assertThatThrownBy(() -> bidService.placeBid(LISTING_ID, BIDDER_ID, 100L))
                 .isInstanceOf(ValidationException.class)

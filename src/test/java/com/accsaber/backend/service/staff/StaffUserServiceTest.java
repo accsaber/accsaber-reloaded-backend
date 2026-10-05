@@ -96,6 +96,23 @@ class StaffUserServiceTest {
 
         verify(staffUserRepository).save(staffUser);
         assertThat(staffUser.getRole()).isEqualTo(StaffRole.RANKING_HEAD);
+        verify(oauthSessionRepository, never()).deleteByUserId(any());
+    }
+
+    @Test
+    void updateRole_linkedPlayer_invalidatesPlayerSessions() {
+        StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
+        staffUser.setUser(User.builder().id(7L).name("Player").active(true).build());
+        UUID staffId = staffUser.getId();
+
+        when(staffUserRepository.findByIdAndActiveTrue(staffId)).thenReturn(Optional.of(staffUser));
+        when(staffUserRepository.save(any())).thenReturn(staffUser);
+
+        staffUserService.updateRole(staffId, StaffRole.RANKING_HEAD);
+
+        verify(oauthSessionRepository).deleteByUserId(7L);
+        verify(staffUserRepository).save(staffUser);
+        assertThat(staffUser.getRole()).isEqualTo(StaffRole.RANKING_HEAD);
     }
 
     @Test

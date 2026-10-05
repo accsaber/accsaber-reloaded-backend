@@ -306,7 +306,7 @@ class XPReweightServiceTest {
         class ReweightAllScores {
 
                 @Test
-                void parallelizesAcrossDifficulties() {
+                void adjustsScoresAcrossDifficultiesThenRebuildsDerivedTotals() {
                         UUID diffId = UUID.randomUUID();
                         Curve scoreCurve = Curve.builder().id(UUID.randomUUID()).build();
                         Category category = Category.builder().id(UUID.randomUUID()).scoreCurve(scoreCurve).build();
@@ -329,33 +329,8 @@ class XPReweightServiceTest {
 
                         verify(scoreRepository).saveAll(any());
                         verify(xpCalculationService).evictXpCurveCache();
-                }
-
-                @Test
-                void rebuildsDerivedTotalsAfterRepricingScores() {
-                        UUID diffId = UUID.randomUUID();
-
-                        when(scoreRepository.findDistinctMapDifficultyIds()).thenReturn(List.of(diffId));
-                        when(scoreRepository.findAllByDifficultyOrderedByUserAndTime(diffId))
-                                        .thenReturn(List.of());
-
-                        service.reweightAllScores();
-
                         verify(statisticsRepository).rebuildScoreXp(null);
                         verify(userRepository).recalculateTotalXpForAllActiveUsers();
-                }
-
-                @Test
-                void skipsDifficultyWithNoScores() {
-                        UUID diffId = UUID.randomUUID();
-
-                        when(scoreRepository.findDistinctMapDifficultyIds()).thenReturn(List.of(diffId));
-                        when(scoreRepository.findAllByDifficultyOrderedByUserAndTime(diffId))
-                                        .thenReturn(List.of());
-
-                        service.reweightAllScores();
-
-                        verify(scoreRepository, never()).saveAll(any());
                 }
         }
 

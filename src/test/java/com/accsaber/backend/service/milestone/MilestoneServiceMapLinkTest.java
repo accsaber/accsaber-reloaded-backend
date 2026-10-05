@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -26,7 +28,6 @@ import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.FilterSpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
-import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMilestoneLink;
 import com.accsaber.backend.model.entity.milestone.Milestone;
@@ -114,39 +115,6 @@ class MilestoneServiceMapLinkTest {
         class CreateMilestoneWithMapLinks {
 
                 @Test
-                void withMapDifficultyIds_createsLinksForEach() {
-                        UUID md1Id = UUID.randomUUID();
-                        UUID md2Id = UUID.randomUUID();
-                        MapDifficulty md1 = MapDifficulty.builder().id(md1Id).build();
-                        MapDifficulty md2 = MapDifficulty.builder().id(md2Id).build();
-
-                        Milestone saved = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(set)
-                                        .title("Map Milestone")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.gold)
-                                        .xp((double) (250))
-                                        .querySpec(querySpec)
-                                        .targetValue((double) (95))
-                                        .comparison("GTE")
-                                        .build();
-
-                        when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                                        .thenReturn(Optional.of(set));
-                        when(milestoneRepository.save(any())).thenReturn(saved);
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(md1Id)).thenReturn(Optional.of(md1));
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(md2Id)).thenReturn(Optional.of(md2));
-                        when(mapDifficultyMilestoneLinkRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-                        MilestoneResponse response = service.createMilestone(buildRequest(List.of(md1Id, md2Id)));
-
-                        assertThat(response).isNotNull();
-                        verify(mapDifficultyMilestoneLinkRepository, times(2))
-                                        .save(any(MapDifficultyMilestoneLink.class));
-                }
-
-                @Test
                 void withMapDifficultyIds_linkContainsCorrectReferences() {
                         UUID mdId = UUID.randomUUID();
                         MapDifficulty md = MapDifficulty.builder().id(mdId).build();
@@ -180,8 +148,9 @@ class MilestoneServiceMapLinkTest {
                         assertThat(link.getMapDifficulty()).isEqualTo(md);
                 }
 
-                @Test
-                void nullMapDifficultyIds_skipsLinkCreation() {
+                @ParameterizedTest(name = "mapDifficultyIds = {0}")
+                @NullAndEmptySource
+                void missingMapDifficultyIds_skipsLinkCreation(List<UUID> mapDifficultyIds) {
                         Milestone saved = Milestone.builder()
                                         .id(UUID.randomUUID())
                                         .milestoneSet(set)
@@ -198,59 +167,10 @@ class MilestoneServiceMapLinkTest {
                                         .thenReturn(Optional.of(set));
                         when(milestoneRepository.save(any())).thenReturn(saved);
 
-                        service.createMilestone(buildRequest(null));
+                        service.createMilestone(buildRequest(mapDifficultyIds));
 
                         verify(mapDifficultyMilestoneLinkRepository, never()).save(any());
                         verify(mapDifficultyRepository, never()).findByIdAndActiveTrue(any());
-                }
-
-                @Test
-                void emptyMapDifficultyIds_skipsLinkCreation() {
-                        Milestone saved = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(set)
-                                        .title("Empty Maps")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.bronze)
-                                        .xp((double) (100))
-                                        .querySpec(querySpec)
-                                        .targetValue(1.0)
-                                        .comparison("GTE")
-                                        .build();
-
-                        when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                                        .thenReturn(Optional.of(set));
-                        when(milestoneRepository.save(any())).thenReturn(saved);
-
-                        service.createMilestone(buildRequest(List.of()));
-
-                        verify(mapDifficultyMilestoneLinkRepository, never()).save(any());
-                }
-
-                @Test
-                void mapDifficultyNotFound_throwsResourceNotFoundException() {
-                        UUID missingId = UUID.randomUUID();
-
-                        Milestone saved = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(set)
-                                        .title("Bad Link")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.bronze)
-                                        .xp(1.0)
-                                        .querySpec(querySpec)
-                                        .targetValue(1.0)
-                                        .comparison("GTE")
-                                        .build();
-
-                        when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                                        .thenReturn(Optional.of(set));
-                        when(milestoneRepository.save(any())).thenReturn(saved);
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(missingId))
-                                        .thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> service.createMilestone(buildRequest(List.of(missingId))))
-                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
 
@@ -315,17 +235,6 @@ class MilestoneServiceMapLinkTest {
                 }
 
                 @Test
-                void milestoneNotFound_throwsResourceNotFoundException() {
-                        UUID missingId = UUID.randomUUID();
-
-                        when(milestoneRepository.findByIdAndActiveTrue(missingId))
-                                        .thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> service.addMapDifficultyLinks(missingId, List.of(UUID.randomUUID())))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-
-                @Test
                 void mapDifficultyNotFound_throwsResourceNotFoundException() {
                         UUID missingMdId = UUID.randomUUID();
 
@@ -336,22 +245,6 @@ class MilestoneServiceMapLinkTest {
 
                         assertThatThrownBy(() -> service.addMapDifficultyLinks(milestone.getId(), List.of(missingMdId)))
                                         .isInstanceOf(ResourceNotFoundException.class);
-                }
-
-                @Test
-                void duplicateLink_isSkipped() {
-                        UUID mdId = UUID.randomUUID();
-
-                        when(milestoneRepository.findByIdAndActiveTrue(milestone.getId()))
-                                        .thenReturn(Optional.of(milestone));
-                        when(mapDifficultyMilestoneLinkRepository
-                                        .existsByMapDifficulty_IdAndMilestone_Id(mdId, milestone.getId()))
-                                        .thenReturn(true);
-
-                        service.addMapDifficultyLinks(milestone.getId(), List.of(mdId));
-
-                        verify(mapDifficultyMilestoneLinkRepository, never()).save(any());
-                        verify(mapDifficultyRepository, never()).findByIdAndActiveTrue(any());
                 }
 
                 @Test

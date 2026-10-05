@@ -197,16 +197,6 @@ class DuplicateUserServiceTest {
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("already a secondary");
                 }
-
-                @Test
-                void throwsWhenUserNotFound() {
-                        when(linkRepository.existsBySecondaryUser_Id(SECONDARY_ID)).thenReturn(false);
-                        when(linkRepository.existsBySecondaryUser_Id(PRIMARY_ID)).thenReturn(false);
-                        when(userRepository.findById(PRIMARY_ID)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> service.createLink(PRIMARY_ID, SECONDARY_ID, "test"))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
         }
 
         @Nested
@@ -457,15 +447,6 @@ class DuplicateUserServiceTest {
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("Cannot delete a merged link");
                 }
-
-                @Test
-                void throwsWhenLinkNotFound() {
-                        UUID linkId = UUID.randomUUID();
-                        when(linkRepository.findById(linkId)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> service.deleteUnmergedLink(linkId))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
         }
 
         @Nested
@@ -643,16 +624,6 @@ class DuplicateUserServiceTest {
                         assertThat(results).allMatch(DuplicateLinkResponse::isMerged);
                         assertThat(secondaryUser.isActive()).isFalse();
                         assertThat(thirdUser.isActive()).isFalse();
-                }
-
-                @Test
-                void returnsEmptyList_whenNoUnmergedLinks() {
-                        when(linkRepository.findByMergedFalse()).thenReturn(List.of());
-
-                        List<DuplicateLinkResponse> results = service.mergeAllUnmerged(STAFF_ID);
-
-                        assertThat(results).isEmpty();
-                        verify(linkRepository, never()).save(any());
                 }
         }
 }

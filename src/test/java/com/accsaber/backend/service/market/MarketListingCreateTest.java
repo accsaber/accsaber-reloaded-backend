@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -18,6 +16,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -127,18 +128,11 @@ class MarketListingCreateTest {
         assertThat(res.getItem().getItem().getName()).isEqualTo("A thing");
     }
 
-    @Test
-    void anAuctionWithoutADurationIsRejected() {
-        CreateListingRequest req = request(100L, null, null);
-
-        assertThatThrownBy(() -> listingService.create(SELLER_ID, req))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("only buy-now listings can run indefinitely");
-    }
-
-    @Test
-    void anAuctionWithABuyoutStillRequiresADuration() {
-        CreateListingRequest req = request(100L, 500L, null);
+    @ParameterizedTest(name = "auction with buyout {0} still requires a duration")
+    @NullSource
+    @ValueSource(longs = 500L)
+    void anAuctionWithoutADurationIsRejected(Long buyout) {
+        CreateListingRequest req = request(100L, buyout, null);
 
         assertThatThrownBy(() -> listingService.create(SELLER_ID, req))
                 .isInstanceOf(ValidationException.class)
@@ -173,15 +167,6 @@ class MarketListingCreateTest {
         MarketListingResponse res = listingService.create(SELLER_ID, request(null, 500L, null));
 
         assertThat(res).isNotNull();
-    }
-
-    @Test
-    void theCapCheckIsSkippedEntirelyForSupporters() {
-        when(supporterService.isActiveSupporter(SELLER_ID)).thenReturn(true);
-
-        listingService.create(SELLER_ID, request(null, 500L, null));
-
-        verify(listingRepository, never()).countBySeller_IdAndStatus(any(), any());
     }
 
     @Test

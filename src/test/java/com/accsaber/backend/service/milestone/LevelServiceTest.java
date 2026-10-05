@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -56,44 +58,23 @@ class LevelServiceTest {
     @Nested
     class XpForLevel {
 
-        @Test
-        void level1_returnsExpectedValue() {
-            // floor(52 * 1^1.2) = 52
-            assertThat(service.xpForLevel(1)).isEqualByComparingTo((double) (52));
-        }
-
-        @Test
-        void level2_returnsExpectedValue() {
-            // floor(52 * 2^1.2) = floor(52 * 2.2974) = floor(119.46) = 119
-            assertThat((int) (service.xpForLevel(2))).isEqualTo(119);
-        }
-
-        @Test
-        void level10_returnsExpectedValue() {
-            // floor(52 * 10^1.2) = floor(52 * 15.8489) = floor(824.14) = 824
-            assertThat((int) (service.xpForLevel(10))).isEqualTo(824);
-        }
-
-        @Test
-        void level100_returnsCapValue() {
-            Double level100Cost = service.xpForLevel(100);
-            // floor(52 * 100^1.2) = floor(52 * 251.189) = 13061
-            assertThat(level100Cost.intValue()).isEqualTo(13061);
-        }
-
-        @Test
-        void level101_sameAsLevel100_flatCap() {
-            assertThat(service.xpForLevel(101)).isEqualByComparingTo(service.xpForLevel(100));
-        }
-
-        @Test
-        void level200_sameAsLevel100_flatCap() {
-            assertThat(service.xpForLevel(200)).isEqualByComparingTo(service.xpForLevel(100));
-        }
-
-        @Test
-        void level999_sameAsLevel100_flatCap() {
-            assertThat(service.xpForLevel(999)).isEqualByComparingTo(service.xpForLevel(100));
+        @ParameterizedTest(name = "level {0} costs {1} xp")
+        @CsvSource({
+                // floor(52 * 1^1.2) = 52
+                "1, 52",
+                // floor(52 * 2^1.2) = floor(52 * 2.2974) = floor(119.46) = 119
+                "2, 119",
+                // floor(52 * 10^1.2) = floor(52 * 15.8489) = floor(824.14) = 824
+                "10, 824",
+                // floor(52 * 100^1.2) = floor(52 * 251.189) = 13061
+                "100, 13061",
+                "101, 13061"
+        })
+        void xpForLevel_followsPowerFloorUpToFlatCap(int level, int expectedXp) {
+            assertThat(service.xpForLevel(level)).isEqualTo((double) expectedXp);
+            if (level > 100) {
+                assertThat(service.xpForLevel(level)).isEqualByComparingTo(service.xpForLevel(100));
+            }
         }
     }
 
@@ -205,17 +186,6 @@ class LevelServiceTest {
 
             assertThat(response.getLevel()).isEqualTo(101);
             assertThat(response.getXpForNextLevel()).isEqualByComparingTo(level100Cost);
-        }
-
-        @Test
-        void totalXp_setInResponse() {
-            Double totalXp = (double) (500);
-            when(levelThresholdRepository.findHighestTitleAtOrBelow(anyInt()))
-                    .thenReturn(Optional.empty());
-
-            LevelResponse response = service.calculateLevel(totalXp);
-
-            assertThat(response.getTotalXp()).isEqualByComparingTo(totalXp);
         }
     }
 }

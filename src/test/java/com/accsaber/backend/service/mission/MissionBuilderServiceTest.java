@@ -17,6 +17,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
@@ -41,26 +43,22 @@ class MissionBuilderServiceTest {
         ctx = new MissionAssignmentContext(42L, List.of(), Map.of(), Map.of(), 0.0);
     }
 
-    @Test
-    void pbAboveThresholdAnchorIndexStopsGrowingThePoolPastOneHundredScores() {
-        assertThat(service.pbAboveThresholdAnchorIndex(150, 0.70)).isEqualTo(70);
-        assertThat(service.pbAboveThresholdAnchorIndex(500, 0.45)).isEqualTo(45);
-        assertThat(service.pbAboveThresholdAnchorIndex(900, 0.22)).isEqualTo(22);
-        assertThat(service.pbAboveThresholdAnchorIndex(150, 0.10)).isEqualTo(10);
-    }
-
-    @Test
-    void pbAboveThresholdAnchorIndexKeepsPercentileLogicAtOrBelowHundred() {
-        assertThat(service.pbAboveThresholdAnchorIndex(100, 0.70)).isEqualTo(70);
-        assertThat(service.pbAboveThresholdAnchorIndex(80, 0.45)).isEqualTo(36);
-        assertThat(service.pbAboveThresholdAnchorIndex(60, 0.22)).isEqualTo(13);
-        assertThat(service.pbAboveThresholdAnchorIndex(50, 0.10)).isEqualTo(5);
-    }
-
-    @Test
-    void pbAboveThresholdAnchorIndexIsContinuousAcrossTheHundredScoreBoundary() {
-        assertThat(service.pbAboveThresholdAnchorIndex(101, 0.10))
-                .isEqualTo(service.pbAboveThresholdAnchorIndex(100, 0.10));
+    @ParameterizedTest(name = "{0} scores at {1} -> {2}")
+    @CsvSource({
+            "150, 0.70, 70",
+            "500, 0.45, 45",
+            "900, 0.22, 22",
+            "150, 0.10, 10",
+            "101, 0.10, 10",
+            "100, 0.10, 10",
+            "100, 0.70, 70",
+            "80, 0.45, 36",
+            "60, 0.22, 13",
+            "50, 0.10, 5"
+    })
+    void pbAboveThresholdAnchorIndexCapsThePoolAtOneHundredScores(int scoreCount, double percentile,
+            int expected) {
+        assertThat(service.pbAboveThresholdAnchorIndex(scoreCount, percentile)).isEqualTo(expected);
     }
 
     @Test

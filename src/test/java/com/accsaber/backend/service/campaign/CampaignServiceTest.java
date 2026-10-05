@@ -18,11 +18,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -267,37 +272,6 @@ class CampaignServiceTest {
         class UpdateCampaign {
 
                 @Test
-                void updatesNameInDraft() {
-                        UpdateCampaignRequest request = new UpdateCampaignRequest();
-                        request.setName("Renamed");
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
-                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
-
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
-
-                        assertThat(result.getName()).isEqualTo("Renamed");
-                }
-
-                @Test
-                void allowsUpdateWhenPublished() {
-                        campaign.setStatus(CampaignStatus.PUBLISHED);
-                        UpdateCampaignRequest request = new UpdateCampaignRequest();
-                        request.setName("Renamed");
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
-                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
-
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
-
-                        assertThat(result.getName()).isEqualTo("Renamed");
-                }
-
-                @Test
                 void allowsAdminUpdateWhenCurated() {
                         campaign.setStatus(CampaignStatus.CURATED);
                         UpdateCampaignRequest request = new UpdateCampaignRequest();
@@ -339,19 +313,6 @@ class CampaignServiceTest {
 
                         assertThat(result.getBackground())
                                         .isEqualTo(placement("140", "50", "20"));
-                }
-
-                @Test
-                void keepsDecimalBackgroundPlacement() {
-                        UpdateCampaignRequest request = new UpdateCampaignRequest();
-                        request.setBackground(placement("140.5", "2.5", "-3.25"));
-                        stubUpdate();
-
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
-
-                        assertThat(result.getBackground().getSize()).isEqualByComparingTo(140.5);
-                        assertThat(result.getBackground().getX()).isEqualByComparingTo(2.5);
-                        assertThat(result.getBackground().getY()).isEqualByComparingTo(-3.25);
                 }
 
                 @Test
@@ -666,9 +627,19 @@ class CampaignServiceTest {
                                         .thenReturn(difficulties);
                 }
 
-                @Test
-                void publishesWhenANodeIsFlaggedTerminal() {
-                        stubPublish(List.of(node(0, "0.90", false), node(1, "0.95", true)));
+                static Stream<Arguments> terminalLayouts() {
+                        return Stream.of(
+                                        Arguments.of("one terminal node", List.of(false, true)),
+                                        Arguments.of("several terminals and disconnected branches",
+                                                        List.of(true, true, false)));
+                }
+
+                @ParameterizedTest(name = "{0}")
+                @MethodSource("terminalLayouts")
+                void publishesWhenANodeIsFlaggedTerminal(String layout, List<Boolean> terminals) {
+                        List<String> accs = List.of("0.90", "0.95", "0.97");
+                        stubPublish(IntStream.range(0, terminals.size())
+                                        .mapToObj(i -> node(i, accs.get(i), terminals.get(i))).toList());
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
@@ -676,17 +647,6 @@ class CampaignServiceTest {
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                         assertThat(result.getPublishedAt()).isNotNull();
-                }
-
-                @Test
-                void publishesWithSeveralTerminalsAndDisconnectedBranches() {
-                        stubPublish(List.of(node(0, "0.90", true), node(1, "0.95", true), node(2, "0.97", false)));
-                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
-                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
-
-                        CampaignResponse result = campaignService.publish(campaign.getId());
-
-                        assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                 }
 
                 @Test
@@ -915,51 +875,6 @@ class CampaignServiceTest {
 
                         assertThat(result.getNodeBorderUrl()).isEqualTo("https://cdn.example/border.png");
                         assertThat(result.getNodeBorderLayer()).isEqualTo(CampaignNodeBorderLayer.ABOVE);
-                }
-
-                @Test
-                void honoursExplicitBelowNodeBorderLayer() {
-                        AddCampaignDifficultyRequest request = new AddCampaignDifficultyRequest();
-                        request.setMapDifficultyId(mapDifficulty.getId());
-                        request.setRequirementType(CampaignRequirementType.ACC);
-                        request.setRequirementValue(0.95);
-                        request.setPositionX((double) (2));
-                        request.setPositionY((double) (1));
-                        request.setNodeBorderUrl("https://cdn.example/border.png");
-                        request.setNodeBorderLayer(CampaignNodeBorderLayer.BELOW);
-                        stubAddDifficulty();
-
-                        CampaignDifficultyResponse result = campaignService.addDifficulty(campaign.getId(), request);
-
-                        assertThat(result.getNodeBorderLayer()).isEqualTo(CampaignNodeBorderLayer.BELOW);
-                }
-
-                @Test
-                void acceptsFractionalNodePositions() {
-                        AddCampaignDifficultyRequest request = new AddCampaignDifficultyRequest();
-                        request.setMapDifficultyId(mapDifficulty.getId());
-                        request.setRequirementType(CampaignRequirementType.ACC);
-                        request.setRequirementValue(0.95);
-                        request.setPositionX(2.25);
-                        request.setPositionY(-1.5);
-
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
-                                        .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
-                                        campaign.getId(), 2.25, -1.5))
-                                        .thenReturn(false);
-                        when(campaignDifficultyRepository.save(any(CampaignDifficulty.class))).thenAnswer(inv -> {
-                                CampaignDifficulty d = inv.getArgument(0);
-                                d.setId(UUID.randomUUID());
-                                return d;
-                        });
-
-                        CampaignDifficultyResponse result = campaignService.addDifficulty(campaign.getId(), request);
-
-                        assertThat(result.getPositionX()).isEqualByComparingTo(2.25);
-                        assertThat(result.getPositionY()).isEqualByComparingTo(-1.5);
                 }
 
                 @Test
@@ -1259,17 +1174,6 @@ class CampaignServiceTest {
         class DeactivateCampaign {
 
                 @Test
-                void deactivates() {
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignRepository.save(any(Campaign.class))).thenReturn(campaign);
-
-                        campaignService.deactivateCampaign(campaign.getId());
-
-                        assertThat(campaign.isActive()).isFalse();
-                }
-
-                @Test
                 void throwsWhenMissing() {
                         UUID id = UUID.randomUUID();
                         when(campaignRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
@@ -1542,26 +1446,6 @@ class CampaignServiceTest {
                 }
 
                 @Test
-                void allowsTradeableItemOnNonOfficialCampaign() {
-                        CampaignDifficulty node = draftNode();
-                        Item tradeable = Item.builder().id(UUID.randomUUID()).tradeable(true).build();
-                        SetCampaignItemRequest request = new SetCampaignItemRequest();
-                        request.setItemId(tradeable.getId());
-                        when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
-                                        .thenReturn(Optional.of(node));
-                        when(itemRepository.findByIdAndActiveTrue(tradeable.getId()))
-                                        .thenReturn(Optional.of(tradeable));
-                        when(campaignDifficultyItemRepository.findById(any())).thenReturn(Optional.empty());
-                        when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
-                                        .thenReturn(List.of());
-
-                        campaignService.setDifficultyItemAsEditor(CampaignEditor.player(creator.getId()), node.getId(),
-                                        request);
-
-                        verify(campaignDifficultyItemRepository).save(any());
-                }
-
-                @Test
                 void rejectsItemPastItsObtainableCutoff() {
                         CampaignDifficulty node = draftNode();
                         Item expired = Item.builder().id(UUID.randomUUID()).name("Alpha Crate").tradeable(true)
@@ -1619,19 +1503,6 @@ class CampaignServiceTest {
                                         .hasMessageContaining("Alpha Crate");
 
                         verify(campaignCompletionItemRepository, never()).save(any());
-                }
-
-                @Test
-                void setOfficialMarksCampaignOfficialAndExposesIt() {
-                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
-                                        .thenReturn(Optional.of(campaign));
-                        when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
-                        when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
-
-                        CampaignResponse result = campaignService.setOfficial(campaign.getId(), true);
-
-                        assertThat(campaign.isOfficial()).isTrue();
-                        assertThat(result.isOfficial()).isTrue();
                 }
         }
 

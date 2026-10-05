@@ -11,10 +11,15 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -53,11 +58,6 @@ class NoteAccuracyComplexityRaterTest {
         coefficients.setWorstSlope(-2.0);
         properties.getCategories().put("tech_acc", coefficients);
         rater = new NoteAccuracyComplexityRater(zipCache, modelClient, properties, scenarioService);
-    }
-
-    @Test
-    void reportsTheConfiguredVersion() {
-        assertThat(rater.version()).isEqualTo(properties.getVersion());
     }
 
     @Test
@@ -133,50 +133,33 @@ class NoteAccuracyComplexityRaterTest {
         assertThat(chart(reset)).containsEntry("resetSlope", -2.0).containsEntry("dotSlope", -4.0);
     }
 
-    @Test
-    void bottomRowUpSwingsPriceThroughTheirOwnSlopeAndLeaveCleanMapsAlone() {
-        properties.getCategories().get("tech_acc").setBottomUpSlope(-4.0);
-        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc",
-                NoteAccuracyComplexityRater.NO_BOARD, null);
-        response.setBottomUpShare(0.15);
-        NoteAccuracyComplexityRater.Rating pattern = rater.rate(response, "tech_acc",
-                NoteAccuracyComplexityRater.NO_BOARD, null);
-
-        assertThat(clean.inputs()).containsEntry("bottomUpShare", 0.0);
-        assertThat(pattern.complexity()).isCloseTo(clean.complexity() - 0.6, within(0.051));
-        assertThat(pattern.inputs()).containsEntry("bottomUpShare", 0.15);
-        assertThat(chart(pattern)).containsEntry("bottomUpSlope", -4.0);
+    static Stream<Arguments> swingPatterns() {
+        return Stream.of(
+                Arguments.of("bottomUp", (BiConsumer<Coefficients, Double>) Coefficients::setBottomUpSlope,
+                        (BiConsumer<NoteAccuracies, Double>) NoteAccuracies::setBottomUpShare, -4.0, 0.15, -0.6),
+                Arguments.of("topDown", (BiConsumer<Coefficients, Double>) Coefficients::setTopDownSlope,
+                        (BiConsumer<NoteAccuracies, Double>) NoteAccuracies::setTopDownShare, 3.0, 0.135, 0.405),
+                Arguments.of("midDiagDouble", (BiConsumer<Coefficients, Double>) Coefficients::setMidDiagDoubleSlope,
+                        (BiConsumer<NoteAccuracies, Double>) NoteAccuracies::setMidDiagDoubleShare, 5.0, 0.06, 0.30));
     }
 
-    @Test
-    void topRowDownSwingsPriceThroughTheirOwnSlope() {
-        properties.getCategories().get("tech_acc").setTopDownSlope(3.0);
+    @ParameterizedTest(name = "{0} share {4} at slope {3} moves complexity by {5}")
+    @MethodSource("swingPatterns")
+    void swingPatternsPriceThroughTheirOwnSlopeAndLeaveCleanMapsAlone(String pattern,
+            BiConsumer<Coefficients, Double> slopeSetter, BiConsumer<NoteAccuracies, Double> shareSetter,
+            double slope, double share, double expectedDelta) {
+        slopeSetter.accept(properties.getCategories().get("tech_acc"), slope);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
         NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc",
                 NoteAccuracyComplexityRater.NO_BOARD, null);
-        response.setTopDownShare(0.135);
-        NoteAccuracyComplexityRater.Rating pattern = rater.rate(response, "tech_acc",
+        shareSetter.accept(response, share);
+        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc",
                 NoteAccuracyComplexityRater.NO_BOARD, null);
 
-        assertThat(clean.inputs()).containsEntry("topDownShare", 0.0);
-        assertThat(pattern.complexity()).isCloseTo(clean.complexity() + 0.405, within(0.051));
-        assertThat(chart(pattern)).containsEntry("topDownSlope", 3.0);
-    }
-
-    @Test
-    void midRowDiagonalDoublesPriceThroughTheirOwnSlope() {
-        properties.getCategories().get("tech_acc").setMidDiagDoubleSlope(5.0);
-        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc",
-                NoteAccuracyComplexityRater.NO_BOARD, null);
-        response.setMidDiagDoubleShare(0.06);
-        NoteAccuracyComplexityRater.Rating pattern = rater.rate(response, "tech_acc",
-                NoteAccuracyComplexityRater.NO_BOARD, null);
-
-        assertThat(clean.inputs()).containsEntry("midDiagDoubleShare", 0.0);
-        assertThat(pattern.complexity()).isCloseTo(clean.complexity() + 0.30, within(0.051));
-        assertThat(chart(pattern)).containsEntry("midDiagDoubleSlope", 5.0);
+        assertThat(clean.inputs()).containsEntry(pattern + "Share", 0.0);
+        assertThat(rated.complexity()).isCloseTo(clean.complexity() + expectedDelta, within(0.051));
+        assertThat(rated.inputs()).containsEntry(pattern + "Share", share);
+        assertThat(chart(rated)).containsEntry(pattern + "Slope", slope);
     }
 
     @Test

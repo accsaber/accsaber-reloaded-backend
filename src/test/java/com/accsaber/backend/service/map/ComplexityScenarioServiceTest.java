@@ -154,17 +154,10 @@ class ComplexityScenarioServiceTest {
         double hardBest = -Math.log10(0.04) - skill2;
         assertThat(ease.get(easyMap).ease() - ease.get(hardMap).ease()).isCloseTo(easyBest - hardBest, org.assertj.core.api.Assertions.within(1e-6));
         assertThat(ease.get(easyMap).ease() + ease.get(hardMap).ease()).isCloseTo(0.0, org.assertj.core.api.Assertions.within(1e-9));
-    }
 
-    @Test
-    void theGatedPlayerCountIsIndependentOfHowManyBestPlaysTheEaseReads() {
-        stubScores();
-
-        Map<UUID, ComplexityScenarioService.BoardEase> narrow = service.boardEase(2, 1);
         Map<UUID, ComplexityScenarioService.BoardEase> wide = service.boardEase(2, 100);
-
-        assertThat(narrow.get(easyMap).players()).isEqualTo(wide.get(easyMap).players());
-        assertThat(narrow.get(easyMap).scores()).isEqualTo(wide.get(easyMap).scores());
+        assertThat(ease.get(easyMap).players()).isEqualTo(wide.get(easyMap).players());
+        assertThat(ease.get(easyMap).scores()).isEqualTo(wide.get(easyMap).scores());
     }
 
     @Test

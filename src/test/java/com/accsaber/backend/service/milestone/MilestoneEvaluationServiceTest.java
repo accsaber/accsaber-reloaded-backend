@@ -18,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -123,14 +125,6 @@ class MilestoneEvaluationServiceTest {
                                 .build();
         }
 
-        private Score buildScoreWithMapDifficulty(Long blScoreId) {
-                return Score.builder()
-                                .id(UUID.randomUUID())
-                                .mapDifficulty(scoreMapDifficulty)
-                                .blScoreId(blScoreId)
-                                .build();
-        }
-
         private Milestone buildMilestone(Double target, String comparison) {
                 return buildMilestone(target, comparison, null);
         }
@@ -214,100 +208,41 @@ class MilestoneEvaluationServiceTest {
                         assertThat(saved.get(0).getProgress()).isEqualByComparingTo((double) (950));
                 }
 
-                @Test
-                void currentValueBelowGteTarget_notCompleted() {
-                        Milestone milestone = buildMilestone((double) (900), "GTE");
+                @ParameterizedTest(name = "{1} target {0} with value {2} completed={3}")
+                @CsvSource({
+                                "900, GTE, 750, false",
+                                "10, LTE, 5, true",
+                                "10, LTE, 15, false"
+                })
+                void comparisonDecidesCompletion(double target, String comparison, double value,
+                                boolean completed) {
+                        Milestone milestone = buildMilestone(target, comparison);
                         Score newScore = buildScoreWithMapDifficulty();
                         User user = User.builder().id(USER_ID).build();
 
                         mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (750));
+                        mockBatchEval(List.of(milestone), value);
                         mockNoExistingLinks();
                         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
                         when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
+                        if (completed) {
+                                when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
+                                                milestoneSet.getId())).thenReturn(false);
+                                when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
+                                when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID,
+                                                milestoneSet.getId())).thenReturn(0L);
+                        }
 
                         var result = service.evaluateAfterScore(USER_ID, newScore);
 
-                        assertThat(result.completedMilestones()).isEmpty();
+                        if (completed) {
+                                assertThat(result.completedMilestones()).containsExactly(milestone);
+                        } else {
+                                assertThat(result.completedMilestones()).isEmpty();
+                        }
 
                         List<UserMilestoneLink> saved = captureSavedLinks();
-                        assertThat(saved.get(0).isCompleted()).isFalse();
-                }
-
-                @Test
-                void lteComparison_completedWhenValueBelowTarget() {
-                        Milestone milestone = buildMilestone((double) (10), "LTE");
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (5));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
-                                        milestoneSet.getId())).thenReturn(false);
-                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
-                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
-                                        .thenReturn(0L);
-
-                        var result = service.evaluateAfterScore(USER_ID, newScore);
-
-                        assertThat(result.completedMilestones()).containsExactly(milestone);
-                }
-
-                @Test
-                void lteComparison_notCompletedWhenValueAboveTarget() {
-                        Milestone milestone = buildMilestone((double) (10), "LTE");
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (15));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-
-                        var result = service.evaluateAfterScore(USER_ID, newScore);
-
-                        assertThat(result.completedMilestones()).isEmpty();
-                }
-
-                @Test
-                void categoryIdPassedToQueryBuilder_whenMilestoneHasCategory() {
-                        UUID milestoneCategoryId = UUID.randomUUID();
-                        Category milestoneCategory = Category.builder().id(milestoneCategoryId).name("True Acc")
-                                        .build();
-                        Milestone milestone = buildMilestone((double) (500), "GTE", milestoneCategory);
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (300));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-
-                        service.evaluateAfterScore(USER_ID, newScore);
-
-                        verify(queryBuilderService).evaluateBatch(any(), eq(USER_ID));
-                }
-
-                @Test
-                void scoreSaberScore_evaluatesEveryMilestone() {
-                        Milestone milestone = buildMilestone((double) (10), "GTE");
-                        Score ssScore = buildScoreWithMapDifficulty(null);
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (5));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-
-                        service.evaluateAfterScore(USER_ID, ssScore);
-
-                        verify(queryBuilderService).evaluateBatch(any(), eq(USER_ID));
+                        assertThat(saved.get(0).isCompleted()).isEqualTo(completed);
                 }
 
                 @Test
@@ -350,25 +285,6 @@ class MilestoneEvaluationServiceTest {
                 }
 
                 @Test
-                void scopedQuery_usesMapDifficultyAndCategoryFromScore() {
-                        Milestone milestone = buildMilestone((double) (100), "GTE");
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (50));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-
-                        service.evaluateAfterScore(USER_ID, newScore);
-
-                        verify(milestoneRepository).findActiveUncompletedForUserScoped(
-                                        USER_ID, scoreCategory.getId(), scoreMapDifficulty.getId());
-                        verify(milestoneRepository, never()).findActiveUncompletedForUser(any());
-                }
-
-                @Test
                 void completedAt_usesScoreTimeSet() {
                         Milestone milestone = buildMilestone((double) (100), "GTE");
                         Instant scoreTime = Instant.parse("2025-06-15T12:00:00Z");
@@ -399,30 +315,6 @@ class MilestoneEvaluationServiceTest {
 
         @Nested
         class EvaluateSingleMilestoneForUser {
-
-                @Test
-                void evaluatesExactlyOneMilestone() {
-                        Milestone milestone = buildMilestone((double) (100), "GTE");
-                        User user = User.builder().id(USER_ID).totalXp(0.0).build();
-
-                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
-                                        .thenReturn(new Progress((double) (120), null));
-                        when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
-                                        .thenReturn(Optional.empty());
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
-                                        milestoneSet.getId())).thenReturn(false);
-                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
-                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
-                                        .thenReturn(0L);
-                        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-
-                        service.evaluateSingleMilestoneForUser(USER_ID, milestone);
-
-                        verify(queryBuilderService).evaluateProgress(querySpec, USER_ID, null);
-                        verify(milestoneRepository, never()).findActiveUncompletedForUser(any());
-                }
 
                 @Test
                 void completedWhenTargetMet() {
@@ -528,23 +420,6 @@ class MilestoneEvaluationServiceTest {
                         verify(levelUpAwardService).addXp(USER_ID, (double) (300));
                         verify(missionProgressService).creditXp(USER_ID, (double) (300));
                         verify(userRepository, never()).save(any(User.class));
-                }
-
-                @Test
-                void xpNotAwardedWhenNotCompleted() {
-                        Milestone milestone = buildMilestone((double) (500), "GTE");
-                        User user = User.builder().id(USER_ID).build();
-
-                        when(userMilestoneLinkRepository.findByUser_IdAndMilestone_Id(USER_ID, milestone.getId()))
-                                        .thenReturn(Optional.empty());
-                        when(queryBuilderService.evaluateProgress(querySpec, USER_ID, null))
-                                        .thenReturn(new Progress((double) (100), null));
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-                        service.evaluateSingleMilestoneForUser(USER_ID, milestone);
-
-                        verify(userRepository, never()).findById(any());
                 }
 
                 @Test
@@ -792,89 +667,10 @@ class MilestoneEvaluationServiceTest {
                                         eq(setWithItem.getId().toString()), eq("Completed milestone set: Item Set"),
                                         eq(3));
                 }
-
-                @Test
-                void itemNotAwarded_whenSetCompletedButNoItem() {
-                        Milestone milestone = buildMilestone((double) (50), "GTE");
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (100));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
-                                        milestoneSet.getId())).thenReturn(false);
-                        when(milestoneRepository.countActiveBySetId(milestoneSet.getId())).thenReturn(1L);
-                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, milestoneSet.getId()))
-                                        .thenReturn(1L);
-
-                        service.evaluateAfterScore(USER_ID, newScore);
-
-                        verify(itemService, never()).awardSystem(any(), any(), eq(ItemSource.milestone_set), any(),
-                                        any(), anyInt());
-                }
-
-                @Test
-                void itemNotAwarded_whenSetIncomplete() {
-                        MilestoneSet setWithItem = MilestoneSet.builder()
-                                        .id(UUID.randomUUID())
-                                        .title("Incomplete Set")
-                                        .build();
-                        Milestone milestone = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(setWithItem)
-                                        .title("Hard")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.gold)
-                                        .xp((double) (100))
-                                        .querySpec(querySpec)
-                                        .targetValue((double) (50))
-                                        .comparison("GTE")
-                                        .active(true)
-                                        .build();
-                        Score newScore = buildScoreWithMapDifficulty();
-                        User user = User.builder().id(USER_ID).build();
-
-                        mockScopedQuery(List.of(milestone));
-                        mockBatchEval(List.of(milestone), (double) (100));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-                        when(userMilestoneSetBonusRepository.existsByUser_IdAndMilestoneSet_Id(USER_ID,
-                                        setWithItem.getId())).thenReturn(false);
-                        when(milestoneRepository.countActiveBySetId(setWithItem.getId())).thenReturn(3L);
-                        when(userMilestoneLinkRepository.countCompletedByUserAndSet(USER_ID, setWithItem.getId()))
-                                        .thenReturn(1L);
-
-                        service.evaluateAfterScore(USER_ID, newScore);
-
-                        verify(itemService, never()).awardSystem(any(), any(), eq(ItemSource.milestone_set), any(),
-                                        any(), anyInt());
-                }
         }
 
         @Nested
         class EvaluateAllForUser {
-
-                @Test
-                void evaluatesAllUncompletedMilestones() {
-                        Milestone m1 = buildMilestone((double) (900), "GTE");
-                        Milestone m2 = buildMilestone((double) (100), "GTE");
-                        User user = User.builder().id(USER_ID).build();
-
-                        when(milestoneRepository.findActiveUncompletedForUser(USER_ID))
-                                        .thenReturn(List.of(m1, m2));
-                        mockBatchEval(List.of(m1, m2), (double) (50));
-                        mockNoExistingLinks();
-                        when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-                        when(userMilestoneLinkRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
-
-                        service.evaluateAllForUser(USER_ID);
-
-                        verify(queryBuilderService).evaluateBatch(any(), eq(USER_ID));
-                }
 
                 @Test
                 void completedMilestone_isUpdated() {

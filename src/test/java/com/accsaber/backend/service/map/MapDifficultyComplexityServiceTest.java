@@ -41,58 +41,6 @@ class MapDifficultyComplexityServiceTest {
     private MapDifficultyComplexityService complexityService;
 
     @Nested
-    class FindActiveComplexity {
-
-        @Test
-        void returnsComplexity_whenActiveRecordExists() {
-            UUID difficultyId = UUID.randomUUID();
-            MapDifficulty diff = buildDifficulty(difficultyId);
-            MapDifficultyComplexity complexity = buildComplexity(diff, 7.5, true);
-            when(complexityRepository.findByMapDifficultyIdAndActiveTrue(difficultyId))
-                    .thenReturn(Optional.of(complexity));
-
-            Optional<Double> result = complexityService.findActiveComplexity(difficultyId);
-
-            assertThat(result).contains(7.5);
-        }
-
-        @Test
-        void returnsEmpty_whenNoActiveRecord() {
-            UUID difficultyId = UUID.randomUUID();
-            when(complexityRepository.findByMapDifficultyIdAndActiveTrue(difficultyId))
-                    .thenReturn(Optional.empty());
-
-            Optional<Double> result = complexityService.findActiveComplexity(difficultyId);
-
-            assertThat(result).isEmpty();
-        }
-    }
-
-    @Nested
-    class FindActiveComplexitiesForDifficulties {
-
-        @Test
-        void returnsMapOfComplexitiesByDifficultyId() {
-            UUID id1 = UUID.randomUUID();
-            UUID id2 = UUID.randomUUID();
-            MapDifficulty diff1 = buildDifficulty(id1);
-            MapDifficulty diff2 = buildDifficulty(id2);
-            List<MapDifficultyComplexity> complexities = List.of(
-                    buildComplexity(diff1, 5.0, true),
-                    buildComplexity(diff2, 8.0, true));
-            when(complexityRepository.findActiveByMapDifficultyIdIn(List.of(id1, id2)))
-                    .thenReturn(complexities);
-
-            Map<UUID, Double> result = complexityService.findActiveComplexitiesForDifficulties(List.of(id1, id2));
-
-            assertThat(result)
-                    .containsEntry(id1, 5.0)
-                    .containsEntry(id2, 8.0);
-        }
-
-    }
-
-    @Nested
     class GetHistoryForMap {
 
         @Test
@@ -112,17 +60,6 @@ class MapDifficultyComplexityServiceTest {
             assertThat(history.get(0).getSupersedesId()).isEqualTo(old.getId());
             assertThat(history.get(1).getComplexity()).isEqualByComparingTo(6.0);
             assertThat(history.get(1).getSupersedesId()).isNull();
-        }
-
-        @Test
-        void returnsEmptyList_whenNoHistory() {
-            UUID mapId = UUID.randomUUID();
-            when(complexityRepository.findAllByMapIdOrderByCreatedAtDesc(mapId))
-                    .thenReturn(List.of());
-
-            List<MapComplexityHistoryResponse> history = complexityService.getHistoryForMap(mapId);
-
-            assertThat(history).isEmpty();
         }
     }
 
@@ -145,20 +82,6 @@ class MapDifficultyComplexityServiceTest {
             assertThat(saved.isActive()).isTrue();
             assertThat(saved.getSupersedes()).isNull();
             assertThat(saved.getComplexity()).isEqualByComparingTo(9.0);
-        }
-
-        @Test
-        void updatingComplexity_deactivatesExistingRecord() {
-            MapDifficulty diff = buildDifficulty(UUID.randomUUID(), MapDifficultyStatus.RANKED);
-            MapDifficultyComplexity existing = buildComplexity(diff, 5.0, true);
-            when(complexityRepository.findActiveForUpdate(diff.getId()))
-                    .thenReturn(Optional.of(existing));
-            when(complexityRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            complexityService.setComplexity(diff, 8.0, "Reweight", 42L);
-
-            assertThat(existing.isActive()).isFalse();
-            verify(complexityRepository, times(2)).saveAndFlush(any());
         }
 
         @Test
@@ -188,6 +111,7 @@ class MapDifficultyComplexityServiceTest {
 
             complexityService.setComplexity(diff, 8.0, "Reweight", 42L);
 
+            assertThat(existing.isActive()).isFalse();
             ArgumentCaptor<MapDifficultyComplexity> captor = ArgumentCaptor.forClass(MapDifficultyComplexity.class);
             verify(complexityRepository, times(2)).saveAndFlush(captor.capture());
             MapDifficultyComplexity newVersion = captor.getAllValues().get(1);

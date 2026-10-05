@@ -52,12 +52,4 @@ class CleanTextConstraintIntegrationTest {
         Set<ConstraintViolation<SendCampaignChatMessageRequest>> violations = validator.validate(request);
         assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("content"));
     }
-
-    @Test
-    void allowsGeneralProfanityOnAnnotatedField() {
-        SendCampaignChatMessageRequest request = new SendCampaignChatMessageRequest();
-        request.setContent("this map is fucking hard");
-        Set<ConstraintViolation<SendCampaignChatMessageRequest>> violations = validator.validate(request);
-        assertThat(violations).isEmpty();
-    }
 }

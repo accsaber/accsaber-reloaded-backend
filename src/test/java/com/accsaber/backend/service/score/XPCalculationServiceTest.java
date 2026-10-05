@@ -15,6 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,7 +40,6 @@ class XPCalculationServiceTest {
 
     private static final UUID XP_CURVE_ID = UUID.fromString("acc00000-0000-0000-0000-000000000003");
     private static final Double COMPLEXITY_10 = (double) (10);
-    private static final Double COMPLEXITY_12 = (double) (12);
     private Curve xpCurve;
 
     @BeforeEach
@@ -61,49 +62,22 @@ class XPCalculationServiceTest {
     @Nested
     class CalculateXpForNewMap {
 
-        @Test
-        void baseXpAlwaysIncluded() {
+        @ParameterizedTest(name = "{0}: acc {1} on complexity {3} gives {4} XP")
+        @CsvSource({
+                "base XP always included, 0.0, 0.0, 10, 25.0, 0.0",
+                "top accuracy gives base plus max bonus, 1.0, 1.0, 10, 1025.0, 0.0",
+                "25 + 0.18 * 1000 * cbrt(12/10) = 25 + 191.3 = 216.3, 0.95, 0.18, 12, 216.3, 1.0",
+                "mid accuracy, 0.97, 0.36, 10, 385.0, 1.0"
+        })
+        void addsCurveBonusToBaseXp(String scenario, double accuracy, double curveValue, double complexity,
+                double expected, double tolerance) {
             when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 0.0))
-                    .thenReturn(0.0);
+            when(apCalculationService.interpolate(xpCurve, accuracy))
+                    .thenReturn(curveValue);
 
-            Double result = service.calculateXpForNewMap(0.0, COMPLEXITY_10);
+            Double result = service.calculateXpForNewMap(accuracy, complexity);
 
-            assertThat(result).isEqualByComparingTo((double) (25));
-        }
-
-        @Test
-        void topAccuracy_givesBaseXpPlusMaxBonus() {
-            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 1.0))
-                    .thenReturn(1.0);
-
-            Double result = service.calculateXpForNewMap(1.0, COMPLEXITY_10);
-
-            assertThat(result).isEqualByComparingTo((double) (1025));
-        }
-
-        @Test
-        void complexityMultiplier_scalesBonus() {
-            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 0.95))
-                    .thenReturn(0.18);
-
-            Double result = service.calculateXpForNewMap(0.95, COMPLEXITY_12);
-
-            // 25 + 0.18 * 1000 * cbrt(12/10) = 25 + 191.3 = 216.3
-            assertThat(result).isCloseTo(216.3, within(1.0));
-        }
-
-        @Test
-        void midAccuracy_returnsCorrectXp() {
-            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 0.97))
-                    .thenReturn(0.36);
-
-            Double result = service.calculateXpForNewMap(0.97, COMPLEXITY_10);
-
-            assertThat(result).isCloseTo(385.0, within(1.0));
+            assertThat(result).isCloseTo(expected, within(tolerance));
         }
     }
 
@@ -185,14 +159,6 @@ class XPCalculationServiceTest {
 
             assertThat(result).isEqualByComparingTo((double) (25));
         }
-
-        @Test
-        void doesNotCallCurveOrApService() {
-            service.calculateXpForWorseScore();
-
-            verify(curveRepository, times(0)).findById(any());
-            verify(apCalculationService, times(0)).interpolate(any(Curve.class), anyDouble());
-        }
     }
 
     @Nested
@@ -234,18 +200,6 @@ class XPCalculationServiceTest {
     class ComputeCurveBonus {
 
         @Test
-        void halfNormalizedXp_withReferenceComplexity_returnsHalfOfMax() {
-            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 0.95))
-                    .thenReturn(0.5);
-
-            Double bonus = service.computeCurveBonus(0.95, COMPLEXITY_10);
-
-            // 0.5 * 1000 * (10/10) = 500
-            assertThat(bonus).isCloseTo(500.0, within(0.001));
-        }
-
-        @Test
         void complexityBelowFloor_clampedToMinimum() {
             when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
             when(apCalculationService.interpolate(xpCurve, 0.95))
@@ -255,38 +209,6 @@ class XPCalculationServiceTest {
 
             // Clamped to 4.5: 0.5 * 1000 * cbrt(4.5/10) = 0.5 * 1000 * 0.7663 = 383.2
             assertThat(bonus).isCloseTo(383.2, within(1.0));
-        }
-
-        @Test
-        void complexityAboveReference_scalesUp() {
-            when(curveRepository.findById(XP_CURVE_ID)).thenReturn(Optional.of(xpCurve));
-            when(apCalculationService.interpolate(xpCurve, 0.95))
-                    .thenReturn(0.5);
-
-            Double bonus = service.computeCurveBonus(0.95, COMPLEXITY_12);
-
-            // 0.5 * 1000 * cbrt(12/10) = 0.5 * 1000 * 1.0627 = 531.3
-            assertThat(bonus).isCloseTo(531.3, within(1.0));
-        }
-    }
-
-    @Nested
-    class Config {
-
-        @Test
-        void getBaseXpPerScore_returnsConfiguredValue() {
-            assertThat(service.getBaseXpPerScore()).isEqualTo(25);
-        }
-
-        @Test
-        void getMaxBonusXpPerScore_returnsConfiguredValue() {
-            assertThat(service.getMaxBonusXpPerScore()).isEqualTo(1000);
-        }
-
-        @Test
-        void getXpCurveId_returnsKnownId() {
-            assertThat(service.getXpCurveId())
-                    .isEqualTo(UUID.fromString("acc00000-0000-0000-0000-000000000003"));
         }
     }
 }

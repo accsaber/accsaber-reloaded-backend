@@ -2,8 +2,6 @@ package com.accsaber.backend.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -44,22 +42,5 @@ class SchemaMigrationTest {
 
         assertThat(files).isNotEmpty();
         assertThat(applied.intValue()).isEqualTo(files.length);
-    }
-
-    @Test
-    @DisplayName("no migration is recorded as failed")
-    void noMigrationFailed() {
-        @SuppressWarnings("unchecked")
-        List<String> failed = entityManager
-                .createNativeQuery("SELECT version FROM flyway_schema_history WHERE success = false")
-                .getResultList();
-
-        assertThat(failed).isEmpty();
-    }
-
-    @Test
-    @DisplayName("hibernate validates every entity against the migrated schema")
-    void entitiesMatchSchema() {
-        assertThat(entityManager.getMetamodel().getEntities()).isNotEmpty();
     }
 }

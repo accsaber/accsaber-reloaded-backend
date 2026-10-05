@@ -16,7 +16,7 @@ class EventMissionTargetsTest {
     @Test
     void deserializesSeedShapeIncludingInstantAndBoolean() throws Exception {
         String json = """
-                {"count":5,"rankedBefore":"2023-01-01T00:00:00Z","curatedOnly":true,"ap":5}
+                {"count":5,"rankedBefore":"2023-01-01T00:00:00Z","curatedOnly":true,"ap":5,"requirePass":true}
                 """;
 
         EventMissionTargets targets = mapper.readValue(json, EventMissionTargets.class);
@@ -25,16 +25,7 @@ class EventMissionTargetsTest {
         assertThat(targets.rankedBefore()).isEqualTo(Instant.parse("2023-01-01T00:00:00Z"));
         assertThat(targets.curatedOnly()).isTrue();
         assertThat(targets.ap()).isEqualByComparingTo(5.0);
-    }
-
-    @Test
-    void absentFieldsStayNull() throws Exception {
-        EventMissionTargets targets = mapper.readValue("{\"count\":1}", EventMissionTargets.class);
-
-        assertThat(targets.count()).isEqualTo(1);
-        assertThat(targets.rankedBefore()).isNull();
-        assertThat(targets.curatedOnly()).isNull();
-        assertThat(targets.categoryId()).isNull();
+        assertThat(targets.requirePass()).isTrue();
     }
 
     @Test
@@ -52,14 +43,5 @@ class EventMissionTargetsTest {
         assertThat(round.categoryId()).isEqualTo(original.categoryId());
         assertThat(round.requirePass()).isEqualTo(original.requirePass());
         assertThat(round.maxPerUser()).isEqualTo(original.maxPerUser());
-    }
-
-    @Test
-    void requirePassDeserializesFromSeedShape() throws Exception {
-        EventMissionTargets targets = mapper.readValue("{\"count\":20,\"requirePass\":true}",
-                EventMissionTargets.class);
-
-        assertThat(targets.count()).isEqualTo(20);
-        assertThat(targets.requirePass()).isTrue();
     }
 }

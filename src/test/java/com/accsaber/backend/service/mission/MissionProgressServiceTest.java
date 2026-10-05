@@ -23,6 +23,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -190,42 +192,25 @@ class MissionProgressServiceTest {
                         return new CampaignCompletedEvent(USER_ID, UUID.randomUUID(), status, Instant.now());
                 }
 
-                @Test
-                void curatedOnlyIgnoresNonCuratedCampaign() {
+                @ParameterizedTest(name = "{0}")
+                @CsvSource({
+                                "curated only ignores non-curated campaign, true, PUBLISHED, 0, active",
+                                "curated only counts curated campaign, true, CURATED, 1, completed",
+                                "without curated only counts any campaign, false, PUBLISHED, 1, completed"
+                })
+                void countsCampaignCompletionsByCuration(String description, boolean curatedOnly,
+                                CampaignStatus campaignStatus, int expectedProgress, MissionStatus expectedStatus) {
                         UserMission m = mission(MissionType.CAMPAIGN_COMPLETE_N);
                         m.setTargetCount(1);
-                        m.setTargetCuratedOnly(true);
+                        if (curatedOnly) {
+                                m.setTargetCuratedOnly(true);
+                        }
                         givenMissions(m);
 
-                        service.onCampaignCompleted(event(CampaignStatus.PUBLISHED));
+                        service.onCampaignCompleted(event(campaignStatus));
 
-                        assertThat(m.getProgressCount()).isZero();
-                        assertThat(m.getStatus()).isEqualTo(MissionStatus.active);
-                }
-
-                @Test
-                void curatedOnlyCountsCuratedCampaign() {
-                        UserMission m = mission(MissionType.CAMPAIGN_COMPLETE_N);
-                        m.setTargetCount(1);
-                        m.setTargetCuratedOnly(true);
-                        givenMissions(m);
-
-                        service.onCampaignCompleted(event(CampaignStatus.CURATED));
-
-                        assertThat(m.getProgressCount()).isEqualTo(1);
-                        assertThat(m.getStatus()).isEqualTo(MissionStatus.completed);
-                }
-
-                @Test
-                void withoutCuratedOnlyCountsAnyCampaign() {
-                        UserMission m = mission(MissionType.CAMPAIGN_COMPLETE_N);
-                        m.setTargetCount(1);
-                        givenMissions(m);
-
-                        service.onCampaignCompleted(event(CampaignStatus.PUBLISHED));
-
-                        assertThat(m.getProgressCount()).isEqualTo(1);
-                        assertThat(m.getStatus()).isEqualTo(MissionStatus.completed);
+                        assertThat(m.getProgressCount()).isEqualTo(expectedProgress);
+                        assertThat(m.getStatus()).isEqualTo(expectedStatus);
                 }
 
                 @Test

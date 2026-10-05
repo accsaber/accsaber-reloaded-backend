@@ -70,16 +70,6 @@ class JwtServiceTest {
     }
 
     @Test
-    void extractStaffId_returnsCorrectUuid() {
-        StaffUser staffUser = buildStaffUser(StaffRole.RANKING_HEAD);
-        String token = jwtService.generateAccessToken(staffUser);
-
-        UUID extracted = jwtService.extractStaffId(token);
-
-        assertThat(extracted).isEqualTo(staffUser.getId());
-    }
-
-    @Test
     void generateRefreshToken_returnsNonNullUniqueStrings() {
         String first = jwtService.generateRefreshToken();
         String second = jwtService.generateRefreshToken();

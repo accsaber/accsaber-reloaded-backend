@@ -98,49 +98,7 @@ class OverallStatisticsServiceTest {
         class Recalculate {
 
                 @Test
-                void apSummedAcrossMultipleCategories() {
-                        UserCategoryStatistics s1 = buildStat(500.000000, 0.980000,
-                                        10);
-                        UserCategoryStatistics s2 = buildStat(300.000000, 0.960000,
-                                        5);
-                        when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
-                                        .thenReturn(List.of(s1, s2));
-                        when(statisticsRepository.findActiveForUpdate(userId,
-                                        overallCategory.getId()))
-                                        .thenReturn(Optional.empty());
-                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-
-                        overallStatisticsService.recalculate(userId);
-
-                        ArgumentCaptor<UserCategoryStatistics> captor = ArgumentCaptor
-                                        .forClass(UserCategoryStatistics.class);
-                        verify(statisticsRepository, times(1)).saveAndFlush(captor.capture());
-                        assertThat(captor.getValue().getAp()).isEqualByComparingTo(800.000000);
-                }
-
-                @Test
-                void rankedPlaysSummedAcrossMultipleCategories() {
-                        UserCategoryStatistics s1 = buildStat(500.000000, 0.980000,
-                                        10);
-                        UserCategoryStatistics s2 = buildStat(300.000000, 0.960000,
-                                        5);
-                        when(statisticsRepository.findActiveByUserWhereCountForOverall(userId))
-                                        .thenReturn(List.of(s1, s2));
-                        when(statisticsRepository.findActiveForUpdate(userId,
-                                        overallCategory.getId()))
-                                        .thenReturn(Optional.empty());
-                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-
-                        overallStatisticsService.recalculate(userId);
-
-                        ArgumentCaptor<UserCategoryStatistics> captor = ArgumentCaptor
-                                        .forClass(UserCategoryStatistics.class);
-                        verify(statisticsRepository).saveAndFlush(captor.capture());
-                        assertThat(captor.getValue().getRankedPlays()).isEqualTo(15);
-                }
-
-                @Test
-                void scoreXpSummedAcrossMultipleCategories() {
+                void apRankedPlaysAndScoreXpSummedAcrossMultipleCategories() {
                         UserCategoryStatistics s1 = buildStat(500.000000,
                                         0.980000, 10, 300.000000);
                         UserCategoryStatistics s2 = buildStat(300.000000,
@@ -157,6 +115,8 @@ class OverallStatisticsServiceTest {
                         ArgumentCaptor<UserCategoryStatistics> captor = ArgumentCaptor
                                         .forClass(UserCategoryStatistics.class);
                         verify(statisticsRepository, times(1)).saveAndFlush(captor.capture());
+                        assertThat(captor.getValue().getAp()).isEqualByComparingTo(800.000000);
+                        assertThat(captor.getValue().getRankedPlays()).isEqualTo(15);
                         assertThat(captor.getValue().getScoreXp())
                                         .isEqualByComparingTo(450.000000);
                 }

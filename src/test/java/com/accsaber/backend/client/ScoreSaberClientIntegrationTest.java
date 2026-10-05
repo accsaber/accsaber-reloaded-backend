@@ -37,30 +37,20 @@ class ScoreSaberClientIntegrationTest {
     class GetPlayer {
 
         @Test
-        void returnsPlayerWithAllMappedFields() {
+        void returnsPlayerWithAllMappedFieldsSuitableForImport() {
             Optional<ScoreSaberPlayerResponse> result = client.getPlayer(KNOWN_PLAYER_ID);
 
             assertThat(result).isPresent();
             ScoreSaberPlayerResponse player = result.get();
             assertThat(player.getId()).isEqualTo(KNOWN_PLAYER_ID);
-            assertThat(player.getName()).isNotBlank();
-            assertThat(player.getCountry()).isNotBlank();
-            assertThat(player.getAvatar()).isNotBlank();
-        }
-
-        @Test
-        void returnsPlayerDataSuitableForImport() {
-            Optional<ScoreSaberPlayerResponse> result = client.getPlayer(KNOWN_PLAYER_ID);
-
-            assertThat(result).isPresent();
-            ScoreSaberPlayerResponse player = result.get();
-
             assertThat(player.getName()).as("name usable as display name")
                     .isNotBlank()
                     .hasSizeLessThanOrEqualTo(255);
             assertThat(player.getAvatar()).as("avatar usable as avatar URL")
+                    .isNotBlank()
                     .startsWith("http");
             assertThat(player.getCountry()).as("country is a valid code")
+                    .isNotBlank()
                     .hasSizeBetween(2, 3)
                     .isUpperCase();
         }

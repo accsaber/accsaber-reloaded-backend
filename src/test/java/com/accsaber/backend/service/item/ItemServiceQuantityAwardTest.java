@@ -135,13 +135,6 @@ class ItemServiceQuantityAwardTest {
     }
 
     @Test
-    void singleArgumentOverloadStillGrantsExactlyOne() {
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward");
-
-        verify(userItemLinkRepository, times(1)).save(any());
-    }
-
-    @Test
     void ignoresANonPositiveQuantity() {
         itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 0);
 

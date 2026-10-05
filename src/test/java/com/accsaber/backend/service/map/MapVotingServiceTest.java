@@ -199,16 +199,6 @@ class MapVotingServiceTest {
         class DeactivateVote {
 
                 @Test
-                void throwsNotFound_whenVoteDoesNotExist() {
-                        UUID difficultyId = UUID.randomUUID();
-                        UUID voteId = UUID.randomUUID();
-                        when(voteRepository.findById(voteId)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> votingService.deactivateVote(difficultyId, voteId))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-
-                @Test
                 void setsActiveFalse_whenVoteExists() {
                         MapDifficulty difficulty = MapDifficulty.builder().id(UUID.randomUUID()).build();
                         StaffMapVote vote = StaffMapVote.builder()

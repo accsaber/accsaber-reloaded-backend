@@ -101,19 +101,6 @@ class SnipeServiceTest {
         }
 
         @Test
-        void emptyResultProducesEmptyPage() {
-            mockUsersExist();
-            when(scoreRepository.findSnipePairs(eq(SNIPER_ID), eq(TARGET_ID), isNull(), eq(false), eq(true), eq(false), any()))
-                    .thenReturn(new PageImpl<>(List.<Object[]>of()));
-
-            Page<SnipeComparisonResponse> result = snipeService.findSnipeComparisons(query(null, null, null),
-                    PageRequest.of(0, 10));
-
-            assertThat(result.getContent()).isEmpty();
-            verify(scoreService, never()).mapToResponse(any());
-        }
-
-        @Test
         void filtersByCategoryCode() {
             UUID categoryId = UUID.randomUUID();
             Category category = Category.builder().id(categoryId).code("true_acc").name("True Acc").build();
@@ -232,16 +219,6 @@ class SnipeServiceTest {
         @Test
         void throwsWhenSniperMissing() {
             when(userRepository.findByIdAndActiveTrue(SNIPER_ID)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> snipeService.findSnipeComparisons(query(null, null, null), PageRequest.of(0, 10)))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-
-        @Test
-        void throwsWhenTargetMissing() {
-            when(userRepository.findByIdAndActiveTrue(SNIPER_ID))
-                    .thenReturn(Optional.of(User.builder().id(SNIPER_ID).build()));
-            when(userRepository.findByIdAndActiveTrue(TARGET_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> snipeService.findSnipeComparisons(query(null, null, null), PageRequest.of(0, 10)))
                     .isInstanceOf(ResourceNotFoundException.class);

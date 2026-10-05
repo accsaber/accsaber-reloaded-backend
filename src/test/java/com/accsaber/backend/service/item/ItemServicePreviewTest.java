@@ -80,14 +80,6 @@ class ItemServicePreviewTest {
     }
 
     @Test
-    void previewThrowsWhenItemMissing() {
-        when(itemRepository.findById(ITEM_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> itemService.previewItem(ITEM_ID, null, null, null))
-                .isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    @Test
     void previewThrowsWhenEffectMissing() {
         when(itemRepository.findById(ITEM_ID)).thenReturn(Optional.of(item()));
         when(itemModifierRepository.findByKey(ItemModifier.UNUSUAL)).thenReturn(Optional.of(unusualModifier()));

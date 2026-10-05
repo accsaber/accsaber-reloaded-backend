@@ -19,6 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -120,31 +122,18 @@ class SkillServiceTest {
             assertThat(skillService.rankScore(0, 125000)).isEqualTo(0);
         }
 
-        @Test
-        void recordHolderPeakNormalizesToHundred() {
+        @ParameterizedTest(name = "peak AP {0} against a 1131 max lands between {1} and {2}")
+        @CsvSource({
+                "1131, 99.9999, 100.0001",
+                "1124, 98.0, 100.0",
+                "900, 50.0, 80.0"
+        })
+        void peakScalesAgainstTheCategoryMax(double topAp, double lowerBound, double upperBound) {
             Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
             when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn((double) (1131));
 
-            assertThat(skillService.computePeakScore((double) (1131), c))
-                    .isCloseTo(100.0, within(0.0001));
-        }
-
-        @Test
-        void rankTwoPeakLandsCloseToHundred() {
-            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
-            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn((double) (1131));
-
-            assertThat(skillService.computePeakScore((double) (1124), c))
-                    .isGreaterThan(98.0).isLessThan(100.0);
-        }
-
-        @Test
-        void distantPlayerPeakDropsProportionally() {
-            Category c = Category.builder().id(CATEGORY_ID).code(CATEGORY_CODE).name("True Acc").build();
-            when(scoreRepository.findMaxApInCategory(CATEGORY_ID)).thenReturn((double) (1131));
-
-            assertThat(skillService.computePeakScore((double) (900), c))
-                    .isGreaterThan(50.0).isLessThan(80.0);
+            assertThat(skillService.computePeakScore(topAp, c))
+                    .isGreaterThan(lowerBound).isLessThan(upperBound);
         }
 
         @Test

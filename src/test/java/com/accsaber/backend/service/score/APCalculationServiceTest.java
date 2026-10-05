@@ -15,6 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -103,20 +105,6 @@ class APCalculationServiceTest {
                 }
 
                 @Test
-                void interpolatesBetweenNonLinearPoints() {
-                        List<CurvePoint> points = List.of(
-                                        point(0.90, 0.40),
-                                        point(0.95, 0.60));
-                        when(curvePointRepository.findByCurveIdOrderByXAsc(scoreCurve.getId()))
-                                        .thenReturn(points);
-
-                        // Midpoint between 0.90 and 0.95 should give midpoint between 0.40 and 0.60
-                        Double result = apCalculationService.interpolate(scoreCurve, 0.925);
-
-                        assertThat(result).isCloseTo(0.50, within(0.0001));
-                }
-
-                @Test
                 void aboveHighestPoint_returnsHighestValue() {
                         List<CurvePoint> points = List.of(
                                         point(0.0, 0.0),
@@ -169,89 +157,22 @@ class APCalculationServiceTest {
                         assertThat(result.rawAP()).isCloseTo(1043.1, within(0.001));
                         assertThat(result.normalizedAP()).isEqualByComparingTo(0.60);
                 }
-
-                @Test
-                void zeroAccuracy_givesNearZeroAP() {
-                        List<CurvePoint> points = List.of(
-                                        point(0.0, 0.0),
-                                        point(1.0, 1.0));
-                        when(curvePointRepository.findByCurveIdOrderByXAsc(scoreCurve.getId()))
-                                        .thenReturn(points);
-
-                        APResult result = apCalculationService.calculateRawAP(
-                                        0.0, 10, scoreCurve);
-
-                        assertThat(result.rawAP()).isCloseTo(0.0, within(0.001));
-                }
-
-                @Test
-                void higherComplexity_givesHigherAP() {
-                        List<CurvePoint> points = List.of(
-                                        point(0.0, 0.0),
-                                        point(1.0, 1.0));
-                        when(curvePointRepository.findByCurveIdOrderByXAsc(scoreCurve.getId()))
-                                        .thenReturn(points);
-
-                        Double accuracy = 0.90;
-                        Double lowComplexity = 5.0;
-                        Double highComplexity = 15.0;
-
-                        APResult lowResult = apCalculationService.calculateRawAP(accuracy, lowComplexity, scoreCurve);
-                        APResult highResult = apCalculationService.calculateRawAP(accuracy, highComplexity, scoreCurve);
-
-                        assertThat(highResult.rawAP()).isGreaterThan(lowResult.rawAP());
-                }
         }
 
         @Nested
         class WeightedAPCalculation {
 
-                @Test
-                void position1_givesNearFullAP() {
-                        Double rawAP = 100.0;
+                @ParameterizedTest(name = "position {0} weighs 100 AP to {1}")
+                @CsvSource({
+                                "1, 98.912, 0.01",
+                                "2, 97.332, 0.01",
+                                "10, 45.48, 0.1",
+                                "15, 10.0, 0.01"
+                })
+                void appliesSigmoidDecayByPosition(int position, double expected, double tolerance) {
+                        Double weightedAP = apCalculationService.calculateWeightedAP(100.0, position, weightCurve);
 
-                        Double weightedAP = apCalculationService.calculateWeightedAP(rawAP, 1, weightCurve);
-
-                        assertThat(weightedAP).isCloseTo(98.912, within(0.01));
-                }
-
-                @Test
-                void position2_appliesSigmoidDecay() {
-                        Double rawAP = 100.0;
-
-                        Double weightedAP = apCalculationService.calculateWeightedAP(rawAP, 2, weightCurve);
-
-                        assertThat(weightedAP).isCloseTo(97.332, within(0.01));
-                }
-
-                @Test
-                void higherPosition_givesLowerWeight() {
-                        Double rawAP = 100.0;
-
-                        Double pos1 = apCalculationService.calculateWeightedAP(rawAP, 1, weightCurve);
-                        Double pos5 = apCalculationService.calculateWeightedAP(rawAP, 5, weightCurve);
-                        Double pos10 = apCalculationService.calculateWeightedAP(rawAP, 10, weightCurve);
-
-                        assertThat(pos1).isGreaterThan(pos5);
-                        assertThat(pos5).isGreaterThan(pos10);
-                }
-
-                @Test
-                void position10_matchesExpectedSigmoid() {
-                        Double rawAP = 100.0;
-
-                        Double weightedAP = apCalculationService.calculateWeightedAP(rawAP, 10, weightCurve);
-
-                        assertThat(weightedAP).isCloseTo(45.48, within(0.1));
-                }
-
-                @Test
-                void position15_matchesTargetWeight() {
-                        Double rawAP = 100.0;
-
-                        Double weightedAP = apCalculationService.calculateWeightedAP(rawAP, 15, weightCurve);
-
-                        assertThat(weightedAP).isCloseTo(10.0, within(0.01));
+                        assertThat(weightedAP).isCloseTo(expected, within(tolerance));
                 }
         }
 

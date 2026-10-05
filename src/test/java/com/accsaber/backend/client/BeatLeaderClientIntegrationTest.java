@@ -45,30 +45,20 @@ class BeatLeaderClientIntegrationTest {
     class GetPlayer {
 
         @Test
-        void returnsPlayerWithAllMappedFields() {
+        void returnsPlayerWithAllMappedFieldsSuitableForImport() {
             Optional<BeatLeaderPlayerResponse> result = client.getPlayer(KNOWN_PLAYER_ID);
 
             assertThat(result).isPresent();
             BeatLeaderPlayerResponse player = result.get();
             assertThat(player.getId()).isEqualTo(KNOWN_PLAYER_ID);
-            assertThat(player.getName()).isNotBlank();
-            assertThat(player.getAvatar()).isNotBlank();
-            assertThat(player.getCountry()).isNotBlank();
-        }
-
-        @Test
-        void returnsPlayerDataSuitableForImport() {
-            Optional<BeatLeaderPlayerResponse> result = client.getPlayer(KNOWN_PLAYER_ID);
-
-            assertThat(result).isPresent();
-            BeatLeaderPlayerResponse player = result.get();
-
             assertThat(player.getName()).as("name usable as display name")
                     .isNotBlank()
                     .hasSizeLessThanOrEqualTo(255);
             assertThat(player.getAvatar()).as("avatar usable as URL")
+                    .isNotBlank()
                     .startsWith("http");
             assertThat(player.getCountry()).as("country is a valid code")
+                    .isNotBlank()
                     .hasSizeBetween(2, 3)
                     .isUpperCase();
         }

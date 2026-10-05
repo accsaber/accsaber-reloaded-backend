@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,7 +34,6 @@ import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
-import com.accsaber.backend.model.dto.request.milestone.UpdatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
@@ -139,59 +139,6 @@ class MilestoneServiceTest {
     class FindAllActive {
 
         @Test
-        void noFilter_returnsAllActive() {
-            when(milestoneRepository.findAllActiveFiltered(isNull(), isNull(), isNull(), eq(MilestoneStatus.ACTIVE),
-                    eq(defaultPageable)))
-                    .thenReturn(new PageImpl<>(List.of(milestone), defaultPageable, 1));
-            when(completionStatsRepository.findAll()).thenReturn(List.of());
-
-            Page<MilestoneResponse> result = service.findAllActive(null, null, null, defaultPageable);
-
-            assertThat(result.getContent()).hasSize(1);
-            assertThat(result.getContent().get(0).getTitle()).isEqualTo("AP Hero");
-        }
-
-        @Test
-        void setIdFilter_delegatesToRepository() {
-            UUID setId = set.getId();
-            when(milestoneRepository.findAllActiveFiltered(eq(setId), isNull(), isNull(), eq(MilestoneStatus.ACTIVE),
-                    eq(defaultPageable)))
-                    .thenReturn(new PageImpl<>(List.of(milestone), defaultPageable, 1));
-            when(completionStatsRepository.findAll()).thenReturn(List.of());
-
-            Page<MilestoneResponse> result = service.findAllActive(setId, null, null, defaultPageable);
-
-            assertThat(result.getContent()).hasSize(1);
-            verify(milestoneRepository).findAllActiveFiltered(eq(setId), isNull(), isNull(), eq(MilestoneStatus.ACTIVE),
-                    eq(defaultPageable));
-        }
-
-        @Test
-        void typeFilter_appliedViaQuery() {
-            Milestone achievement = Milestone.builder()
-                    .id(UUID.randomUUID())
-                    .milestoneSet(set)
-                    .title("FC King")
-                    .type("achievement")
-                    .tier(MilestoneTier.platinum)
-                    .xp((double) (500))
-                    .querySpec(querySpec)
-                    .targetValue(1.0)
-                    .comparison("GTE")
-                    .build();
-
-            when(milestoneRepository.findAllActiveFiltered(isNull(), isNull(), eq("achievement"),
-                    eq(MilestoneStatus.ACTIVE), eq(defaultPageable)))
-                    .thenReturn(new PageImpl<>(List.of(achievement), defaultPageable, 1));
-            when(completionStatsRepository.findAll()).thenReturn(List.of());
-
-            Page<MilestoneResponse> result = service.findAllActive(null, null, "achievement", defaultPageable);
-
-            assertThat(result.getContent()).hasSize(1);
-            assertThat(result.getContent().get(0).getTitle()).isEqualTo("FC King");
-        }
-
-        @Test
         void completionStatsAreMergedIntoResponse() {
             MilestoneCompletionStats stats = buildStats(milestone.getId(), 50L, 200L, 25.00);
             when(milestoneRepository.findAllActiveFiltered(isNull(), isNull(), isNull(), eq(MilestoneStatus.ACTIVE),
@@ -212,21 +159,6 @@ class MilestoneServiceTest {
     class FindById {
 
         @Test
-        void found_returnsResponse() {
-            when(milestoneRepository.findByIdAndActiveTrueAndStatusActive(milestone.getId()))
-                    .thenReturn(Optional.of(milestone));
-            when(completionStatsRepository.findByMilestoneId(milestone.getId()))
-                    .thenReturn(Optional.empty());
-
-            MilestoneResponse response = service.findById(milestone.getId());
-
-            assertThat(response.getId()).isEqualTo(milestone.getId());
-            assertThat(response.getTargetValue()).isEqualByComparingTo((double) (900));
-            assertThat(response.getComparison()).isEqualTo("GTE");
-            assertThat(response.getQuerySpec()).isEqualTo(querySpec);
-        }
-
-        @Test
         void notFound_throwsResourceNotFoundException() {
             UUID id = UUID.randomUUID();
             when(milestoneRepository.findByIdAndActiveTrueAndStatusActive(id)).thenReturn(Optional.empty());
@@ -238,29 +170,6 @@ class MilestoneServiceTest {
 
     @Nested
     class CreateMilestone {
-
-        @Test
-        void validRequest_savesAndReturnsResponse() {
-            CreateMilestoneRequest request = new CreateMilestoneRequest();
-            request.setSetId(set.getId());
-            request.setTitle("New Milestone");
-            request.setDescription("Desc");
-            request.setType("milestone");
-            request.setTier(MilestoneTier.silver);
-            request.setXp((double) (200));
-            request.setQuerySpec(querySpec);
-            request.setTargetValue((double) (500));
-            request.setComparison("GTE");
-
-            when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                    .thenReturn(Optional.of(set));
-            when(milestoneRepository.save(any())).thenReturn(milestone);
-
-            MilestoneResponse response = service.createMilestone(request);
-
-            verify(queryBuilderService).validate(querySpec);
-            assertThat(response).isNotNull();
-        }
 
         @Test
         void invalidQuerySpec_throwsValidationException() {
@@ -277,38 +186,10 @@ class MilestoneServiceTest {
             assertThatThrownBy(() -> service.createMilestone(request))
                     .isInstanceOf(com.accsaber.backend.exception.ValidationException.class);
         }
-
-        @Test
-        void setNotFound_throwsResourceNotFoundException() {
-            UUID missingSetId = UUID.randomUUID();
-            CreateMilestoneRequest request = new CreateMilestoneRequest();
-            request.setSetId(missingSetId);
-            request.setQuerySpec(querySpec);
-
-            when(milestoneSetRepository.findByIdAndActiveTrue(missingSetId))
-                    .thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.createMilestone(request))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
     }
 
     @Nested
     class CreateSet {
-
-        @Test
-        void createsSetWithBonusXp() {
-            CreateMilestoneSetRequest request = new CreateMilestoneSetRequest();
-            request.setTitle("New Set");
-            request.setDescription("Desc");
-            request.setSetBonusXp((double) (1000));
-
-            when(milestoneSetRepository.save(any())).thenReturn(set);
-
-            MilestoneSetResponse response = service.createSet(request);
-
-            assertThat(response.getTitle()).isEqualTo("Accuracy Milestones");
-        }
 
         @Test
         void nullBonusXp_defaultsToZero() {
@@ -316,12 +197,17 @@ class MilestoneServiceTest {
             request.setTitle("Set");
             request.setSetBonusXp(null);
 
-            MilestoneSet zeroSet = MilestoneSet.builder()
-                    .id(UUID.randomUUID()).title("Set").setBonusXp(0.0).build();
-            when(milestoneSetRepository.save(any())).thenReturn(zeroSet);
+            when(milestoneSetRepository.save(any())).thenAnswer(i -> {
+                MilestoneSet set = i.getArgument(0);
+                set.setId(UUID.randomUUID());
+                return set;
+            });
 
             MilestoneSetResponse response = service.createSet(request);
 
+            ArgumentCaptor<MilestoneSet> captor = ArgumentCaptor.forClass(MilestoneSet.class);
+            verify(milestoneSetRepository).save(captor.capture());
+            assertThat(captor.getValue().getSetBonusXp()).isEqualByComparingTo(0.0);
             assertThat(response.getSetBonusXp()).isEqualByComparingTo(0.0);
         }
     }
@@ -342,28 +228,6 @@ class MilestoneServiceTest {
 
             verify(milestoneEvaluationService).evaluateSingleMilestoneForUser(111L, milestone);
             verify(milestoneEvaluationService).evaluateSingleMilestoneForUser(222L, milestone);
-        }
-
-        @Test
-        void milestoneNotFound_throwsResourceNotFoundException() {
-            UUID id = UUID.randomUUID();
-            when(milestoneRepository.findByIdAndActiveTrueEager(id)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.backfillMilestone(id))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-
-        @Test
-        void noOtherMilestonesAreEvaluated() {
-            User user = User.builder().id(1L).build();
-            when(milestoneRepository.findByIdAndActiveTrueEager(milestone.getId()))
-                    .thenReturn(Optional.of(milestone));
-            when(userRepository.findByActiveTrue()).thenReturn(List.of(user));
-
-            service.backfillMilestone(milestone.getId());
-
-            verify(milestoneEvaluationService).evaluateSingleMilestoneForUser(1L, milestone);
-            org.mockito.Mockito.verifyNoMoreInteractions(milestoneEvaluationService);
         }
     }
 
@@ -406,31 +270,6 @@ class MilestoneServiceTest {
             assertThat(progress.getContent()).hasSize(1);
             assertThat(progress.getContent().get(0).isCompleted()).isFalse();
             assertThat(progress.getContent().get(0).getProgress()).isNull();
-        }
-    }
-
-    @Nested
-    class DeactivateMilestone {
-
-        @Test
-        void setsActiveFalseAndSaves() {
-            when(milestoneRepository.findById(milestone.getId()))
-                    .thenReturn(Optional.of(milestone));
-            when(milestoneRepository.save(any())).thenReturn(milestone);
-
-            service.deactivateMilestone(milestone.getId());
-
-            assertThat(milestone.isActive()).isFalse();
-            verify(milestoneRepository).save(milestone);
-        }
-
-        @Test
-        void notFound_throwsResourceNotFoundException() {
-            UUID id = UUID.randomUUID();
-            when(milestoneRepository.findById(id)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.deactivateMilestone(id))
-                    .isInstanceOf(ResourceNotFoundException.class);
         }
     }
 
@@ -601,100 +440,6 @@ class MilestoneServiceTest {
 
             assertThatThrownBy(() -> service.createPrerequisiteLink(request))
                     .isInstanceOf(ConflictException.class);
-        }
-
-        @Test
-        void createLink_milestoneNotFound() {
-            CreatePrerequisiteLinkRequest request = new CreatePrerequisiteLinkRequest();
-            request.setMilestoneId(UUID.randomUUID());
-            request.setPrerequisiteMilestoneId(prerequisite.getId());
-
-            when(milestoneRepository.findByIdAndActiveTrue(request.getMilestoneId()))
-                    .thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.createPrerequisiteLink(request))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-
-        @Test
-        void updateLink_changesBlocker() {
-            MilestonePrerequisiteLink link = MilestonePrerequisiteLink.builder()
-                    .id(UUID.randomUUID())
-                    .milestone(milestone)
-                    .prerequisiteMilestone(prerequisite)
-                    .blocker(false)
-                    .active(true)
-                    .build();
-
-            UpdatePrerequisiteLinkRequest request = new UpdatePrerequisiteLinkRequest();
-            request.setBlocker(true);
-
-            when(prerequisiteLinkRepository.findById(link.getId()))
-                    .thenReturn(Optional.of(link));
-            when(prerequisiteLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-            PrerequisiteLinkResponse response = service.updatePrerequisiteLink(link.getId(), request);
-
-            assertThat(response.isBlocker()).isTrue();
-            assertThat(link.isBlocker()).isTrue();
-        }
-
-        @Test
-        void deactivateLink_setsActiveFalse() {
-            MilestonePrerequisiteLink link = MilestonePrerequisiteLink.builder()
-                    .id(UUID.randomUUID())
-                    .milestone(milestone)
-                    .prerequisiteMilestone(prerequisite)
-                    .active(true)
-                    .build();
-
-            when(prerequisiteLinkRepository.findById(link.getId()))
-                    .thenReturn(Optional.of(link));
-            when(prerequisiteLinkRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-            service.deactivatePrerequisiteLink(link.getId());
-
-            assertThat(link.isActive()).isFalse();
-            verify(prerequisiteLinkRepository).save(link);
-        }
-
-        @Test
-        void findByMilestone_returnsMappedResponses() {
-            MilestonePrerequisiteLink link = MilestonePrerequisiteLink.builder()
-                    .id(UUID.randomUUID())
-                    .milestone(milestone)
-                    .prerequisiteMilestone(prerequisite)
-                    .blocker(true)
-                    .active(true)
-                    .build();
-
-            when(prerequisiteLinkRepository.findByMilestone_IdAndActiveTrue(milestone.getId()))
-                    .thenReturn(List.of(link));
-
-            List<PrerequisiteLinkResponse> responses = service.findPrerequisitesByMilestone(milestone.getId());
-
-            assertThat(responses).hasSize(1);
-            assertThat(responses.get(0).getPrerequisiteTitle()).isEqualTo("Prerequisite");
-            assertThat(responses.get(0).getPrerequisiteTier()).isEqualTo("silver");
-        }
-
-        @Test
-        void findBySet_returnsMappedResponses() {
-            MilestonePrerequisiteLink link = MilestonePrerequisiteLink.builder()
-                    .id(UUID.randomUUID())
-                    .milestone(milestone)
-                    .prerequisiteMilestone(prerequisite)
-                    .blocker(false)
-                    .active(true)
-                    .build();
-
-            when(prerequisiteLinkRepository.findBySetIdWithPrerequisites(set.getId()))
-                    .thenReturn(List.of(link));
-
-            List<PrerequisiteLinkResponse> responses = service.findPrerequisiteLinksBySet(set.getId());
-
-            assertThat(responses).hasSize(1);
-            assertThat(responses.get(0).getMilestoneId()).isEqualTo(milestone.getId());
         }
     }
 

@@ -4,11 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -72,40 +76,30 @@ class SnipePairQueryTest {
         entityManager.flush();
     }
 
-    @Test
-    @DisplayName("the default order is the smallest accuracy gap first")
-    void defaultOrderIsClosestGapFirst() {
-        assertThat(orderedBy(SnipeSort.GAP, null)).containsExactly(tightestGap, closeGap, wideGap);
+    static Stream<Arguments> orderings() {
+        return Stream.of(
+                Arguments.of("the default order is the smallest accuracy gap first",
+                        SnipeSort.GAP, null, List.of("tightest", "close", "wide")),
+                Arguments.of("flipping the direction puts the biggest accuracy gap on top",
+                        SnipeSort.GAP, Sort.Direction.DESC, List.of("wide", "close", "tightest")),
+                Arguments.of("AP_GAP leads with the map holding the most AP to take back",
+                        SnipeSort.AP_GAP, null, List.of("wide", "close", "tightest")),
+                Arguments.of("TARGET_AP leads with the target's best map",
+                        SnipeSort.TARGET_AP, null, List.of("tightest", "wide", "close")),
+                Arguments.of("YOUR_AP leads with the sniper's own best map",
+                        SnipeSort.YOUR_AP, null, List.of("tightest", "close", "wide")),
+                Arguments.of("RANK_GAP leads with the widest leaderboard distance",
+                        SnipeSort.RANK_GAP, null, List.of("wide", "close", "tightest")));
     }
 
-    @Test
-    @DisplayName("flipping the direction puts the biggest accuracy gap on top")
-    void reversedGapPutsTheBiggestGapFirst() {
-        assertThat(orderedBy(SnipeSort.GAP, Sort.Direction.DESC)).containsExactly(wideGap, closeGap, tightestGap);
-    }
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("orderings")
+    void sortOrdersThePairs(String description, SnipeSort sort, Sort.Direction direction, List<String> expected) {
+        java.util.Map<String, UUID> seeded = java.util.Map.of(
+                "tightest", tightestGap, "close", closeGap, "wide", wideGap);
 
-    @Test
-    @DisplayName("AP_GAP leads with the map holding the most AP to take back")
-    void apGapLeadsWithTheMostAvailableAp() {
-        assertThat(orderedBy(SnipeSort.AP_GAP, null)).containsExactly(wideGap, closeGap, tightestGap);
-    }
-
-    @Test
-    @DisplayName("TARGET_AP leads with the target's best map")
-    void targetApLeadsWithTheirBestMap() {
-        assertThat(orderedBy(SnipeSort.TARGET_AP, null)).containsExactly(tightestGap, wideGap, closeGap);
-    }
-
-    @Test
-    @DisplayName("YOUR_AP leads with the sniper's own best map")
-    void yourApLeadsWithYourBestMap() {
-        assertThat(orderedBy(SnipeSort.YOUR_AP, null)).containsExactly(tightestGap, closeGap, wideGap);
-    }
-
-    @Test
-    @DisplayName("RANK_GAP leads with the widest leaderboard distance")
-    void rankGapLeadsWithTheWidestLeaderboardDistance() {
-        assertThat(orderedBy(SnipeSort.RANK_GAP, null)).containsExactly(wideGap, closeGap, tightestGap);
+        assertThat(orderedBy(sort, direction))
+                .containsExactlyElementsOf(expected.stream().map(seeded::get).toList());
     }
 
     @Test

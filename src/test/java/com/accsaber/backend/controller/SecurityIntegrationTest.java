@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -165,30 +164,14 @@ class SecurityIntegrationTest {
 
         @Test
         void roleHierarchy_adminImpliesRankingHeadAndRanking() {
-                RoleHierarchy hierarchy = RoleHierarchyImpl.withDefaultRolePrefix()
-                                .role("ADMIN").implies("RANKING_HEAD")
-                                .role("RANKING_HEAD").implies("RANKING")
-                                .build();
-
-                Collection<? extends GrantedAuthority> reachable = hierarchy.getReachableGrantedAuthorities(
-                                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-
-                assertThat(reachable)
+                assertThat(reachableFrom("ROLE_ADMIN"))
                                 .extracting(GrantedAuthority::getAuthority)
                                 .contains("ROLE_ADMIN", "ROLE_RANKING_HEAD", "ROLE_RANKING");
         }
 
         @Test
         void roleHierarchy_rankingHeadImpliesRanking() {
-                RoleHierarchy hierarchy = RoleHierarchyImpl.withDefaultRolePrefix()
-                                .role("ADMIN").implies("RANKING_HEAD")
-                                .role("RANKING_HEAD").implies("RANKING")
-                                .build();
-
-                Collection<? extends GrantedAuthority> reachable = hierarchy.getReachableGrantedAuthorities(
-                                List.of(new SimpleGrantedAuthority("ROLE_RANKING_HEAD")));
-
-                assertThat(reachable)
+                assertThat(reachableFrom("ROLE_RANKING_HEAD"))
                                 .extracting(GrantedAuthority::getAuthority)
                                 .contains("ROLE_RANKING_HEAD", "ROLE_RANKING")
                                 .doesNotContain("ROLE_ADMIN");
@@ -196,16 +179,13 @@ class SecurityIntegrationTest {
 
         @Test
         void roleHierarchy_rankingHasNoImpliedRoles() {
-                RoleHierarchy hierarchy = RoleHierarchyImpl.withDefaultRolePrefix()
-                                .role("ADMIN").implies("RANKING_HEAD")
-                                .role("RANKING_HEAD").implies("RANKING")
-                                .build();
-
-                Collection<? extends GrantedAuthority> reachable = hierarchy.getReachableGrantedAuthorities(
-                                List.of(new SimpleGrantedAuthority("ROLE_RANKING")));
-
-                assertThat(reachable)
+                assertThat(reachableFrom("ROLE_RANKING"))
                                 .extracting(GrantedAuthority::getAuthority)
                                 .containsExactly("ROLE_RANKING");
+        }
+
+        private Collection<? extends GrantedAuthority> reachableFrom(String authority) {
+                RoleHierarchy hierarchy = new SecurityConfig().roleHierarchy();
+                return hierarchy.getReachableGrantedAuthorities(List.of(new SimpleGrantedAuthority(authority)));
         }
 }

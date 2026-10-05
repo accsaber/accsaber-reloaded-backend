@@ -96,15 +96,9 @@ class CampaignProgressBroadcastServiceTest {
     }
 
     @Test
-    void silentNodeCompletionIsNotBroadcast() {
+    void silentCompletionsAreNotBroadcast() {
         service.onNodeCompleted(new CampaignNodeCompletedEvent(USER_ID, UUID.randomUUID(), UUID.randomUUID(),
                 Instant.parse("2026-07-03T21:00:00Z"), true));
-
-        verify(campaignProgressHandler, never()).broadcast(anyString());
-    }
-
-    @Test
-    void silentCampaignCompletionIsNotBroadcast() {
         service.onCampaignCompleted(new CampaignCompletedEvent(USER_ID, UUID.randomUUID(), CampaignStatus.CURATED,
                 Instant.parse("2026-07-03T21:00:00Z"), true));
 

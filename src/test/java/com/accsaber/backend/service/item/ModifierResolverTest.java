@@ -9,8 +9,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.random.RandomGenerator;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.accsaber.backend.model.entity.item.CrateModifier;
 import com.accsaber.backend.model.entity.item.ItemModifier;
@@ -19,17 +23,22 @@ class ModifierResolverTest {
 
     private final ModifierResolver resolver = new ModifierResolver();
 
-    @Test
-    void resolveFoundersWithinThreshold() {
-        assertThat(resolver.resolveFounders(1)).containsExactly(ItemModifier.FOUNDERS);
-        assertThat(resolver.resolveFounders(ModifierResolver.FOUNDERS_THRESHOLD))
-                .containsExactly(ItemModifier.FOUNDERS);
+    static Stream<Arguments> foundersBoundary() {
+        return Stream.of(
+                Arguments.of(0L, false),
+                Arguments.of(1L, true),
+                Arguments.of(ModifierResolver.FOUNDERS_THRESHOLD, true),
+                Arguments.of(ModifierResolver.FOUNDERS_THRESHOLD + 1, false));
     }
 
-    @Test
-    void resolveFoundersOutsideThreshold() {
-        assertThat(resolver.resolveFounders(0)).isEmpty();
-        assertThat(resolver.resolveFounders(ModifierResolver.FOUNDERS_THRESHOLD + 1)).isEmpty();
+    @ParameterizedTest(name = "serial {0} founders={1}")
+    @MethodSource("foundersBoundary")
+    void resolveFoundersHonoursThreshold(long serial, boolean founders) {
+        if (founders) {
+            assertThat(resolver.resolveFounders(serial)).containsExactly(ItemModifier.FOUNDERS);
+        } else {
+            assertThat(resolver.resolveFounders(serial)).isEmpty();
+        }
     }
 
     @Test

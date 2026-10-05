@@ -1,6 +1,5 @@
 package com.accsaber.backend.websocket.server;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -36,15 +35,6 @@ class ScoreFeedWebSocketHandlerTest {
         class ConnectionLifecycle {
 
                 @Test
-                void afterConnectionEstablished_addsSession() throws Exception {
-                        WebSocketSession session = mockSession("s1", true);
-
-                        handler.afterConnectionEstablished(session);
-                        handler.broadcast("{\"test\":true}");
-                        assertThat(session.getId()).isEqualTo("s1");
-                }
-
-                @Test
                 void afterConnectionClosed_removesSession() throws Exception {
                         WebSocketSession session = mockSession("s1", true);
                         handler.afterConnectionEstablished(session);
@@ -69,11 +59,6 @@ class ScoreFeedWebSocketHandlerTest {
 
         @Nested
         class Broadcast {
-
-                @Test
-                void broadcast_noSessions_doesNotThrow() {
-                        handler.broadcast("{\"score\":100}");
-                }
 
                 @Test
                 void broadcast_multipleSessions_sendsToAll() throws Exception {

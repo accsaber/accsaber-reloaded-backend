@@ -18,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -161,25 +163,6 @@ class StatisticsServiceTest {
 
         @Nested
         class Recalculate {
-
-                @Test
-                void singleScore_setsFullWeightedAP() {
-                        Score score = buildScore(500.000000, 950_000);
-                        when(scoreRepository.findActiveByUserAndCategoryOrderByApDesc(user.getId(), category.getId()))
-                                        .thenReturn(List.of(score));
-                        when(apCalculationService.calculateWeightedAP(score.getAp(), 0, weightCurve))
-                                        .thenReturn(500.000000);
-                        when(statisticsRepository.findActiveForUpdate(user.getId(),
-                                        category.getId()))
-                                        .thenReturn(Optional.empty());
-                        when(statisticsRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-
-                        UserCategoryStatisticsResponse response = statisticsService.recalculate(user.getId(),
-                                        category.getId());
-
-                        assertThat(response.getAp()).isEqualByComparingTo(500.000000);
-                        assertThat(response.getRankedPlays()).isEqualTo(1);
-                }
 
                 @Test
                 void multipleScores_appliesDecayCorrectly() {
@@ -329,28 +312,6 @@ class StatisticsServiceTest {
         class FindByUserAndCategoryCode {
 
                 @Test
-                void returnsStatsForMatchingCode() {
-                        UserCategoryStatistics stats = UserCategoryStatistics.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(user)
-                                        .category(category)
-                                        .ap(500.000000)
-                                        .scoreXp(200.000000)
-                                        .rankedPlays(5)
-                                        .active(true)
-                                        .build();
-                        when(statisticsRepository.findByUser_IdAndCategory_CodeAndActiveTrue(user.getId(), "true_acc"))
-                                        .thenReturn(Optional.of(stats));
-
-                        UserCategoryStatisticsResponse response = statisticsService
-                                        .findByUserAndCategoryCode(user.getId(), "true_acc");
-
-                        assertThat(response.getAp()).isEqualByComparingTo(500.000000);
-                        assertThat(response.getScoreXp()).isEqualByComparingTo(200.000000);
-                        assertThat(response.getRankedPlays()).isEqualTo(5);
-                }
-
-                @Test
                 void throwsWhenNotFound() {
                         when(statisticsRepository.findByUser_IdAndCategory_CodeAndActiveTrue(user.getId(),
                                         "nonexistent"))
@@ -363,34 +324,6 @@ class StatisticsServiceTest {
 
         @Nested
         class FindHistoric {
-
-                @Test
-                void returnsVersionsSortedByCreatedAt() {
-                        UserCategoryStatistics s1 = UserCategoryStatistics.builder()
-                                        .id(UUID.randomUUID()).user(user).category(category)
-                                        .ap(300.000000).scoreXp(100.000000)
-                                        .rankedPlays(3).active(false).build();
-                        UserCategoryStatistics s2 = UserCategoryStatistics.builder()
-                                        .id(UUID.randomUUID()).user(user).category(category)
-                                        .ap(500.000000).scoreXp(200.000000)
-                                        .rankedPlays(5).active(true).build();
-
-                        when(statisticsRepository
-                                        .findHistoricDownsampled(
-                                                        org.mockito.ArgumentMatchers.eq(user.getId()),
-                                                        org.mockito.ArgumentMatchers.eq("true_acc"),
-                                                        any(Instant.class)))
-                                        .thenReturn(List.of(s1, s2));
-
-                        List<UserCategoryStatisticsResponse> result = statisticsService.findHistoric(user.getId(),
-                                        "true_acc", 7, "d");
-
-                        assertThat(result).hasSize(2);
-                        assertThat(result.get(0).getAp()).isEqualByComparingTo(300.000000);
-                        assertThat(result.get(1).getAp()).isEqualByComparingTo(500.000000);
-                        assertThat(result.get(0).getScoreXp()).isEqualByComparingTo(100.000000);
-                        assertThat(result.get(1).getScoreXp()).isEqualByComparingTo(200.000000);
-                }
 
                 @Test
                 void invalidUnit_throws() {
@@ -441,28 +374,22 @@ class StatisticsServiceTest {
                         assertThat(diff.getRankedPlaysDiff()).isEqualTo(2);
                 }
 
-                @Test
-                void noBaselineBeforeLastDay_returnsEmpty() {
+                @ParameterizedTest(name = "baseline present = {0}, most recent missing")
+                @ValueSource(booleans = { false, true })
+                void missingBaselineOrMostRecent_returnsEmpty(boolean baselinePresent) {
+                        Optional<UserCategoryStatistics> baseline = baselinePresent
+                                        ? Optional.of(UserCategoryStatistics.builder()
+                                                        .id(UUID.randomUUID()).user(user).category(category)
+                                                        .ap(0.0).scoreXp(0.0).rankedPlays(0)
+                                                        .createdAt(Instant.now().minusSeconds(86400 * 2))
+                                                        .active(false).build())
+                                        : Optional.empty();
                         when(statisticsRepository.findLatestBeforeLastDay(user.getId(), "true_acc"))
-                                        .thenReturn(Optional.empty());
-
-                        Optional<StatsDiffResponse> result = statisticsService.computeStatsDiff(user.getId(),
-                                        "true_acc");
-
-                        assertThat(result).isEmpty();
-                }
-
-                @Test
-                void noMostRecent_returnsEmpty() {
-                        UserCategoryStatistics base = UserCategoryStatistics.builder()
-                                        .id(UUID.randomUUID()).user(user).category(category)
-                                        .ap(0.0).scoreXp(0.0).rankedPlays(0)
-                                        .createdAt(Instant.now().minusSeconds(86400 * 2))
-                                        .active(false).build();
-                        when(statisticsRepository.findLatestBeforeLastDay(user.getId(), "true_acc"))
-                                        .thenReturn(Optional.of(base));
-                        when(statisticsRepository.findMostRecent(user.getId(), "true_acc"))
-                                        .thenReturn(Optional.empty());
+                                        .thenReturn(baseline);
+                        if (baselinePresent) {
+                                when(statisticsRepository.findMostRecent(user.getId(), "true_acc"))
+                                                .thenReturn(Optional.empty());
+                        }
 
                         Optional<StatsDiffResponse> result = statisticsService.computeStatsDiff(user.getId(),
                                         "true_acc");

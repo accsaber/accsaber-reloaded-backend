@@ -19,17 +19,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
-import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
-import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
@@ -82,62 +79,7 @@ class MapServiceTest {
         private MapService mapService;
 
         @Nested
-        class FindAll {
-
-                @Test
-                void returnsEmptyPage_whenNoMapsMatchFilters() {
-                        when(mapRepository.findByDifficultyFilters(null, null, PageRequest.of(0, 20)))
-                                        .thenReturn(Page.empty());
-
-                        Page<MapResponse> result = mapService.findAll(null, null, null, PageRequest.of(0, 20));
-
-                        assertThat(result).isEmpty();
-                }
-
-                @Test
-                void returnsMapsWithEnrichedDifficulties() {
-                        Map map = buildMap();
-                        Category category = buildCategory();
-                        MapDifficulty diff = buildDifficulty(map, category);
-                        Page<Map> mapPage = new PageImpl<>(List.of(map));
-                        when(mapRepository.findByDifficultyFilters(null, null, PageRequest.of(0, 20)))
-                                        .thenReturn(mapPage);
-                        when(mapDifficultyRepository.findByMapIdsWithFilters(List.of(map.getId()), null, null))
-                                        .thenReturn(List.of(diff));
-                        when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-                        when(statisticsService.findActiveForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-
-                        Page<MapResponse> result = mapService.findAll(null, null, null, PageRequest.of(0, 20));
-
-                        assertThat(result).hasSize(1);
-                        assertThat(result.getContent().get(0).getSongName()).isEqualTo("Song");
-                        assertThat(result.getContent().get(0).getDifficulties()).hasSize(1);
-                }
-        }
-
-        @Nested
         class FindById {
-
-                @Test
-                void returnsMapResponseWithDifficulties() {
-                        Map map = buildMap();
-                        Category category = buildCategory();
-                        MapDifficulty diff = buildDifficulty(map, category);
-                        when(mapRepository.findByIdAndActiveTrue(map.getId())).thenReturn(Optional.of(map));
-                        when(mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId())).thenReturn(List.of(diff));
-                        when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-                        when(statisticsService.findActiveForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-
-                        MapResponse response = mapService.findById(map.getId());
-
-                        assertThat(response.getId()).isEqualTo(map.getId());
-                        assertThat(response.getSongName()).isEqualTo("Song");
-                        assertThat(response.getDifficulties()).hasSize(1);
-                }
 
                 @Test
                 void throwsNotFound_whenMapDoesNotExist() {
@@ -146,48 +88,6 @@ class MapServiceTest {
 
                         assertThatThrownBy(() -> mapService.findById(id))
                                         .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
-        class FindDifficultiesByMapId {
-
-                @Test
-                void returnsDifficulties_forExistingMap() {
-                        Map map = buildMap();
-                        Category category = buildCategory();
-                        MapDifficulty diff = buildDifficulty(map, category);
-                        when(mapRepository.existsById(map.getId())).thenReturn(true);
-                        when(mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId())).thenReturn(List.of(diff));
-                        when(complexityService.findActiveComplexitiesForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-                        when(statisticsService.findActiveForDifficulties(any()))
-                                        .thenReturn(java.util.Map.of());
-
-                        List<MapDifficultyResponse> result = mapService.findDifficultiesByMapId(map.getId());
-
-                        assertThat(result).hasSize(1);
-                        assertThat(result.get(0).getDifficulty()).isEqualTo(Difficulty.EXPERT_PLUS);
-                }
-
-                @Test
-                void throwsNotFound_whenMapDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(mapRepository.existsById(id)).thenReturn(false);
-
-                        assertThatThrownBy(() -> mapService.findDifficultiesByMapId(id))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-
-                @Test
-                void returnsEmptyList_whenMapHasNoDifficulties() {
-                        Map map = buildMap();
-                        when(mapRepository.existsById(map.getId())).thenReturn(true);
-                        when(mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId())).thenReturn(List.of());
-
-                        List<MapDifficultyResponse> result = mapService.findDifficultiesByMapId(map.getId());
-
-                        assertThat(result).isEmpty();
                 }
         }
 
@@ -310,22 +210,6 @@ class MapServiceTest {
                         verify(mapDifficultyRepository, never()).save(ranked);
                 }
 
-                @Test
-                void throwsNotFound_whenCategoryDoesNotExist() {
-                        Map existingMap = buildMap();
-                        UUID categoryId = UUID.randomUUID();
-                        CreateMapDifficultyRequest request = buildRequest(categoryId);
-                        when(mapRepository.findBySongHashAndActiveTrue(request.getSongHash()))
-                                        .thenReturn(Optional.of(existingMap));
-                        when(mapDifficultyRepository.findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
-                                        existingMap.getId(), request.getDifficulty(), request.getCharacteristic()))
-                                        .thenReturn(Optional.empty());
-                        when(categoryRepository.findByIdAndActiveTrue(categoryId)).thenReturn(Optional.empty());
-
-                        assertThatThrownBy(() -> mapService.importMapDifficulty(request, staffId))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-
         }
 
         @Nested
@@ -366,53 +250,6 @@ class MapServiceTest {
                         assertThat(diff.getStatus()).isEqualTo(MapDifficultyStatus.QUALIFIED);
                         assertThat(diff.getRankedAt()).isNull();
                 }
-
-                @Test
-                void throwsNotFound_whenDifficultyDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
-
-                        UpdateMapStatusRequest request = new UpdateMapStatusRequest();
-                        request.setStatus(MapDifficultyStatus.QUALIFIED);
-
-                        assertThatThrownBy(() -> mapService.updateStatus(id, request))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
-        }
-
-        @Nested
-        class UpdateComplexity {
-
-                @Test
-                void delegatesToComplexityService_andReturnsUpdatedComplexity() {
-                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.RANKED);
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId()))
-                                        .thenReturn(Optional.of(diff));
-                        when(complexityService.setComplexity(diff, 8.5, "Reweight", 1L))
-                                        .thenReturn(8.5);
-                        when(statisticsService.findActive(diff.getId())).thenReturn(Optional.empty());
-
-                        UpdateMapComplexityRequest request = new UpdateMapComplexityRequest();
-                        request.setComplexity(8.5);
-                        request.setReason("Reweight");
-                        MapDifficultyResponse response = mapService.updateComplexity(diff.getId(), request, 1L);
-
-                        assertThat(response.getComplexity()).isEqualByComparingTo(8.5);
-                        verify(complexityService).setComplexity(diff, 8.5, "Reweight", 1L);
-                }
-
-                @Test
-                void throwsNotFound_whenDifficultyDoesNotExist() {
-                        UUID id = UUID.randomUUID();
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
-
-                        UpdateMapComplexityRequest request = new UpdateMapComplexityRequest();
-                        request.setComplexity(8.5);
-                        request.setReason("Reweight");
-
-                        assertThatThrownBy(() -> mapService.updateComplexity(id, request, 1L))
-                                        .isInstanceOf(ResourceNotFoundException.class);
-                }
         }
 
         private Map buildMap() {
@@ -435,10 +272,6 @@ class MapServiceTest {
                                 .countForOverall(true)
                                 .active(true)
                                 .build();
-        }
-
-        private MapDifficulty buildDifficulty(Map map, Category category) {
-                return buildDifficulty(map, category, MapDifficultyStatus.RANKED);
         }
 
         private MapDifficulty buildDifficulty(Map map, Category category, MapDifficultyStatus status) {

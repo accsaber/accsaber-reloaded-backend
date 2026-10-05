@@ -8,6 +8,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
@@ -59,20 +63,11 @@ class PlatformScoreMapperTest {
             assertThat(result.getModifierIds()).containsExactlyInAnyOrder(NF_ID, DA_ID);
         }
 
-        @Test
-        void emptyModifierString_yieldsEmptyList() {
+        @ParameterizedTest(name = "modifiers \"{0}\"")
+        @NullAndEmptySource
+        void missingModifierString_yieldsEmptyList(String modifiers) {
             BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setModifiers("");
-
-            SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
-
-            assertThat(result.getModifierIds()).isEmpty();
-        }
-
-        @Test
-        void nullModifierString_yieldsEmptyList() {
-            BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setModifiers(null);
+            bl.setModifiers(modifiers);
 
             SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
 
@@ -89,40 +84,24 @@ class PlatformScoreMapperTest {
             assertThat(result.getModifierIds()).containsExactlyInAnyOrder(NF_ID, DA_ID);
         }
 
-        @Test
-        void nullMaxCombo_mapsToNull() {
+        @ParameterizedTest(name = "maxCombo {0}")
+        @NullSource
+        @ValueSource(ints = 0)
+        void missingMaxCombo_mapsToNull(Integer maxCombo) {
             BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setMaxCombo(null);
+            bl.setMaxCombo(maxCombo);
 
             SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
 
             assertThat(result.getMaxCombo()).isNull();
         }
 
-        @Test
-        void zeroMaxCombo_mapsToNull() {
+        @ParameterizedTest(name = "playCount {0}")
+        @NullSource
+        @ValueSource(ints = 0)
+        void missingPlayCount_mapsToNull(Integer playCount) {
             BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setMaxCombo(0);
-
-            SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
-
-            assertThat(result.getMaxCombo()).isNull();
-        }
-
-        @Test
-        void nullPlayCount_mapsToNull() {
-            BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setPlayCount(null);
-
-            SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
-
-            assertThat(result.getPlayCount()).isNull();
-        }
-
-        @Test
-        void zeroPlayCount_mapsToNull() {
-            BeatLeaderScoreResponse bl = buildBeatLeaderScore();
-            bl.setPlayCount(0);
+            bl.setPlayCount(playCount);
 
             SubmitScoreRequest result = PlatformScoreMapper.fromBeatLeader(bl, MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
 
@@ -143,14 +122,10 @@ class PlatformScoreMapperTest {
     @Nested
     class HasBannedModifier {
 
-        @Test
-        void returnsFalse_forNull() {
-            assertThat(PlatformScoreMapper.hasBannedModifier((String) null)).isFalse();
-        }
-
-        @Test
-        void returnsFalse_forBlank() {
-            assertThat(PlatformScoreMapper.hasBannedModifier("")).isFalse();
+        @ParameterizedTest(name = "modifiers \"{0}\"")
+        @NullAndEmptySource
+        void returnsFalse_forNullOrBlank(String modifiers) {
+            assertThat(PlatformScoreMapper.hasBannedModifier(modifiers)).isFalse();
         }
 
         @Test
@@ -251,17 +226,6 @@ class PlatformScoreMapperTest {
 
             assertThat(result.getScore()).isEqualTo(890000);
             assertThat(result.getScore()).isEqualTo(result.getScoreNoMods());
-        }
-
-        @Test
-        void agreesWithBeatLeaderOnScoreSemantics() {
-            SubmitScoreRequest fromBl = PlatformScoreMapper.fromBeatLeader(buildBeatLeaderScore(), MAP_DIFF_ID,
-                    USER_ID, MODIFIER_MAP);
-            SubmitScoreRequest fromSs = PlatformScoreMapper.fromScoreSaber(buildScoreSaberScore(), null,
-                    MAP_DIFF_ID, USER_ID, MODIFIER_MAP);
-
-            assertThat(fromBl.getScore()).isEqualTo(fromBl.getScoreNoMods());
-            assertThat(fromSs.getScore()).isEqualTo(fromSs.getScoreNoMods());
         }
     }
 

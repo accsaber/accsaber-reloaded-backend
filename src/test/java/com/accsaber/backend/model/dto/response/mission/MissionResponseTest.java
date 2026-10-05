@@ -20,7 +20,7 @@ import com.accsaber.backend.model.entity.mission.UserMission;
 class MissionResponseTest {
 
     @Test
-    void apGainOverallExposesFractionalApAsTheNormalisedPair() {
+    void apGainOverallExposesFractionalApAndMirrorsIntoTheCountPairThePluginReads() {
         UserMission mission = mission(MissionType.AP_GAIN_OVERALL);
         mission.setProgressAp(2.4321);
         mission.setTargetAp(5.0);
@@ -29,16 +29,6 @@ class MissionResponseTest {
 
         assertThat(response.getProgressValue()).isEqualByComparingTo(2.43);
         assertThat(response.getTargetValue()).isEqualByComparingTo(5.0);
-    }
-
-    @Test
-    void apGainOverallMirrorsIntoTheCountPairThePluginReads() {
-        UserMission mission = mission(MissionType.AP_GAIN_OVERALL);
-        mission.setProgressAp(2.4321);
-        mission.setTargetAp(5.0);
-
-        MissionResponse response = MissionResponse.from(mission);
-
         assertThat(response.getProgressCount()).isEqualTo(2);
         assertThat(response.getTargetCount()).isEqualTo(5);
     }

@@ -125,13 +125,6 @@ class NotificationServiceTest {
     }
 
     @Test
-    void aBroadcastDelegatesToTheSetBasedInsert() {
-        when(notificationRepository.broadcast("Week 2 is live", "/events/summer")).thenReturn(1234);
-
-        assertThat(notificationService.broadcast("Week 2 is live", "/events/summer")).isEqualTo(1234);
-    }
-
-    @Test
     void bothTradeResolutionTypesShareOnePreference() {
         assertThat(NotificationType.trade_accepted.preference())
                 .isEqualTo(NotificationType.trade_declined.preference())

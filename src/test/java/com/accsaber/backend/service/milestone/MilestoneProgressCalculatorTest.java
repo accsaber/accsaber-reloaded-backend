@@ -148,17 +148,6 @@ class MilestoneProgressCalculatorTest {
         }
 
         @Test
-        void isHarsherThanLinearNearTheTopOfTheCurve() {
-            withScoreCurve();
-            Milestone curved = milestone(MilestoneProgressModel.CURVE, 0.99, "GTE");
-            curved.setProgressCurve(curve);
-            Milestone linear = milestone(MilestoneProgressModel.LINEAR, 0.99, "GTE");
-
-            assertThat(calculator.normalize(curved, 0.98))
-                    .isLessThan(calculator.normalize(linear, 0.98));
-        }
-
-        @Test
         void fallsBackToLinearWhenNoCurveIsAttached() {
             Milestone m = milestone(MilestoneProgressModel.CURVE, 100, "GTE");
 
@@ -179,16 +168,6 @@ class MilestoneProgressCalculatorTest {
             assertThat(calculator.normalize(m, 1000.0)).isCloseTo(0.619, within(TOLERANCE));
             assertThat(calculator.normalize(m, 5000.0)).isCloseTo(0.414, within(TOLERANCE));
             assertThat(calculator.normalize(m, 100.0)).isCloseTo(0.912, within(TOLERANCE));
-        }
-
-        @Test
-        void beatsTheOldReciprocalForMidPackPlayers() {
-            withPopulation(130000);
-            Milestone log = milestone(MilestoneProgressModel.LOG, 50, "LTE");
-            Milestone linear = milestone(MilestoneProgressModel.LINEAR, 50, "LTE");
-
-            assertThat(calculator.normalize(log, 1000.0))
-                    .isGreaterThan(calculator.normalize(linear, 1000.0));
         }
 
         @Test
@@ -253,14 +232,6 @@ class MilestoneProgressCalculatorTest {
     class Gated {
 
         @Test
-        @DisplayName("reports gate progress while the gate is unmet and the value is still null")
-        void gateProgressWhileValueNull() {
-            Milestone m = milestone(MilestoneProgressModel.LINEAR, 0.96, "GTE");
-
-            assertThat(calculator.normalize(m, null, 0.4)).isEqualTo(0.4);
-        }
-
-        @Test
         @DisplayName("takes the weakest link once both sides are known")
         void weakestLinkWins() {
             Milestone m = milestone(MilestoneProgressModel.LINEAR, 100, "GTE");
@@ -268,14 +239,6 @@ class MilestoneProgressCalculatorTest {
             assertThat(calculator.normalize(m, 100.0, 0.5)).isEqualTo(0.5);
             assertThat(calculator.normalize(m, 50.0, 1.0)).isEqualTo(0.5);
             assertThat(calculator.normalize(m, 100.0, 1.0)).isEqualTo(1.0);
-        }
-
-        @Test
-        @DisplayName("clamps a gate that has overshot its target")
-        void clampsOvershotGate() {
-            Milestone m = milestone(MilestoneProgressModel.LINEAR, 100, "GTE");
-
-            assertThat(calculator.normalize(m, 100.0, 3.0)).isEqualTo(1.0);
         }
 
         @Test

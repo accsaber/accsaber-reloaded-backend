@@ -7,6 +7,7 @@ import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.data.domain.Sort;
 
@@ -87,26 +88,20 @@ class SnipeQueryTest {
     @Nested
     class Unplayed {
 
-        @Test
-        void missingToggleKeepsUnplayedMapsOut() {
-            SnipeQuery query = query(null, null);
+        @ParameterizedTest(name = "toggle {0} resolves to {1}: played {3}, unplayed {4}")
+        @CsvSource({
+                ", EXCLUDE, true, true, false",
+                "INCLUDE, INCLUDE, false, true, true",
+                "ONLY, ONLY, false, false, true"
+        })
+        void toggleDecidesWhichSidesOfTheBoardSurvive(SnipeUnplayed requested, SnipeUnplayed expected,
+                boolean isDefault, boolean allowsPlayed, boolean allowsUnplayed) {
+            SnipeQuery query = new SnipeQuery(SNIPER_ID, TARGET_ID, null, null, null, requested);
 
-            assertThat(query.unplayed()).isEqualTo(SnipeUnplayed.EXCLUDE);
-            assertThat(query.unplayed().isDefault()).isTrue();
-            assertThat(query.unplayed().allowsPlayed()).isTrue();
-            assertThat(query.unplayed().allowsUnplayed()).isFalse();
-        }
-
-        @Test
-        void includeKeepsBothSides() {
-            assertThat(SnipeUnplayed.INCLUDE.allowsPlayed()).isTrue();
-            assertThat(SnipeUnplayed.INCLUDE.allowsUnplayed()).isTrue();
-        }
-
-        @Test
-        void onlyDropsTheMapsYouHavePlayed() {
-            assertThat(SnipeUnplayed.ONLY.allowsPlayed()).isFalse();
-            assertThat(SnipeUnplayed.ONLY.allowsUnplayed()).isTrue();
+            assertThat(query.unplayed()).isEqualTo(expected);
+            assertThat(query.unplayed().isDefault()).isEqualTo(isDefault);
+            assertThat(query.unplayed().allowsPlayed()).isEqualTo(allowsPlayed);
+            assertThat(query.unplayed().allowsUnplayed()).isEqualTo(allowsUnplayed);
         }
 
         @Test

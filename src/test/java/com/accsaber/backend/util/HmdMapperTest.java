@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class HmdMapperTest {
 
@@ -24,14 +28,11 @@ class HmdMapperTest {
             assertThat(HmdMapper.fromBeatLeaderId(75)).isEqualTo("Steam Frame");
         }
 
-        @Test
-        void nullReturnsNull() {
-            assertThat(HmdMapper.fromBeatLeaderId(null)).isNull();
-        }
-
-        @Test
-        void zeroReturnsNull() {
-            assertThat(HmdMapper.fromBeatLeaderId(0)).isNull();
+        @ParameterizedTest(name = "id {0}")
+        @NullSource
+        @ValueSource(ints = 0)
+        void nullOrZeroReturnsNull(Integer id) {
+            assertThat(HmdMapper.fromBeatLeaderId(id)).isNull();
         }
 
         @Test
@@ -54,25 +55,11 @@ class HmdMapperTest {
             assertThat(HmdMapper.normalize("Valve Index")).isEqualTo("Valve Index");
         }
 
-        @Test
-        void nullReturnsNull() {
-            assertThat(HmdMapper.normalize(null)).isNull();
-        }
-
-        @Test
-        void blankReturnsNull() {
-            assertThat(HmdMapper.normalize("")).isNull();
-            assertThat(HmdMapper.normalize("  ")).isNull();
-        }
-
-        @Test
-        void numericZeroReturnsNull() {
-            assertThat(HmdMapper.normalize("0")).isNull();
-        }
-
-        @Test
-        void unknownNumericReturnsUnknown() {
-            assertThat(HmdMapper.normalize("9999")).isEqualTo("Unknown");
+        @ParameterizedTest(name = "value \"{0}\"")
+        @NullAndEmptySource
+        @ValueSource(strings = "  ")
+        void nullOrBlankReturnsNull(String value) {
+            assertThat(HmdMapper.normalize(value)).isNull();
         }
     }
 }

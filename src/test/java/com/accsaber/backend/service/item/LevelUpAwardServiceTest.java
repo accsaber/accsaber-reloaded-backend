@@ -6,9 +6,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -50,14 +56,6 @@ class LevelUpAwardServiceTest {
     }
 
     @Test
-    void addCampaignXpIgnoresNonPositiveDelta() {
-        service.addCampaignXp(50L, 0.0);
-
-        verify(userRepository, never()).addCampaignXp(any(), any());
-        verify(userRepository, never()).addXp(any(), any());
-    }
-
-    @Test
     void missionXpFromAnEventTemplateLandsInTheEventBucket() {
         when(userRepository.findTotalXpById(50L)).thenReturn(Optional.of(0.0));
         when(levelService.calculateLevel(any())).thenReturn(LevelResponse.builder().level(0).build());
@@ -82,11 +80,23 @@ class LevelUpAwardServiceTest {
         verify(userRepository).addXp(50L, 100.0);
     }
 
-    @Test
-    void addEventXpIgnoresNonPositiveDelta() {
-        service.addEventXp(50L, 0.0);
+    static Stream<Arguments> bucketedXpGrants() {
+        return Stream.of(
+                Arguments.of("campaign",
+                        (BiConsumer<LevelUpAwardService, Double>) (s, xp) -> s.addCampaignXp(50L, xp),
+                        (Consumer<UserRepository>) r -> verify(r, never()).addCampaignXp(any(), any())),
+                Arguments.of("event",
+                        (BiConsumer<LevelUpAwardService, Double>) (s, xp) -> s.addEventXp(50L, xp),
+                        (Consumer<UserRepository>) r -> verify(r, never()).addEventXp(any(), any())));
+    }
 
-        verify(userRepository, never()).addEventXp(any(), any());
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("bucketedXpGrants")
+    void bucketedXpIgnoresNonPositiveDelta(String bucket, BiConsumer<LevelUpAwardService, Double> grant,
+            Consumer<UserRepository> bucketUntouched) {
+        grant.accept(service, 0.0);
+
+        bucketUntouched.accept(userRepository);
         verify(userRepository, never()).addXp(any(), any());
     }
 }

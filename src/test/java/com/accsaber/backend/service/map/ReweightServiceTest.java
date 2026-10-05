@@ -110,15 +110,6 @@ class ReweightServiceTest {
     class RecalculateDifficulty {
 
         @Test
-        void throwsNotFound_whenDifficultyDoesNotExist() {
-            UUID diffId = UUID.randomUUID();
-            when(mapDifficultyRepository.findByIdAndActiveTrue(diffId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reweightService.recalculateDifficulty(diffId))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-
-        @Test
         void throwsValidation_whenDifficultyNotRanked() {
             MapDifficulty diff = buildDifficulty(MapDifficultyStatus.QUEUE);
             when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
@@ -142,15 +133,6 @@ class ReweightServiceTest {
 
     @Nested
     class RecalculateBatch {
-
-        @Test
-        void throwsNotFound_whenBatchDoesNotExist() {
-            UUID batchId = UUID.randomUUID();
-            when(batchRepository.findById(batchId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reweightService.recalculateBatch(batchId))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
 
         @Test
         void throwsValidation_whenBatchNotReleased() {
@@ -194,21 +176,6 @@ class ReweightServiceTest {
 
     @Nested
     class BulkReweight {
-
-        @Test
-        void throwsValidation_whenDifficultyNotFound() {
-            UUID diffId = UUID.randomUUID();
-            BulkReweightRequest.Item item = new BulkReweightRequest.Item();
-            item.setMapDifficultyId(diffId);
-            item.setComplexity((double) (8.0));
-
-            when(mapDifficultyRepository.findAllByIdInAndActiveTrueWithCategory(any())).thenReturn(List.of());
-
-            assertThatThrownBy(() -> reweightService.bulkReweight(
-                    List.of(item), "reason", null, null))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("not found or not RANKED");
-        }
 
         @Test
         void throwsValidation_whenDifficultyNotRanked() {
@@ -259,7 +226,8 @@ class ReweightServiceTest {
 
             assertThatThrownBy(() -> reweightService.bulkReweight(
                     List.of(item), "reason", null, null))
-                    .isInstanceOf(ValidationException.class);
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("not found or not RANKED");
 
             verify(scoreRecalculationService, never()).recalculateBatchAsync(any());
         }

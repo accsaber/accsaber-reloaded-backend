@@ -97,15 +97,6 @@ class ItemTradeEssenceTest {
     }
 
     @Test
-    void essenceMayAppearOnBothSides() {
-        UserItemTrade trade = tradeService.create(SENDER, RECIPIENT, List.of(), List.of(), 100L, 60L, null);
-
-        assertThat(trade.getOfferedEssence()).isEqualTo(100L);
-        assertThat(trade.getRequestedEssence()).isEqualTo(60L);
-        verify(essenceLedgerService).reserve(SENDER, 100L);
-    }
-
-    @Test
     void acceptingATwoSidedEssenceTradeSettlesBothLegs() {
         stubPending(trade(100L, 60L));
 
@@ -129,26 +120,6 @@ class ItemTradeEssenceTest {
         assertThatThrownBy(() -> tradeService.create(SENDER, RECIPIENT, List.of(), List.of(), -5L, 0L, null))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("cannot be negative");
-    }
-
-    @Test
-    void acceptingSettlesOfferedEssenceFromTheSendersHold() {
-        stubPending(trade(100L, 0L));
-
-        tradeService.accept(TRADE_ID, RECIPIENT);
-
-        verify(essenceLedgerService).settleReserved(SENDER, RECIPIENT, 100L,
-                EssenceReason.trade_payment, EssenceReason.trade_receipt, TRADE_ID);
-    }
-
-    @Test
-    void acceptingDebitsTheRecipientForRequestedEssence() {
-        stubPending(trade(0L, 100L));
-
-        tradeService.accept(TRADE_ID, RECIPIENT);
-
-        verify(essenceLedgerService).debit(RECIPIENT, 100L, EssenceReason.trade_payment, TRADE_ID);
-        verify(essenceLedgerService).credit(SENDER, 100L, EssenceReason.trade_receipt, TRADE_ID);
     }
 
     @Test

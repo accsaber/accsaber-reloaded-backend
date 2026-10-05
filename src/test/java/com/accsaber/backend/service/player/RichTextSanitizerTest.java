@@ -3,7 +3,13 @@ package com.accsaber.backend.service.player;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.accsaber.backend.exception.ValidationException;
 
@@ -126,27 +132,21 @@ class RichTextSanitizerTest {
         assertThat(out).doesNotContain("javascript");
     }
 
-    @Test
-    void basicPolicyStripsColorAndFontStyling() {
-        String out = sanitizer.sanitize(
-                "<span style=\"color:#ff0000;font-size:24px;font-family:Arial\">x</span>", MAX, false);
-        assertThat(out).doesNotContain("color");
-        assertThat(out).doesNotContain("font-size");
-        assertThat(out).doesNotContain("font-family");
-        assertThat(out).contains("x");
+    static Stream<Arguments> basicPolicyStrippedStyling() {
+        return Stream.of(
+                Arguments.of("<span style=\"color:#ff0000;font-size:24px;font-family:Arial\">x</span>",
+                        List.of("color", "font-size", "font-family")),
+                Arguments.of("<span style=\"text-shadow:0 0 5px red\">x</span>", List.of("text-shadow")),
+                Arguments.of("<span class=\"glow\">x</span>", List.of("glow")));
     }
 
-    @Test
-    void basicPolicyStripsTextShadow() {
-        String out = sanitizer.sanitize("<span style=\"text-shadow:0 0 5px red\">x</span>", MAX, false);
-        assertThat(out).doesNotContain("text-shadow");
-        assertThat(out).contains("x");
-    }
-
-    @Test
-    void basicPolicyStripsEffectClasses() {
-        String out = sanitizer.sanitize("<span class=\"glow\">x</span>", MAX, false);
-        assertThat(out).doesNotContain("glow");
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("basicPolicyStrippedStyling")
+    void basicPolicyStripsStyling(String input, List<String> strippedTokens) {
+        String out = sanitizer.sanitize(input, MAX, false);
+        for (String token : strippedTokens) {
+            assertThat(out).doesNotContain(token);
+        }
         assertThat(out).contains("x");
     }
 

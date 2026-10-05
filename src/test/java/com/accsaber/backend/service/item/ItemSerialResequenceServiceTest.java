@@ -13,11 +13,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -67,26 +72,21 @@ class ItemSerialResequenceServiceTest {
     @Nested
     class Guards {
 
-        @Test
-        void rejectsTradeableItem() {
-            item.setTradeable(true);
-            when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
-
-            assertThatThrownBy(() -> service.resequenceItem(itemId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("tradeable");
-
-            verify(userItemLinkRepository, never()).clearSerials(any());
+        static Stream<Arguments> ineligibleItems() {
+            return Stream.of(
+                    Arguments.of("tradeable", (Consumer<Item>) i -> i.setTradeable(true)),
+                    Arguments.of("not serialized", (Consumer<Item>) i -> i.setSerialized(false)));
         }
 
-        @Test
-        void rejectsUnserializedItem() {
-            item.setSerialized(false);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("ineligibleItems")
+        void rejectsIneligibleItem(String expectedMessage, Consumer<Item> mutation) {
+            mutation.accept(item);
             when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
             assertThatThrownBy(() -> service.resequenceItem(itemId))
                     .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("not serialized");
+                    .hasMessageContaining(expectedMessage);
 
             verify(userItemLinkRepository, never()).clearSerials(any());
         }

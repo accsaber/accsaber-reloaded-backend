@@ -12,12 +12,14 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -62,18 +64,22 @@ class UnrankServiceTest {
     @Test
     void callsUpdateStatusAndReturnsDifficultyResponse() {
         MapDifficulty diff = buildDifficulty(MapDifficultyStatus.RANKED);
+        UUID staffId = UUID.randomUUID();
         MapDifficultyResponse expected = MapDifficultyResponse.builder()
                 .id(diff.getId())
                 .status(MapDifficultyStatus.QUEUE)
                 .build();
 
         when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
-        when(mapService.updateStatus(eq(diff.getId()), any(), any())).thenReturn(expected);
+        when(mapService.updateStatus(eq(diff.getId()), any(), eq(staffId))).thenReturn(expected);
 
-        MapDifficultyResponse result = unrankService.unrank(diff.getId(), "Bad map", null);
+        MapDifficultyResponse result = unrankService.unrank(diff.getId(), "Bad map", staffId);
 
-        assertThat(result.getStatus()).isEqualTo(MapDifficultyStatus.QUEUE);
-        verify(mapService).updateStatus(eq(diff.getId()), any(), any());
+        assertThat(result).isSameAs(expected);
+        ArgumentCaptor<UpdateMapStatusRequest> captor = ArgumentCaptor.forClass(UpdateMapStatusRequest.class);
+        verify(mapService).updateStatus(eq(diff.getId()), captor.capture(), eq(staffId));
+        assertThat(captor.getValue().getStatus()).isEqualTo(MapDifficultyStatus.QUEUE);
+        assertThat(captor.getValue().getReason()).isEqualTo("Bad map");
     }
 
     private MapDifficulty buildDifficulty(MapDifficultyStatus status) {

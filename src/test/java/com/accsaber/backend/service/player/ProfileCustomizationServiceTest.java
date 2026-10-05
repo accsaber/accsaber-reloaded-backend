@@ -11,11 +11,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -92,16 +96,16 @@ class ProfileCustomizationServiceTest {
             verify(userSettingsService, never()).set(any(), any(), any());
         }
 
-        @Test
-        void rejectsBlankName() {
-            assertThatThrownBy(() -> service.updateName(USER_ID, "  "))
-                    .isInstanceOf(ValidationException.class);
+        static Stream<Arguments> invalidNames() {
+            return Stream.of(
+                    Arguments.of("blank", "  "),
+                    Arguments.of("oversized", "x".repeat(ProfileCustomizationService.MAX_NAME_LENGTH + 1)));
         }
 
-        @Test
-        void rejectsOversizedName() {
-            String huge = "x".repeat(ProfileCustomizationService.MAX_NAME_LENGTH + 1);
-            assertThatThrownBy(() -> service.updateName(USER_ID, huge))
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("invalidNames")
+        void rejectsInvalidName(String description, String name) {
+            assertThatThrownBy(() -> service.updateName(USER_ID, name))
                     .isInstanceOf(ValidationException.class);
         }
     }
@@ -109,25 +113,20 @@ class ProfileCustomizationServiceTest {
     @Nested
     class UpdateBio {
 
-        @Test
-        void sanitizesWithBasicPolicyForNonSupporter() {
-            when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(supporterService.isActiveSupporter(USER_ID)).thenReturn(false);
-            when(richTextSanitizer.sanitize("<p>hi</p>",
-                    ProfileCustomizationService.BASIC_MAX_BIO_LENGTH, false)).thenReturn("<p>hi</p>");
-
-            service.updateBio(USER_ID, "<p>hi</p>");
-
-            assertThat(user.getBio()).isEqualTo("<p>hi</p>");
-            verify(userRepository).save(user);
+        static Stream<Arguments> bioPolicies() {
+            return Stream.of(
+                    Arguments.of("basic policy for non-supporter", false,
+                            ProfileCustomizationService.BASIC_MAX_BIO_LENGTH),
+                    Arguments.of("rich policy for supporter", true,
+                            ProfileCustomizationService.SUPPORTER_MAX_BIO_LENGTH));
         }
 
-        @Test
-        void sanitizesWithRichPolicyForSupporter() {
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("bioPolicies")
+        void sanitizesWithPolicyForSupporterStatus(String description, boolean supporter, int maxLength) {
             when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(supporterService.isActiveSupporter(USER_ID)).thenReturn(true);
-            when(richTextSanitizer.sanitize("<p>hi</p>",
-                    ProfileCustomizationService.SUPPORTER_MAX_BIO_LENGTH, true)).thenReturn("<p>hi</p>");
+            when(supporterService.isActiveSupporter(USER_ID)).thenReturn(supporter);
+            when(richTextSanitizer.sanitize("<p>hi</p>", maxLength, supporter)).thenReturn("<p>hi</p>");
 
             service.updateBio(USER_ID, "<p>hi</p>");
 
@@ -198,34 +197,26 @@ class ProfileCustomizationServiceTest {
                     .hasMessageContaining("duplicate displayOrder");
         }
 
-        @Test
-        void persistsComment() {
-            UUID scoreId = UUID.randomUUID();
-            Score score = Score.builder().id(scoreId).user(user).active(true).build();
-            when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
-            when(scoreRepository.findByIdWithUser(scoreId)).thenReturn(Optional.of(score));
-
-            service.updatePinnedScores(USER_ID,
-                    List.of(new PinnedScoreEntry(scoreId, 0, "  My first 1k!  ")));
-
-            ArgumentCaptor<List<UserPinnedScore>> captor = ArgumentCaptor.captor();
-            verify(pinnedScoreRepository).saveAll(captor.capture());
-            assertThat(captor.getValue().get(0).getComment()).isEqualTo("My first 1k!");
+        static Stream<Arguments> comments() {
+            return Stream.of(
+                    Arguments.of("trimmed comment persisted", "  My first 1k!  ", "My first 1k!"),
+                    Arguments.of("blank comment stored as null", "   ", null));
         }
 
-        @Test
-        void treatsBlankCommentAsNull() {
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("comments")
+        void persistsNormalizedComment(String description, String comment, String expected) {
             UUID scoreId = UUID.randomUUID();
             Score score = Score.builder().id(scoreId).user(user).active(true).build();
             when(userRepository.findByIdAndActiveTrue(USER_ID)).thenReturn(Optional.of(user));
             when(scoreRepository.findByIdWithUser(scoreId)).thenReturn(Optional.of(score));
 
             service.updatePinnedScores(USER_ID,
-                    List.of(new PinnedScoreEntry(scoreId, 0, "   ")));
+                    List.of(new PinnedScoreEntry(scoreId, 0, comment)));
 
             ArgumentCaptor<List<UserPinnedScore>> captor = ArgumentCaptor.captor();
             verify(pinnedScoreRepository).saveAll(captor.capture());
-            assertThat(captor.getValue().get(0).getComment()).isNull();
+            assertThat(captor.getValue().get(0).getComment()).isEqualTo(expected);
         }
 
         @Test

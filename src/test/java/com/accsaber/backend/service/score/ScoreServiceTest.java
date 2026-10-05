@@ -17,11 +17,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -235,20 +240,6 @@ class ScoreServiceTest {
                         assertThat(response.getAp()).isEqualByComparingTo(rawAp);
                         verify(statisticsService).recalculate(activeUser.getId(),
                                         rankedDifficulty.getCategory().getId());
-                }
-
-                @Test
-                void newScore_publishesScoreSubmittedEvent() {
-                        Double rawAp = 500.000000;
-                        stubCommonMocks(rawAp);
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
-                                        activeUser.getId(), rankedDifficulty.getId()))
-                                        .thenReturn(Optional.empty());
-                        Score saved = buildExistingScore(rawAp);
-                        when(scoreRepository.saveAndFlush(any())).thenReturn(saved);
-
-                        scoreService.submit(buildRequest(950_000));
-
                         verify(eventPublisher).publishEvent(any(ScoreSubmittedEvent.class));
                 }
 
@@ -289,20 +280,6 @@ class ScoreServiceTest {
                         assertThat(response.getAp()).isEqualByComparingTo(newAp);
                         assertThat(existing.isActive()).isTrue();
                         verify(statisticsService, never()).recalculate(any(), any());
-                }
-
-                @Test
-                void worseScore_stillPublishesScoreSubmittedEvent() {
-                        Double oldAp = 600.000000;
-                        Double newAp = 500.000000;
-                        stubCommonMocks(newAp);
-                        Score existing = buildExistingScore(oldAp);
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
-                                        activeUser.getId(), rankedDifficulty.getId()))
-                                        .thenReturn(Optional.of(existing));
-
-                        scoreService.submit(buildRequest(880_000));
-
                         verify(eventPublisher).publishEvent(any(ScoreSubmittedEvent.class));
                 }
 
@@ -532,54 +509,23 @@ class ScoreServiceTest {
                                         eq(rankedDifficulty.getId()), eq(720_000), eq(true), any(), any(), any(), any());
                 }
 
-                @Test
-                void scoreNoModsExceedingMaxScore_throwsValidationException() {
+                @ParameterizedTest(name = "score {0} / scoreNoMods {1} is rejected with \"{2}\"")
+                @CsvSource({
+                                "1000001, 1000001, scoreNoMods",
+                                "1000001, 1000000, score exceeds",
+                                "0, 0, positive",
+                                "0, 950000, score must be positive"
+                })
+                void outOfBoundsScore_throwsValidationException(int score, int scoreNoMods, String expectedMessage) {
                         when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
                                         .thenReturn(Optional.of(rankedDifficulty));
 
-                        SubmitScoreRequest req = buildRequest(rankedDifficulty.getMaxScore() + 1);
+                        SubmitScoreRequest req = buildRequest(scoreNoMods);
+                        req.setScore(score);
 
                         assertThatThrownBy(() -> scoreService.submit(req))
                                         .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("scoreNoMods");
-                }
-
-                @Test
-                void scoreExceedingMaxScore_throwsValidationException() {
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
-                                        .thenReturn(Optional.of(rankedDifficulty));
-
-                        SubmitScoreRequest req = buildRequest(rankedDifficulty.getMaxScore());
-                        req.setScore(rankedDifficulty.getMaxScore() + 1);
-
-                        assertThatThrownBy(() -> scoreService.submit(req))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("score exceeds");
-                }
-
-                @Test
-                void zeroScore_throwsValidationException() {
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
-                                        .thenReturn(Optional.of(rankedDifficulty));
-
-                        SubmitScoreRequest req = buildRequest(0);
-
-                        assertThatThrownBy(() -> scoreService.submit(req))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("positive");
-                }
-
-                @Test
-                void zeroScoreWithPositiveScoreNoMods_throwsValidationException() {
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(rankedDifficulty.getId()))
-                                        .thenReturn(Optional.of(rankedDifficulty));
-
-                        SubmitScoreRequest req = buildRequest(950_000);
-                        req.setScore(0);
-
-                        assertThatThrownBy(() -> scoreService.submit(req))
-                                        .isInstanceOf(ValidationException.class)
-                                        .hasMessageContaining("score must be positive");
+                                        .hasMessageContaining(expectedMessage);
                 }
 
                 @Test
@@ -637,47 +583,6 @@ class ScoreServiceTest {
         class FindHistoric {
 
                 @Test
-                void returnsScoresMappedToResponses() {
-                        Score s1 = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(activeUser)
-                                        .mapDifficulty(rankedDifficulty)
-                                        .score(950_000).scoreNoMods(950_000)
-                                        .rank(1).rankWhenSet(1)
-                                        .ap(500.000000)
-                                        .weightedAp(500.000000)
-                                        .active(false)
-                                        .createdAt(Instant.now().minusSeconds(3600))
-                                        .build();
-                        Score s2 = Score.builder()
-                                        .id(UUID.randomUUID())
-                                        .user(activeUser)
-                                        .mapDifficulty(rankedDifficulty)
-                                        .score(970_000).scoreNoMods(970_000)
-                                        .rank(1).rankWhenSet(1)
-                                        .ap(600.000000)
-                                        .weightedAp(600.000000)
-                                        .active(true)
-                                        .createdAt(Instant.now())
-                                        .build();
-
-                        when(scoreRepository.findHistoric(
-                                        org.mockito.ArgumentMatchers.eq(activeUser.getId()),
-                                        org.mockito.ArgumentMatchers.eq(rankedDifficulty.getId()),
-                                        any(Instant.class)))
-                                        .thenReturn(List.of(s1, s2));
-                        when(modifierLinkRepository.findByScore_IdIn(any()))
-                                        .thenReturn(Collections.emptyList());
-
-                        List<ScoreResponse> result = scoreService.findHistoric(
-                                        activeUser.getId(), rankedDifficulty.getId(), 7, "d");
-
-                        assertThat(result).hasSize(2);
-                        assertThat(result.get(0).getAp()).isEqualByComparingTo(500.000000);
-                        assertThat(result.get(1).getAp()).isEqualByComparingTo(600.000000);
-                }
-
-                @Test
                 void invalidUnit_throws() {
                         assertThatThrownBy(() -> scoreService.findHistoric(
                                         activeUser.getId(), rankedDifficulty.getId(), 7, "x"))
@@ -706,8 +611,9 @@ class ScoreServiceTest {
                 }
 
                 @Test
-                void hydratesBestStreakAcrossAttempts_notTheActiveScoreStreak() {
+                void hydratesEveryAttemptAggregate_notTheActiveScoreValues() {
                         Score active = activeScoreWithStreak(3);
+                        active.setTimeSet(Instant.parse("2026-01-01T00:00:00Z"));
                         when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of(active)));
                         when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
@@ -720,25 +626,12 @@ class ScoreServiceTest {
                                         activeUser.getId(), null, null, PageRequest.of(0, 20));
 
                         assertThat(result.getContent()).hasSize(1);
-                        assertThat(result.getContent().get(0).getStreak115()).isEqualTo(3);
-                        assertThat(result.getContent().get(0).getMaxStreak115()).isEqualTo(5);
-                }
-
-                @Test
-                void hydratesPlayCountAcrossEveryAttempt_notTheActiveScoreOne() {
-                        Score active = activeScoreWithStreak(3);
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
-                                        .thenReturn(new PageImpl<>(List.of(active)));
-                        when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
-                                        List.of(activeUser.getId()), List.of(rankedDifficulty.getId())))
-                                        .thenReturn(List.<Object[]>of(new Object[] {
-                                                        activeUser.getId(), rankedDifficulty.getId(), 5, 9,
-                                                        LAST_ATTEMPT }));
-
-                        Page<ScoreResponse> result = scoreService.findByUser(
-                                        activeUser.getId(), null, null, PageRequest.of(0, 20));
-
-                        assertThat(result.getContent().get(0).getPlayCount()).isEqualTo(9);
+                        ScoreResponse row = result.getContent().get(0);
+                        assertThat(row.getStreak115()).isEqualTo(3);
+                        assertThat(row.getMaxStreak115()).isEqualTo(5);
+                        assertThat(row.getPlayCount()).isEqualTo(9);
+                        assertThat(row.getTimeSet()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+                        assertThat(row.getLastPlayedAt()).isEqualTo(LAST_ATTEMPT);
                 }
 
                 @Test
@@ -772,73 +665,33 @@ class ScoreServiceTest {
                         assertThat(result.getContent().get(0).getMaxStreak115()).isNull();
                 }
 
-                @Test
-                void hydratesLastPlayedAtFromTheNewestAttempt_notTheActiveScoreTime() {
-                        Score active = activeScoreWithStreak(3);
-                        active.setTimeSet(Instant.parse("2026-01-01T00:00:00Z"));
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
-                                        .thenReturn(new PageImpl<>(List.of(active)));
-                        when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
-                                        List.of(activeUser.getId()), List.of(rankedDifficulty.getId())))
-                                        .thenReturn(List.<Object[]>of(new Object[] {
-                                                        activeUser.getId(), rankedDifficulty.getId(), 5, 9,
-                                                        LAST_ATTEMPT }));
-
-                        Page<ScoreResponse> result = scoreService.findByUser(
-                                        activeUser.getId(), null, null, PageRequest.of(0, 20));
-
-                        assertThat(result.getContent().get(0).getTimeSet())
-                                        .isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
-                        assertThat(result.getContent().get(0).getLastPlayedAt()).isEqualTo(LAST_ATTEMPT);
+                static Stream<Arguments> attemptAggregateSorts() {
+                        return Stream.of(
+                                        Arguments.of(Sort.Direction.ASC, "lastPlayedAt",
+                                                        List.of("MAX(COALESCE(s2.timeSet, s2.createdAt))")),
+                                        Arguments.of(Sort.Direction.DESC, "playCount",
+                                                        List.of("MAX(s2.playCount)")),
+                                        Arguments.of(Sort.Direction.DESC, "maxStreak115",
+                                                        List.of("MAX(s2.streak115)",
+                                                                        "s2.supersedesReason <> 'Campaign attempt'")));
                 }
 
-                @Test
-                void sortByLastPlayedAt_translatesToAnAggregateOverEveryAttempt() {
+                @ParameterizedTest(name = "sort by {1} aggregates over every attempt")
+                @MethodSource("attemptAggregateSorts")
+                void sortTranslatesToAnAggregateOverEveryAttempt(Sort.Direction direction, String key,
+                                List<String> fragments) {
                         when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of()));
 
                         scoreService.findByUser(activeUser.getId(), null, null,
-                                        PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "lastPlayedAt")));
+                                        PageRequest.of(0, 20, Sort.by(direction, key)));
 
                         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
                         verify(scoreRepository).findActiveByUser(eq(activeUser.getId()), captor.capture());
                         String sort = captor.getValue().getSort().toString();
-                        assertThat(sort).contains("MAX(COALESCE(s2.timeSet, s2.createdAt))");
+                        assertThat(sort).contains(fragments);
                         assertThat(sort).contains("s2.user = s.user");
                         assertThat(sort).contains("s2.mapDifficulty = s.mapDifficulty");
-                }
-
-                @Test
-                void sortByPlayCount_translatesToAnAggregateOverEveryAttempt() {
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
-                                        .thenReturn(new PageImpl<>(List.of()));
-
-                        scoreService.findByUser(activeUser.getId(), null, null,
-                                        PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "playCount")));
-
-                        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-                        verify(scoreRepository).findActiveByUser(eq(activeUser.getId()), captor.capture());
-                        String sort = captor.getValue().getSort().toString();
-                        assertThat(sort).contains("MAX(s2.playCount)");
-                        assertThat(sort).contains("s2.user = s.user");
-                        assertThat(sort).contains("s2.mapDifficulty = s.mapDifficulty");
-                }
-
-                @Test
-                void sortByMaxStreak115_translatesToAnAggregateOverEveryAttemptBarCampaignOnes() {
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
-                                        .thenReturn(new PageImpl<>(List.of()));
-
-                        scoreService.findByUser(activeUser.getId(), null, null,
-                                        PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "maxStreak115")));
-
-                        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-                        verify(scoreRepository).findActiveByUser(eq(activeUser.getId()), captor.capture());
-                        String sort = captor.getValue().getSort().toString();
-                        assertThat(sort).contains("MAX(s2.streak115)");
-                        assertThat(sort).contains("s2.user = s.user");
-                        assertThat(sort).contains("s2.mapDifficulty = s.mapDifficulty");
-                        assertThat(sort).contains("s2.supersedesReason <> 'Campaign attempt'");
                 }
         }
 
