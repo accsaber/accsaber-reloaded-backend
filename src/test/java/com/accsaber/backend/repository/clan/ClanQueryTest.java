@@ -593,8 +593,10 @@ class ClanQueryTest {
                 .extracting(UserMission::getId).containsExactly(parent);
         assertThat(userMissionRepository.findPerMemberParentsMissing(owls.getId(), founder.getId(), Instant.now()))
                 .isEmpty();
-        assertThat(userMissionRepository.findClanIdsWithoutCurrentMissions(Instant.now()))
-                .contains(lapiz.getId()).doesNotContain(owls.getId());
+        assertThat(userMissionRepository.findClanIdsWithoutCurrentMissions(Instant.now(),
+                Instant.now().plus(1, ChronoUnit.MINUTES))).contains(lapiz.getId()).doesNotContain(owls.getId());
+        assertThat(userMissionRepository.findClanIdsWithoutCurrentMissions(Instant.now(),
+                Instant.now().minus(1, ChronoUnit.DAYS))).doesNotContain(lapiz.getId());
         assertThat(userMissionRepository.findSharedById(parent)).isPresent();
         assertThat(userMissionRepository.findSharedById(founderRow)).isEmpty();
 

@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.clan;
 
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -64,7 +65,10 @@ public class ClanMissionAssignmentService {
     }
 
     public List<UUID> clansWithoutMissions() {
-        return userMissionRepository.findClanIdsWithoutCurrentMissions(Instant.now());
+        Instant now = Instant.now();
+        Instant lastRollover = rolloverService.nextRollover(MissionPool.clan, now)
+                .atZone(ZoneId.systemDefault()).minusWeeks(1).toInstant();
+        return userMissionRepository.findClanIdsWithoutCurrentMissions(now, lastRollover);
     }
 
     @Transactional

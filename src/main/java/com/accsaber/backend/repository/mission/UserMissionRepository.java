@@ -247,6 +247,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
         @Query(value = """
                         SELECT c.id FROM clans c
                         WHERE c.active
+                          AND c.created_at < :createdBefore
                           AND NOT EXISTS (
                               SELECT 1 FROM user_missions m
                               WHERE m.clan_id = c.id
@@ -255,7 +256,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                                 AND m.expires_at > :now)
                         ORDER BY c.id
                         """, nativeQuery = true)
-        List<UUID> findClanIdsWithoutCurrentMissions(@Param("now") Instant now);
+        List<UUID> findClanIdsWithoutCurrentMissions(@Param("now") Instant now,
+                        @Param("createdBefore") Instant createdBefore);
 
         @Modifying
         @Query("""
