@@ -68,6 +68,8 @@ import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexity;
+import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.repository.item.ItemTypeRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 
 import jakarta.persistence.EntityManager;
@@ -94,6 +96,10 @@ class ClanQueryTest {
     private ClanXpGrantRepository grantRepository;
     @Autowired
     private ClanItemRepository clanItemRepository;
+    @Autowired
+    private ItemRepository itemRepository;
+    @Autowired
+    private ItemTypeRepository itemTypeRepository;
     @Autowired
     private ClanEquippedItemRepository equippedRepository;
     @Autowired
@@ -294,6 +300,19 @@ class ClanQueryTest {
     void grantInsertIsIdempotent() {
         assertThat(grantRepository.insertIfAbsent(owls.getId(), "mission", "m-1", 50.0, 1.0, 50.0)).isEqualTo(1);
         assertThat(grantRepository.insertIfAbsent(owls.getId(), "mission", "m-1", 50.0, 1.0, 50.0)).isZero();
+    }
+
+    @Test
+    @DisplayName("the player catalogue and type list leave every clan cosmetic out")
+    void playerCatalogueSkipsClanCosmetics() {
+        Item card = clanItem("clan_tag_card", "Catalogue Card");
+        Item border = clanItem("profile_border", "Catalogue Border");
+        entityManager.flush();
+
+        assertThat(itemRepository.findVisiblePlayerItems()).contains(border).doesNotContain(card);
+        assertThat(itemTypeRepository.findActivePlayerTypes()).extracting(ItemType::getKey)
+                .contains("profile_border")
+                .doesNotContain("clan_cosmetic", "clan_tag_card", "clan_banner", "clan_title_effect", "clan_border");
     }
 
     @Test

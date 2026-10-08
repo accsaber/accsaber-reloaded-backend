@@ -28,6 +28,10 @@ public class ItemTypeService {
         return itemTypeRepository.findByActiveTrue();
     }
 
+    public List<ItemType> findPlayerTypes() {
+        return itemTypeRepository.findActivePlayerTypes();
+    }
+
     public List<ItemType> findAll() {
         return itemTypeRepository.findAll();
     }

@@ -64,12 +64,12 @@ public class ItemController {
     private final UnusualEffectService unusualEffectService;
     private final SiteStatisticsService siteStatisticsService;
 
-    @Operation(summary = "List the item types", description = "The kinds of item there are, which is also what decides the slot "
+    @Operation(summary = "List the item types", description = "The kinds of item a player can own, which is also what decides the slot "
             + "an item goes in when it is equipped. Each type has a key, and that key is what you pass when equipping or "
             + "clearing a slot.")
     @GetMapping("/item-types")
     public ResponseEntity<List<ItemTypeResponse>> listTypes() {
-        return ResponseEntity.ok(itemTypeService.findAllActive().stream()
+        return ResponseEntity.ok(itemTypeService.findPlayerTypes().stream()
                 .map(ItemMapper::toTypeResponse)
                 .toList());
     }
@@ -103,13 +103,13 @@ public class ItemController {
         return ResponseEntity.ok(unusualEffectService.findAllGrouped(false));
     }
 
-    @Operation(summary = "List the items", description = "The item catalogue, narrowed to one type if you pass typeId. Only "
+    @Operation(summary = "List the items", description = "The player item catalogue, narrowed to one type if you pass typeId. Clan cosmetics are left out unless you ask for one of their types by typeId. Only "
             + "items marked visible show up, so anything being held back for a future release will not appear here even "
             + "though it exists.")
     @GetMapping("/items")
     public ResponseEntity<List<ItemResponse>> listItems(@RequestParam(required = false) UUID typeId) {
         var items = typeId == null
-                ? itemService.findAllVisible()
+                ? itemService.findPlayerCatalogue()
                 : itemService.findByType(typeId, false);
         return ResponseEntity.ok(items.stream().map(ItemMapper::toItemResponse).toList());
     }

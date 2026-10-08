@@ -99,8 +99,8 @@ public class ItemService {
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
 
-    public List<Item> findAllVisible() {
-        return itemRepository.findByActiveTrueAndVisibleTrue();
+    public List<Item> findPlayerCatalogue() {
+        return itemRepository.findVisiblePlayerItems();
     }
 
     public List<Item> findAllForStaff(boolean includeInactive) {

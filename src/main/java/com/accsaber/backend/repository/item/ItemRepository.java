@@ -20,7 +20,11 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
 
     List<Item> findByActiveTrue();
 
-    List<Item> findByActiveTrueAndVisibleTrue();
+    @Query("""
+            SELECT i FROM Item i JOIN FETCH i.type t LEFT JOIN t.parentType p
+            WHERE i.active = true AND i.visible = true AND (p IS NULL OR p.key <> 'clan_cosmetic')
+            """)
+    List<Item> findVisiblePlayerItems();
 
     List<Item> findByType_IdAndActiveTrue(UUID typeId);
 
