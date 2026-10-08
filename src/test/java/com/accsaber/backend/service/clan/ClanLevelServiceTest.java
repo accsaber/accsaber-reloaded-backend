@@ -142,10 +142,10 @@ class ClanLevelServiceTest {
             clanProperties.setRosterFactorExponent(0.5);
             Clan clan = lockedClan(0.0, 560.0);
             when(memberRepository.countByClan_IdAndLeftAtIsNull(clanId)).thenReturn(10L);
-            when(grantRepository.insertIfAbsent(clanId, "daily_play", "2026-09-13", 90.0, 2.0, 45.0)).thenReturn(1);
+            when(grantRepository.insertIfAbsent(clanId, "play", "2026-09-13", 90.0, 2.0, 45.0)).thenReturn(1);
 
             boolean granted = levelService.grantXp(clanId,
-                    new ClanXpAward(90.0, ClanXpSource.daily_play, "2026-09-13", true));
+                    new ClanXpAward(90.0, ClanXpSource.play, "2026-09-13", true));
 
             assertThat(granted).isTrue();
             assertThat(clan.getTotalXp()).isEqualTo(45.0);

@@ -18,7 +18,7 @@ public class ClanProperties {
     private Duration joinCooldown = Duration.ofDays(14);
     private int maxMembers = 50;
     private int founderInactivityDays = 365;
-    private double playXpShare = 0.00575;
+    private double playClanXp = 3.0;
     private double standingPerSkill = 10.0;
     private double rosterReferenceStrength = 280.0;
     private double rosterReferenceMembers = 5.0;
@@ -61,7 +61,7 @@ public class ClanProperties {
         private double winClanXp = 345.0;
         private double xpPerContribution = 1.0;
         private double warSizeExponent = 0.6;
-        private double loanXpShare = 0.25;
+        private double loanBreakClanXp = 6.0;
         private Duration loanCooldown = Duration.ofDays(3);
     }
 }

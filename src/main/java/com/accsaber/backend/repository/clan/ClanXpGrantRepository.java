@@ -46,14 +46,14 @@ public interface ClanXpGrantRepository extends JpaRepository<ClanXpGrant, UUID> 
             @Param("rosterFactor") double rosterFactor,
             @Param("amount") double amount);
 
-    interface MemberPlayXpView {
+    interface UngrantedPlayView {
         UUID getClanId();
 
-        double getXp();
+        UUID getScoreId();
     }
 
     @Query(value = """
-            SELECT m.clan_id AS clanId, SUM(s.xp_gained) AS xp
+            SELECT m.clan_id AS clanId, s.id AS scoreId
             FROM scores s
             JOIN clan_members m
               ON m.user_id = s.user_id
@@ -63,13 +63,10 @@ public interface ClanXpGrantRepository extends JpaRepository<ClanXpGrant, UUID> 
             WHERE ((s.time_set >= :from AND s.time_set < :to)
                    OR (s.time_set IS NULL AND s.created_at >= :from AND s.created_at < :to))
               AND s.xp_gained > 0
+              AND NOT s.partial
               AND NOT EXISTS (
                   SELECT 1 FROM clan_xp_grants g
-                  WHERE g.clan_id = m.clan_id AND g.source = 'daily_play' AND g.source_id = :day)
-            GROUP BY m.clan_id
+                  WHERE g.clan_id = m.clan_id AND g.source = 'play' AND g.source_id = CAST(s.id AS TEXT))
             """, nativeQuery = true)
-    List<MemberPlayXpView> sumUngrantedMemberPlayXp(
-            @Param("from") Instant from,
-            @Param("to") Instant to,
-            @Param("day") String day);
+    List<UngrantedPlayView> findUngrantedPlays(@Param("from") Instant from, @Param("to") Instant to);
 }

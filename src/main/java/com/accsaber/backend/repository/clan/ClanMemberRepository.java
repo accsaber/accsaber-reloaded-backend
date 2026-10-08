@@ -66,10 +66,11 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
 
     @Query(value = """
             SELECT m.user_id AS userId,
-                   COALESCE((SELECT SUM(s.xp_gained) FROM scores s
-                             WHERE s.user_id = m.user_id AND s.xp_gained > 0
-                               AND COALESCE(s.time_set, s.created_at) >= GREATEST(m.joined_at, :from)
-                               AND COALESCE(s.time_set, s.created_at) < :to), 0) AS playXp,
+                   COALESCE((SELECT SUM(g.amount) FROM scores s
+                             JOIN clan_xp_grants g ON g.clan_id = m.clan_id AND g.source = 'play'
+                              AND g.source_id = CAST(s.id AS TEXT)
+                             WHERE s.user_id = m.user_id
+                               AND COALESCE(s.time_set, s.created_at) >= GREATEST(m.joined_at, :from)), 0) AS playXp,
                    war.hits AS hits, war.breaks AS breaks
             FROM clan_members m
             CROSS JOIN LATERAL (
@@ -82,7 +83,7 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
             """, nativeQuery = true)
     List<MemberSeasonStatsView> findSeasonStats(@Param("clanId") UUID clanId,
             @Param("userIds") Collection<Long> userIds, @Param("seasonId") UUID seasonId,
-            @Param("from") Instant from, @Param("to") Instant to);
+            @Param("from") Instant from);
 
     interface MemberCountView {
         UUID getClanId();

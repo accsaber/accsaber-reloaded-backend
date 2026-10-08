@@ -420,7 +420,7 @@ class ClanWarCombatServiceTest {
             service.fight(war.getId(), play(950_000, true));
 
             String source = savedHits.getFirst().getId().toString();
-            verify(levelService).grantXp(lender.getId(), new ClanXpAward(150.0 * 0.25, ClanXpSource.war_loan, source,
+            verify(levelService).grantXp(lender.getId(), new ClanXpAward(6.0, ClanXpSource.war_loan, source,
                     true));
         }
 

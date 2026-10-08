@@ -85,14 +85,12 @@ public class ClanMembershipService {
                 .collect(Collectors.toMap(ClanStrengthService.MemberStrength::userId,
                         ClanStrengthService.MemberStrength::share));
         Map<Long, ClanMemberRepository.MemberSeasonStatsView> stats = seasonStats(clan.getId(), userIds);
-        double clanXpPerPlayXp = clanProperties.getPlayXpShare()
-                / levelService.rosterFactor(clan, memberRepository.countByClan_IdAndLeftAtIsNull(clan.getId()));
         return members.stream().collect(Collectors.toMap(m -> m.getUser().getId(), m -> {
             Long userId = m.getUser().getId();
             ClanMemberRepository.MemberSeasonStatsView row = stats.get(userId);
             return new ClanMembershipResponse(m.getRole(), m.getJoinedAt(), online.contains(userId),
                     lastPlayed.get(userId), shares.getOrDefault(userId, 0.0),
-                    row == null ? 0.0 : row.getPlayXp() * clanXpPerPlayXp,
+                    row == null ? 0.0 : row.getPlayXp(),
                     row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks());
         }));
     }
@@ -102,8 +100,7 @@ public class ClanMembershipService {
         if (season == null) {
             return Map.of();
         }
-        Instant grantedUntil = Instant.now().truncatedTo(ChronoUnit.DAYS);
-        return memberRepository.findSeasonStats(clanId, userIds, season.getId(), season.getStartsAt(), grantedUntil)
+        return memberRepository.findSeasonStats(clanId, userIds, season.getId(), season.getStartsAt())
                 .stream()
                 .collect(Collectors.toMap(ClanMemberRepository.MemberSeasonStatsView::getUserId, row -> row));
     }

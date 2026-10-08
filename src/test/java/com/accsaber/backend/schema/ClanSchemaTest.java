@@ -232,7 +232,7 @@ class ClanSchemaTest {
     void xpGrantsAreIdempotent() {
         UUID red = clan("Red", "RED");
         String grant = "INSERT INTO clan_xp_grants (clan_id, source, source_id, raw_amount, roster_factor, amount) "
-                + "VALUES (?1, 'daily_play', '2026-09-13', 100, 2, 50)";
+                + "VALUES (?1, 'play', '2026-09-13', 100, 2, 50)";
         sql(grant, red);
 
         assertThatThrownBy(() -> sql(grant, red)).isInstanceOf(PersistenceException.class);

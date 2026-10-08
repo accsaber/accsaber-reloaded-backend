@@ -211,7 +211,7 @@ public class ClanWarCombatService {
                 new ClanXpAward(config.getBreakClanXp(), ClanXpSource.war_break, sourceId, true));
         if (attacker.getLentByClan() != null) {
             levelService.grantXp(attacker.getLentByClan().getId(), new ClanXpAward(
-                    config.getBreakClanXp() * config.getLoanXpShare(), ClanXpSource.war_loan, sourceId, true));
+                    config.getLoanBreakClanXp(), ClanXpSource.war_loan, sourceId, true));
         }
         payChippers(war, victim, roster);
         feed.war(war);

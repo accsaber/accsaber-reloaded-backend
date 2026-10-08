@@ -253,10 +253,16 @@ class ClanQueryTest {
         return difficulty;
     }
 
-    private void score(User player, MapDifficulty difficulty, double xp, Instant timeSet) {
-        entityManager.persist(Score.builder().user(player).mapDifficulty(difficulty).score(950000)
+    private UUID score(User player, MapDifficulty difficulty, double xp, Instant timeSet) {
+        return score(player, difficulty, xp, timeSet, false);
+    }
+
+    private UUID score(User player, MapDifficulty difficulty, double xp, Instant timeSet, boolean partial) {
+        Score row = Score.builder().user(player).mapDifficulty(difficulty).score(950000)
                 .scoreNoMods(950000).rank(1).rankWhenSet(1).ap(400.0).weightedAp(400.0).xpGained(xp)
-                .active(false).supersedesReason("Worse score").timeSet(timeSet).build());
+                .active(false).partial(partial).supersedesReason("Worse score").timeSet(timeSet).build();
+        entityManager.persist(row);
+        return row.getId();
     }
 
     private Item clanItem(String typeKey, String name) {
@@ -268,31 +274,31 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("daily play XP only counts scores a player set while in the clan, on that day, not yet granted")
-    void dailyPlayXpRespectsTheMembershipWindow() {
+    @DisplayName("the play XP sweep finds plays set while in the clan that earned XP and have no grant yet")
+    void ungrantedPlaysRespectTheMembershipWindow() {
         MapDifficulty difficulty = rankedDifficulty();
         Instant dayStart = Instant.now().truncatedTo(ChronoUnit.DAYS).minus(2, ChronoUnit.DAYS);
         Instant midday = dayStart.plus(12, ChronoUnit.HOURS);
-        score(founder, difficulty, 100.0, midday);
-        score(founder, difficulty, 40.0, midday.plus(1, ChronoUnit.HOURS));
+        UUID first = score(founder, difficulty, 100.0, midday);
+        UUID second = score(founder, difficulty, 40.0, midday.plus(1, ChronoUnit.HOURS));
         score(founder, difficulty, 50.0, midday.minus(1, ChronoUnit.DAYS));
+        score(founder, difficulty, 0.0, midday);
+        score(founder, difficulty, 10.0, midday, true);
         score(member, difficulty, 70.0, midday);
         entityManager.flush();
         entityManager.createNativeQuery("UPDATE clan_members SET left_at = ?1, leave_reason = 'left' WHERE user_id = ?2")
                 .setParameter(1, dayStart).setParameter(2, member.getId()).executeUpdate();
-        String day = dayStart.toString().substring(0, 10);
+        Instant dayEnd = dayStart.plus(1, ChronoUnit.DAYS);
 
-        List<ClanXpGrantRepository.MemberPlayXpView> rows = grantRepository.sumUngrantedMemberPlayXp(dayStart,
-                dayStart.plus(1, ChronoUnit.DAYS), day);
+        assertThat(grantRepository.findUngrantedPlays(dayStart, dayEnd))
+                .extracting(p -> p.getClanId(), p -> p.getScoreId())
+                .containsExactlyInAnyOrder(tuple(owls.getId(), first), tuple(owls.getId(), second));
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).getClanId()).isEqualTo(owls.getId());
-        assertThat(rows.get(0).getXp()).isEqualTo(140.0);
+        grantRepository.insertIfAbsent(owls.getId(), "play", first.toString(), 3.0, 1.0, 3.0);
 
-        grantRepository.insertIfAbsent(owls.getId(), "daily_play", day, 140.0, 1.0, 140.0);
-
-        assertThat(grantRepository.sumUngrantedMemberPlayXp(dayStart, dayStart.plus(1, ChronoUnit.DAYS), day))
-                .isEmpty();
+        assertThat(grantRepository.findUngrantedPlays(dayStart, dayEnd))
+                .extracting(p -> p.getScoreId())
+                .containsExactly(second);
     }
 
     @Test
@@ -936,15 +942,21 @@ class ClanQueryTest {
 
         Instant now = Instant.now();
         MapDifficulty third = rankedAt(8.0);
-        score(founder, third, 500.0, now.minus(20, ChronoUnit.DAYS));
-        score(founder, second, 40.0, now.minus(5, ChronoUnit.DAYS));
-        score(founder, third, 60.0, now.minus(2, ChronoUnit.DAYS));
-        score(founder, second, 900.0, now.minus(12, ChronoUnit.HOURS));
+        Object[][] plays = {
+                {score(founder, third, 500.0, now.minus(20, ChronoUnit.DAYS)), 3.0},
+                {score(founder, second, 40.0, now.minus(5, ChronoUnit.DAYS)), 3.0},
+                {score(founder, third, 60.0, now.minus(2, ChronoUnit.DAYS)), 1.5},
+                {score(founder, second, 900.0, now.minus(12, ChronoUnit.HOURS)), 3.0}};
+        score(founder, third, 70.0, now.minus(1, ChronoUnit.HOURS));
         entityManager.flush();
+        for (Object[] play : plays) {
+            grantRepository.insertIfAbsent(owls.getId(), "play", play[0].toString(), 3.0, 3.0 / (double) play[1],
+                    (double) play[1]);
+        }
         assertThat(memberRepository.findSeasonStats(owls.getId(), List.of(founder.getId(), member.getId()), current,
-                now.minus(10, ChronoUnit.DAYS), now.minus(1, ChronoUnit.DAYS)))
+                now.minus(10, ChronoUnit.DAYS)))
                 .extracting(s -> s.getUserId(), s -> s.getPlayXp(), s -> s.getHits(), s -> s.getBreaks())
-                .containsExactlyInAnyOrder(tuple(founder.getId(), 100.0, 2L, 1L), tuple(member.getId(), 0.0, 0L, 0L));
+                .containsExactlyInAnyOrder(tuple(founder.getId(), 7.5, 2L, 1L), tuple(member.getId(), 0.0, 0L, 0L));
     }
 
     private UUID loan(UUID warId, Clan into, Clan lender, User player, String status, Instant endedAt) {
