@@ -22,9 +22,8 @@ public class ModifierController {
 
     private final ModifierService modifierService;
 
-    @Operation(summary = "List the score modifiers", description = "Every modifier currently in use, each with its short code "
-            + "like NF or DA and the multiplier it applies to a score. Scores point at these by id rather than by code, so it is "
-            + "worth pulling this once and keeping it around instead of looking one up each time.")
+    @Operation(summary = "Score modifiers", description = "Scores point at these by id. Grab them once and "
+            + "keep them around.")
     @GetMapping
     public ResponseEntity<List<ModifierResponse>> listModifiers() {
         return ResponseEntity.ok(modifierService.findAllActive());

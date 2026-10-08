@@ -32,24 +32,21 @@ public class CrateController {
 
     private final CrateService crateService;
 
-    @Operation(summary = "See what is inside a crate", description = "What a crate can give you, with each chance normalised so "
-            + "the pool adds up to one. Only the items marked visible are listed, so a crate holding something unreleased will "
-            + "show a pool that does not quite account for everything.")
+    @Operation(summary = "What a crate can drop", description = "Chances add up to one. Only visible items are "
+            + "listed. Unreleased stuff is missing from the pool.")
     @GetMapping("/crates/{crateItemId}/contents")
     public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
         return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listVisibleContents(crateItemId)));
     }
 
-    @Operation(summary = "See the modifiers a crate can roll", description = "The modifiers this crate might put on whatever it "
-            + "gives you, each with its own chance. Modifiers are rolled separately from the item itself, so the same item out "
-            + "of the same crate can come out looking different.")
+    @Operation(summary = "Crate modifier odds", description = "Modifiers roll separately from the "
+            + "item.")
     @GetMapping("/crates/{crateItemId}/modifiers")
     public ResponseEntity<List<CrateModifierResponse>> listModifiers(@PathVariable UUID crateItemId) {
         return ResponseEntity.ok(ItemMapper.toCrateModifierResponses(crateService.listModifiers(crateItemId)));
     }
 
-    @Operation(summary = "See the unusual effects a crate can roll", description = "Which unusual effects this crate can "
-            + "produce. Unlike the item pool these are all equally likely, so there is no per effect chance to read here.")
+    @Operation(summary = "Crate unusual effects", description = "All equally likely.")
     @GetMapping("/crates/{crateItemId}/unusual-effects")
     public ResponseEntity<List<UnusualEffectResponse>> listUnusualEffects(@PathVariable UUID crateItemId) {
         return ResponseEntity.ok(crateService.listUnusualEffects(crateItemId).stream()
@@ -57,9 +54,8 @@ public class CrateController {
                 .toList());
     }
 
-    @Operation(summary = "Open a crate", description = "Opens one of your crates and rolls you a reward, along with any "
-            + "modifier or unusual effect that came with it. The crate is consumed either way. Openings are broadcast on the "
-            + "crate feed, so if you are showing an animation the result is already on its way to everyone else too.")
+    @Operation(summary = "Open a crate", description = "The crate is used up either way. Results also go out on the "
+            + "crate feed.")
     @PostMapping("/users/me/crates/{linkId}/open")
     public ResponseEntity<CrateOpenResponse> open(
             @PathVariable UUID linkId,

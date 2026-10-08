@@ -27,7 +27,7 @@ public class PublicStaffController {
 
     private final StaffUserService staffUserService;
 
-    @Operation(summary = "List staff users, optionally filtered by active status")
+    @Operation(summary = "List staff")
     @GetMapping
     public ResponseEntity<Page<PublicStaffUserResponse>> listStaffUsers(
             @PageableDefault(size = 20, sort = "username") Pageable pageable,
@@ -35,7 +35,7 @@ public class PublicStaffController {
         return ResponseEntity.ok(staffUserService.getAllPublic(pageable, active));
     }
 
-    @Operation(summary = "Get staff user by ID")
+    @Operation(summary = "Get a staff user")
     @GetMapping("/{id}")
     public ResponseEntity<PublicStaffUserResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(staffUserService.getByIdPublic(id));

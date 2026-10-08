@@ -45,7 +45,9 @@ public class RankingComplexityController {
     private final ComplexityComparisonService comparisonService;
     private final ComplexityDatasetService datasetService;
 
-    @Operation(summary = "Every difficulty under the stored scenarios", description = "One page of difficulties with what each carries today and what the complexity script says, side by side. Each scenario also brings the top AP and the average weighted AP the map would pay if that complexity were live, worked out from every active score, plus the deltas against today. The summary block counts the whole filtered round rather than the page: how many difficulties are in it, how many are pinned, how many the script would move, how many have no estimate and how many still carry one from an older model, with the newest estimate's script version, model hash and timestamp. That is what a header reads, so nothing has to pull the whole pool to count. The estimate inputs are not on these rows, they come with a single map's leaderboard. Filter by category or by batch, which is how a monthly round looks at the maps ranked the month before, pass a status to look at the queue or the qualified maps, which only have complexities and no scores yet, pass pinned to see only the maps held by hand or only the rest, and pass a search to match on song name, subtitle, artist or mapper, accents and case ignored. Sort on song, mapper, scores, currentComplexity, scenarioComplexity, complexityDelta, currentTopAp, scenarioTopAp, topApDelta, currentAverageWeightedAp, scenarioAverageWeightedAp or averageWeightedApDelta, and pass absolute to order a delta column by how big the move is rather than which way it goes. Run the refresh complexity estimates job first if the estimate columns are empty.")
+    @Operation(summary = "Difficulties under both scenarios", description = "Summary counts the whole "
+            + "filtered round. Run the refresh complexity estimates job first if estimate columns are empty. Pass "
+            + "absolute to sort a delta column by size.")
     @GetMapping("/difficulties")
     public ResponseEntity<DifficultyPage> difficulties(
             @RequestParam(required = false) UUID categoryId,
@@ -62,7 +64,8 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
-    @Operation(summary = "One map's leaderboard under the stored scenarios", description = "One page of the active scores on a difficulty with the player attached, ordered by today's rank unless you say otherwise. Each row carries the AP, the weighted AP and the rank the play gets under each scenario and the deltas against today. It answers who a reweight would move and by how much. A busy map has thousands of scores, so this is paged and only the players on the page are looked up. Sort on rank, accuracy, currentAp, scenarioAp, apDelta, currentWeightedAp, scenarioWeightedAp or weightedApDelta, and pass absolute to order a delta column by how big the move is. The header is the difficulties row for this map, and it is the one place that carries the script's estimate inputs, which is where you look when a number surprises you.")
+    @Operation(summary = "One map's leaderboard, both scenarios", description = "Pass absolute to sort a "
+            + "delta column by size. The header has the script's estimate inputs.")
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard")
     public ResponseEntity<MapLeaderboard> leaderboard(
             @PathVariable UUID mapDifficultyId,
@@ -74,7 +77,8 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
-    @Operation(summary = "One map's leaderboard under a set of constants", description = "The same page as the map leaderboard endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several maps after one tuning pass does not run the whole pool again each time.")
+    @Operation(summary = "Preview one map's leaderboard", description = "Same as the map "
+            + "leaderboard, with a PREVIEW scenario from the constants in the body.")
     @PostMapping("/preview/difficulties/{mapDifficultyId}/leaderboard")
     public ResponseEntity<MapLeaderboard> previewLeaderboard(
             @PathVariable UUID mapDifficultyId,
@@ -87,7 +91,8 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.Paging(page, size, sort, absolute)));
     }
 
-    @Operation(summary = "The player leaderboard under the stored scenarios", description = "Players in today's order for a category, or Overall when you leave the category out, with their total AP and rank under each scenario and the deltas against today. The ladders block counts how many players hold a 900, a 1000 and an 1100 play under each scenario, which is the quickest read on whether a script inflates or deflates the top. A search matches any name a player has held, and their rank stays their real one.")
+    @Operation(summary = "Player leaderboard, both scenarios", description = "Leave category off for "
+            + "Overall. Ladders count players with a 900, 1000 and 1100 play per scenario.")
     @GetMapping("/players")
     public ResponseEntity<PlayerBoard> players(
             @RequestParam(required = false) UUID categoryId,
@@ -97,7 +102,8 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.PlayerQuery(categoryId, limit, search)));
     }
 
-    @Operation(summary = "One player's best plays per category under the stored scenarios", description = "For every active category the player has ranked plays in: their total AP and rank under each scenario with deltas, and the union of their best plays under each scenario, ordered by today's AP. Each play carries the map row the difficulties list uses, the accuracy, and per scenario the AP, the weighted AP, the play's position in the player's list, which is what sets its weight, and its rank on the map, with deltas against today. Pass a limit for how many plays per category and scenario feed the union.")
+    @Operation(summary = "One player's best plays", description = "limit is "
+            + "how many plays per category and scenario go into the list.")
     @GetMapping("/players/{userId}/plays")
     public ResponseEntity<PlayerPlays> playerPlays(
             @PathVariable Long userId,
@@ -105,7 +111,8 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.playerPlays(userId, limit));
     }
 
-    @Operation(summary = "One player's best plays per category under a set of constants", description = "The same view as the player plays endpoint, with CURRENT and a PREVIEW scenario priced from the constants in the body. The preview state is kept for a short while per set of constants, so opening several players after one tuning pass does not run the whole pool again each time.")
+    @Operation(summary = "Preview one player's plays", description = "Same as the "
+            + "player plays view, with a PREVIEW scenario from the constants in the body.")
     @PostMapping("/preview/players/{userId}/plays")
     public ResponseEntity<PlayerPlays> previewPlayerPlays(
             @PathVariable Long userId,
@@ -114,13 +121,16 @@ public class RankingComplexityController {
         return ResponseEntity.ok(comparisonService.previewPlayerPlays(rater, userId, limit));
     }
 
-    @Operation(summary = "The constants the note accuracy script runs with", description = "The worst share and the per category intercept and slopes the backend is configured with right now, in the same shape the preview endpoint takes as its body. A panel loads them, lets staff nudge them and sends them back. The chart line prices a map from its notes alone and is what import uses. The board line adds the map's leaderboard ease, read from the map's best plays with each play held against its player's own level, and blends in between the board gate's minimum and full score counts once the map has that many best plays from players with a known level. Its move off the chart line is capped at the gate's max nudge. The worst bands list says which worst shares the stored estimates carry exactly. Any other worst share snaps to the nearest band in a preview.")
+    @Operation(summary = "Current rater constants", description = "Same shape the preview "
+            + "endpoint takes as its body. Worst shares off the listed bands snap to the nearest one.")
     @GetMapping("/rater")
     public ResponseEntity<Rater> rater() {
         return ResponseEntity.ok(comparisonService.rater());
     }
 
-    @Operation(summary = "Price every map with different constants without storing anything", description = "Takes a full set of rater constants and prices every map that has a note accuracy estimate from the inputs that estimate already carries, then works out what every active score would pay under those complexities. Nothing touches the model, BeatSaver or the database. It is cheap enough to call on every slider change, with one exception: the board's player play minimum and top play count change the leaderboard fit itself rather than how a stored input is read, so the first call with a window the backend has not fitted before refits the whole score pool and takes a moment. Send those two on commit rather than on every keystroke. Every window is cached separately afterwards, so going back to one you have already tried is free. The answer holds one page of difficulties with a CURRENT and a PREVIEW scenario per row and the same round summary the difficulties list carries, plus the player board for the chosen category with both ladders. It takes the same filter, paging and sort parameters as the difficulties list. You see whether the constants pin 1100 to the elite and 1000 to the top fifty before asking for a backend change.")
+    @Operation(summary = "Preview new constants", description = "Nothing "
+            + "is stored. Changing the player play minimum or top play count refits the whole pool and takes a "
+            + "moment. Send those on commit.")
     @PostMapping("/preview")
     public ResponseEntity<Preview> preview(
             @Valid @RequestBody ComplexityRaterSpec rater,
@@ -138,7 +148,9 @@ public class RankingComplexityController {
                 new ComplexityComparisonService.Paging(page, size, sort, absolute), playerLimit));
     }
 
-    @Operation(summary = "Apply the script as a bulk reweight", description = "Turns the stored script estimates into a real reweight of every ranked difficulty whose estimate differs from what it carries today, then adjusts scores, boards, statistics, rankings, milestones and XP in the background. Ranking heads only. The reason lands on every complexity history row. Put the script version in it. Maps whose complexity is pinned, because a head set it by hand, are left alone. Pass a batch to reweight only the maps in it, which is the monthly round: the batch ranked last month gets its first script pass while this month's batch is released. Pass a status of QUEUE or QUALIFIED to set those maps to the script's number instead; they have no scores, so that is a plain complexity change with no recalculation behind it. Pass a step limit to move no map by more than that amount this round, so a map whose leaderboard keeps grinding settles over several rounds instead of dropping at once. Leave it out for a full correction.")
+    @Operation(summary = "Apply the script", description = "Ranking heads only. Pinned maps are "
+            + "skipped. Pass a batch to scope it, QUEUE or QUALIFIED to set those directly, a step limit to cap "
+            + "each move.")
     @PostMapping("/apply")
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public ResponseEntity<Void> apply(
@@ -152,7 +164,8 @@ public class RankingComplexityController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Download every score on a ranked map as CSV", description = "Streams one row per score row on every ranked difficulty, history included. You get the improvements and the attempts as well as the active play. Each row carries the map difficulty id, the category, the raw score and the map's max score for deriving accuracy, the AP the score currently pays, the miss and cut counts, the modifiers as a pipe separated list, and the player's country and banned flags. Nothing is filtered for you here on purpose.")
+    @Operation(summary = "Scores CSV", description = "Every score row on ranked "
+            + "maps, history included. Nothing is filtered.")
     @GetMapping(value = "/dataset/scores", produces = CSV)
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public void scores(HttpServletResponse response) throws IOException {
@@ -160,7 +173,8 @@ public class RankingComplexityController {
         datasetService.writeScores(response.getOutputStream());
     }
 
-    @Operation(summary = "Download every ranked, qualified and queued difficulty as CSV", description = "One row per difficulty with the song, mapper, hash, leaderboard ids, category, status, the complexity it carries right now, when it was ranked, the max score and the chart metadata like note count, duration and BPM. Pairs with the scores download through the map difficulty id.")
+    @Operation(summary = "Difficulties CSV", description = "Joins to "
+            + "the scores CSV on map difficulty id.")
     @GetMapping(value = "/dataset/difficulties", produces = CSV)
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public void difficultiesCsv(HttpServletResponse response) throws IOException {
@@ -168,7 +182,7 @@ public class RankingComplexityController {
         datasetService.writeDifficulties(response.getOutputStream());
     }
 
-    @Operation(summary = "Download the complexity history as CSV", description = "Every complexity value a ranked difficulty has ever carried, with the reason it was set and when, oldest first per difficulty.")
+    @Operation(summary = "Complexity history CSV", description = "Oldest first per difficulty.")
     @GetMapping(value = "/dataset/complexity-history", produces = CSV)
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public void complexityHistory(HttpServletResponse response) throws IOException {

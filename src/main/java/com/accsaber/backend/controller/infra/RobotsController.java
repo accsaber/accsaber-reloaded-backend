@@ -16,8 +16,8 @@ public class RobotsController {
 
     private static final String DISALLOW_ALL = "User-agent: *\nDisallow: /\n";
 
-    @Operation(summary = "Tell crawlers to stay away from this environment", description = "Only exists where the environment is meant to be kept out of search results, like staging. "
-            + "Production does not serve this at all, so crawlers fall back to their usual behaviour there.")
+    @Operation(summary = "Keep crawlers out", description = "Only on environments "
+            + "like staging. Production does not serve it.")
     @GetMapping(value = "/robots.txt", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> robots() {
         return ResponseEntity.ok(DISALLOW_ALL);

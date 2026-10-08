@@ -45,7 +45,7 @@ public class RankingBatchController {
     private final BatchService batchService;
     private final ReweightService reweightService;
 
-    @Operation(summary = "List batches", description = "Lists batches with optional status filter and search")
+    @Operation(summary = "List batches")
     @GetMapping
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<Page<BatchResponse>> listBatches(
@@ -58,14 +58,14 @@ public class RankingBatchController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Get a batch", description = "Returns a single batch with its difficulties")
+    @Operation(summary = "Get a batch")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<BatchResponse> getBatch(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.findById(id));
     }
 
-    @Operation(summary = "Create a batch", description = "Creates a new batch in draft status")
+    @Operation(summary = "Create a batch", description = "Starts as a draft.")
     @PostMapping
     public ResponseEntity<BatchResponse> createBatch(
             @Valid @RequestBody CreateBatchRequest request,
@@ -74,7 +74,7 @@ public class RankingBatchController {
         return ResponseEntity.created(URI.create("/v1/batches/" + response.getId())).body(response);
     }
 
-    @Operation(summary = "Update a batch", description = "Updates the name and description of a batch. Allowed in any status, including released.")
+    @Operation(summary = "Edit a batch", description = "Name and description. Works in any status, even released.")
     @PatchMapping("/{id}")
     public ResponseEntity<BatchResponse> updateBatch(
             @PathVariable UUID id,
@@ -82,7 +82,7 @@ public class RankingBatchController {
         return ResponseEntity.ok(batchService.update(id, request));
     }
 
-    @Operation(summary = "Update batch status", description = "Transitions a batch between draft and release_ready. Use /release to publish.")
+    @Operation(summary = "Set batch status", description = "draft or release_ready only. Use /release to publish.")
     @PatchMapping("/{id}/status")
     public ResponseEntity<BatchResponse> updateStatus(
             @PathVariable UUID id,
@@ -90,7 +90,7 @@ public class RankingBatchController {
         return ResponseEntity.ok(batchService.updateStatus(id, request));
     }
 
-    @Operation(summary = "Add a map difficulty to a batch")
+    @Operation(summary = "Add a difficulty to a batch")
     @PostMapping("/{id}/difficulties/{difficultyId}")
     public ResponseEntity<BatchResponse> addDifficulty(
             @PathVariable UUID id,
@@ -98,7 +98,7 @@ public class RankingBatchController {
         return ResponseEntity.ok(batchService.addDifficulty(id, difficultyId));
     }
 
-    @Operation(summary = "Remove a map difficulty from a batch")
+    @Operation(summary = "Remove a difficulty from a batch")
     @DeleteMapping("/{id}/difficulties/{difficultyId}")
     public ResponseEntity<BatchResponse> removeDifficulty(
             @PathVariable UUID id,
@@ -106,13 +106,14 @@ public class RankingBatchController {
         return ResponseEntity.ok(batchService.removeDifficulty(id, difficultyId));
     }
 
-    @Operation(summary = "Release a batch", description = "Atomically transitions all member difficulties to ranked and stamps ranked_at. Irreversible.")
+    @Operation(summary = "Release a batch", description = "Ranks every difficulty in it at once. Cannot be undone.")
     @PostMapping("/{id}/release")
     public ResponseEntity<BatchResponse> release(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.release(id));
     }
 
-    @Operation(summary = "Reweight a batch", description = "Sets the complexities you name on the RANKED difficulties of a released batch, then adjusts scores, statistics, rankings, milestones, XP and skills in the background. Every item has to belong to the batch. These are named maps and named numbers, so a pinned map is still reweighted; the pin only holds the complexity script's apply off.")
+    @Operation(summary = "Reweight a batch", description = "Sets your complexities on its ranked maps, then adjusts "
+            + "scores, stats and XP in the background. Items must be in the batch. Pinned maps get reweighted too.")
     @PostMapping("/{id}/reweight")
     public ResponseEntity<List<MapDifficultyResponse>> reweightBatch(
             @PathVariable UUID id,
@@ -123,7 +124,8 @@ public class RankingBatchController {
                 StaffPrincipals.staffIdOf(authentication)));
     }
 
-    @Operation(summary = "Recalculate a batch", description = "Recalculates all scores in a released batch based on current active complexities. Skips difficulties where AP values are unchanged.")
+    @Operation(summary = "Recalculate a batch", description = "Recalculates scores in a released batch with current "
+            + "complexities. Unchanged maps get skipped.")
     @PostMapping("/{id}/recalculate")
     public ResponseEntity<Void> recalculateBatch(@PathVariable UUID id) {
         reweightService.recalculateBatch(id);

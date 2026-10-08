@@ -42,9 +42,8 @@ public class UserRelationController {
     private final ScoreService scoreService;
     private final CategoryService categoryService;
 
-    @Operation(summary = "List your relations", description = "Everyone you have added, whether as someone you follow, a rival, "
-            + "or someone you have blocked. Pass type to narrow it to one kind. This is the only place your blocked list shows "
-            + "up, since it never appears on the public route.")
+    @Operation(summary = "Your relations", description = "Only place your blocked list shows up. Pass type to "
+            + "filter.")
     @GetMapping("/me/relations")
     public ResponseEntity<Page<UserRelationResponse>> getMyRelations(
             @RequestParam(required = false) UserRelationType type,
@@ -54,10 +53,8 @@ public class UserRelationController {
         return ResponseEntity.ok(relationService.findByUser(userId, type, true, pageable));
     }
 
-    @Operation(summary = "Get scores from the people you follow", description = "A feed of current scores from the players you "
-            + "follow or have as rivals, best AP first, which is the basis of a friends activity view. Narrow it with type, "
-            + "though blocked is rejected here for obvious reasons. Set includePrincipal=true to fold your own scores in "
-            + "alongside theirs. Takes the same category, search and sort options as the player scores route.")
+    @Operation(summary = "Friends' scores", description = "Best AP first. Blocked type gives "
+            + "an error. includePrincipal=true adds your own scores.")
     @GetMapping("/me/relations/scores")
     public ResponseEntity<Page<ScoreResponse>> getRelationScores(
             @RequestParam(required = false) UserRelationType type,
@@ -71,8 +68,7 @@ public class UserRelationController {
                 categoryService.resolveId(categoryId), search, includePrincipal, pageable));
     }
 
-    @Operation(summary = "Add a relation", description = "Follow someone, mark them as a rival, or block them, depending on the "
-            + "type you send. Relations are one directional, so adding someone does not add you to their list.")
+    @Operation(summary = "Follow, rival or block", description = "One directional. They do not get you on their list.")
     @PostMapping("/me/relations")
     public ResponseEntity<UserRelationResponse> createRelation(
             @Valid @RequestBody UserRelationRequest request,
@@ -82,9 +78,7 @@ public class UserRelationController {
         return ResponseEntity.status(201).body(response);
     }
 
-    @Operation(summary = "Remove a relation", description = "Unfollow, drop a rival, or unblock, by the relation id rather than "
-            + "the other player's id. The row is only marked inactive rather than actually deleted, so re-adding the same "
-            + "person later picks the old one back up.")
+    @Operation(summary = "Remove a relation", description = "Takes the relation ID, not the player's ID.")
     @DeleteMapping("/me/relations/{relationId}")
     public ResponseEntity<Void> deleteRelation(
             @PathVariable UUID relationId,
@@ -94,13 +88,9 @@ public class UserRelationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List another player's relations", description = "Who a player has added, or who has added them, "
-            + "depending on direction. Outgoing is the default and means people they added; incoming means people who added "
-            + "them. Blocked never shows up here at all, so for your own blocked list use the me route. Bear in mind outgoing "
-            + "is gated by that player's own privacy settings, so an empty page can mean they have chosen to keep it to "
-            + "themselves rather than that they have nobody. Incoming works the other way round: a player who keeps their "
-            + "own following or rivals list private still shows up in someone else's incoming list, but as an anonymous "
-            + "Hidden Follower or Hidden Rival entry with hidden set to true and no id, avatar or country on it.")
+    @Operation(summary = "Someone else's relations", description = "Outgoing by default, incoming is who "
+            + "added them. Blocked never shows. Outgoing obeys their privacy settings. Private followers show up "
+            + "in incoming as hidden entries with no details.")
     @GetMapping("/{userId}/relations")
     public ResponseEntity<Page<UserRelationResponse>> getUserRelations(
             @PathVariable Long userId,

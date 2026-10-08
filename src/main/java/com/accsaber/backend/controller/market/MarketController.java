@@ -46,7 +46,8 @@ public class MarketController {
     private final MarketListingService listingService;
     private final MarketBidService bidService;
 
-    @Operation(summary = "Browse the market", description = "Everything currently up for sale, ending soonest first unless you say otherwise. Use kind to pick between auction and shop listings, and sortBy for ending_soon, newest, price_asc or price_desc. You can also filter on the modifier or unusual effect of the actual copy being sold, though that only matches listings whose item still exists. No sign in needed to look.")
+    @Operation(summary = "Browse the market", description = "Ending soonest first by default. kind is auction or "
+            + "shop. sortBy is ending_soon, newest, price_asc or price_desc. No login needed.")
     @GetMapping("/listings")
     public ResponseEntity<Page<MarketListingResponse>> browse(
             @RequestParam(required = false) MarketListingStatus status,
@@ -66,19 +67,20 @@ public class MarketController {
         return ResponseEntity.ok(listingService.browse(filter, pageable));
     }
 
-    @Operation(summary = "Get one listing", description = "A single listing with its current state. This is the one to link people to.")
+    @Operation(summary = "Get a listing")
     @GetMapping("/listings/{id}")
     public ResponseEntity<MarketListingResponse> findOne(@PathVariable UUID id) {
         return ResponseEntity.ok(listingService.findDetail(id));
     }
 
-    @Operation(summary = "Get a listing's bid history", description = "Every bid placed on a listing, so you can show how it got to where it is.")
+    @Operation(summary = "Bid history for a listing")
     @GetMapping("/listings/{id}/bids")
     public ResponseEntity<List<MarketBidResponse>> bids(@PathVariable UUID id) {
         return ResponseEntity.ok(bidService.findBids(id));
     }
 
-    @Operation(summary = "Put an item up for sale", description = "Lists something you own, either as a shop listing at a fixed price or as an auction. The item is held in escrow while it is listed, so you will not be able to equip or trade it until the listing ends or you cancel.")
+    @Operation(summary = "Sell an item", description = "Fixed price shop listing or auction. You cannot "
+            + "equip or trade the item while it is listed.")
     @PostMapping("/listings")
     public ResponseEntity<MarketListingResponse> create(@Valid @RequestBody CreateListingRequest req,
             @AuthenticationPrincipal PlayerUserDetails principal) {
@@ -86,7 +88,7 @@ public class MarketController {
         return ResponseEntity.status(HttpStatus.CREATED).body(listingService.create(me, req));
     }
 
-    @Operation(summary = "Cancel a listing", description = "Pulls one of your listings and gives you the item back. You can only do this while nobody has bid, since cancelling out from under a bidder would not be fair.")
+    @Operation(summary = "Cancel your listing", description = "Only while nobody has bid. You get the item back.")
     @DeleteMapping("/listings/{id}")
     public ResponseEntity<MarketListingResponse> cancel(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
@@ -94,7 +96,8 @@ public class MarketController {
         return ResponseEntity.ok(listingService.cancel(id, me));
     }
 
-    @Operation(summary = "Place a bid", description = "Bids on an auction listing. Your essence is held while you are the high bidder and released if someone outbids you. Bid at or above the buyout price and it simply completes there and then rather than waiting for the auction to end.")
+    @Operation(summary = "Place a bid", description = "Your essence is held while you are top bidder. Bidding at or "
+            + "above buyout completes the sale right away.")
     @PostMapping("/listings/{id}/bids")
     public ResponseEntity<MarketListingResponse> placeBid(@PathVariable UUID id,
             @Valid @RequestBody PlaceBidRequest req,
@@ -104,7 +107,7 @@ public class MarketController {
         return ResponseEntity.ok(listingService.findDetail(id));
     }
 
-    @Operation(summary = "Buy something outright", description = "Takes a listing at its buyout price and settles immediately. The item moves to you and the essence moves to the seller in one go.")
+    @Operation(summary = "Buy it now", description = "Buys at the buyout price and settles right away.")
     @PostMapping("/listings/{id}/buy")
     public ResponseEntity<MarketListingResponse> buyNow(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
@@ -113,7 +116,8 @@ public class MarketController {
         return ResponseEntity.ok(listingService.findDetail(id));
     }
 
-    @Operation(summary = "Get your market activity", description = "Everything you have a stake in, so listings you are selling, ones you are currently winning, and ones you have already won. One call rather than three.")
+    @Operation(summary = "Your market activity", description = "What you are selling, winning and have won, in "
+            + "one call.")
     @GetMapping("/me/listings")
     public ResponseEntity<Page<MarketListingResponse>> myListings(
             @RequestParam(required = false) List<MarketListingStatus> status,
@@ -123,7 +127,7 @@ public class MarketController {
         return ResponseEntity.ok(listingService.findInvolvingUser(me, status, pageable));
     }
 
-    @Operation(summary = "Get your bid history", description = "Every bid you have placed, including on listings that have since ended.")
+    @Operation(summary = "Your bids", description = "Includes bids on listings that already ended.")
     @GetMapping("/me/bids")
     public ResponseEntity<Page<MarketBidResponse>> myBids(
             @PageableDefault(size = 30) Pageable pageable,

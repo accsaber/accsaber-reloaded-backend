@@ -26,26 +26,23 @@ public class CategoryController {
     private final CategoryService categoryService;
     private final ReweightRoundService reweightRoundService;
 
-    @Operation(summary = "List the scoring categories", description = "The categories a map can be ranked in, so True Acc, "
-            + "Standard Acc, Tech Acc and the rest, each with the curves it uses to work out AP. Overall is in here too, and it "
-            + "aggregates across whichever categories are set to count toward it.")
+    @Operation(summary = "List categories", description = "Overall is included and adds up whichever "
+            + "categories count toward it.")
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> listCategories() {
         return ResponseEntity.ok(categoryService.findAllActive());
     }
 
-    @Operation(summary = "Get one category", description = "The same thing as the list but for a single category. You can address "
-            + "it either by its UUID or by its code, so /v1/categories/true_acc works just as well as passing the id.")
+    @Operation(summary = "Get a category", description = "Takes the UUID or the code. /v1/categories/true_acc "
+            + "works.")
     @GetMapping("/{category}")
     public ResponseEntity<CategoryResponse> getCategory(@PathVariable String category) {
         return ResponseEntity.ok(categoryService.findById(categoryService.resolveId(category)));
     }
 
-    @Operation(summary = "List a category's reweight days", description = "Every day the ranking team changed the "
-            + "complexity of ranked maps, as one entry per UTC day, oldest first. It is meant for drawing markers on history "
-            + "charts. Overall merges every live category into the same day, so categoryCodes says which ones moved. The maps "
-            + "changed that day come along when there are five or fewer of them, from the first value of the day to the "
-            + "last, and maps is null on bigger days.")
+    @Operation(summary = "Reweight days", description = "One entry per UTC day, oldest first. For "
+            + "overall, categoryCodes says which ones moved. maps is null on days with more than five changed "
+            + "maps.")
     @GetMapping("/{category}/reweights")
     public ResponseEntity<List<ReweightDayResponse>> listReweights(@PathVariable String category) {
         return ResponseEntity.ok(reweightRoundService.findForCategory(categoryService.resolveId(category)));

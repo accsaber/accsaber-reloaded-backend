@@ -30,18 +30,14 @@ public class QuestModController {
 
     private final QuestModService questModService;
 
-    @Operation(summary = "List Quest mod releases", description = "The published versions of the AccSaber Quest mod, pulled "
-            + "from GitHub releases and cached for a few minutes. Each entry carries the Beat Saber version it was built "
-            + "for, so the site can show which one fits the player's headset.")
+    @Operation(summary = "Quest mod releases", description = "Each has the Beat Saber version it was built for.")
     @GetMapping("/releases")
     public ResponseEntity<List<QuestReleaseResponse>> listReleases() {
         return ResponseEntity.ok(questModService.listReleases());
     }
 
-    @Operation(summary = "Generate a personalized Quest mod", description = "Builds a copy of the chosen release with the "
-            + "signed in player's session baked in, so installing it logs the headset in without any pairing dance. The "
-            + "download contains a private credential; it must never be shared or cached. Omit the tag for the latest "
-            + "release.")
+    @Operation(summary = "Build your Quest mod", description = "Comes with your session baked in. It "
+            + "has a private credential, never share or cache it. Leave out the tag for the latest.")
     @PostMapping("/download")
     public ResponseEntity<byte[]> download(
             @RequestParam(required = false) String tag,

@@ -48,9 +48,8 @@ public class AdminNewsController {
     private final NewsService newsService;
     private final MediaProcessingService mediaProcessingService;
 
-    @Operation(summary = "List news posts", description = "Every post including drafts, filterable by status and type. Pass "
-            + "mine=true to see only the ones you wrote, which is what ranking heads use since they can author news but not "
-            + "read everyone else's.")
+    @Operation(summary = "List news posts", description = "Includes drafts. Pass mine=true for only your posts. "
+            + "Ranking heads need that.")
     @PreAuthorize("#mine ? hasAnyRole('ADMIN', 'RANKING_HEAD') : hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<Page<NewsResponse>> list(
@@ -66,15 +65,15 @@ public class AdminNewsController {
         return ResponseEntity.ok(newsService.findStaffAll(status, type, pageable));
     }
 
-    @Operation(summary = "Get any news post by id", description = "Works on drafts too, unlike the public route.")
+    @Operation(summary = "Get any news post", description = "Works on drafts too.")
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @GetMapping("/{id}")
     public ResponseEntity<NewsResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(newsService.findStaffById(id));
     }
 
-    @Operation(summary = "Create a news post", description = "Whoever calls this becomes the author, which is what decides who "
-            + "can edit it afterwards.")
+    @Operation(summary = "Write a news post", description = "You become the author. Only the author can edit it "
+            + "later.")
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @PostMapping
     public ResponseEntity<NewsResponse> create(
@@ -84,8 +83,7 @@ public class AdminNewsController {
         return ResponseEntity.created(URI.create("/v1/news/" + response.getId())).body(response);
     }
 
-    @Operation(summary = "Update a news post", description = "Admins can edit anything. Ranking heads can only edit posts they "
-            + "wrote themselves.")
+    @Operation(summary = "Edit a news post", description = "Admins edit anything. Ranking heads only their own.")
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @PatchMapping("/{id}")
     public ResponseEntity<NewsResponse> update(
@@ -100,8 +98,8 @@ public class AdminNewsController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Upload a news image", description = "Sets the image on a post, replacing any existing one. Same "
-            + "ownership rule as updating.")
+    @Operation(summary = "Upload a news image", description = "Replaces any existing image. Same ownership rule as "
+            + "editing.")
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<NewsResponse> uploadImage(
@@ -116,7 +114,7 @@ public class AdminNewsController {
                 StaffPrincipals.roleOf(authentication)));
     }
 
-    @Operation(summary = "Remove a news image", description = "Clears the image off a post. Same ownership rule as updating.")
+    @Operation(summary = "Remove a news image", description = "Same ownership rule as editing.")
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @DeleteMapping("/{id}/image")
     public ResponseEntity<NewsResponse> deleteImage(
@@ -130,7 +128,8 @@ public class AdminNewsController {
                 StaffPrincipals.roleOf(authentication)));
     }
 
-    @Operation(summary = "Delete a news post", description = "Soft delete by default; pass hard=true to permanently remove the row")
+    @Operation(summary = "Delete a news post", description = "Soft delete by default. Pass hard=true to remove it "
+            + "for good.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @PathVariable UUID id,

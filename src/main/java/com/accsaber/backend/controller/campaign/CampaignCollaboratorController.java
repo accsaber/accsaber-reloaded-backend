@@ -41,7 +41,7 @@ public class CampaignCollaboratorController {
 
     private final CampaignCollaboratorService collaboratorService;
 
-    @Operation(summary = "List a campaign's collaborators", description = "Who else can edit this campaign alongside the owner.")
+    @Operation(summary = "Campaign collaborators")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{campaignId}/collaborators")
     public ResponseEntity<List<CampaignCollaboratorResponse>> listCollaborators(
@@ -52,7 +52,7 @@ public class CampaignCollaboratorController {
                 StaffPrincipals.canViewCampaignDrafts(authentication)));
     }
 
-    @Operation(summary = "Invite a collaborator", description = "Asks another player to help edit your draft. They have to accept before they can change anything.")
+    @Operation(summary = "Invite a collaborator", description = "They have to accept before they can edit.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/collaborators")
     public ResponseEntity<CampaignCollaboratorResponse> inviteCollaborator(
@@ -63,8 +63,7 @@ public class CampaignCollaboratorController {
                 collaboratorService.invite(principal.getUserId(), campaignId, request.getUserId()));
     }
 
-    @Operation(summary = "Answer an invite", description = "Pass accept=true to take up an invitation to co-edit someone "
-            + "else's campaign, or accept=false to turn it down.")
+    @Operation(summary = "Answer an invite", description = "accept=true to join, accept=false to decline.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{campaignId}/collaborators/me")
     public ResponseEntity<CampaignCollaboratorResponse> respondToInvite(
@@ -74,7 +73,8 @@ public class CampaignCollaboratorController {
         return ResponseEntity.ok(collaboratorService.respond(principal.getUserId(), campaignId, accept));
     }
 
-    @Operation(summary = "Remove a collaborator", description = "The owner can use this to take someone off, and a collaborator can use it on themselves to step away.")
+    @Operation(summary = "Remove a collaborator", description = "Owners can kick anyone. Collaborators can remove "
+            + "themselves.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/collaborators/{userId}")
     public ResponseEntity<Void> removeCollaborator(
@@ -85,7 +85,7 @@ public class CampaignCollaboratorController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List your collaborations", description = "Campaigns where you are a collaborator rather than the owner, including invitations you have not answered yet.")
+    @Operation(summary = "Your collaborations", description = "Includes invites you have not answered yet.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me/collaborations")
     public ResponseEntity<Page<CampaignCollaboratorResponse>> listMyCollaborations(

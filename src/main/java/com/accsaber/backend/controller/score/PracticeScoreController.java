@@ -26,14 +26,14 @@ public class PracticeScoreController {
 
     private final PracticeScoreService practiceScoreService;
 
-    @Operation(summary = "Submit a practice range score", description = "Records a score from the practice range minigame. This is separate from real score submission and does not touch AP, ranks or anything on your profile.")
+    @Operation(summary = "Submit a practice score", description = "Does not touch AP, ranks or your profile.")
     @PostMapping
     public ResponseEntity<Void> submit(@RequestBody List<PracticeScoreRequest> requests) {
         practiceScoreService.submit(requests);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Get the practice range board", description = "The best practice range scores. Purely for fun, it does not feed into the ranked leaderboards.")
+    @Operation(summary = "Practice range board")
     @GetMapping
     public ResponseEntity<List<PracticeScoreResponse>> top(@RequestParam(defaultValue = "25") int size) {
         return ResponseEntity.ok(practiceScoreService.top(size));

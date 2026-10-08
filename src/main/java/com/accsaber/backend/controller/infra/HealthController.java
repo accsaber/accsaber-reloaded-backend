@@ -30,10 +30,8 @@ public class HealthController {
         this.releaseChannel = releaseChannel;
     }
 
-    @Operation(summary = "Check the API is up", description = "Comes back with the service status, the current server time, the version "
-            + "that is running and which release channel it belongs to. Handy as a quick connectivity check before "
-            + "you start firing real requests at anything, and the version and channel are there so you can show "
-            + "people which build they are talking to. The channel is empty once a version is a full release.")
+    @Operation(summary = "Is the API up", description = "Status, server time, version and release channel. "
+            + "Channel is empty on full releases.")
     @GetMapping("/ping")
     public ResponseEntity<Map<String, Object>> ping() {
         log.info("Ping received");

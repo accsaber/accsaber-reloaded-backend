@@ -37,7 +37,8 @@ public class CampaignChatController {
     private final ChatService chatService;
     private final CampaignChatChannel campaignChatChannel;
 
-    @Operation(summary = "Read a campaign's chat", description = "Messages between the people working on a campaign, newest last. Only the owner and collaborators can see it. There is a live version over the campaign presence socket if you would rather not poll.")
+    @Operation(summary = "Campaign chat", description = "Owner and collaborators only, newest last. Also "
+            + "live over the campaign presence socket.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{campaignId}/chat")
     public ResponseEntity<Page<ChatMessageResponse>> listMessages(
@@ -48,7 +49,7 @@ public class CampaignChatController {
                 chatService.getMessages(campaignChatChannel, campaignId, principal.getUserId(), pageable));
     }
 
-    @Operation(summary = "Send a chat message", description = "Posts to a campaign's chat. Owner and collaborators only, and there is a rate limit so do not lean on it.")
+    @Operation(summary = "Post to campaign chat", description = "Owner and collaborators only. Rate limited.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/chat")
     public ResponseEntity<ChatMessageResponse> sendMessage(

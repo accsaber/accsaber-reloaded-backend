@@ -29,7 +29,8 @@ public class SupporterPublicController {
 
     private final SupporterService supporterService;
 
-    @Operation(summary = "Get a player's supporter status", description = "Their tier, current balance and lifetime total. Someone who has never supported still gets a normal response with everything empty rather than a 404, so you can render it without special casing.")
+    @Operation(summary = "A player's supporter status", description = "Tier, balance and lifetime total. Non "
+            + "supporters get an empty response, not a 404.")
     @GetMapping("/v1/users/{userId}/supporter")
     public ResponseEntity<SupporterAccountResponse> get(@PathVariable Long userId) {
         SupporterAccount account = supporterService.findAccount(userId);
@@ -38,7 +39,7 @@ public class SupporterPublicController {
                 : SupporterAccountResponse.from(account));
     }
 
-    @Operation(summary = "Get the supporter tiers", description = "Every tier a supporter can hold, cheapest first, with what it costs per month.")
+    @Operation(summary = "Supporter tiers", description = "Cheapest first, with the monthly price.")
     @GetMapping("/v1/supporters/tiers")
     public ResponseEntity<List<SupporterTierResponse>> tiers() {
         return ResponseEntity.ok(supporterService.findTiers().stream()
@@ -46,7 +47,8 @@ public class SupporterPublicController {
                 .toList());
     }
 
-    @Operation(summary = "Get the supporters credits", description = "The roll of everyone who has supported AccSaber, past and present. Filter with status for all, active or past.")
+    @Operation(summary = "Supporter credits", description = "Everyone who has supported AccSaber. Filter "
+            + "status with all, active or past.")
     @GetMapping("/v1/supporters/credits")
     public ResponseEntity<Page<SupporterCreditsRowResponse>> credits(
             @RequestParam(required = false, defaultValue = "all") String status,

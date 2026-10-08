@@ -26,10 +26,9 @@ public class AdminImpersonationController {
 
     private final ImpersonationService impersonationService;
 
-    @Operation(summary = "Get a player token for any account so you can browse the site exactly as they see it", description = "Only exists on non production environments, where it is enabled deliberately. "
-            + "You get back the same shape as a normal player login, so you can drop the access token straight into "
-            + "the frontend and everything behaves as if that player signed in. There is no refresh token, the token "
-            + "is short lived, and every use is logged with your staff id against the account you acted as.")
+    @Operation(summary = "Log in as any player", description = "Non "
+            + "production only. Gives a normal player login with a short lived token and no refresh token. Every "
+            + "use is logged.")
     @PostMapping("/{userId}")
     public ResponseEntity<PlayerAuthResponse> impersonate(@PathVariable Long userId, Authentication authentication) {
         return ResponseEntity.ok(impersonationService.impersonate(userId, authentication.getName()));

@@ -34,19 +34,20 @@ public class AdminUserDuplicateController {
 
     private final DuplicateUserService duplicateUserService;
 
-    @Operation(summary = "Detect potential duplicate users", description = "Finds user pairs with 8+ identical scores (same map difficulty AND same score value). Primary is the user with more BeatLeader scores.")
+    @Operation(summary = "Find likely duplicate accounts", description = "Pairs with 8 or more identical scores on "
+            + "the same difficulty. Primary is whoever has more BeatLeader scores.")
     @GetMapping
     public ResponseEntity<List<DuplicateCandidateResponse>> detectDuplicates() {
         return ResponseEntity.ok(duplicateUserService.detectDuplicates());
     }
 
-    @Operation(summary = "List all duplicate links")
+    @Operation(summary = "List duplicate links")
     @GetMapping("/links")
     public ResponseEntity<List<DuplicateLinkResponse>> listLinks() {
         return ResponseEntity.ok(duplicateUserService.listAllLinks());
     }
 
-    @Operation(summary = "Create a duplicate link without merging")
+    @Operation(summary = "Link duplicates without merging")
     @PostMapping("/links")
     public ResponseEntity<DuplicateLinkResponse> createLink(
             @Valid @RequestBody MergeUsersRequest request) {
@@ -54,14 +55,15 @@ public class AdminUserDuplicateController {
                 request.getPrimaryUserId(), request.getSecondaryUserId(), request.getReason()));
     }
 
-    @Operation(summary = "Delete an unmerged duplicate link")
+    @Operation(summary = "Remove an unmerged link")
     @DeleteMapping("/links/{linkId}")
     public ResponseEntity<Void> deleteLink(@PathVariable UUID linkId) {
         duplicateUserService.deleteUnmergedLink(linkId);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Merge secondary user into primary user", description = "Reassigns unique scores from secondary to primary, deactivates secondary")
+    @Operation(summary = "Merge secondary into primary", description = "Moves unique scores to the primary "
+            + "and deactivates the secondary.")
     @PostMapping("/merge")
     public ResponseEntity<DuplicateLinkResponse> mergeUsers(
             @Valid @RequestBody MergeUsersRequest request,
@@ -73,7 +75,8 @@ public class AdminUserDuplicateController {
                 request.getReason()));
     }
 
-    @Operation(summary = "Merge all unmerged duplicate links", description = "Merges all curated links that haven't been merged yet. Recalculation runs once after all merges complete.")
+    @Operation(summary = "Merge every pending link", description = "Recalculation runs once after all "
+            + "merges finish.")
     @PostMapping("/merge-all")
     public ResponseEntity<List<DuplicateLinkResponse>> mergeAll(
             @AuthenticationPrincipal StaffUserDetails userDetails) {
@@ -81,7 +84,8 @@ public class AdminUserDuplicateController {
                 userDetails.getStaffUser().getId()));
     }
 
-    @Operation(summary = "Unmerge a previously merged duplicate link", description = "Reverses score reassignments and reactivates the secondary user")
+    @Operation(summary = "Undo a merge", description = "Moves the scores back and "
+            + "reactivates the secondary.")
     @PostMapping("/unmerge/{linkId}")
     public ResponseEntity<DuplicateLinkResponse> unmergeUsers(@PathVariable UUID linkId) {
         return ResponseEntity.ok(duplicateUserService.unmerge(linkId));

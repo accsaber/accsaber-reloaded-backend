@@ -32,23 +32,19 @@ public class SnipeController {
 
     private final SnipeService snipeService;
 
-    @Operation(summary = "Find where you are closest to catching someone", description = "The difficulties where a target "
-            + "player is ahead of the sniper, smallest gap first, so the ones worth going after come up first. Each row "
-            + "carries both players' current scores so you can show the comparison without a second call. Pass category to "
-            + "narrow it, and sort if you care about something other than the gap, like where there is the most AP sitting "
-            + "on the table. This is the data behind the snipe playlists, if you want the same thing as a downloadable file "
-            + "instead. Maps the target has played and you have not are left out unless you ask for them with unplayed, "
-            + "and those rows come back with no sniper score.")
+    @Operation(summary = "Snipe targets", description = "Maps where the target "
+            + "beats the sniper, smallest gap first, with both scores. Unplayed maps come back with no sniper "
+            + "score.")
     @GetMapping("/{sniperId}/closest-to/{targetId}")
     public ResponseEntity<Page<SnipeComparisonResponse>> getClosestScores(
-            @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
-            @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
+            @Parameter(description = "User ID of the sniper") @PathVariable Long sniperId,
+            @Parameter(description = "User ID of the target") @PathVariable Long targetId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @Parameter(description = "Optional category code; omit for all categories") @RequestParam(required = false) String category,
-            @Parameter(description = "What to order by: GAP (accuracy gap), AP_GAP, TARGET_AP, YOUR_AP or RANK_GAP") @RequestParam(defaultValue = "GAP") SnipeSort sort,
-            @Parameter(description = "ASC or DESC; each sort has its own sensible default") @RequestParam(required = false) Sort.Direction direction,
-            @Parameter(description = "EXCLUDE (only maps you have played), INCLUDE (add the ones you have not) or ONLY (just those)") @RequestParam(required = false) SnipeUnplayed unplayed) {
+            @Parameter(description = "Category code, leave out for all") @RequestParam(required = false) String category,
+            @Parameter(description = "GAP, AP_GAP, TARGET_AP, YOUR_AP or RANK_GAP") @RequestParam(defaultValue = "GAP") SnipeSort sort,
+            @Parameter(description = "ASC or DESC, each sort has a default") @RequestParam(required = false) Sort.Direction direction,
+            @Parameter(description = "EXCLUDE = played only, INCLUDE = add unplayed, ONLY = unplayed only") @RequestParam(required = false) SnipeUnplayed unplayed) {
         Pageable pageable = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE));
         SnipeQuery query = new SnipeQuery(sniperId, targetId, category, sort, direction, unplayed);
         return ResponseEntity.ok(snipeService.findSnipeComparisons(query, pageable));

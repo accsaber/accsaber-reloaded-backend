@@ -35,7 +35,7 @@ public class AdminUnusualEffectController {
 
     private final UnusualEffectService unusualEffectService;
 
-    @Operation(summary = "List unusual effects (admin)")
+    @Operation(summary = "List unusual effects")
     @PreAuthorize("hasAnyRole('ADMIN', 'CREATIVE')")
     @GetMapping
     public ResponseEntity<List<UnusualEffectResponse>> list(
@@ -45,13 +45,13 @@ public class AdminUnusualEffectController {
                 .toList());
     }
 
-    @Operation(summary = "Get an unusual effect by id")
+    @Operation(summary = "Get an unusual effect")
     @GetMapping("/{id}")
     public ResponseEntity<UnusualEffectResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toUnusualEffectResponse(unusualEffectService.findById(id)));
     }
 
-    @Operation(summary = "Create an unusual effect")
+    @Operation(summary = "New unusual effect")
     @PostMapping
     public ResponseEntity<UnusualEffectResponse> create(@Valid @RequestBody CreateUnusualEffectRequest req) {
         var effect = unusualEffectService.create(req.getKey(), req.getName(),
@@ -59,7 +59,7 @@ public class AdminUnusualEffectController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toUnusualEffectResponse(effect));
     }
 
-    @Operation(summary = "Update an unusual effect")
+    @Operation(summary = "Edit an unusual effect")
     @PatchMapping("/{id}")
     public ResponseEntity<UnusualEffectResponse> update(@PathVariable UUID id,
             @RequestBody UpdateUnusualEffectRequest req) {
@@ -67,8 +67,8 @@ public class AdminUnusualEffectController {
         return ResponseEntity.ok(ItemMapper.toUnusualEffectResponse(effect));
     }
 
-    @Operation(summary = "Activate or deactivate an unusual effect", description = "Pass active=false to retire an effect and "
-            + "active=true to bring it back. Instances players already hold keep it, it just stops being rolled by crates.")
+    @Operation(summary = "Toggle an unusual effect", description = "Players keep it. Crates stop "
+            + "rolling it.")
     @PatchMapping("/{id}/active")
     public ResponseEntity<UnusualEffectResponse> setActive(@PathVariable UUID id,
             @RequestParam boolean active) {

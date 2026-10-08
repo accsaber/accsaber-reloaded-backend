@@ -28,10 +28,7 @@ public class BatchController {
 
     private final BatchService batchService;
 
-    @Operation(summary = "List the released batches", description = "A batch is a set of difficulties the ranking team put "
-            + "together and released as one, so this is effectively the release history, newest first. Only batches that have "
-            + "actually gone out show up here, since anything still being prepared is not public yet. Search by name if you are "
-            + "after a particular one.")
+    @Operation(summary = "Released batches", description = "Newest first. Unreleased batches do not show up.")
     @GetMapping
     public ResponseEntity<Page<PublicBatchResponse>> listBatches(
             @RequestParam(required = false) String search,
@@ -39,9 +36,7 @@ public class BatchController {
         return ResponseEntity.ok(batchService.findAllPublic(search, pageable));
     }
 
-    @Operation(summary = "Get one released batch", description = "A single batch with every difficulty that went out in it. A "
-            + "batch that has not been released yet comes back as a 404 rather than an empty one, so do not read that as the "
-            + "batch not existing.")
+    @Operation(summary = "Get a released batch", description = "Unreleased batches give a 404.")
     @GetMapping("/{id}")
     public ResponseEntity<PublicBatchResponse> getBatch(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.findByIdPublic(id));

@@ -59,11 +59,9 @@ public class OauthController {
     private final OauthStateService stateService;
     private final OauthProperties oauthProperties;
 
-    @Operation(summary = "Start signing in", description = "Kicks off the sign in dance with one of discord, beatleader or "
-            + "steam. Send the browser here rather than calling it with fetch, because it answers with a redirect off to the "
-            + "provider. returnTo is where we send the player back afterwards and has to be one of our own domains. If you are "
-            + "already signed in when you hit this, the new provider gets attached to your existing account instead of making "
-            + "a second one.")
+    @Operation(summary = "Start sign in", description = "Send the browser here with discord, beatleader or steam. "
+            + "It redirects. returnTo must be one of our domains. If you are signed in, the provider links to your "
+            + "account.")
     @GetMapping("/{provider}/start")
     public ResponseEntity<Void> start(
             @PathVariable String provider,
@@ -84,8 +82,7 @@ public class OauthController {
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(authorizeUrl)).build();
     }
 
-    @Operation(summary = "Discord sign in callback", description = "Where Discord sends the player back to. You do not call "
-            + "this yourself, the browser lands on it and gets redirected on to whatever returnTo you set at the start.")
+    @Operation(summary = "Discord callback")
     @GetMapping("/discord/callback")
     public ResponseEntity<Void> discordCallback(@RequestParam String code, @RequestParam String state) {
         StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_DISCORD);
@@ -102,8 +99,7 @@ public class OauthController {
         }
     }
 
-    @Operation(summary = "BeatLeader sign in callback", description = "The same idea as the Discord one, for players coming "
-            + "back from BeatLeader.")
+    @Operation(summary = "BeatLeader callback")
     @GetMapping("/beatleader/callback")
     public ResponseEntity<Void> beatLeaderCallback(@RequestParam String code, @RequestParam String state) {
         StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_BEATLEADER);
@@ -116,9 +112,7 @@ public class OauthController {
         }
     }
 
-    @Operation(summary = "Steam sign in callback", description = "Where Steam sends the player back to. Steam uses OpenID "
-            + "rather than OAuth so the parameters on the way in look different, but from your side it behaves the same as the "
-            + "other two.")
+    @Operation(summary = "Steam callback")
     @GetMapping("/steam/callback")
     public ResponseEntity<Void> steamCallback(@RequestParam("state") String state, HttpServletRequest request) {
         StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_STEAM);
@@ -131,12 +125,9 @@ public class OauthController {
         }
     }
 
-    @Operation(summary = "Sign in from inside the game", description = "How the game plugin authenticates, since it has no "
-            + "browser to run a redirect flow in. It hands over a platform ticket from Steam or Oculus and gets a player token "
-            + "back. Tokens minted here are the only ones allowed to submit scores, so a token from the website will be turned "
-            + "away by the submit route. The answer also carries roles, every staff role the player holds, so a build of the "
-            + "plugin can show staff only options. It is a hint for the interface and nothing more, the roles it lists do not "
-            + "grant the token any extra power on its own.")
+    @Operation(summary = "In-game sign in", description = "The plugin sends a Steam or Oculus ticket "
+            + "and gets a player token. Only these tokens can submit scores. roles lists staff roles for the UI "
+            + "and grants nothing.")
     @PostMapping("/ingame")
     public ResponseEntity<PlayerAuthResponse> ingame(@Valid @RequestBody IngameAuthRequest request) {
         if (!INGAME_TICKET_PROVIDERS.contains(request.getProvider())) {
@@ -145,31 +136,28 @@ public class OauthController {
         return ResponseEntity.ok(oauthService.handleIngameTicket(request.getProvider(), request.getTicket()));
     }
 
-    @Operation(summary = "Refresh your session", description = "Trade a refresh token for a fresh access token so the player "
-            + "does not have to sign in again. Worth doing before the old one expires rather than waiting for a 401.")
+    @Operation(summary = "Refresh your token", description = "Swap a refresh token for a new access token. Do it "
+            + "before expiry instead of waiting for a 401.")
     @PostMapping("/refresh")
     public ResponseEntity<PlayerAuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(oauthService.refresh(request.getRefreshToken()));
     }
 
-    @Operation(summary = "Log out", description = "Ends the current session and invalidates its refresh token.")
+    @Operation(summary = "Log out", description = "Also kills the refresh token.")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         oauthService.logout(request.getRefreshToken());
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Find out who you are", description = "Tells you which player the token belongs to, along with the "
-            + "providers connected to the account and any staff roles they carry. Handy right after a sign in to work out who "
-            + "just came back.")
+    @Operation(summary = "Who am I", description = "Your player, linked providers and staff roles.")
     @GetMapping("/me")
     public ResponseEntity<AuthMeResponse> me(@AuthenticationPrincipal PlayerUserDetails principal) {
         PlayerUserDetails player = requirePrincipal(principal);
         return ResponseEntity.ok(oauthService.getMe(player.getUserId(), player.getStaffId()));
     }
 
-    @Operation(summary = "Disconnect a provider", description = "Detaches one of discord, beatleader or steam from your "
-            + "account. You cannot remove the last one, since that would leave nothing to sign in with.")
+    @Operation(summary = "Unlink a provider", description = "You cannot remove your last one.")
     @DeleteMapping("/connections/{provider}")
     public ResponseEntity<Void> removeConnection(
             @PathVariable String provider,

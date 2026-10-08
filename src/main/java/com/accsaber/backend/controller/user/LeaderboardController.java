@@ -37,12 +37,9 @@ public class LeaderboardController {
         private final UserRelationService userRelationService;
         private final CategoryService categoryService;
 
-        @Operation(summary = "Get a leaderboard", description = "Everyone ranked in a category, best first. Address the category by "
-                        + "UUID or by code, so /v1/leaderboards/true_acc is fine. Pass country with a two letter code like ES or GB to get "
-                        + "that country's board instead, which is ranked on country position rather than global, so someone sitting 400th "
-                        + "overall can still be first at home. You can also search by player name, filter to one headset, drop inactive "
-                        + "players with inactiveUsers=false, or pass a relation to see only the people you follow, which needs a logged in "
-                        + "token. These pages are cached for a few minutes, so a fresh score will not appear the second it lands.")
+        @Operation(summary = "Get a leaderboard", description = "Category UUID or code, like true_acc. country takes "
+                + "a two letter code and ranks by country position. Filters: name, headset, inactiveUsers=false, "
+                + "relation which needs a login.")
         @GetMapping("/{category}")
         public ResponseEntity<Page<LeaderboardResponse>> getBoard(
                         @PathVariable String category,
@@ -65,9 +62,7 @@ public class LeaderboardController {
                                 leaderboardService.getBoard(categoryId, country, search, hmd, inactiveUsers, pageable));
         }
 
-        @Operation(summary = "Get the XP leaderboard", description = "Players ranked by total XP rather than AP, which rewards "
-                        + "getting through milestones and campaigns as much as raw accuracy. Takes the same country, name, headset, "
-                        + "inactive and relation filters as the others.")
+        @Operation(summary = "XP leaderboard", description = "Same filters as the other leaderboards.")
         @GetMapping("/xp")
         public ResponseEntity<Page<XpLeaderboardResponse>> getXpLeaderboard(
                         @RequestParam(required = false) String country,

@@ -31,12 +31,9 @@ public class CommunityMissionController {
 
     private final SharedMissionService sharedMissionService;
 
-    @Operation(summary = "List community missions",
-            description = "Missions the whole playerbase chips away at together, so the progress on one is everybody's "
-                    + "put together rather than yours alone. Running ones by default; pass active=false to include the "
-                    + "finished ones too. Pass eventId to narrow it to one event's, and note those only count plays from "
-                    + "people who joined that event. If you are signed in you also get yourContribution on each, which is "
-                    + "your own share of the bar in the same units the bar is measured in.")
+    @Operation(summary = "Community missions",
+            description = "Running ones by default. Pass active=false for finished ones too. Event missions only "
+                    + "count plays from event joiners. Signed in, you get yourContribution.")
     @GetMapping
     public ResponseEntity<List<MissionResponse>> list(
             @AuthenticationPrincipal PlayerUserDetails principal,
@@ -45,9 +42,8 @@ public class CommunityMissionController {
         return ResponseEntity.ok(sharedMissionService.list(eventId, active, viewerId(principal)));
     }
 
-    @Operation(summary = "Get one community mission",
-            description = "A single community mission with where the whole community has got to on it, plus your own "
-                    + "share when you are signed in.")
+    @Operation(summary = "Get a community mission",
+            description = "Has your own share when you are signed in.")
     @GetMapping("/{id}")
     public ResponseEntity<MissionResponse> get(
             @AuthenticationPrincipal PlayerUserDetails principal,
@@ -55,10 +51,8 @@ public class CommunityMissionController {
         return ResponseEntity.ok(sharedMissionService.get(id, viewerId(principal)));
     }
 
-    @Operation(summary = "List who contributed to a community mission",
-            description = "Everyone who put something into this one, biggest contribution first, with ties broken by who "
-                    + "got there earliest. Once the mission is done, rewardedAt tells you whether that player has been "
-                    + "paid out yet.")
+    @Operation(summary = "Mission contributors",
+            description = "Biggest first, ties by who got there first. rewardedAt shows if they got paid.")
     @GetMapping("/{id}/contributors")
     public ResponseEntity<Page<MissionContributorResponse>> contributors(@PathVariable UUID id,
             @PageableDefault(size = 20) Pageable pageable) {

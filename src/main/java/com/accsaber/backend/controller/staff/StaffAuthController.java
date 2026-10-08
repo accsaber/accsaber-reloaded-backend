@@ -31,7 +31,7 @@ public class StaffAuthController {
     private final StaffAuthService staffAuthService;
     private final StaffUserService staffUserService;
 
-    @Operation(summary = "Request staff access")
+    @Operation(summary = "Ask for staff access")
     @PostMapping("/request")
     @PreAuthorize("hasRole('PLAYER')")
     public ResponseEntity<Void> requestAccess(
@@ -44,13 +44,13 @@ public class StaffAuthController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Log in as staff")
+    @Operation(summary = "Staff login")
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(staffAuthService.login(request));
     }
 
-    @Operation(summary = "Refresh access token")
+    @Operation(summary = "Refresh your token")
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(staffAuthService.refresh(request));

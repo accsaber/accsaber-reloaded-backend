@@ -40,7 +40,7 @@ public class RankingMapController {
     private final MapImportService mapImportService;
     private final LeaderboardPreviewService leaderboardPreviewService;
 
-    @Operation(summary = "List maps (staff)", description = "Full map list including complexity, submitter, and vote breakdowns")
+    @Operation(summary = "List maps (staff)", description = "Has complexity, submitter and vote breakdowns.")
     @GetMapping
     public ResponseEntity<Page<MapResponse>> listMaps(
             @RequestParam(required = false) UUID categoryId,
@@ -50,7 +50,8 @@ public class RankingMapController {
         return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
     }
 
-    @Operation(summary = "Run the complexity script on one difficulty", description = "The complexity the script gives an active difficulty identified by song hash, difficulty and characteristic, priced the way import prices it: the chart line from the map's notes, plus the leaderboard term once the map is ranked and has a board. Any status works, so the queue and the qualified maps get the same number they would get on import. Null when the model could not read the map. The version says which build of the script priced it.")
+    @Operation(summary = "Score one difficulty with the script", description = "Looks up by song hash, "
+            + "difficulty and characteristic. Works on any status. Null when the model could not read the map.")
     @GetMapping("/difficulties/ai-complexity")
     public ResponseEntity<ComplexityEstimateResponse> complexityEstimate(
             @RequestParam String songHash,
@@ -59,7 +60,9 @@ public class RankingMapController {
         return ResponseEntity.ok(mapImportService.estimateForDifficulty(songHash, difficulty, characteristic));
     }
 
-    @Operation(summary = "Preview a difficulty's leaderboard priced our way", description = "Fetches the difficulty's BeatLeader and ScoreSaber boards live, drops plays with banned modifiers, keeps one play per player with BeatLeader winning, and prices every play with our curve at the complexity the map carries today, or at the script's estimate when the map has none yet. Nothing is stored, so a queue map's scores stay invisible to milestones and statistics until it is ranked. Players we know come back with their AccSaber name and avatar, the rest with what the platform sent. The limit caps the rows and how deep the boards are read, 500 at most.")
+    @Operation(summary = "Preview a live leaderboard with our AP", description = "Pulls BeatLeader and "
+            + "ScoreSaber live and prices plays at the current or script complexity. Nothing is stored. limit caps "
+            + "rows, 500 max.")
     @GetMapping("/difficulties/{mapDifficultyId}/leaderboard-preview")
     public ResponseEntity<LeaderboardPreviewResponse> leaderboardPreview(
             @PathVariable UUID mapDifficultyId,
@@ -67,11 +70,8 @@ public class RankingMapController {
         return ResponseEntity.ok(leaderboardPreviewService.preview(mapDifficultyId, limit));
     }
 
-    @Operation(summary = "List difficulties (staff)", description = "Full difficulty list including complexity, submitter, and "
-            + "all vote breakdowns. The status filter accepts multiple values (e.g. status=QUEUE,QUALIFIED). Pass batchId to "
-            + "scope the list to a single batch (e.g. status=RANKED&batchId=... for the reweight queue of one batch). Pass "
-            + "active=false to see difficulties that have been removed from the ranking system instead of the live ones, which "
-            + "is usually paired with sort=updatedAt,desc to get the most recently removed first.")
+    @Operation(summary = "List difficulties (staff)", description = "status takes several values, like "
+            + "status=QUEUE,QUALIFIED. batchId scopes to one batch. active=false shows removed difficulties.")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<MapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) UUID categoryId,
@@ -86,19 +86,19 @@ public class RankingMapController {
                 search, null, active, pageable));
     }
 
-    @Operation(summary = "Get difficulty by ID (staff)")
+    @Operation(summary = "Get a difficulty (staff)")
     @GetMapping("/difficulties/{difficultyId}")
     public ResponseEntity<MapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
         return ResponseEntity.ok(mapService.getDifficultyResponse(difficultyId));
     }
 
-    @Operation(summary = "Get map by ID (staff)")
+    @Operation(summary = "Get a map (staff)")
     @GetMapping("/{mapId}")
     public ResponseEntity<MapResponse> getMap(@PathVariable UUID mapId) {
         return ResponseEntity.ok(mapService.findById(mapId));
     }
 
-    @Operation(summary = "Get map by song hash (staff)")
+    @Operation(summary = "Find a map by song hash")
     @GetMapping("/hash/{songHash}")
     public ResponseEntity<MapResponse> getMapBySongHash(
             @PathVariable String songHash,
@@ -106,7 +106,7 @@ public class RankingMapController {
         return ResponseEntity.ok(mapService.findBySongHash(songHash, difficulty));
     }
 
-    @Operation(summary = "Get map by BeatSaver code (staff)")
+    @Operation(summary = "Find a map by BeatSaver code")
     @GetMapping("/by-code/{beatsaverCode}")
     public ResponseEntity<MapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,
@@ -115,7 +115,7 @@ public class RankingMapController {
         return ResponseEntity.ok(mapService.findByBeatsaverCode(beatsaverCode, difficulty, characteristic));
     }
 
-    @Operation(summary = "List difficulties for a map (staff)")
+    @Operation(summary = "A map's difficulties (staff)")
     @GetMapping("/{mapId}/difficulties")
     public ResponseEntity<List<MapDifficultyResponse>> listMapDifficulties(@PathVariable UUID mapId) {
         return ResponseEntity.ok(mapService.findDifficultiesByMapId(mapId));

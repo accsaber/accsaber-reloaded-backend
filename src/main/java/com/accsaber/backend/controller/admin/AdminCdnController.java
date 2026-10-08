@@ -21,7 +21,7 @@ public class AdminCdnController {
 
     private final MediaProcessingService mediaProcessingService;
 
-    @Operation(summary = "chmod every file under the CDN storage path to rw-r--r-- (and dirs to rwxr-xr-x)")
+    @Operation(summary = "Fix CDN file perms")
     @PostMapping("/repair-permissions")
     public ResponseEntity<Integer> repairPermissions() {
         return ResponseEntity.ok(mediaProcessingService.repairAllPermissions());

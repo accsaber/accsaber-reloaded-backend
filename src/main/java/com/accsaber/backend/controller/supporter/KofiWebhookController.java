@@ -36,7 +36,8 @@ public class KofiWebhookController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Operation(summary = "Ko-fi webhook", description = "Where Ko-fi posts donation and subscription events. Not something you call yourself. It authenticates on the verification token inside the payload rather than on a bearer token, which is why it sits outside the normal auth.")
+    @Operation(summary = "Ko-fi webhook", description = "For Ko-fi only. Auth is the verification token in the "
+            + "payload.")
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public ResponseEntity<Map<String, Object>> receive(@RequestParam("data") String data) {
         if (expectedToken == null || expectedToken.isBlank()) {

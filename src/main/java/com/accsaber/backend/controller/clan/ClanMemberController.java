@@ -42,11 +42,9 @@ public class ClanMemberController {
     private final ClanMembershipService membershipService;
     private final ClanJoinRequestService joinRequestService;
 
-    @Operation(summary = "List a clan's members",
-            description = "Founder first, then commanders, officers and members, each rank ordered by who joined "
-                    + "earliest. Each player carries membership: online is whether they have the site open right now, "
-                    + "lastPlayedAt is their newest score, strengthShare their share of the clan strength, and the "
-                    + "season fields what they brought the clan this season.")
+    @Operation(summary = "Clan members",
+            description = "Founder first, then by rank, earliest joins first. online means the site is open right "
+                    + "now, lastPlayedAt is their newest score.")
     @GetMapping("/{clanId}/members")
     public ResponseEntity<Page<PlayerRef>> members(
             @PathVariable UUID clanId,
@@ -54,9 +52,9 @@ public class ClanMemberController {
         return ResponseEntity.ok(membershipService.roster(clanId, pageable));
     }
 
-    @Operation(summary = "Change a member's rank",
-            description = "Commanders move members to and from officer, the founder handles commanders. You can only "
-                    + "change someone ranked below you, and officer and commander slots come from the clan level.")
+    @Operation(summary = "Promote or demote someone",
+            description = "Commanders handle officers, the founder handles commanders. You can only change lower "
+                    + "ranks. Slots come from the clan level.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/members/{userId}")
     public ResponseEntity<PlayerRef> changeRole(
@@ -68,10 +66,9 @@ public class ClanMemberController {
                 request.getRole()));
     }
 
-    @Operation(summary = "Leave a clan or kick a member",
-            description = "Pass your own user id to leave. Anyone else's id is a kick, which needs officer or above "
-                    + "and a rank over the player being kicked. A kick clears that player's join cooldown. A founder "
-                    + "has to hand the clan over before leaving, unless they are the last one in it.")
+    @Operation(summary = "Leave or kick someone",
+            description = "Your own user ID leaves, anyone else's kicks. Kicks need officer or above and a higher "
+                    + "rank. Founders hand the clan over first unless they are the last one.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{clanId}/members/{userId}")
     public ResponseEntity<Void> remove(
@@ -82,10 +79,10 @@ public class ClanMemberController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Hand over or claim the clan",
-            description = "The founder passes the clan to another member, and the two swap ranks. Sending your own "
-                    + "user id is a claim instead, which only the longest serving commander can make, and only once "
-                    + "the founder has gone a year without submitting a single score, PB or not.")
+    @Operation(summary = "Hand over or claim a clan",
+            description = "The founder gives the clan to a member and they swap ranks. Your own user ID claims it "
+                    + "instead. Only the longest serving commander can, once the founder has gone a year with zero "
+                    + "scores.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/founder")
     public ResponseEntity<PlayerRef> transferFounder(
@@ -96,9 +93,8 @@ public class ClanMemberController {
                 Long.valueOf(request.getUserId())));
     }
 
-    @Operation(summary = "Ask to join or invite a player",
-            description = "Leave userId out to ask to join this clan yourself. Send a userId to invite that player, "
-                    + "which needs officer or above.")
+    @Operation(summary = "Join or invite",
+            description = "No userId asks to join yourself. A userId invites that player, officer and up.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{clanId}/join-requests")
     public ResponseEntity<ClanJoinRequestResponse> createJoinRequest(
@@ -110,8 +106,8 @@ public class ClanMemberController {
                 .body(joinRequestService.create(clanId, principal.getUserId(), invitedUserId));
     }
 
-    @Operation(summary = "List a clan's pending join requests",
-            description = "Officer or above. Both the requests players sent in and the invites the clan sent out.")
+    @Operation(summary = "Clan's pending requests",
+            description = "Officer and up. Has incoming requests and outgoing invites.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/join-requests")
     public ResponseEntity<Page<ClanJoinRequestResponse>> clanJoinRequests(
@@ -121,8 +117,8 @@ public class ClanMemberController {
         return ResponseEntity.ok(joinRequestService.forClan(clanId, principal.getUserId(), pageable));
     }
 
-    @Operation(summary = "List your pending join requests",
-            description = "Invites waiting for your answer and the requests you sent that nobody has answered yet.")
+    @Operation(summary = "Your pending requests",
+            description = "Invites waiting on you and your unanswered requests.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/join-requests")
     public ResponseEntity<Page<ClanJoinRequestResponse>> myJoinRequests(
@@ -132,9 +128,8 @@ public class ClanMemberController {
     }
 
     @Operation(summary = "Answer a join request",
-            description = "accepted or declined answers it, cancelled withdraws it. The invited player answers an "
-                    + "invite and an officer answers a request. The player who asked cancels their own request, and "
-                    + "an officer cancels an invite.")
+            description = "accepted or declined answers it, cancelled withdraws it. The player answers an invite, an "
+                    + "officer answers a request. You cancel your own request, an officer cancels an invite.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/join-requests/{requestId}")
     public ResponseEntity<ClanJoinRequestResponse> resolveJoinRequest(

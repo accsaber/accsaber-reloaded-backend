@@ -31,22 +31,21 @@ public class ClanSeasonController {
     private final ClanSeasonService seasonService;
     private final ClanStandingService standingService;
 
-    @Operation(summary = "List clan seasons", description = "Every season, newest first. closedAt is set once a season has paid out.")
+    @Operation(summary = "List clan seasons", description = "Newest first. closedAt is set once a season has paid "
+            + "out.")
     @GetMapping("/seasons")
     public ResponseEntity<Page<ClanSeasonResponse>> seasons(@PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(seasonService.list(pageable));
     }
 
-    @Operation(summary = "Get a clan season", description = "By slug or id, or pass current for the season running now.")
+    @Operation(summary = "Get a clan season", description = "By slug or id. Pass current for the season running now.")
     @GetMapping("/seasons/{slugOrId}")
     public ResponseEntity<ClanSeasonResponse> season(@PathVariable String slugOrId) {
         return ResponseEntity.ok(seasonService.get(slugOrId));
     }
 
-    @Operation(summary = "Rank clans by Standing for a season",
-            description = "Standing is base plus earned. Base comes from the roster and from allies that have fought "
-                    + "this season, and earned is what wars and missions added. A running season ranks live, and a "
-                    + "closed one reads the final table it was frozen with.")
+    @Operation(summary = "Season Standing leaderboard",
+            description = "Standing is base plus earned. Running seasons rank live. Closed ones show the final table.")
     @GetMapping("/seasons/{slugOrId}/standings")
     public ResponseEntity<Page<ClanStandingResponse>> standings(
             @PathVariable String slugOrId,
@@ -54,8 +53,8 @@ public class ClanSeasonController {
         return ResponseEntity.ok(seasonService.standings(slugOrId, pageable));
     }
 
-    @Operation(summary = "Get a clan's Standing",
-            description = "The clan's rank and Standing for a season, the current one unless you pass season.")
+    @Operation(summary = "A clan's Standing",
+            description = "Current season unless you pass season.")
     @GetMapping("/{clanId}/standing")
     public ResponseEntity<ClanStandingResponse> standing(
             @PathVariable UUID clanId,
@@ -63,8 +62,8 @@ public class ClanSeasonController {
         return ResponseEntity.ok(standingService.standingOf(clanId, season));
     }
 
-    @Operation(summary = "List a clan's Standing events",
-            description = "Every change to the clan's earned Standing in a season, newest first.")
+    @Operation(summary = "Clan Standing history",
+            description = "Every earned Standing change in a season, newest first.")
     @GetMapping("/{clanId}/standing/events")
     public ResponseEntity<Page<ClanStandingEventResponse>> standingEvents(
             @PathVariable UUID clanId,

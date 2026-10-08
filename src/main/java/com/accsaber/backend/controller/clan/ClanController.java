@@ -50,7 +50,7 @@ public class ClanController {
     private final CdnProperties cdn;
 
     @Operation(summary = "List clans",
-            description = "Every active clan, searchable by name or tag. Sort by name, createdAt, level or members.")
+            description = "Search by name or tag. Sort by name, createdAt, level or members.")
     @GetMapping
     public ResponseEntity<Page<ClanResponse>> list(
             @RequestParam(required = false) String search,
@@ -58,9 +58,8 @@ public class ClanController {
         return ResponseEntity.ok(clanService.list(search, pageable));
     }
 
-    @Operation(summary = "Create a clan",
-            description = "Founds a clan with you as its founder. You have to be clanless and past your join "
-                    + "cooldown, and the name and tag have to be free among active clans.")
+    @Operation(summary = "Start a clan",
+            description = "You need to be clanless and past your join cooldown. Name and tag must be free.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping
     public ResponseEntity<ClanResponse> create(
@@ -69,14 +68,14 @@ public class ClanController {
         return ResponseEntity.status(HttpStatus.CREATED).body(clanService.create(principal.getUserId(), request));
     }
 
-    @Operation(summary = "Get a clan", description = "Looks a clan up by its slug or its id.")
+    @Operation(summary = "Get a clan", description = "Slug or id both work.")
     @GetMapping("/{slugOrId}")
     public ResponseEntity<ClanResponse> get(@PathVariable String slugOrId) {
         return ResponseEntity.ok(clanService.get(slugOrId));
     }
 
-    @Operation(summary = "Update a clan",
-            description = "Founder only. Send just the fields you want to change. Renaming the clan also moves its slug.")
+    @Operation(summary = "Edit your clan",
+            description = "Founder only. Send only what changes. Renaming moves the slug.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}")
     public ResponseEntity<ClanResponse> update(
@@ -87,8 +86,7 @@ public class ClanController {
     }
 
     @Operation(summary = "Upload the clan icon",
-            description = "Founder only, from the day the clan is founded. Send a square image; it is stored at "
-                    + "avatar size. Use the URL that comes back, since it changes on every upload.")
+            description = "Founder only. Send a square image. Use the returned URL. It changes on every upload.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/{clanId}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ClanResponse> uploadIcon(
@@ -113,8 +111,7 @@ public class ClanController {
     }
 
     @Operation(summary = "Disband a clan",
-            description = "Founder only. Every member leaves with no join cooldown, pending requests expire, and the "
-                    + "name, tag and slug become free again. The clan and its history stay on record.")
+            description = "Founder only. Members leave with no cooldown. Name, tag and slug free up.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{clanId}")
     public ResponseEntity<Void> disband(
@@ -124,8 +121,8 @@ public class ClanController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Read a clan's audit log",
-            description = "Members only. Every rank change, kick, founder handover and profile edit, newest first.")
+    @Operation(summary = "Clan audit log",
+            description = "Members only. Newest first.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/audit")
     public ResponseEntity<Page<ClanAuditEntryResponse>> audit(

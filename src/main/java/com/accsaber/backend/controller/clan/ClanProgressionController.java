@@ -41,24 +41,24 @@ public class ClanProgressionController {
     private final ClanLevelService levelService;
     private final ClanCosmeticService cosmeticService;
 
-    @Operation(summary = "List what every clan level unlocks",
-            description = "One step per level that unlocks something, with the total clan XP needed to reach it. "
-                    + "Capacities on a step are what that level adds on top of the levels before it.")
+    @Operation(summary = "Clan level unlocks",
+            description = "One step per level that unlocks something, with total clan XP needed. Capacities stack on "
+                    + "top of lower levels.")
     @GetMapping("/levels")
     public ResponseEntity<List<ClanLevelStepResponse>> levels() {
         return ResponseEntity.ok(levelService.table());
     }
 
     @Operation(summary = "Get a clan's level",
-            description = "Progress through the current level, plus everything unlocked so far added together.")
+            description = "Progress in the current level plus every unlock so far.")
     @GetMapping("/{clanId}/level")
     public ResponseEntity<ClanLevelResponse> level(@PathVariable UUID clanId) {
         return ResponseEntity.ok(levelService.level(clanId));
     }
 
-    @Operation(summary = "List a clan's XP history",
-            description = "Every XP grant the clan banked, newest first. rawAmount is what the source paid, and amount "
-                    + "is what landed after dividing by the roster factor at the time.")
+    @Operation(summary = "Clan XP history",
+            description = "Newest first. rawAmount is what the source gave, amount is what landed after the roster "
+                    + "factor.")
     @GetMapping("/{clanId}/xp")
     public ResponseEntity<Page<ClanXpGrantResponse>> xp(
             @PathVariable UUID clanId,
@@ -66,7 +66,7 @@ public class ClanProgressionController {
         return ResponseEntity.ok(levelService.xpHistory(clanId, pageable));
     }
 
-    @Operation(summary = "List a clan's cosmetics", description = "Every cosmetic the clan owns and whether it is equipped.")
+    @Operation(summary = "List clan cosmetics")
     @GetMapping("/{clanId}/items")
     public ResponseEntity<Page<ClanItemResponse>> items(
             @PathVariable UUID clanId,
@@ -75,9 +75,8 @@ public class ClanProgressionController {
     }
 
     @Operation(summary = "Equip a clan cosmetic",
-            description = "Founder only. Puts an owned cosmetic in the slot for its type, replacing whatever was there, "
-                    + "in the given variant when the item has variants, and returns everything the clan now has "
-                    + "equipped.")
+            description = "Founder only. Replaces whatever is in that slot. Pass a variant if the item has variants. "
+                    + "Returns everything equipped.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/{clanId}/equipped")
     public ResponseEntity<List<ItemResponse>> equip(
@@ -88,7 +87,7 @@ public class ClanProgressionController {
                 request.getVariantKey()));
     }
 
-    @Operation(summary = "Clear a clan cosmetic slot", description = "Founder only. Empties the slot for that item type key.")
+    @Operation(summary = "Clear a cosmetic slot", description = "Founder only.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{clanId}/equipped/{itemTypeKey}")
     public ResponseEntity<Void> unequip(

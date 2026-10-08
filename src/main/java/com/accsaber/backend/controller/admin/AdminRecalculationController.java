@@ -29,7 +29,7 @@ public class AdminRecalculationController {
     private final StatisticsService statisticsService;
     private final SkillService skillService;
 
-    @Operation(summary = "Recalculate a player's statistics for a category")
+    @Operation(summary = "Recalc a player's category stats")
     @PostMapping("/stats/player/{userId}")
     public ResponseEntity<Void> recalculatePlayer(@PathVariable Long userId,
             @RequestParam UUID categoryId) {
@@ -38,8 +38,8 @@ public class AdminRecalculationController {
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Remove a wrongly-attributed score",
-            description = "Deactivates a user's active score on a map difficulty, reverses XP, and recalculates rankings/stats.")
+    @Operation(summary = "Remove a misattributed score",
+            description = "Deactivates the score, takes back the XP and recalculates rankings and stats.")
     @PostMapping("/scores/remove")
     public ResponseEntity<Void> removeScore(@RequestParam Long userId,
             @RequestParam UUID mapDifficultyId,

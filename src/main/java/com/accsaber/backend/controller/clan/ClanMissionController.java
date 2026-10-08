@@ -30,11 +30,9 @@ public class ClanMissionController {
 
     private final ClanMissionService missionService;
 
-    @Operation(summary = "List a clan's missions",
-            description = "This week's missions by default, newest first. Pass current=false for the clan's finished "
-                    + "missions. A counter mission fills with whatever the members put in. A skill mission hands every "
-                    + "member their own target, and its bar counts how many of them cleared theirs, which you find "
-                    + "under your own missions with pool=clan. Signed in, yourContribution is your share of the bar.")
+    @Operation(summary = "Clan missions",
+            description = "This week by default. current=false for finished ones. Skill mission targets are per "
+                    + "member, find yours under your missions with pool=clan.")
     @GetMapping("/{clanId}/missions")
     public ResponseEntity<Page<MissionResponse>> missions(
             @AuthenticationPrincipal PlayerUserDetails principal,
@@ -45,9 +43,8 @@ public class ClanMissionController {
                 principal != null ? principal.getUserId() : null, pageable));
     }
 
-    @Operation(summary = "List who contributed to a clan mission",
-            description = "Biggest contribution first, ties going to whoever got there earliest. That is also the order "
-                    + "reward items go out in once the mission is done.")
+    @Operation(summary = "Mission contributors",
+            description = "Biggest first, ties to whoever got there first. Reward items go out in this order.")
     @GetMapping("/{clanId}/missions/{missionId}/contributors")
     public ResponseEntity<Page<MissionContributorResponse>> contributors(
             @PathVariable UUID clanId,

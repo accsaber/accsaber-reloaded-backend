@@ -32,14 +32,9 @@ public class CampaignStatisticsController {
 
     private final CampaignStatisticsService campaignStatisticsService;
 
-    @Operation(summary = "Campaign funnel", description = "Per campaign, how many people started it, how many are still "
-            + "going, how many finished and how many walked away, plus the median days a finisher took. Set "
-            + "minParticipants to keep out campaigns two people ever touched, since those otherwise sit at 100% or 0% and "
-            + "crowd out anything real. "
-            + "status takes several values at once out of published, editing, curated, loved and official, and picking "
-            + "more than one widens the result, so curated and loved together means either of them. Drafts never appear. "
-            + "country counts only the participants from that country, and a campaign nobody there has touched drops to "
-            + "zero rather than disappearing.")
+    @Operation(summary = "Campaign funnel", description = "Started, ongoing, finished and dropped per campaign, plus "
+            + "median days to finish. status matches any of the ones you pass. minParticipants hides tiny "
+            + "campaigns.")
     @GetMapping("/funnel")
     public ResponseEntity<Page<CampaignFunnelResponse>> getFunnel(
             @RequestParam(required = false) List<String> status,
@@ -50,10 +45,8 @@ public class CampaignStatisticsController {
                 new CampaignStatsFilter(status, country, minParticipants), pageable));
     }
 
-    @Operation(summary = "Which nodes stop people", description = "Every node of one campaign with how many players got "
-            + "it unlocked against how many actually cleared it, hardest first. Unlocked means their prerequisite chain "
-            + "was done, so a node with a hundred people sitting on it and four clears is the wall the campaign runs "
-            + "into. Barriers are included, since a barrier nobody gets past is the same problem.")
+    @Operation(summary = "Where players get stuck", description = "Unlocks against clears per node, hardest first. "
+            + "Barriers included.")
     @GetMapping("/hardest-nodes")
     public ResponseEntity<List<CampaignNodeDifficultyResponse>> getHardestNodes(
             @RequestParam UUID campaignId,
@@ -61,8 +54,8 @@ public class CampaignStatisticsController {
         return ResponseEntity.ok(campaignStatisticsService.getNodeDifficulty(campaignId, country));
     }
 
-    @Operation(summary = "Campaigns started per day", description = "How many people picked up a campaign on each day of "
-            + "a range. Unit is h for hours, d for days, w for weeks or mo for months, and amount is how many to go back.")
+    @Operation(summary = "Campaigns started per day", description = "unit is h, d, w or mo. amount is how many to go "
+            + "back.")
     @GetMapping("/charts/starts-per-day")
     public ResponseEntity<List<TimeSeriesPointResponse>> getStartsPerDay(
             @RequestParam(defaultValue = "30") int amount,
@@ -73,8 +66,7 @@ public class CampaignStatisticsController {
                 new CampaignStatsFilter(status, country, 0)));
     }
 
-    @Operation(summary = "Campaigns finished per day", description = "How many campaign runs were completed on each day "
-            + "of a range. Unit is h for hours, d for days, w for weeks or mo for months.")
+    @Operation(summary = "Campaigns finished per day", description = "unit is h, d, w or mo.")
     @GetMapping("/charts/completions-per-day")
     public ResponseEntity<List<TimeSeriesPointResponse>> getCompletionsPerDay(
             @RequestParam(defaultValue = "30") int amount,
@@ -85,8 +77,7 @@ public class CampaignStatisticsController {
                 new CampaignStatsFilter(status, country, 0)));
     }
 
-    @Operation(summary = "Most campaigns completed", description = "Players ranked by finished campaigns, with the nodes "
-            + "they have cleared and their campaign XP alongside.")
+    @Operation(summary = "Most campaigns completed", description = "Also shows cleared nodes and campaign XP.")
     @GetMapping("/leaderboards/most-completed")
     public ResponseEntity<Page<CampaignCompletorResponse>> getMostCompleted(
             @RequestParam(required = false) List<String> status,
@@ -96,9 +87,8 @@ public class CampaignStatisticsController {
                 new CampaignStatsFilter(status, country, 0), pageable));
     }
 
-    @Operation(summary = "Campaign creators by reach", description = "Whoever built the campaigns, ranked by how many "
-            + "people have played them and how many got to the end. Drafts do not count, and neither do official "
-            + "campaigns.")
+    @Operation(summary = "Top campaign creators", description = "Ranked by players and finishers. Drafts and "
+            + "official campaigns do not count.")
     @GetMapping("/leaderboards/top-creators")
     public ResponseEntity<Page<CampaignCreatorResponse>> getTopCreators(
             @RequestParam(required = false) List<String> status,

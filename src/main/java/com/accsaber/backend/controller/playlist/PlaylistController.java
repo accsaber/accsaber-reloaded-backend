@@ -50,106 +50,90 @@ public class PlaylistController {
         private final SnipeService snipeService;
         private final ClanWarPoolService clanWarPoolService;
 
-        @Operation(summary = "Download the playlist for a category", description = "Every ranked map in a category as a Beat "
-                        + "Saber playlist file. Drop it in your playlists folder or hand the URL to a mod manager, and the "
-                        + "syncURL inside it means it will keep itself up to date as more maps get ranked.")
+        @Operation(summary = "Category playlist", description = "Keeps itself up to date through "
+                + "its syncURL.")
         @GetMapping(value = "/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getPlaylistByPath(
-                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc)") @PathVariable String category) {
+                        @Parameter(description = "Category code, like true_acc") @PathVariable String category) {
                 return buildPlaylistResponse(category);
         }
 
-        @Operation(summary = "Download the maps a player is missing", description = "The same idea as the category playlist but "
-                        + "only the ranked maps the player has not scored on yet, so it shrinks as they work through it. Pass "
-                        + "overall as the category if you want every category rather than just one.")
+        @Operation(summary = "Unplayed ranked maps", description = "Pass overall for every category.")
         @GetMapping(value = "/missing/{userId}/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getMissingPlaylistByPath(
-                        @Parameter(description = "User ID of the player") @PathVariable Long userId,
-                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc, overall)") @PathVariable String category) {
+                        @Parameter(description = "Player user ID") @PathVariable Long userId,
+                        @Parameter(description = "Category code or overall") @PathVariable String category) {
                 return buildMissingPlaylistResponse(category, userId);
         }
 
-        @Operation(summary = "Download the queued and qualified maps", description = "Everything currently sitting in the queue "
-                        + "or qualified for a category, so the maps on their way to being ranked but not there yet. Worth "
-                        + "having if you like playing them before they start counting.")
+        @Operation(summary = "Queue and qualified maps")
         @GetMapping(value = "/unranked/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getUnrankedPlaylistByPath(
-                        @Parameter(description = "Category code (e.g. true_acc, standard_acc, tech_acc)") @PathVariable String category) {
+                        @Parameter(description = "Category code, like true_acc") @PathVariable String category) {
                 return buildUnrankedPlaylistResponse(category);
         }
 
-        @Operation(summary = "Download a snipe playlist", description = "Every map where the target player is ahead of you, "
-                        + "closest gap first, so the ones you have the best shot at taking back come up early. Pass sort if "
-                        + "you would rather order it by the AP going spare, by either player's AP or by the leaderboard gap, "
-                        + "and direction to flip any of those around. The playlist picture is the target's avatar. This form "
-                        + "gives you all of them across every category.")
+        @Operation(summary = "Snipe playlist", description = "Maps where the target beats you, closest "
+                + "gap first. Covers every category. Cover image is the target's avatar.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylist(
-                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
+                        @Parameter(description = "Your user ID") @PathVariable Long sniperId,
+                        @Parameter(description = "Target's user ID") @PathVariable Long targetId,
                         @Parameter(description = "GAP, AP_GAP, TARGET_AP, YOUR_AP or RANK_GAP") @RequestParam(defaultValue = "GAP") SnipeSort sort,
-                        @Parameter(description = "ASC or DESC; each sort has its own sensible default") @RequestParam(required = false) Sort.Direction direction,
-                        @Parameter(description = "EXCLUDE (only maps you have played), INCLUDE (add the ones you have not) or ONLY (just those)") @RequestParam(required = false) SnipeUnplayed unplayed) {
+                        @Parameter(description = "ASC or DESC, each sort has a default") @RequestParam(required = false) Sort.Direction direction,
+                        @Parameter(description = "EXCLUDE = played only, INCLUDE = add unplayed, ONLY = unplayed only") @RequestParam(required = false) SnipeUnplayed unplayed) {
                 return buildSnipePlaylistResponse(new SnipeQuery(sniperId, targetId, null, sort, direction, unplayed), 0);
         }
 
-        @Operation(summary = "Download a snipe playlist with a size cap", description = "The same snipe playlist but stopping "
-                        + "after however many maps you ask for, which keeps it manageable when the target is a long way ahead "
-                        + "of you. Pass 0 if you actually want all of them.")
+        @Operation(summary = "Capped snipe playlist", description = "Size 0 means no cap.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}/{size}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylistBySize(
-                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
-                        @Parameter(description = "Map count cap (0 = unlimited)") @PathVariable int size,
+                        @Parameter(description = "Your user ID") @PathVariable Long sniperId,
+                        @Parameter(description = "Target's user ID") @PathVariable Long targetId,
+                        @Parameter(description = "Max maps, 0 = no cap") @PathVariable int size,
                         @Parameter(description = "GAP, AP_GAP, TARGET_AP, YOUR_AP or RANK_GAP") @RequestParam(defaultValue = "GAP") SnipeSort sort,
-                        @Parameter(description = "ASC or DESC; each sort has its own sensible default") @RequestParam(required = false) Sort.Direction direction,
-                        @Parameter(description = "EXCLUDE (only maps you have played), INCLUDE (add the ones you have not) or ONLY (just those)") @RequestParam(required = false) SnipeUnplayed unplayed) {
+                        @Parameter(description = "ASC or DESC, each sort has a default") @RequestParam(required = false) Sort.Direction direction,
+                        @Parameter(description = "EXCLUDE = played only, INCLUDE = add unplayed, ONLY = unplayed only") @RequestParam(required = false) SnipeUnplayed unplayed) {
                 return buildSnipePlaylistResponse(new SnipeQuery(sniperId, targetId, null, sort, direction, unplayed), size);
         }
 
-        @Operation(summary = "Download a snipe playlist for one category", description = "A snipe playlist narrowed to a single "
-                        + "category, still capped by size. Pass 0 for size to lift the cap, and overall as the category if you "
-                        + "wanted every category after all.")
+        @Operation(summary = "Snipe one category", description = "Size 0 means no cap. "
+                + "Category overall means every category.")
         @GetMapping(value = "/snipe/{sniperId}/{targetId}/{size}/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getSnipePlaylistBySizeAndCategory(
-                        @Parameter(description = "User ID of the sniping player") @PathVariable Long sniperId,
-                        @Parameter(description = "User ID of the target player") @PathVariable Long targetId,
-                        @Parameter(description = "Map count cap (0 = unlimited)") @PathVariable int size,
+                        @Parameter(description = "Your user ID") @PathVariable Long sniperId,
+                        @Parameter(description = "Target's user ID") @PathVariable Long targetId,
+                        @Parameter(description = "Max maps, 0 = no cap") @PathVariable int size,
                         @Parameter(description = "Category code") @PathVariable String category,
                         @Parameter(description = "GAP, AP_GAP, TARGET_AP, YOUR_AP or RANK_GAP") @RequestParam(defaultValue = "GAP") SnipeSort sort,
-                        @Parameter(description = "ASC or DESC; each sort has its own sensible default") @RequestParam(required = false) Sort.Direction direction,
-                        @Parameter(description = "EXCLUDE (only maps you have played), INCLUDE (add the ones you have not) or ONLY (just those)") @RequestParam(required = false) SnipeUnplayed unplayed) {
+                        @Parameter(description = "ASC or DESC, each sort has a default") @RequestParam(required = false) Sort.Direction direction,
+                        @Parameter(description = "EXCLUDE = played only, INCLUDE = add unplayed, ONLY = unplayed only") @RequestParam(required = false) SnipeUnplayed unplayed) {
                 return buildSnipePlaylistResponse(new SnipeQuery(sniperId, targetId, category, sort, direction, unplayed),
                                 size);
         }
 
-        @Operation(summary = "Download a player's own scores as a playlist", description = "The maps behind a slice of a "
-                        + "player's score list, taking the same category, search, sorting and paging as the scores route "
-                        + "itself. Whatever the list is showing is what you get, so sort by accuracy ascending with a size of "
-                        + "25 and you have a playlist of the 25 scores you should go back and clean up, or sort by when the "
-                        + "score was set and you have the ones you have not touched in years.")
+        @Operation(summary = "Player scores as a playlist", description = "Same filters, sort and "
+                + "paging as the scores route. You get whatever that page shows.")
         @GetMapping(value = "/scores/{userId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getUserScoresPlaylist(
-                        @Parameter(description = "User ID of the player") @PathVariable Long userId,
-                        @Parameter(description = "Category UUID or code to narrow the scores to") @RequestParam(required = false) String categoryId,
+                        @Parameter(description = "Player user ID") @PathVariable Long userId,
+                        @Parameter(description = "Category UUID or code") @RequestParam(required = false) String categoryId,
                         @Parameter(description = "Song name search") @RequestParam(required = false) String search,
                         @PageableDefault(size = 25, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
                 return buildUserScoresPlaylistResponse(userId, categoryId, search, pageable);
         }
 
-        @Operation(summary = "Download a batch release as a playlist", description = "All the maps that went ranked together in "
-                        + "one batch. Handy right after a release when you want to play through the new set.")
+        @Operation(summary = "Batch playlist")
         @GetMapping(value = "/batch/{batchId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getBatchPlaylist(
-                        @Parameter(description = "ID of batch") @PathVariable UUID batchId) {
+                        @Parameter(description = "Batch ID") @PathVariable UUID batchId) {
                 return buildBatchPlaylistResponse(batchId);
         }
 
-        @Operation(summary = "Download a clan war pool as a playlist", description = "Every map in a war's pool, live "
-                        + "once the pool locks so both clans can practise it before the fighting starts.")
+        @Operation(summary = "Clan war pool playlist", description = "Live once the pool locks.")
         @GetMapping(value = "/clan-war/{warId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getClanWarPlaylist(
-                        @Parameter(description = "ID of the war") @PathVariable UUID warId) {
+                        @Parameter(description = "War ID") @PathVariable UUID warId) {
                 ClanWarPoolService.PlaylistSource source = clanWarPoolService.playlistSource(warId);
                 String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
                                 .path("/v1/playlists/clan-war/{warId}")
@@ -158,12 +142,11 @@ public class PlaylistController {
                 return ResponseEntity.ok(playlistService.generateClanWarPlaylist(source, syncUrl));
         }
 
-        @Operation(summary = "Download a campaign as a playlist", description = "Every map used in a campaign, so you can grab "
-                        + "the lot up front rather than downloading each one as you reach it. The person who made the campaign "
-                        + "has to have turned playlist export on, and you get a 422 back if they have not.")
+        @Operation(summary = "Campaign playlist", description = "The creator has to turn on playlist "
+                + "export. You get a 422 if they did not.")
         @GetMapping(value = "/campaign/{campaignId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getCampaignPlaylist(
-                        @Parameter(description = "ID of campaign") @PathVariable UUID campaignId) {
+                        @Parameter(description = "Campaign ID") @PathVariable UUID campaignId) {
                 return buildCampaignPlaylistResponse(campaignId);
         }
 

@@ -49,10 +49,8 @@ public class MapController {
     private final UserRelationService userRelationService;
     private final CategoryService categoryService;
 
-    @Operation(summary = "List maps", description = "A page of maps. You can narrow it down by category, passing either the UUID "
-            + "or the code like true_acc, by status, or with a search term that looks across the song name, the song author and "
-            + "the mapper at the same time. Bear in mind a map here means the song itself, and the individual difficulties hang "
-            + "off it.")
+    @Operation(summary = "List maps", description = "Category takes a UUID or code like true_acc. Search covers song "
+            + "name, song author and mapper.")
     @GetMapping
     public ResponseEntity<Page<PublicMapResponse>> listMaps(
             @RequestParam(required = false) String categoryId,
@@ -63,10 +61,8 @@ public class MapController {
                 .ok(mapService.findAllPublic(categoryService.resolveId(categoryId), status, search, pageable));
     }
 
-    @Operation(summary = "List difficulties", description = "A page of difficulties with their map details attached. This is "
-            + "usually the one you want rather than the map list, since ranked status, category and complexity all live on the "
-            + "difficulty rather than on the song. Filter by category, status, a complexity range or a search term. Status takes "
-            + "more than one value if you need it, like status=QUEUE,QUALIFIED.")
+    @Operation(summary = "List difficulties", description = "Status takes more than one value, like "
+            + "status=QUEUE,QUALIFIED.")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<PublicMapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) String categoryId,
@@ -80,32 +76,28 @@ public class MapController {
                         complexityMax, search, null, pageable));
     }
 
-    @Operation(summary = "All ranked difficulties", description = "Every ranked difficulty in one flat list, with the song hash, "
-            + "difficulty level, current complexity and when it went ranked. It stays cached until the ranked set actually "
-            + "changes, so it is cheap to call and it is the right way to sync a local copy rather than paging through the "
-            + "difficulty list.")
+    @Operation(summary = "All ranked difficulties", description = "Use this to sync a local copy instead of paging "
+            + "the difficulty list.")
     @GetMapping("/difficulties/all")
     public ResponseEntity<List<RankedDifficultyResponse>> getAllRankedDifficulties() {
         return ResponseEntity.ok(mapService.findAllRankedDifficulties());
     }
 
-    @Operation(summary = "Get one difficulty", description = "A single difficulty by id. Complexity only comes back once it is "
-            + "ranked, and vote counts and criteria status only come back while it is not, since neither of those means anything "
-            + "in the other state.")
+    @Operation(summary = "Get a difficulty", description = "Complexity only shows once ranked. Votes and criteria "
+            + "only show before that.")
     @GetMapping("/difficulties/{difficultyId}")
     public ResponseEntity<PublicMapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
         return ResponseEntity.ok(mapService.getDifficultyResponsePublic(difficultyId));
     }
 
-    @Operation(summary = "Get one map", description = "A single map by id, with all of its active difficulties attached.")
+    @Operation(summary = "Get a map")
     @GetMapping("/{mapId}")
     public ResponseEntity<PublicMapResponse> getMap(@PathVariable UUID mapId) {
         return ResponseEntity.ok(mapService.findByIdPublic(mapId));
     }
 
-    @Operation(summary = "Get a map by song hash", description = "Look a map up by its song hash, which is what you will have "
-            + "if you are working from a local file. You get the active difficulties back with it, and you can pass a difficulty "
-            + "to narrow it to one level. Those are EASY, NORMAL, HARD, EXPERT and EXPERT_PLUS.")
+    @Operation(summary = "Map by song hash", description = "Difficulty is EASY, NORMAL, HARD, EXPERT or "
+            + "EXPERT_PLUS.")
     @GetMapping("/hash/{songHash}")
     public ResponseEntity<PublicMapResponse> getMapBySongHash(
             @PathVariable String songHash,
@@ -113,10 +105,7 @@ public class MapController {
         return ResponseEntity.ok(mapService.findBySongHashPublic(songHash, difficulty));
     }
 
-    @Operation(summary = "Get a map by BeatSaver code", description = "Look a map up by its BeatSaver code, the short one out of "
-            + "the map page URL. You can narrow it with a difficulty, a characteristic, or both. Characteristic is case "
-            + "insensitive, so Standard, OneSaber, NoArrows, 90Degree, 360Degree, Lightshow and Lawless all work however you "
-            + "happen to capitalise them.")
+    @Operation(summary = "Map by BeatSaver code", description = "Characteristic is case insensitive.")
     @GetMapping("/by-code/{beatsaverCode}")
     public ResponseEntity<PublicMapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,
@@ -125,16 +114,14 @@ public class MapController {
         return ResponseEntity.ok(mapService.findByBeatsaverCodePublic(beatsaverCode, difficulty, characteristic));
     }
 
-    @Operation(summary = "List the difficulties on a map", description = "All the active difficulties belonging to one map.")
+    @Operation(summary = "Difficulties on a map")
     @GetMapping("/{mapId}/difficulties")
     public ResponseEntity<List<PublicMapDifficultyResponse>> listMapDifficulties(@PathVariable UUID mapId) {
         return ResponseEntity.ok(mapService.findDifficultiesByMapIdPublic(mapId));
     }
 
-    @Operation(summary = "Get a leaderboard by platform leaderboard ID", description = "The same leaderboard you get from the "
-            + "difficulty route below, except you look it up with a BeatLeader or ScoreSaber leaderboard ID instead of our own "
-            + "difficulty id. Pass exactly one of the two. This is the one to reach for when you are coming from the platform "
-            + "side and do not know our ids yet. All the same filters apply.")
+    @Operation(summary = "Leaderboard by platform ID", description = "Pass exactly one of the "
+            + "BeatLeader or ScoreSaber leaderboard IDs. Same filters as the difficulty route.")
     @GetMapping("/difficulties/leaderboard/{leaderboardId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyScoresByLeaderboardId(
             @PathVariable String leaderboardId,
@@ -149,11 +136,8 @@ public class MapController {
                 scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, filter, pageable));
     }
 
-    @Operation(summary = "Get the leaderboard for a difficulty", description = "Every score set on one map difficulty with the "
-            + "player attached, ordered from the highest score down. If you want a smaller slice you can filter by country code "
-            + "like ES or GB, search by player name, or pass a relation type to only see people you follow. That last filter "
-            + "needs a logged in player token, the rest work fine without one. maxStreak115, playCount and lastPlayedAt all count "
-            + "every attempt the player has made here, not just the score on the row, and you can sort by any of them.")
+    @Operation(summary = "Difficulty leaderboard", description = "Relation filter needs a player "
+            + "token. maxStreak115, playCount and lastPlayedAt count every attempt.")
     @GetMapping("/difficulties/{difficultyId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyLeaderboard(
             @PathVariable UUID difficultyId,
@@ -177,10 +161,8 @@ public class MapController {
         return userRelationService.findRelationFilterUserIds(principal.getUserId(), relation);
     }
 
-    @Operation(summary = "Scores around a player", description = "The slice of a difficulty leaderboard sitting either side of "
-            + "one player, which is what you want for a your position view. You get four above and five below by default, and if "
-            + "there are not enough on one side the remainder moves over to the other so you always come away with the same "
-            + "number of rows. Looked up by BeatLeader or ScoreSaber leaderboard ID.")
+    @Operation(summary = "Scores around a player", description = "Four above and five below by default. Looked up by "
+            + "BeatLeader or ScoreSaber leaderboard ID.")
     @GetMapping("/difficulties/leaderboard/{leaderboardId}/scores-around/{userId}")
     public ResponseEntity<ScoresAroundResponse> getScoresAround(
             @PathVariable String leaderboardId,
@@ -191,9 +173,7 @@ public class MapController {
         return ResponseEntity.ok(scoreService.findScoresAround(difficultyId, userId, above, below));
     }
 
-    @Operation(summary = "Current statistics for a difficulty", description = "The aggregate numbers as they stand right now, so "
-            + "the highest and lowest AP anyone has managed on it, the average, and how many scores there are altogether. You "
-            + "get a 204 with nothing in it if nobody has scored on the difficulty yet.")
+    @Operation(summary = "Difficulty stats now", description = "204 if nobody has scored on it yet.")
     @GetMapping("/difficulties/{difficultyId}/statistics")
     public ResponseEntity<MapDifficultyStatisticsResponse> getDifficultyStatistics(
             @PathVariable UUID difficultyId) {
@@ -202,9 +182,8 @@ public class MapController {
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
-    @Operation(summary = "Historic statistics for a difficulty", description = "The same aggregate numbers but every version of "
-            + "them across a time range, oldest first, so you can chart how a difficulty has moved. Unit is h for hours, d for "
-            + "days, w for weeks or mo for months, and amount is how many of those to go back.")
+    @Operation(summary = "Difficulty stats over time", description = "Unit is h, d, w or mo. Amount is how "
+            + "many to go back.")
     @GetMapping("/difficulties/{difficultyId}/statistics/historic")
     public ResponseEntity<List<MapDifficultyStatisticsResponse>> getDifficultyStatisticsHistoric(
             @PathVariable UUID difficultyId,
@@ -213,9 +192,7 @@ public class MapController {
         return ResponseEntity.ok(statisticsService.findHistoric(difficultyId, amount, unit));
     }
 
-    @Operation(summary = "Complexity history for a map", description = "Every complexity the map has been given over time, along "
-            + "with who changed it and the reason they gave. Complexity feeds straight into AP, so each entry here means every "
-            + "score on that difficulty was recalculated at the time.")
+    @Operation(summary = "Map complexity history")
     @GetMapping("/{mapId}/complexity-history")
     public ResponseEntity<List<MapComplexityHistoryResponse>> getComplexityHistory(@PathVariable UUID mapId) {
         return ResponseEntity.ok(mapService.getComplexityHistory(mapId));

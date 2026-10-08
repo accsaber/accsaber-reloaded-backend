@@ -30,7 +30,7 @@ public class SupporterServiceController {
 
     private final SupporterService supporterService;
 
-    @Operation(summary = "Bot signal: a Ko-fi supporter role was just assigned in Discord - correlate with an unclaimed webhook event")
+    @Operation(summary = "Ko-fi role assigned signal")
     @PostMapping("/claim-by-role")
     public ResponseEntity<Map<String, Object>> claimByRole(@Valid @RequestBody ClaimByRoleSignalRequest request) {
         Instant when = request.getAssignedAt() != null ? request.getAssignedAt() : Instant.now();
@@ -41,7 +41,7 @@ public class SupporterServiceController {
                 "kofiTransactionId", claimed.map(KofiEvent::getKofiTransactionId).orElse("")));
     }
 
-    @Operation(summary = "Admin fallback (via bot `/assign` command): claim a specific Ko-fi event for a Discord-linked user")
+    @Operation(summary = "Claim a Ko-fi event by hand")
     @PostMapping("/assign")
     public ResponseEntity<Void> assign(@Valid @RequestBody AssignSupporterEventRequest request) {
         supporterService.claimByAdminForDiscord(request.getKofiTransactionId(), request.getDiscordId());

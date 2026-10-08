@@ -28,11 +28,8 @@ public class ProfileCustomizationController {
 
     private final ProfileCustomizationService profileService;
 
-    @Operation(summary = "Update your profile", description = "Change your name, bio or pinned scores. Send only the fields you "
-            + "want to touch and the rest are left alone. Worth knowing that setting a name here turns off the sync that "
-            + "normally pulls your name across from BeatLeader or ScoreSaber, since otherwise the next refresh would undo "
-            + "your change. You can turn it back on through the sync.name setting. Bios get cleaned up server side, and "
-            + "pinned scores are replaced as a set rather than added to.")
+    @Operation(summary = "Edit your profile", description = "Send only what changes. Setting a name turns off name "
+            + "sync. sync.name turns it back on. Pinned scores get replaced as a set.")
     @PatchMapping("/profile")
     public ResponseEntity<Void> updateProfile(
             @RequestBody ProfileUpdateRequest request,
@@ -53,10 +50,8 @@ public class ProfileCustomizationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Upload your avatar", description = "Sets a custom avatar, replacing whatever was there before. Like "
-            + "the name, this switches off the sync that pulls your avatar from the platforms so a later refresh does not "
-            + "overwrite it. Turn it back on with the sync.avatar setting. You get the URL of the stored image back, and you "
-            + "should use that rather than guessing the extension, since what we store depends on what you sent.")
+    @Operation(summary = "Upload your avatar", description = "Turns off avatar sync. sync.avatar turns it back on. "
+            + "Use the returned URL.")
     @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> uploadAvatar(
             @RequestPart("file") MultipartFile file,

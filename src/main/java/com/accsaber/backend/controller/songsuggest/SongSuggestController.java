@@ -29,10 +29,8 @@ public class SongSuggestController {
 
         private final SongSuggestService songSuggestService;
 
-        @Operation(summary = "Download the Song Suggest data", description = "A JSON file holding each qualifying player's top "
-                        + "30 scores by raw AP, which is what Song Suggest uses to work out recommendations. It is rebuilt "
-                        + "weekly rather than on demand, so check the refresh time first and only pull it again when it has "
-                        + "actually changed. This comes back as a file download rather than an inline body.")
+        @Operation(summary = "Download Song Suggest data", description = "Each player's top 30 by raw AP. "
+                + "Rebuilt weekly. Check the refresh time before pulling again.")
         @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
         public ResponseEntity<Resource> getLeaderboard() {
                 Path file = songSuggestService.getOutputFile();
@@ -50,8 +48,7 @@ public class SongSuggestController {
                                 .body(new FileSystemResource(file));
         }
 
-        @Operation(summary = "Check when the Song Suggest data was last built", description = "Just the timestamp of the last "
-                        + "rebuild. Cheap to call, so use it to decide whether the file above is worth downloading again.")
+        @Operation(summary = "Song Suggest last build")
         @GetMapping("/refresh-time")
         public ResponseEntity<SongSuggestRefreshTimeResponse> getRefreshTime() {
                 Instant mtime = songSuggestService.getRefreshTime()

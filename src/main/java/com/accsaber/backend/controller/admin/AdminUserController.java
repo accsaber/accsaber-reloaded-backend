@@ -32,19 +32,17 @@ public class AdminUserController {
     private final PlayerImportService playerImportService;
     private final PlayerRefreshScheduler playerRefreshScheduler;
 
-    @Operation(summary = "Ban or unban a player", description = "Pass banned=true to take a player off the leaderboards and "
-            + "rankings, and banned=false to put them back. Their profile stays reachable either way. Ranking recalculation "
-            + "happens in the background, so you get a 202 straight back and the boards catch up shortly after.")
+    @Operation(summary = "Ban or unban a player", description = "banned=true pulls a player off the leaderboards, "
+            + "banned=false puts them back. Boards update shortly after the 202.")
     @PatchMapping("/{userId}/ban")
     public ResponseEntity<Void> setBanned(@PathVariable Long userId, @RequestParam boolean banned) {
         userService.setBanned(userId, banned);
         return ResponseEntity.accepted().build();
     }
 
-    @Operation(summary = "Set or clear a player's country override", description = "Send a country to pin a player to it, which "
-            + "stops platform refreshes moving them, and send null to lift the override again. Note that lifting it leaves the "
-            + "current country alone, it just lets the next refresh change it. Pinning a country also triggers a ranking "
-            + "recalculation, lifting it does not.")
+    @Operation(summary = "Pin a player's country", description = "Send a country to pin it against "
+            + "refreshes. Send null to let the next refresh change it. Pinning reruns rankings, unpinning does "
+            + "not.")
     @PatchMapping("/{userId}/country")
     public ResponseEntity<Void> setCountryOverride(@PathVariable Long userId,
             @Valid @RequestBody CountryOverrideRequest request) {
@@ -56,14 +54,14 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Refresh a player's profile", description = "Refreshes a single player's profile from BeatLeader and ScoreSaber.")
+    @Operation(summary = "Refresh one player")
     @PostMapping("/{userId}/refresh")
     public ResponseEntity<UserResponse> refreshPlayer(@PathVariable Long userId) {
         playerImportService.refreshPlayerProfile(userId);
         return ResponseEntity.ok(userService.findByUserId(userId));
     }
 
-    @Operation(summary = "Refresh all player profiles", description = "Triggers an async refresh of all player profiles from BeatLeader and ScoreSaber, updating names, avatars, countries, and activity status.")
+    @Operation(summary = "Refresh every player")
     @PostMapping("/refresh")
     public ResponseEntity<Void> refreshAllPlayers() {
         playerRefreshScheduler.refreshAllPlayersAsync();

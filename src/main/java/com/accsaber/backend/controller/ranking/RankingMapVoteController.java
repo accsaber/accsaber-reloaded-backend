@@ -38,7 +38,7 @@ public class RankingMapVoteController {
 
     private final MapVotingService mapVotingService;
 
-    @Operation(summary = "Vote activity feed", description = "Paginated list of all active votes sorted by most recently updated")
+    @Operation(summary = "Vote feed", description = "Newest updates first.")
     @GetMapping("/votes/activity")
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<Page<VoteResponse>> getActivityFeed(
@@ -46,7 +46,8 @@ public class RankingMapVoteController {
         return ResponseEntity.ok(mapVotingService.getActivityFeed(pageable));
     }
 
-    @Operation(summary = "List votes on a map difficulty", description = "Returns all active votes plus informational threshold flags for reweight and unrank")
+    @Operation(summary = "Votes on a difficulty", description = "Also has reweight and unrank threshold "
+            + "flags.")
     @GetMapping("/{difficultyId}/votes")
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<VoteListResponse> listVotes(
@@ -55,7 +56,7 @@ public class RankingMapVoteController {
         return ResponseEntity.ok(mapVotingService.getVotes(difficultyId, type));
     }
 
-    @Operation(summary = "Cast or update a vote on a map difficulty")
+    @Operation(summary = "Vote on a difficulty")
     @PostMapping("/{difficultyId}/votes")
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<VoteResponse> castVote(
@@ -74,7 +75,7 @@ public class RankingMapVoteController {
                 StaffPrincipals.roleOf(authentication)));
     }
 
-    @Operation(summary = "Deactivate a vote", description = "Soft-deletes an active vote (ranking_head/admin only)")
+    @Operation(summary = "Pull a vote", description = "Ranking head or admin only.")
     @DeleteMapping("/{difficultyId}/votes/{voteId}")
     @PreAuthorize("hasRole('RANKING_HEAD')")
     public ResponseEntity<Void> deactivateVote(

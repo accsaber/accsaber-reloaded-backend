@@ -55,7 +55,7 @@ public class AdminItemController {
     private final ItemTypeService itemTypeService;
     private final MediaProcessingService mediaProcessingService;
 
-    @Operation(summary = "List item types (admin)")
+    @Operation(summary = "List item types")
     @GetMapping("/item-types")
     public ResponseEntity<List<ItemTypeResponse>> listTypes(
             @RequestParam(defaultValue = "false") boolean includeInactive) {
@@ -63,7 +63,7 @@ public class AdminItemController {
         return ResponseEntity.ok(types.stream().map(ItemMapper::toTypeResponse).toList());
     }
 
-    @Operation(summary = "List items (admin)")
+    @Operation(summary = "All items")
     @PreAuthorize("hasAnyRole('ADMIN', 'CREATIVE')")
     @GetMapping("/items")
     public ResponseEntity<List<ItemResponse>> listItems(
@@ -75,13 +75,13 @@ public class AdminItemController {
         return ResponseEntity.ok(items.stream().map(ItemMapper::toItemResponse).toList());
     }
 
-    @Operation(summary = "Get an item by id (admin - includes drafts and deactivated items)")
+    @Operation(summary = "Get an item")
     @GetMapping("/items/{id}")
     public ResponseEntity<ItemResponse> getItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.findByIdForStaff(id)));
     }
 
-    @Operation(summary = "Create an item type")
+    @Operation(summary = "New item type")
     @PostMapping("/item-types")
     public ResponseEntity<ItemTypeResponse> createType(@Valid @RequestBody CreateItemTypeRequest req) {
         var type = itemTypeService.create(req.getParentTypeId(), req.getKey(),
@@ -89,7 +89,7 @@ public class AdminItemController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toTypeResponse(type));
     }
 
-    @Operation(summary = "Update an item type")
+    @Operation(summary = "Edit an item type")
     @PatchMapping("/item-types/{id}")
     public ResponseEntity<ItemTypeResponse> updateType(@PathVariable UUID id,
             @RequestBody UpdateItemTypeRequest req) {
@@ -97,9 +97,8 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toTypeResponse(type));
     }
 
-    @Operation(summary = "Activate or deactivate an item type", description = "Pass active=false to retire a type and "
-            + "active=true to bring it back. Deactivating never deletes anything, so items of that type keep existing and "
-            + "reactivating puts everything back as it was.")
+    @Operation(summary = "Toggle an item type", description = "Nothing gets deleted. Items of that "
+            + "type stay put.")
     @PatchMapping("/item-types/{id}/active")
     public ResponseEntity<ItemTypeResponse> setTypeActive(@PathVariable UUID id,
             @RequestParam boolean active) {
@@ -117,7 +116,7 @@ public class AdminItemController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
-    @Operation(summary = "Update an item")
+    @Operation(summary = "Edit an item")
     @PatchMapping("/items/{id}")
     public ResponseEntity<ItemResponse> updateItem(@PathVariable UUID id,
             @RequestBody UpdateItemRequest req) {
@@ -129,16 +128,15 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 
-    @Operation(summary = "Activate or deactivate an item", description = "Pass active=false to retire an item and active=true "
-            + "to bring it back. Nothing is deleted either way, so players holding it keep it and it simply stops appearing in "
-            + "the catalogue and in crate pools.")
+    @Operation(summary = "Retire or restore an item", description = "Players keep it. It drops out of the "
+            + "catalogue and crate pools.")
     @PatchMapping("/items/{id}/active")
     public ResponseEntity<ItemResponse> setItemActive(@PathVariable UUID id,
             @RequestParam boolean active) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setActive(id, active)));
     }
 
-    @Operation(summary = "Manually award an item to a user")
+    @Operation(summary = "Give someone an item")
     @PostMapping("/items/award")
     public ResponseEntity<UserItemResponse> award(@Valid @RequestBody AwardItemRequest req,
             @AuthenticationPrincipal StaffUserDetails staff) {
@@ -148,23 +146,22 @@ public class AdminItemController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toUserItemResponse(link, null));
     }
 
-    @Operation(summary = "Set the cutoff after which an item can no longer be handed out",
-            description = "Past this moment the item can no longer be attached as a campaign reward or added to a "
-                    + "crate's drop pool. Copies players already hold are untouched, and the item stays tradeable and "
-                    + "openable as normal. Leave the parameter off to clear the cutoff and make it available again.")
+    @Operation(summary = "Set an item's cutoff",
+            description = "After it, the item cannot be a campaign reward or go in a crate pool. Copies players hold "
+                    + "are untouched. Leave the param off to clear it.")
     @PatchMapping("/items/{id}/obtainable-until")
     public ResponseEntity<ItemResponse> setObtainableUntil(@PathVariable UUID id,
             @RequestParam(required = false) Instant at) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setObtainableUntil(id, at)));
     }
 
-    @Operation(summary = "Mark an item as deprecated")
+    @Operation(summary = "Deprecate an item")
     @PostMapping("/items/{id}/deprecate")
     public ResponseEntity<ItemResponse> deprecateItem(@PathVariable UUID id) {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.deprecate(id)));
     }
 
-    @Operation(summary = "Update an item modifier's global drop chance and season window")
+    @Operation(summary = "Set a modifier's drop chance and season")
     @PatchMapping("/item-modifiers/{id}")
     public ResponseEntity<ItemModifierResponse> updateModifier(@PathVariable UUID id,
             @RequestBody UpdateItemModifierRequest req) {
@@ -173,16 +170,15 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toModifierResponse(modifier));
     }
 
-    @Operation(summary = "Revoke a user's item award (hard delete)")
+    @Operation(summary = "Take back an item award")
     @DeleteMapping("/items/awards/{linkId}")
     public ResponseEntity<Void> revokeAward(@PathVariable UUID linkId) {
         itemService.revokeAward(linkId);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Upload (or replace) the image for an item",
-            description = "Sets the catalog icon, and for render-contract items (e.g. badges) also updates the"
-                    + " rendered raster asset so the uploaded image is what players see.")
+    @Operation(summary = "Upload an item image",
+            description = "Also updates the rendered image for render items like badges.")
     @PostMapping(value = "/items/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ItemResponse> uploadIcon(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
@@ -191,7 +187,7 @@ public class AdminItemController {
         return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setUploadedImage(id, url)));
     }
 
-    @Operation(summary = "Remove the icon image for an item")
+    @Operation(summary = "Remove an item image")
     @DeleteMapping("/items/{id}/icon")
     public ResponseEntity<ItemResponse> deleteIcon(@PathVariable UUID id) {
         itemService.findByIdForStaff(id);

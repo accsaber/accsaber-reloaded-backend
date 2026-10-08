@@ -30,19 +30,19 @@ public class AdminLevelThresholdController {
 
     private final LevelService levelService;
 
-    @Operation(summary = "List all level thresholds")
+    @Operation(summary = "All level thresholds")
     @GetMapping
     public ResponseEntity<List<LevelThresholdResponse>> list() {
         return ResponseEntity.ok(levelService.listThresholds());
     }
 
-    @Operation(summary = "Get a level threshold by level")
+    @Operation(summary = "Get one level threshold")
     @GetMapping("/{level}")
     public ResponseEntity<LevelThresholdResponse> get(@PathVariable int level) {
         return ResponseEntity.ok(levelService.findThreshold(level));
     }
 
-    @Operation(summary = "Create or update a level threshold (title + awarded item)")
+    @Operation(summary = "Set a level threshold")
     @PutMapping("/{level}")
     public ResponseEntity<LevelThresholdResponse> upsert(@PathVariable int level,
             @Valid @RequestBody UpsertLevelThresholdRequest request) {

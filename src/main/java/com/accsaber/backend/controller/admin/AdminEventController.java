@@ -45,7 +45,7 @@ public class AdminEventController {
     private final MissionTemplateService templateService;
     private final MediaProcessingService mediaProcessingService;
 
-    @Operation(summary = "List all events")
+    @Operation(summary = "All events")
     @GetMapping
     public ResponseEntity<List<EventResponse>> list() {
         return ResponseEntity.ok(eventService.listAdmin().stream()
@@ -58,7 +58,7 @@ public class AdminEventController {
         return ResponseEntity.ok(EventResponse.from(eventService.findById(id)));
     }
 
-    @Operation(summary = "List an event's mission templates")
+    @Operation(summary = "Event mission templates")
     @GetMapping("/{id}/missions")
     public ResponseEntity<List<MissionTemplateResponse>> listMissions(@PathVariable UUID id) {
         eventService.findById(id);
@@ -87,7 +87,7 @@ public class AdminEventController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Upload (or replace) the background image for an event")
+    @Operation(summary = "Upload event background")
     @PostMapping(value = "/{id}/background", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventResponse> uploadBackground(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
@@ -95,14 +95,14 @@ public class AdminEventController {
         return ResponseEntity.ok(EventResponse.from(eventService.setBackgroundUrl(id, url)));
     }
 
-    @Operation(summary = "Remove the background image for an event")
+    @Operation(summary = "Remove event background")
     @DeleteMapping("/{id}/background")
     public ResponseEntity<EventResponse> deleteBackground(@PathVariable UUID id) {
         mediaProcessingService.deleteIfExists(EVENT_BACKGROUND_SUBDIR, id.toString());
         return ResponseEntity.ok(EventResponse.from(eventService.setBackgroundUrl(id, null)));
     }
 
-    @Operation(summary = "Upload (or replace) the icon image for an event")
+    @Operation(summary = "Upload event icon")
     @PostMapping(value = "/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventResponse> uploadIcon(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
@@ -110,7 +110,7 @@ public class AdminEventController {
         return ResponseEntity.ok(EventResponse.from(eventService.setIconUrl(id, url)));
     }
 
-    @Operation(summary = "Remove the icon image for an event")
+    @Operation(summary = "Remove event icon")
     @DeleteMapping("/{id}/icon")
     public ResponseEntity<EventResponse> deleteIcon(@PathVariable UUID id) {
         mediaProcessingService.deleteIfExists(EVENT_ICON_SUBDIR, id.toString());

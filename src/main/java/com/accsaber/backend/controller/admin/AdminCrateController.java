@@ -37,7 +37,7 @@ public class AdminCrateController {
 
     private final CrateService crateService;
 
-    @Operation(summary = "List all crate items")
+    @Operation(summary = "All crate items")
     @PreAuthorize("hasAnyRole('ADMIN', 'CREATIVE')")
     @GetMapping
     public ResponseEntity<List<ItemResponse>> listCrates() {
@@ -46,14 +46,14 @@ public class AdminCrateController {
                 .toList());
     }
 
-    @Operation(summary = "List the reward pool of a crate with drop weights and normalized drop chances")
+    @Operation(summary = "Crate reward pool with odds")
     @PreAuthorize("hasAnyRole('ADMIN', 'CREATIVE')")
     @GetMapping("/{crateItemId}/contents")
     public ResponseEntity<List<CrateContentResponse>> listContents(@PathVariable UUID crateItemId) {
         return ResponseEntity.ok(ItemMapper.toCrateContentResponses(crateService.listContents(crateItemId)));
     }
 
-    @Operation(summary = "Add a reward to a crate, or update its drop weight")
+    @Operation(summary = "Add or update a crate reward")
     @PutMapping("/{crateItemId}/contents/{rewardItemId}")
     public ResponseEntity<CrateContentResponse> upsertContent(
             @PathVariable UUID crateItemId,
@@ -64,7 +64,7 @@ public class AdminCrateController {
         return ResponseEntity.ok(ItemMapper.toCrateContentResponse(saved, total));
     }
 
-    @Operation(summary = "Remove a reward from a crate's pool")
+    @Operation(summary = "Remove a crate reward")
     @DeleteMapping("/{crateItemId}/contents/{rewardItemId}")
     public ResponseEntity<Void> removeContent(
             @PathVariable UUID crateItemId,
@@ -73,7 +73,7 @@ public class AdminCrateController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Attach a modifier to a crate, or update its per-crate drop chance")
+    @Operation(summary = "Set a crate modifier chance")
     @PutMapping("/{crateItemId}/modifiers/{modifierId}")
     public ResponseEntity<CrateModifierResponse> upsertModifier(
             @PathVariable UUID crateItemId,
@@ -83,7 +83,7 @@ public class AdminCrateController {
                 crateService.upsertModifier(crateItemId, modifierId, req.getDropChance())));
     }
 
-    @Operation(summary = "Detach a modifier from a crate")
+    @Operation(summary = "Detach a crate modifier")
     @DeleteMapping("/{crateItemId}/modifiers/{modifierId}")
     public ResponseEntity<Void> removeModifier(
             @PathVariable UUID crateItemId,
@@ -92,7 +92,7 @@ public class AdminCrateController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Attach an unusual effect to a crate's roll pool")
+    @Operation(summary = "Add an unusual to a crate")
     @PutMapping("/{crateItemId}/unusual-effects/{effectId}")
     public ResponseEntity<UnusualEffectResponse> attachUnusualEffect(
             @PathVariable UUID crateItemId,
@@ -101,7 +101,7 @@ public class AdminCrateController {
                 crateService.attachUnusualEffect(crateItemId, effectId)));
     }
 
-    @Operation(summary = "Detach an unusual effect from a crate's roll pool")
+    @Operation(summary = "Drop an unusual from a crate")
     @DeleteMapping("/{crateItemId}/unusual-effects/{effectId}")
     public ResponseEntity<Void> detachUnusualEffect(
             @PathVariable UUID crateItemId,

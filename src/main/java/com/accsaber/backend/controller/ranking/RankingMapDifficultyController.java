@@ -54,7 +54,7 @@ public class RankingMapDifficultyController {
         private final AutoCriteriaService autoCriteriaService;
         private final MapDifficultyLeaderboardAliasService leaderboardAliasService;
 
-        @Operation(summary = "Update difficulty status", description = "Manually transition a map difficulty status (ranking_head/admin only)")
+        @Operation(summary = "Set difficulty status", description = "ranking_head or admin only.")
         @PatchMapping("/{difficultyId}/status")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> updateStatus(
@@ -65,7 +65,7 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Change difficulty category", description = "Reassigns a QUEUE or QUALIFIED difficulty to a different category. Not allowed on RANKED difficulties.")
+        @Operation(summary = "Move to another category", description = "QUEUE or QUALIFIED only.")
         @PatchMapping("/{difficultyId}/category")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> updateCategory(
@@ -76,7 +76,8 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Set difficulty complexity by hand", description = "Versioned complexity update: the current row is deactivated and a new one inserted with the reason. On a ranked map this is a reweight, so scores, statistics, rankings, milestones, XP and skills are adjusted in the background; a queue or qualified map has no scores, so it is a plain complexity change. Either way the map is pinned, and the complexity script's apply skips it until the pin is lifted.")
+        @Operation(summary = "Set complexity by hand", description = "On a ranked map this is a reweight "
+                + "and everything gets adjusted in the background. Either way the map gets pinned.")
         @PostMapping("/{difficultyId}/complexity")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> updateComplexity(
@@ -89,7 +90,8 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Pin or unpin a difficulty's complexity", description = "A pinned map keeps the complexity it carries: the complexity script's apply leaves it alone, in every round, until it is unpinned. Setting a complexity by hand pins automatically; this is the switch for the other direction, or to hold a map without changing its number.")
+        @Operation(summary = "Pin a complexity", description = "The complexity script leaves "
+                + "pinned maps alone. Setting a complexity by hand pins it already.")
         @PatchMapping("/{difficultyId}/complexity-pin")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> pinComplexity(
@@ -100,7 +102,8 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Refresh a map difficulty from BeatLeader/BeatSaver", description = "Updates leaderboard IDs, max score, and basic map metadata by re-fetching from BL/BS. Allowed only on QUEUE or QUALIFIED difficulties.")
+        @Operation(summary = "Refresh from BeatLeader and BeatSaver", description = "Updates "
+                + "leaderboard IDs, max score and map info. QUEUE or QUALIFIED only.")
         @PostMapping("/{difficultyId}/refresh")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> refresh(
@@ -111,7 +114,7 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Deactivate a map difficulty", description = "Soft-removes a map difficulty from the ranking system (ranking_head/admin only)")
+        @Operation(summary = "Deactivate a difficulty", description = "ranking_head or admin only.")
         @PatchMapping("/{difficultyId}/deactivate")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> deactivate(
@@ -121,7 +124,8 @@ public class RankingMapDifficultyController {
                 return ResponseEntity.noContent().build();
         }
 
-        @Operation(summary = "Approve and apply a reweight", description = "Sets new complexity on a RANKED difficulty and recalculates scores asynchronously")
+        @Operation(summary = "Apply a reweight", description = "RANKED only. Scores get adjusted in the "
+                + "background.")
         @PostMapping("/{difficultyId}/reweight")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> reweight(
@@ -134,7 +138,7 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Approve and apply an unrank", description = "Moves a RANKED difficulty back to QUEUE status")
+        @Operation(summary = "Apply an unrank", description = "Moves a RANKED difficulty back to QUEUE.")
         @PostMapping("/{difficultyId}/unrank")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<MapDifficultyResponse> unrank(
@@ -145,7 +149,7 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Bulk unrank", description = "Move multiple RANKED difficulties back to QUEUE in one request")
+        @Operation(summary = "Bulk unrank")
         @PostMapping("/bulk-unrank")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<List<MapDifficultyResponse>> bulkUnrank(
@@ -155,7 +159,8 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Bulk reweight", description = "Sets new complexities on multiple RANKED difficulties with a shared reason and recalculates all scores asynchronously")
+        @Operation(summary = "Bulk reweight", description = "RANKED only, one shared reason. Scores get adjusted in "
+                + "the background.")
         @PostMapping("/bulk-reweight")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> bulkReweight(
@@ -167,7 +172,8 @@ public class RankingMapDifficultyController {
                 return ResponseEntity.accepted().build();
         }
 
-        @Operation(summary = "Recalculate scores for a difficulty", description = "Recalculates all scores based on the current active complexity. Skips if AP values are unchanged.")
+        @Operation(summary = "Recalculate a difficulty's scores", description = "Uses the current complexity. "
+                + "Skips when AP does not change.")
         @PostMapping("/{difficultyId}/recalculate")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> recalculate(@PathVariable UUID difficultyId) {
@@ -175,21 +181,24 @@ public class RankingMapDifficultyController {
                 return ResponseEntity.accepted().build();
         }
 
-        @Operation(summary = "Run auto criteria check", description = "Downloads the map from BeatSaver, runs the criteria checker sidecar, and persists the result. Returns pass/fail plus failure details, or UNAVAILABLE if the sidecar could not process the map.")
+        @Operation(summary = "Run auto criteria", description = "Gives pass or fail with details, or "
+                + "UNAVAILABLE if the checker could not read the map.")
         @PostMapping("/{difficultyId}/auto-criteria-check")
         @PreAuthorize("hasRole('RANKING')")
         public ResponseEntity<AutoCriteriaCheckResponse> runAutoCriteriaCheck(@PathVariable UUID difficultyId) {
                 return ResponseEntity.ok(autoCriteriaService.runCheck(difficultyId));
         }
 
-        @Operation(summary = "List leaderboard aliases", description = "Lists alternate BeatLeader/ScoreSaber leaderboard IDs (alternate map uploads) that resolve to this difficulty for scoring and stats.")
+        @Operation(summary = "Leaderboard aliases", description = "Alternate BeatLeader or ScoreSaber uploads "
+                + "that count toward this difficulty.")
         @GetMapping("/{difficultyId}/leaderboard-aliases")
         @PreAuthorize("hasRole('RANKING')")
         public ResponseEntity<List<LeaderboardAliasResponse>> listLeaderboardAliases(@PathVariable UUID difficultyId) {
                 return ResponseEntity.ok(leaderboardAliasService.list(difficultyId));
         }
 
-        @Operation(summary = "Link an alternate leaderboard to a difficulty", description = "Attaches an alternate map upload (a note-identical BeatLeader leaderboard, optionally its ScoreSaber counterpart) so scores on either version count toward this one difficulty. Rejected if the alternate's max score differs. Triggers a one-time backfill of the alternate's existing scores.")
+        @Operation(summary = "Add a leaderboard alias", description = "Needs a note identical "
+                + "map with the same max score. Its existing scores get backfilled once.")
         @PostMapping("/{difficultyId}/leaderboard-aliases")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<List<LeaderboardAliasResponse>> linkLeaderboardAlias(
@@ -200,7 +209,8 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Unlink a leaderboard alias", description = "Removes an alternate leaderboard mapping. Already-imported scores stay on the difficulty; only future routing of that leaderboard's scores stops.")
+        @Operation(summary = "Remove a leaderboard alias", description = "Imported scores stay. New scores from that "
+                + "leaderboard stop counting.")
         @DeleteMapping("/{difficultyId}/leaderboard-aliases/{aliasId}")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> unlinkLeaderboardAlias(

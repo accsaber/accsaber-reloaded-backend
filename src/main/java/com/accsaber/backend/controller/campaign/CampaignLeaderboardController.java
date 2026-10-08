@@ -29,7 +29,8 @@ public class CampaignLeaderboardController {
 
     private final CampaignLeaderboardService campaignLeaderboardService;
 
-    @Operation(summary = "Get a campaign leaderboard", description = "One endpoint covering several boards, picked with the board parameter. You can rank by who finished first, by best average accuracy, by best average AP, or simply by how far people have got.")
+    @Operation(summary = "Campaign leaderboard", description = "Pick the board with the board param: first to "
+            + "finish, best average acc, best average AP or furthest progress.")
     @GetMapping
     public ResponseEntity<Page<CampaignLeaderboardEntry>> getBoard(
             @PathVariable UUID campaignId,
@@ -39,7 +40,7 @@ public class CampaignLeaderboardController {
         return ResponseEntity.ok(campaignLeaderboardService.getBoard(campaignId, board, search, pageable));
     }
 
-    @Operation(summary = "Get a node leaderboard", description = "The best scores on one node of a campaign, which is the per node version of the board above.")
+    @Operation(summary = "Node leaderboard")
     @GetMapping("/nodes/{nodeId}")
     public ResponseEntity<Page<CampaignNodeScoreEntry>> getNodeBoard(
             @PathVariable UUID campaignId,

@@ -91,7 +91,8 @@ public class CampaignController {
         return CampaignEditor.player(principal.getUserId());
     }
 
-    @Operation(summary = "List the campaigns", description = "Published campaigns, filterable by status, tag, creator, whether they are official or loved, and a search term. Totals for XP and rewards come back on this list but not on a single campaign, since working them out costs an extra query that is not worth it for one.")
+    @Operation(summary = "List campaigns", description = "Filter by status, tag, creator, official, loved and "
+            + "search. XP and reward totals only show up on this list.")
     @GetMapping
     public ResponseEntity<Page<CampaignResponse>> listCampaigns(
             @RequestParam(required = false) List<CampaignStatus> status,
@@ -110,7 +111,8 @@ public class CampaignController {
                 StaffPrincipals.canViewCampaignDrafts(authentication), pageable));
     }
 
-    @Operation(summary = "Get one campaign", description = "A campaign with its nodes, barriers and text, which is everything you need to draw the map. Reward totals are left off here on purpose, so use the list if you want those.")
+    @Operation(summary = "Get a campaign", description = "Nodes, barriers and text, everything to draw the map. No "
+            + "reward totals here.")
     @GetMapping("/{campaignId}")
     public ResponseEntity<CampaignDetailResponse> getCampaign(
             @PathVariable UUID campaignId,
@@ -120,7 +122,7 @@ public class CampaignController {
                 StaffPrincipals.canViewCampaignDrafts(authentication)));
     }
 
-    @Operation(summary = "Get one campaign by slug", description = "The same as above but addressed by the readable slug rather than the id, which is nicer in a URL.")
+    @Operation(summary = "Campaign by slug")
     @GetMapping("/slug/{slug}")
     public ResponseEntity<CampaignDetailResponse> getCampaignBySlug(
             @PathVariable String slug,
@@ -130,14 +132,15 @@ public class CampaignController {
                 StaffPrincipals.canViewCampaignDrafts(authentication)));
     }
 
-    @Operation(summary = "List the campaign tags", description = "Tags campaigns can be filed under. Pass kind to narrow to one sort of tag.")
+    @Operation(summary = "Campaign tags", description = "Pass kind to filter to one kind of tag.")
     @GetMapping("/tags")
     public ResponseEntity<List<CampaignTagResponse>> listTags(
             @RequestParam(required = false) CampaignTagKind kind) {
         return ResponseEntity.ok(kind != null ? campaignService.listTagsByKind(kind) : campaignService.listTags());
     }
 
-    @Operation(summary = "Start a campaign", description = "Signs you up to a campaign and unlocks its opening nodes. Scores only count toward a node once it is unlocked for you, so nothing you played beforehand will retroactively complete anything.")
+    @Operation(summary = "Start a campaign", description = "Unlocks the opening nodes. Scores set before a node "
+            + "unlocks never count for it.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/start")
     public ResponseEntity<UserCampaignResponse> startCampaign(
@@ -147,7 +150,7 @@ public class CampaignController {
                 .body(campaignService.startCampaign(principal.getUserId(), campaignId));
     }
 
-    @Operation(summary = "Abandon a campaign", description = "Drops you out of a campaign. Nodes you already completed stay completed, so starting again later does not put you back at the beginning.")
+    @Operation(summary = "Abandon a campaign", description = "Completed nodes stay completed if you start again.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/start")
     public ResponseEntity<Void> abandonCampaign(
@@ -157,7 +160,7 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Vote on a campaign", description = "Up or down vote a campaign. Sending a new vote replaces your old one rather than adding to it.")
+    @Operation(summary = "Vote on a campaign", description = "Up or down. A new vote replaces your old one.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/{campaignId}/vote")
     public ResponseEntity<CampaignVoteResponse> voteOnCampaign(
@@ -168,7 +171,7 @@ public class CampaignController {
                 campaignService.vote(principal.getUserId(), campaignId, request.getDirection()));
     }
 
-    @Operation(summary = "Clear your vote", description = "Removes your vote from a campaign entirely, which is different from voting the other way.")
+    @Operation(summary = "Clear your vote")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/vote")
     public ResponseEntity<CampaignVoteResponse> clearCampaignVote(
@@ -177,7 +180,8 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.clearVote(principal.getUserId(), campaignId));
     }
 
-    @Operation(summary = "List your campaigns", description = "Campaigns you have started, with how far through each one you are. Filters and sorting work exactly as they do on the campaign list, and progressStatus narrows it to the ones you are still playing or have finished.")
+    @Operation(summary = "Your campaigns", description = "Campaigns you started, with progress. Same filters as "
+            + "the list. progressStatus picks in progress or finished.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me")
     public ResponseEntity<Page<UserCampaignResponse>> listMyCampaigns(
@@ -200,7 +204,8 @@ public class CampaignController {
                 StaffPrincipals.canViewCampaignDrafts(authentication), pageable));
     }
 
-    @Operation(summary = "Get your progress in a campaign", description = "Node by node progress for one campaign, including which nodes are unlocked and your best on each. Locked nodes deliberately show no best, since you are not meant to be able to see ahead.")
+    @Operation(summary = "Your progress in a campaign", description = "Per node unlocks and your best. Locked "
+            + "nodes show no best.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{campaignId}/me/progress")
     public ResponseEntity<CampaignProgressResponse> getMyProgress(
@@ -209,9 +214,9 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getUserProgress(principal.getUserId(), campaignId));
     }
 
-    @Operation(summary = "Get a player's campaign progress by campaign slug",
-            description = "Public read for integrations (e.g. the Discord bot). Includes per-node completion,"
-                    + " scores, the legacy completed-path flag per node, and the furthest reached milestone.")
+    @Operation(summary = "Player progress by slug",
+            description = "Public, for integrations like the Discord bot. Has per node completion, scores, the "
+                    + "legacy completed path flag and the furthest milestone.")
     @GetMapping("/slug/{slug}/users/{userId}/progress")
     public ResponseEntity<CampaignProgressResponse> getUserProgressBySlug(
             @PathVariable String slug,
@@ -219,7 +224,7 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getUserProgressBySlug(userId, slug));
     }
 
-    @Operation(summary = "Get your progress in several campaigns", description = "Progress for a list of campaigns in one call, which saves hammering the single campaign route when you are drawing a list. Pass the ids you care about.")
+    @Operation(summary = "Progress in several campaigns", description = "Pass the campaign ids you want.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me/progress")
     public ResponseEntity<List<CampaignProgressResponse>> getMyProgressBulk(
@@ -228,7 +233,8 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getUserProgressBulk(principal.getUserId(), ids));
     }
 
-    @Operation(summary = "Create a campaign", description = "Starts a new campaign as a draft. Drafts are only visible to you and anyone you invite as a collaborator until you publish.")
+    @Operation(summary = "Create a campaign", description = "Starts as a draft. Only you and your collaborators see "
+            + "it until you publish.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping
     public ResponseEntity<CampaignResponse> createMyCampaign(
@@ -238,7 +244,8 @@ public class CampaignController {
                 .body(campaignService.createCampaignAsEditor(CampaignEditor.player(principal.getUserId()), request));
     }
 
-    @Operation(summary = "Update your campaign", description = "Changes the name, description, difficulty and other details. Once a campaign has been curated its structure locks, but the metadata here can still be edited.")
+    @Operation(summary = "Edit your campaign", description = "Name, description, difficulty and other details. "
+            + "Still editable after curation.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{campaignId}")
     public ResponseEntity<CampaignResponse> updateMyCampaign(
@@ -250,7 +257,8 @@ public class CampaignController {
                 campaignService.updateCampaignAsEditor(editorFor(authentication, principal), campaignId, request));
     }
 
-    @Operation(summary = "Publish your campaign", description = "Makes a draft visible to everyone and lets people start it. Before this goes through you need at least one node flagged as terminal. You can flag as many as you like. Publishing does not make it hand out XP, that only happens once a curator has looked at it.")
+    @Operation(summary = "Publish your campaign", description = "Needs at least one terminal node. It gives no XP "
+            + "until a curator looks at it.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{campaignId}/publish")
     public ResponseEntity<CampaignResponse> publishMyCampaign(
@@ -260,7 +268,7 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.publishAsEditor(editorFor(authentication, principal), campaignId));
     }
 
-    @Operation(summary = "Unpublish your campaign", description = "Takes a published campaign back to draft so you can change it. Anyone partway through keeps their progress.")
+    @Operation(summary = "Unpublish your campaign", description = "Back to draft. Players keep their progress.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{campaignId}/unpublish")
     public ResponseEntity<CampaignResponse> unpublishMyCampaign(
@@ -269,7 +277,7 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.unpublishAsEditor(CampaignEditor.player(principal.getUserId()), campaignId));
     }
 
-    @Operation(summary = "Delete your campaign", description = "Deactivates a draft you own. The row stays behind rather than being properly deleted, so nothing referencing it breaks.")
+    @Operation(summary = "Delete your campaign", description = "Deactivates a draft you own.")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}")
     public ResponseEntity<Void> deactivateMyCampaign(
@@ -280,7 +288,9 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Import a map for your campaign", description = "Brings in a map that is not ranked so you can use it in a campaign. Give it a BeatLeader leaderboard id, and a ScoreSaber one too if you have it. There is a limit of 100 imports per player, and importing something already known attaches to the existing entry rather than failing. Imports nothing is using any more are freed up automatically.")
+    @Operation(summary = "Import a map for campaigns", description = "Unranked maps only, needs a BeatLeader "
+            + "leaderboard ID and optionally a ScoreSaber one. Limit 100 per player. Known maps attach instead of "
+            + "failing.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/maps/import")
     public ResponseEntity<PublicMapDifficultyResponse> importCampaignMap(
@@ -290,7 +300,7 @@ public class CampaignController {
                 mapImportService.importCampaignMap(principal.getUserId(), request)));
     }
 
-    @Operation(summary = "Add a node to your campaign", description = "Puts a map on the campaign map as a node, with its position, objective and reward.")
+    @Operation(summary = "Add a node")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/difficulties")
     public ResponseEntity<CampaignDifficultyResponse> addDifficultyToMyCampaign(
@@ -302,7 +312,8 @@ public class CampaignController {
                 .body(campaignService.addDifficultyAsEditor(editorFor(authentication, principal), campaignId, request));
     }
 
-    @Operation(summary = "Update a node", description = "Changes a node, whether that is where it sits, what it asks for, or what it pays out. Changing the objective on a live campaign makes everyone's progress on that node get worked out again.")
+    @Operation(summary = "Update a node", description = "Changing the objective on a live campaign recounts "
+            + "everyone's progress on that node.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/difficulties/{campaignDifficultyId}")
     public ResponseEntity<CampaignDifficultyResponse> updateDifficultyOnMyCampaign(
@@ -314,7 +325,8 @@ public class CampaignController {
                 campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
-    @Operation(summary = "Repoint a node at a different map", description = "Swaps which map a node refers to. The shared map entry is never edited, so other campaigns using the same map are left alone.")
+    @Operation(summary = "Swap a node's map", description = "Other campaigns using the same map are "
+            + "not affected.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/difficulties/{campaignDifficultyId}/map")
     public ResponseEntity<CampaignDifficultyResponse> updateDifficultyMapOnMyCampaign(
@@ -326,7 +338,7 @@ public class CampaignController {
                 campaignService.updateDifficultyMapAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
-    @Operation(summary = "Remove a node", description = "Takes a node off the campaign map.")
+    @Operation(summary = "Remove a node")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/difficulties/{campaignDifficultyId}")
     public ResponseEntity<Void> removeDifficultyFromMyCampaign(
@@ -338,7 +350,8 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Set a node reward", description = "Attaches an item to a node, or changes the quantity if one is already there. Only curated campaigns actually hand these out.")
+    @Operation(summary = "Set a node reward", description = "Adds an item or changes its quantity. Only curated "
+            + "campaigns give these out.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/difficulties/{campaignDifficultyId}/items")
     public ResponseEntity<List<CampaignItemAwardResponse>> setDifficultyItemOnMyCampaign(
@@ -349,7 +362,7 @@ public class CampaignController {
                 CampaignEditor.player(principal.getUserId()), campaignDifficultyId, request));
     }
 
-    @Operation(summary = "Remove a node reward", description = "Takes an item reward back off a node.")
+    @Operation(summary = "Remove a node reward")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/difficulties/{campaignDifficultyId}/items/{itemId}")
     public ResponseEntity<List<CampaignItemAwardResponse>> removeDifficultyItemFromMyCampaign(
@@ -360,7 +373,7 @@ public class CampaignController {
                 CampaignEditor.player(principal.getUserId()), campaignDifficultyId, itemId));
     }
 
-    @Operation(summary = "Set a completion reward", description = "Attaches an item to the reward for finishing the whole campaign, rather than to a single node.")
+    @Operation(summary = "Set a completion reward", description = "Item given for finishing the whole campaign.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/completion-items")
     public ResponseEntity<List<CampaignItemAwardResponse>> setCompletionItemOnMyCampaign(
@@ -371,7 +384,7 @@ public class CampaignController {
                 CampaignEditor.player(principal.getUserId()), campaignId, request));
     }
 
-    @Operation(summary = "Remove a completion reward", description = "Takes an item back off the completion bonus.")
+    @Operation(summary = "Remove a completion reward")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/completion-items/{itemId}")
     public ResponseEntity<List<CampaignItemAwardResponse>> removeCompletionItemFromMyCampaign(
@@ -382,7 +395,8 @@ public class CampaignController {
                 CampaignEditor.player(principal.getUserId()), campaignId, itemId));
     }
 
-    @Operation(summary = "Upload a campaign background", description = "Sets the image behind the campaign map. Use the URL you get back rather than assuming the extension, since what we store depends on what you sent.")
+    @Operation(summary = "Upload a background", description = "Use the returned URL. The extension depends "
+            + "on what you sent.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/{campaignId}/background", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampaignResponse> uploadMyCampaignBackground(
@@ -397,7 +411,7 @@ public class CampaignController {
                 campaignService.setBackgroundUrlAsEditor(editorFor(authentication, principal), campaignId, url));
     }
 
-    @Operation(summary = "Remove the campaign background", description = "Clears the background image.")
+    @Operation(summary = "Remove the background")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/background")
     public ResponseEntity<CampaignResponse> deleteMyCampaignBackground(
@@ -409,7 +423,7 @@ public class CampaignController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Upload a campaign icon", description = "Sets the campaign icon. Same note about using the returned URL.")
+    @Operation(summary = "Upload a campaign icon", description = "Use the returned URL.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/{campaignId}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampaignResponse> uploadMyCampaignIcon(
@@ -424,7 +438,7 @@ public class CampaignController {
                 campaignService.setIconUrlAsEditor(editorFor(authentication, principal), campaignId, url));
     }
 
-    @Operation(summary = "Remove the campaign icon", description = "Clears the campaign icon.")
+    @Operation(summary = "Remove the campaign icon")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/icon")
     public ResponseEntity<CampaignResponse> deleteMyCampaignIcon(
@@ -436,7 +450,7 @@ public class CampaignController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Upload a checkpoint avatar", description = "Sets the avatar shown on a checkpoint node.")
+    @Operation(summary = "Upload a checkpoint avatar")
     @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/difficulties/{campaignDifficultyId}/checkpoint-avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampaignDifficultyResponse> uploadMyNodeCheckpointAvatar(
@@ -453,7 +467,7 @@ public class CampaignController {
                 campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
-    @Operation(summary = "Remove a checkpoint avatar", description = "Clears the checkpoint avatar.")
+    @Operation(summary = "Remove a checkpoint avatar")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/difficulties/{campaignDifficultyId}/checkpoint-avatar")
     public ResponseEntity<CampaignDifficultyResponse> deleteMyNodeCheckpointAvatar(
@@ -468,7 +482,8 @@ public class CampaignController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Upload a node border", description = "Sets a border image around a node. Depending on the layer it either frames the cover or sits behind it as a backplate. Animated GIFs keep their animation here, unlike most of our uploads, so use the URL you get back.")
+    @Operation(summary = "Upload a node border", description = "The layer picks a frame over the cover or a "
+            + "backplate behind it. Animated GIFs stay animated. Use the returned URL.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping(value = "/difficulties/{campaignDifficultyId}/node-border", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampaignDifficultyResponse> uploadMyNodeBorder(
@@ -485,7 +500,7 @@ public class CampaignController {
                 campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
-    @Operation(summary = "Remove a node border", description = "Clears the node border image.")
+    @Operation(summary = "Remove a node border")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/difficulties/{campaignDifficultyId}/node-border")
     public ResponseEntity<CampaignDifficultyResponse> deleteMyNodeBorder(
@@ -500,7 +515,8 @@ public class CampaignController {
         return ResponseEntity.ok(result);
     }
 
-    @Operation(summary = "Add a barrier", description = "Barriers sit between nodes and hold players back until a condition across the nodes behind them is met. They pay out XP of their own when cleared.")
+    @Operation(summary = "Add a barrier", description = "Blocks players until a condition on the nodes behind it is "
+            + "met. Gives its own XP when cleared.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/barriers")
     public ResponseEntity<CampaignBarrierResponse> addBarrierToMyCampaign(
@@ -512,7 +528,7 @@ public class CampaignController {
                 .body(campaignService.addBarrierAsEditor(editorFor(authentication, principal), campaignId, request));
     }
 
-    @Operation(summary = "Update a barrier", description = "Changes a barrier, its condition, or which nodes it looks at.")
+    @Operation(summary = "Update a barrier")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/barriers/{barrierId}")
     public ResponseEntity<CampaignBarrierResponse> updateBarrierOnMyCampaign(
@@ -524,7 +540,7 @@ public class CampaignController {
                 campaignService.updateBarrierAsEditor(editorFor(authentication, principal), barrierId, request));
     }
 
-    @Operation(summary = "Remove a barrier", description = "Takes a barrier off the campaign map.")
+    @Operation(summary = "Remove a barrier")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/barriers/{barrierId}")
     public ResponseEntity<Void> removeBarrierFromMyCampaign(
@@ -536,7 +552,8 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Move elements", description = "Repositions several nodes, barriers and text elements at once. The whole move is validated as one layout, so shifting a block of nodes never collides with the block itself.")
+    @Operation(summary = "Bulk move elements", description = "Moves nodes, barriers and text in one go. Checked as one "
+            + "layout. A moved block never collides with itself.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{campaignId}/positions")
     public ResponseEntity<Void> moveElementsOnMyCampaign(
@@ -548,7 +565,7 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Add a text element", description = "Places some text on the campaign map, for titles, notes or flavour. Formatting is cleaned up server side.")
+    @Operation(summary = "Add text", description = "Formatting gets cleaned up on the server.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{campaignId}/texts")
     public ResponseEntity<CampaignTextResponse> addTextToMyCampaign(
@@ -560,7 +577,7 @@ public class CampaignController {
                 .body(campaignService.addTextAsEditor(editorFor(authentication, principal), campaignId, request));
     }
 
-    @Operation(summary = "Update a text element", description = "Changes the content or position of a piece of text.")
+    @Operation(summary = "Edit text")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/texts/{textId}")
     public ResponseEntity<CampaignTextResponse> updateTextOnMyCampaign(
@@ -572,7 +589,7 @@ public class CampaignController {
                 campaignService.updateTextAsEditor(editorFor(authentication, principal), textId, request));
     }
 
-    @Operation(summary = "Remove a text element", description = "Takes a piece of text off the campaign map.")
+    @Operation(summary = "Remove text")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/{campaignId}/texts/{textId}")
     public ResponseEntity<Void> removeTextFromMyCampaign(

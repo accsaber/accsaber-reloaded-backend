@@ -33,7 +33,8 @@ public class RankingMapImportController {
         private final MapImportService mapImportService;
         private final MapService mapService;
 
-        @Operation(summary = "Import a map difficulty (Queue)", description = "Auto-fetches metadata from BeatLeader and BeatSaver, then creates the map difficulty in queue status")
+        @Operation(summary = "Import a difficulty to queue", description = "Pulls metadata from BeatLeader and "
+                + "BeatSaver.")
         @PostMapping("/import")
         public ResponseEntity<MapDifficultyResponse> importMapDifficulty(
                         @Valid @RequestBody ImportMapFromLeaderboardIdsRequest request,
@@ -44,7 +45,8 @@ public class RankingMapImportController {
                                 .body(response);
         }
 
-        @Operation(summary = "Manual import a map difficulty", description = "Import with all fields provided manually (fallback when external APIs are unavailable)")
+        @Operation(summary = "Import a difficulty by hand", description = "You fill in every field. Use when the "
+                + "external APIs are down.")
         @PostMapping("/import/manual")
         public ResponseEntity<MapDifficultyResponse> importMapDifficultyManual(
                         @Valid @RequestBody CreateMapDifficultyRequest request,
@@ -55,7 +57,8 @@ public class RankingMapImportController {
                                 .body(response);
         }
 
-        @Operation(summary = "Backfill map metadata", description = "Fetches BPM, notes, bombs, walls and duration from BeatSaver for all active difficulties missing metadata")
+        @Operation(summary = "Backfill map metadata", description = "Fills in BPM, notes, bombs, walls and duration "
+                + "from BeatSaver where missing.")
         @PostMapping("/backfill-metadata")
         public ResponseEntity<Void> backfillMetadata() {
                 mapImportService.backfillMetadata();

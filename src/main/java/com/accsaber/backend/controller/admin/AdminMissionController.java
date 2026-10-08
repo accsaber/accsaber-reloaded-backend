@@ -43,21 +43,21 @@ public class AdminMissionController {
     private final MissionQueryService queryService;
     private final SharedMissionService sharedMissionService;
 
-    @Operation(summary = "List all mission templates")
+    @Operation(summary = "All mission templates")
     @GetMapping("/templates")
     public ResponseEntity<List<MissionTemplateResponse>> listTemplates() {
         return ResponseEntity.ok(templateService.listAll().stream()
                 .map(MissionTemplateResponse::from).toList());
     }
 
-    @Operation(summary = "Create a mission template")
+    @Operation(summary = "New mission template")
     @PostMapping("/templates")
     public ResponseEntity<MissionTemplateResponse> createTemplate(@Valid @RequestBody MissionTemplateRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MissionTemplateResponse.from(templateService.create(req)));
     }
 
-    @Operation(summary = "Update a mission template")
+    @Operation(summary = "Edit a mission template")
     @PatchMapping("/templates/{id}")
     public ResponseEntity<MissionTemplateResponse> updateTemplate(@PathVariable UUID id,
             @Valid @RequestBody MissionTemplateRequest req) {
@@ -71,8 +71,8 @@ public class AdminMissionController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Regenerate missions for a user",
-            description = "Pool optional. Omit to regenerate both daily and weekly; specify to refresh only that pool.")
+    @Operation(summary = "Reroll a user's missions",
+            description = "Leave pool empty for daily and weekly. Set it to refresh only that pool.")
     @PostMapping("/users/{userId}/regenerate")
     public ResponseEntity<List<MissionResponse>> regenerate(@PathVariable Long userId,
             @RequestParam(required = false) MissionPool pool) {
@@ -81,9 +81,8 @@ public class AdminMissionController {
                         .map(MissionResponse::from).toList());
     }
 
-    @Operation(summary = "List missions for any user",
-            description = "Active missions by default, or the finished ones with completed=true. Pool narrows the active list "
-                    + "and is ignored on the completed one.")
+    @Operation(summary = "Any user's missions",
+            description = "Active by default. completed=true gives finished ones. Pool only filters the active list.")
     @GetMapping("/users/{userId}")
     public ResponseEntity<List<MissionResponse>> listForUser(@PathVariable Long userId,
             @RequestParam(defaultValue = "false") boolean completed,
@@ -101,17 +100,17 @@ public class AdminMissionController {
                 : queryService.listActiveByPool(userId, pool);
     }
 
-    @Operation(summary = "Open any community missions whose window is already running",
-            description = "Community missions open on their own every hour, so this only exists to skip that wait after "
-                    + "creating or editing a template. Safe to call repeatedly: it opens nothing that is already open, "
-                    + "still closed, or past its completion cap. Returns how many it opened.")
+    @Operation(summary = "Open due community missions",
+            description = "They open on their own every hour. This skips the wait. Safe to repeat, returns how many "
+                    + "opened.")
     @PostMapping("/community/open")
     public ResponseEntity<Integer> openCommunityMissions() {
         return ResponseEntity.ok(sharedMissionService.openMissing());
     }
 
-    @Operation(summary = "Force a fresh mission rollout for ALL eligible users",
-            description = "Async. Pool optional: omit to roll both daily and weekly, or specify to roll only that pool. Purges active+expired for the targeted pool(s), then re-rolls per user with fresh random seeds.")
+    @Operation(summary = "Reroll missions for everyone",
+            description = "Async. Leave pool empty for daily and weekly. Wipes active and expired missions in that "
+                    + "pool, then rerolls everyone.")
     @PostMapping("/rollout")
     public ResponseEntity<Void> rolloutAll(@RequestParam(required = false) MissionPool pool) {
         if (pool == null) {

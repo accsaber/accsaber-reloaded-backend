@@ -53,8 +53,7 @@ public class ClanWarController {
     private final ClanWarLoanService loanService;
 
     @Operation(summary = "List clan wars",
-            description = "Newest first. Pass clanId for one clan's wars on either side, and open=true to leave out the "
-                    + "ones that are over.")
+            description = "Newest first. clanId filters to one clan, open=true hides finished wars.")
     @GetMapping("/wars")
     public ResponseEntity<Page<ClanWarResponse>> wars(
             @RequestParam(required = false) UUID clanId,
@@ -64,11 +63,9 @@ public class ClanWarController {
     }
 
     @Operation(summary = "Declare war",
-            description = "Commander or above, and your clan can only be attacking one clan at a time. The arena and "
-                    + "ruleset have to be unlocked at your level, turf wars need their category or complexity range, and "
-                    + "mapDifficultyIds are your picks, which must be exactly as many as arenaSpec.attackerPicks comes "
-                    + "back as. A random arena takes none. You cannot attack an ally, or a clan whose Standing is too far "
-                    + "below yours unless they are attacking you.")
+            description = "Commander or above, one attack at a time. mapDifficultyIds must match "
+                    + "arenaSpec.attackerPicks in count, random arenas take none. No attacking allies or clans too "
+                    + "far below your Standing unless they attack you.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{clanId}/wars")
     public ResponseEntity<ClanWarDetailResponse> declare(
@@ -78,9 +75,9 @@ public class ClanWarController {
         return ResponseEntity.status(HttpStatus.CREATED).body(warService.declare(clanId, principal.getUserId(), request));
     }
 
-    @Operation(summary = "Get a clan war",
-            description = "The war with both sides and its pool. While the defense is still picking, the pool only shows "
-                    + "the picks of your own clan, and from preparation on everyone sees all of it.")
+    @Operation(summary = "Get a war",
+            description = "While the defense picks, you only see your own clan's picks. From preparation on everyone "
+                    + "sees all.")
     @GetMapping("/wars/{warId}")
     public ResponseEntity<ClanWarDetailResponse> war(
             @AuthenticationPrincipal PlayerUserDetails principal,
@@ -88,9 +85,9 @@ public class ClanWarController {
         return ResponseEntity.ok(warService.get(warId, principal != null ? principal.getUserId() : null));
     }
 
-    @Operation(summary = "Submit the defense picks",
-            description = "Officer or above on the defending clan, once, inside the pick window. Any pick the attacker "
-                    + "already made gets swapped for a random legal map, and the pool locks straight away.")
+    @Operation(summary = "Submit defense picks",
+            description = "Officer or above on the defense, once, in the pick window. Picks the attacker already "
+                    + "made get swapped for random maps. The pool locks right away.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/wars/{warId}/picks")
     public ResponseEntity<ClanWarDetailResponse> submitPicks(
@@ -102,8 +99,8 @@ public class ClanWarController {
     }
 
     @Operation(summary = "Retreat from a war",
-            description = "Send status ended. Only the commander leading the attack or the attacking founder can pull "
-                    + "out, and Standing that already moved stays where it went.")
+            description = "Send status ended. Only the leading commander or the attacking founder can. Standing "
+                    + "already moved stays moved.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/wars/{warId}")
     public ResponseEntity<ClanWarResponse> retreat(
@@ -116,11 +113,9 @@ public class ClanWarController {
         return ResponseEntity.ok(warService.retreat(warId, principal.getUserId()));
     }
 
-    @Operation(summary = "List a war's hits",
-            description = "Newest first. A hit is a play that beat an enemy's score on a pool map, or found them with no "
-                    + "score there at all, which is missingScore and hits softer. broke is the hit that emptied their "
-                    + "guard, with the Standing it moved, and xpAwarded is what each hit in that guard earned once it "
-                    + "broke. Pass userId to keep only the hits that player dealt or took.")
+    @Operation(summary = "War hits",
+            description = "Newest first. missingScore hits softer, broke marks the hit that emptied a guard. userId "
+                    + "keeps only hits that player dealt or took.")
     @GetMapping("/wars/{warId}/hits")
     public ResponseEntity<Page<ClanWarHitResponse>> hits(
             @PathVariable UUID warId,
@@ -129,11 +124,9 @@ public class ClanWarController {
         return ResponseEntity.ok(warService.hits(warId, userId, pageable));
     }
 
-    @Operation(summary = "Lend a player to an ally's war",
-            description = "Commander or above on a clan allied to one of the sides, and your clan cannot be fighting in "
-                    + "the war itself. The player has to be in your clan, free of any other loan and past their cooldown. "
-                    + "Your lend slots, the attacker's slots for borrowed players when the ally is the attacker, and the "
-                    + "alliance's Trust Level all cap it. The player then accepts or declines.")
+    @Operation(summary = "Lend a player",
+            description = "Commander or above on an ally of one side, not in the war. The player must be free and "
+                    + "off cooldown, capped by lend slots and Trust Level. They then accept or decline.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/wars/{warId}/loans")
     public ResponseEntity<ClanWarLoanResponse> offerLoan(
@@ -145,9 +138,8 @@ public class ClanWarController {
     }
 
     @Operation(summary = "Answer a loan",
-            description = "The lent player sends accepted or declined, and a commander of the lending clan can send "
-                    + "cancelled while it is still pending. Once accepted the player fights for the ally until the war "
-                    + "ends or they leave your clan.")
+            description = "The player sends accepted or declined. A lending commander can send cancelled while "
+                    + "pending. Accepted players fight until the war ends or they leave.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/wars/loans/{loanId}")
     public ResponseEntity<ClanWarLoanResponse> resolveLoan(
@@ -157,8 +149,8 @@ public class ClanWarController {
         return ResponseEntity.ok(loanService.resolve(loanId, principal.getUserId(), request.getStatus()));
     }
 
-    @Operation(summary = "List your loans",
-            description = "Every loan offered for you, newest first. Filter with status, for example pending.")
+    @Operation(summary = "Your loans",
+            description = "Newest first. Filter with status, like pending.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/wars/loans")
     public ResponseEntity<Page<ClanWarLoanResponse>> myLoans(
@@ -168,9 +160,8 @@ public class ClanWarController {
         return ResponseEntity.ok(loanService.list(null, principal.getUserId(), status, pageable));
     }
 
-    @Operation(summary = "List a war's loans",
-            description = "Every loan offered into this war, newest first. Filter with status, for example pending "
-                    + "or accepted.")
+    @Operation(summary = "A war's loans",
+            description = "Newest first. Filter with status, like pending or accepted.")
     @GetMapping("/wars/{warId}/loans")
     public ResponseEntity<Page<ClanWarLoanResponse>> warLoans(
             @PathVariable UUID warId,
@@ -179,9 +170,8 @@ public class ClanWarController {
         return ResponseEntity.ok(loanService.list(warId, null, status, pageable));
     }
 
-    @Operation(summary = "List a war's participants",
-            description = "Everyone enrolled once the war went active, players still in it first, then by contribution. "
-                    + "duelTarget is who a duel points them at.")
+    @Operation(summary = "War participants",
+            description = "Players still in first, then by contribution. duelTarget is who their duel points at.")
     @GetMapping("/wars/{warId}/participants")
     public ResponseEntity<Page<ClanWarParticipantResponse>> participants(
             @PathVariable UUID warId,

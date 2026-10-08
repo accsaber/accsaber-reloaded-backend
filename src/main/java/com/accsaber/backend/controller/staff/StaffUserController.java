@@ -43,7 +43,7 @@ public class StaffUserController {
 
     private final StaffUserService staffUserService;
 
-    @Operation(summary = "List all staff users (active, inactive, any status)")
+    @Operation(summary = "List all staff users")
     @GetMapping
     public ResponseEntity<Page<StaffUserResponse>> getAll(
             @RequestParam(required = false) StaffUserStatus status,
@@ -51,7 +51,7 @@ public class StaffUserController {
         return ResponseEntity.ok(staffUserService.getAllUnfiltered(status, pageable));
     }
 
-    @Operation(summary = "Update own username or email")
+    @Operation(summary = "Change your username or email")
     @PatchMapping("/me")
     @PreAuthorize("hasRole('RANKING')")
     public ResponseEntity<StaffUserResponse> updateProfile(
@@ -61,14 +61,14 @@ public class StaffUserController {
                 userDetails.getStaffUser().getId(), request));
     }
 
-    @Operation(summary = "Create a staff user")
+    @Operation(summary = "New staff user")
     @PostMapping
     public ResponseEntity<StaffUserResponse> create(@Valid @RequestBody CreateStaffUserRequest request) {
         StaffUserResponse response = staffUserService.create(request);
         return ResponseEntity.created(URI.create("/v1/staff/users/" + response.getId())).body(response);
     }
 
-    @Operation(summary = "Update staff user role")
+    @Operation(summary = "Set a staff role")
     @PatchMapping("/{id}/role")
     public ResponseEntity<StaffUserResponse> updateRole(
             @PathVariable UUID id,
@@ -76,7 +76,7 @@ public class StaffUserController {
         return ResponseEntity.ok(staffUserService.updateRole(id, request.getRole()));
     }
 
-    @Operation(summary = "Update staff user status (requested/accepted/denied)")
+    @Operation(summary = "Set staff status")
     @PatchMapping("/{id}/status")
     public ResponseEntity<StaffUserResponse> updateStatus(
             @PathVariable UUID id,
@@ -84,7 +84,7 @@ public class StaffUserController {
         return ResponseEntity.ok(staffUserService.updateStatus(id, request.getStatus()));
     }
 
-    @Operation(summary = "Link a player account to a staff user")
+    @Operation(summary = "Link a player to staff")
     @PatchMapping("/{id}/link-user")
     public ResponseEntity<StaffUserResponse> linkUser(
             @PathVariable UUID id,
@@ -92,7 +92,7 @@ public class StaffUserController {
         return ResponseEntity.ok(staffUserService.linkUser(id, request.getUserId()));
     }
 
-    @Operation(summary = "Force change a staff user's password")
+    @Operation(summary = "Reset a staff password")
     @PatchMapping("/{id}/password")
     public ResponseEntity<Void> forceChangePassword(
             @PathVariable UUID id,
@@ -101,17 +101,16 @@ public class StaffUserController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Activate or deactivate a staff user", description = "Pass active=false to lock the account out "
-            + "(its tokens and the linked player's sessions are revoked) and active=true to bring it back. Reactivating "
-            + "fails with 409 when another active account already holds the same username for that role or the same email.")
+    @Operation(summary = "Lock or unlock staff", description = "active=false locks them out and kills "
+            + "their sessions. active=true brings them back. 409 if another active account has the same email or "
+            + "the same username for that role.")
     @PatchMapping("/{id}/active")
     public ResponseEntity<StaffUserResponse> setActive(@PathVariable UUID id, @RequestParam boolean active) {
         return ResponseEntity.ok(staffUserService.setActive(id, active));
     }
 
-    @Operation(summary = "Permanently delete a staff user", description = "Removes the account and its map votes, and "
-            + "clears it from batches, map difficulties, leaderboard aliases, campaign curated/loved credits, account "
-            + "merges and item awards. Fails with 409 when the account authored news posts or admin actions.")
+    @Operation(summary = "Delete a staff user", description = "Removes the account and its votes and "
+            + "clears its credits everywhere. 409 if it wrote news posts or admin actions.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         staffUserService.delete(id);

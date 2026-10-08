@@ -26,7 +26,9 @@ public class AdminNotificationController {
 
     private final NotificationService notificationService;
 
-    @Operation(summary = "Send a one-line notification to every active player", description = "Irreversible. Skips players who disabled server notifications. linkTo is an in-app path such as /events/summer-2026.")
+    @Operation(summary = "Notify every active player", description = "Cannot be undone. "
+            + "Skips players who turned off server notifications. linkTo is an in-app path like "
+            + "/events/summer-2026.")
     @PostMapping("/broadcast")
     public ResponseEntity<Map<String, Integer>> broadcast(@Valid @RequestBody BroadcastRequest req) {
         return ResponseEntity.ok(Map.of("delivered",

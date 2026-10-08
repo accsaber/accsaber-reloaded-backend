@@ -33,7 +33,7 @@ public class DiscordLinkController {
 
     private final DiscordLinkService discordLinkService;
 
-    @Operation(summary = "Link a Discord account to the authenticated player")
+    @Operation(summary = "Link your Discord")
     @PostMapping
     public ResponseEntity<DiscordLinkResponse> link(@Valid @RequestBody LinkDiscordRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
@@ -44,19 +44,19 @@ public class DiscordLinkController {
                 .body(discordLinkService.link(principal.getUserId(), request));
     }
 
-    @Operation(summary = "Get link by Discord ID")
+    @Operation(summary = "Link by Discord ID")
     @GetMapping("/{discordId}")
     public ResponseEntity<DiscordLinkResponse> getByDiscordId(@PathVariable String discordId) {
         return ResponseEntity.ok(discordLinkService.findByDiscordId(discordId));
     }
 
-    @Operation(summary = "Get link by user ID")
+    @Operation(summary = "Link by user ID")
     @GetMapping("/user/{userId}")
     public ResponseEntity<DiscordLinkResponse> getByUserId(@PathVariable Long userId) {
         return ResponseEntity.ok(discordLinkService.findByUserId(userId));
     }
 
-    @Operation(summary = "Update a Discord link's player (admin)")
+    @Operation(summary = "Repoint a Discord link")
     @PatchMapping("/{discordId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DiscordLinkResponse> update(@PathVariable String discordId,
@@ -64,7 +64,7 @@ public class DiscordLinkController {
         return ResponseEntity.ok(discordLinkService.update(discordId, request));
     }
 
-    @Operation(summary = "Unlink a Discord account (admin)")
+    @Operation(summary = "Unlink a Discord account")
     @DeleteMapping("/{discordId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> unlink(@PathVariable String discordId) {

@@ -35,19 +35,19 @@ public class AdminCampaignController {
 
     private final CampaignService campaignService;
 
-    @Operation(summary = "Create a campaign")
+    @Operation(summary = "New campaign")
     @PostMapping
     public ResponseEntity<CampaignResponse> createCampaign(@Valid @RequestBody CreateCampaignRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createCampaign(request));
     }
 
-    @Operation(summary = "Move a published campaign back into editing")
+    @Operation(summary = "Reopen a campaign for editing")
     @PatchMapping("/{campaignId}/edit")
     public ResponseEntity<CampaignResponse> startEditing(@PathVariable UUID campaignId) {
         return ResponseEntity.ok(campaignService.startEditing(campaignId));
     }
 
-    @Operation(summary = "Mark a campaign as curated")
+    @Operation(summary = "Curate a campaign")
     @PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
     @PatchMapping("/{campaignId}/curate")
     public ResponseEntity<CampaignResponse> markCurated(
@@ -57,7 +57,7 @@ public class AdminCampaignController {
                 campaignService.markCurated(campaignId, StaffPrincipals.staffIdOf(authentication)));
     }
 
-    @Operation(summary = "Mark a campaign as loved by the community")
+    @Operation(summary = "Mark a campaign loved")
     @PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
     @PatchMapping("/{campaignId}/loved")
     public ResponseEntity<CampaignResponse> setLoved(
@@ -68,7 +68,7 @@ public class AdminCampaignController {
                 campaignService.setLoved(campaignId, loved, StaffPrincipals.staffIdOf(authentication)));
     }
 
-    @Operation(summary = "Strip curation status from a campaign")
+    @Operation(summary = "Uncurate a campaign")
     @PreAuthorize("hasAnyRole('ADMIN', 'CAMPAIGN_CURATOR')")
     @PatchMapping("/{campaignId}/uncurate")
     public ResponseEntity<CampaignResponse> uncurate(
@@ -78,7 +78,7 @@ public class AdminCampaignController {
                 campaignService.uncurate(campaignId, StaffPrincipals.staffIdOf(authentication)));
     }
 
-    @Operation(summary = "Mark a campaign official (allows its creators to reward untradeable items)")
+    @Operation(summary = "Make a campaign official")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{campaignId}/official")
     public ResponseEntity<CampaignResponse> setOfficial(
@@ -87,7 +87,7 @@ public class AdminCampaignController {
         return ResponseEntity.ok(campaignService.setOfficial(campaignId, official));
     }
 
-    @Operation(summary = "Create a campaign tag")
+    @Operation(summary = "Add a campaign tag")
     @PostMapping("/tags")
     public ResponseEntity<CampaignTagResponse> createTag(
             @Valid @RequestBody CreateCampaignTagRequest request,

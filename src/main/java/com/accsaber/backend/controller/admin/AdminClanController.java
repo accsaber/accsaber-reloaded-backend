@@ -56,73 +56,72 @@ public class AdminClanController {
     private final ClanWarRewardService warRewardService;
     private final MediaProcessingService mediaProcessingService;
 
-    @Operation(summary = "Set how much of a capacity a level adds",
-            description = "Capacities stack, so the amount here is added on top of every lower level's. Returns the "
-                    + "whole level table.")
+    @Operation(summary = "Set a level's capacity bump",
+            description = "Stacks on top of lower levels. Returns the whole level table.")
     @PutMapping("/levels/{level}/capacities/{capacity}")
     public ResponseEntity<List<ClanLevelStepResponse>> setCapacity(@PathVariable int level,
             @PathVariable ClanCapacity capacity, @Valid @RequestBody ClanCapacityRequest request) {
         return ResponseEntity.ok(levelService.setCapacity(level, capacity, request.getAmount()));
     }
 
-    @Operation(summary = "Remove a capacity step from a level")
+    @Operation(summary = "Remove a capacity step")
     @DeleteMapping("/levels/{level}/capacities/{capacity}")
     public ResponseEntity<List<ClanLevelStepResponse>> removeCapacity(@PathVariable int level,
             @PathVariable ClanCapacity capacity) {
         return ResponseEntity.ok(levelService.removeCapacity(level, capacity));
     }
 
-    @Operation(summary = "Unlock an arena or ruleset at a level", description = "Axis is arena or ruleset.")
+    @Operation(summary = "Unlock an arena or ruleset", description = "Axis is arena or ruleset.")
     @PutMapping("/war-modes/{axis}/{mode}")
     public ResponseEntity<List<ClanLevelStepResponse>> setWarMode(@PathVariable ClanWarModeAxis axis,
             @PathVariable String mode, @Valid @RequestBody ClanWarModeRequest request) {
         return ResponseEntity.ok(levelService.setWarMode(axis, mode, request.getLevel()));
     }
 
-    @Operation(summary = "Lock an arena or ruleset away again")
+    @Operation(summary = "Lock it away again")
     @DeleteMapping("/war-modes/{axis}/{mode}")
     public ResponseEntity<List<ClanLevelStepResponse>> removeWarMode(@PathVariable ClanWarModeAxis axis,
             @PathVariable String mode) {
         return ResponseEntity.ok(levelService.removeWarMode(axis, mode));
     }
 
-    @Operation(summary = "Make a clan cosmetic a level reward",
-            description = "Clans already at or past that level get the item straight away.")
+    @Operation(summary = "Make a cosmetic a level reward",
+            description = "Clans past that level get it right away.")
     @PutMapping("/levels/{level}/items/{itemId}")
     public ResponseEntity<List<ClanLevelStepResponse>> setLevelItem(@PathVariable int level,
             @PathVariable UUID itemId) {
         return ResponseEntity.ok(levelService.setLevelItem(level, itemId));
     }
 
-    @Operation(summary = "Stop a cosmetic being a level reward", description = "Clans that already own it keep it.")
+    @Operation(summary = "Drop a level reward", description = "Clans that own it keep it.")
     @DeleteMapping("/level-items/{itemId}")
     public ResponseEntity<List<ClanLevelStepResponse>> removeLevelItem(@PathVariable UUID itemId) {
         return ResponseEntity.ok(levelService.removeLevelItem(itemId));
     }
 
-    @Operation(summary = "Create a clan season",
-            description = "Seasons cannot overlap. None opens on its own, so wars stay closed until staff create one.")
+    @Operation(summary = "New clan season",
+            description = "No overlaps. Wars stay closed until one exists.")
     @PostMapping("/seasons")
     public ResponseEntity<ClanSeasonResponse> createSeason(@Valid @RequestBody ClanSeasonRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(seasonService.create(request));
     }
 
-    @Operation(summary = "Update a clan season", description = "A closed season cannot change.")
+    @Operation(summary = "Edit a clan season", description = "Closed seasons cannot change.")
     @PatchMapping("/seasons/{seasonId}")
     public ResponseEntity<ClanSeasonResponse> updateSeason(@PathVariable UUID seasonId,
             @Valid @RequestBody ClanSeasonRequest request) {
         return ResponseEntity.ok(seasonService.update(seasonId, request));
     }
 
-    @Operation(summary = "List a season's rewards")
+    @Operation(summary = "Season rewards")
     @GetMapping("/seasons/{seasonId}/rewards")
     public ResponseEntity<List<ClanSeasonRewardResponse>> seasonRewards(@PathVariable UUID seasonId) {
         return ResponseEntity.ok(seasonService.rewards(seasonId));
     }
 
     @Operation(summary = "Add a season reward",
-            description = "Every clan ranked between rankFrom and rankTo when the season closes gets it. A clan "
-                    + "cosmetic goes to the clan, anything else to its contributors in contribution order.")
+            description = "Goes to every clan ranked rankFrom to rankTo at season close. Clan cosmetics go to the "
+                    + "clan, the rest to contributors by contribution.")
     @PostMapping("/seasons/{seasonId}/rewards")
     public ResponseEntity<ClanSeasonRewardResponse> addSeasonReward(@PathVariable UUID seasonId,
             @Valid @RequestBody ClanSeasonRewardRequest request) {
@@ -136,21 +135,21 @@ public class AdminClanController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "List war reward items")
+    @Operation(summary = "War reward items")
     @GetMapping("/war-rewards")
     public ResponseEntity<List<ClanWarRewardItemResponse>> warRewards() {
         return ResponseEntity.ok(warRewardService.list());
     }
 
     @Operation(summary = "Add a war reward item",
-            description = "Paid to the winning side in contribution order, to everyone who contributed or only the top "
-                    + "topContributors. A clan cosmetic goes to the winning clan instead.")
+            description = "Goes to the winners by contribution, to all or only the top topContributors. Clan "
+                    + "cosmetics go to the winning clan.")
     @PostMapping("/war-rewards")
     public ResponseEntity<ClanWarRewardItemResponse> addWarReward(@Valid @RequestBody ClanWarRewardItemRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(warRewardService.create(request));
     }
 
-    @Operation(summary = "Update a war reward item")
+    @Operation(summary = "Edit a war reward item")
     @PatchMapping("/war-rewards/{rewardId}")
     public ResponseEntity<ClanWarRewardItemResponse> updateWarReward(@PathVariable UUID rewardId,
             @Valid @RequestBody ClanWarRewardItemRequest request) {
@@ -164,9 +163,9 @@ public class AdminClanController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Change a clan's name, tag, description or tag colour, or take its icon down",
-            description = "For clans breaking the rules. Send removeIcon to clear an uploaded icon. The reason lands "
-                    + "in the clan's audit log.")
+    @Operation(summary = "Moderate a clan",
+            description = "Name, tag, description or tag colour. Send removeIcon to clear the icon. The reason goes "
+                    + "in the clan audit log.")
     @PatchMapping("/{clanId}")
     public ResponseEntity<ClanResponse> moderate(@PathVariable UUID clanId,
             @Valid @RequestBody ModerateClanRequest request) {
@@ -178,8 +177,8 @@ public class AdminClanController {
     }
 
     @Operation(summary = "Disband a clan",
-            description = "Ends every membership, alliance, mission and war the clan had, and every member gets a server "
-                    + "notification with the reason.")
+            description = "Ends all memberships, alliances, missions and wars. Every member gets a notification with "
+                    + "the reason.")
     @DeleteMapping("/{clanId}")
     public ResponseEntity<Void> disband(@PathVariable UUID clanId, @RequestParam @NotBlank String reason) {
         clanService.disbandByStaff(clanId, reason);

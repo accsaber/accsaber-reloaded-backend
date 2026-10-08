@@ -39,7 +39,7 @@ public class AdminWebSocketController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Get WebSocket connection status")
+    @Operation(summary = "WebSocket status")
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getWebSocketStatus() {
         return ResponseEntity.ok(webSocketConnectionManager.getStatus());

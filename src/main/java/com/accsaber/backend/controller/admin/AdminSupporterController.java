@@ -36,7 +36,7 @@ public class AdminSupporterController {
 
     private final SupporterService supporterService;
 
-    @Operation(summary = "Manually grant supporter status to a user (synthesizes a claimed Ko-fi event and applies the tier + items)")
+    @Operation(summary = "Give someone supporter")
     @PostMapping("/grant")
     public ResponseEntity<Map<String, Object>> grant(@Valid @RequestBody ManualSupporterGrantRequest request) {
         KofiEventType type = parseType(request.getType());
@@ -56,7 +56,8 @@ public class AdminSupporterController {
                 "type", event.getType().name()));
     }
 
-    @Operation(summary = "List Ko-fi events", description = "Every webhook event the platform has received, newest first. Filter with status for all, unclaimed or claimed, narrow to one player with userId, or search across the donor email and name.")
+    @Operation(summary = "List Ko-fi events", description = "Newest first. status is all, unclaimed or claimed. "
+            + "search matches donor email and name.")
     @GetMapping("/events")
     public ResponseEntity<Page<KofiEventResponse>> events(
             @RequestParam(required = false, defaultValue = "all") String status,
@@ -67,7 +68,7 @@ public class AdminSupporterController {
                 .map(KofiEventResponse::from));
     }
 
-    @Operation(summary = "Claim an existing (unclaimed) Ko-fi event for a user by user id - applies the tier/balance and seeds the event's email so future renewals auto-claim")
+    @Operation(summary = "Claim a Ko-fi event for someone")
     @PostMapping("/claim")
     public ResponseEntity<Void> claim(@Valid @RequestBody ClaimSupporterEventRequest request) {
         supporterService.claimByAdmin(request.getKofiTransactionId(), request.getUserId());

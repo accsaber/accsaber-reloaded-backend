@@ -36,10 +36,9 @@ public class ClanAllianceController {
 
     private final ClanAllianceService allianceService;
 
-    @Operation(summary = "List a clan's allies",
-            description = "Every active alliance, newest first, with the other clan as ally. trust carries the Trust "
-                    + "Level, how many players that alliance can have out on loan at once, and the contribution lent "
-                    + "players have put up across it.")
+    @Operation(summary = "A clan's allies",
+            description = "Active alliances, newest first. trust has the Trust Level, how many players can be on "
+                    + "loan at once and what lent players contributed.")
     @GetMapping("/{clanId}/alliances")
     public ResponseEntity<Page<ClanAllianceResponse>> alliances(
             @PathVariable UUID clanId,
@@ -47,9 +46,8 @@ public class ClanAllianceController {
         return ResponseEntity.ok(allianceService.list(clanId, pageable));
     }
 
-    @Operation(summary = "List a clan's pending alliance proposals",
-            description = "Founder only. Both the proposals this clan sent and the ones waiting for its answer, "
-                    + "told apart by incoming.")
+    @Operation(summary = "Pending alliance proposals",
+            description = "Founder only. Sent and received, told apart by incoming.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/alliances/proposals")
     public ResponseEntity<Page<ClanAllianceResponse>> proposals(
@@ -60,7 +58,7 @@ public class ClanAllianceController {
     }
 
     @Operation(summary = "Propose an alliance",
-            description = "Founder only, and your clan needs a free ally slot. The other clan's founder answers it.")
+            description = "Founder only. Your clan needs a free ally slot.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{clanId}/alliances")
     public ResponseEntity<ClanAllianceResponse> propose(
@@ -72,9 +70,8 @@ public class ClanAllianceController {
     }
 
     @Operation(summary = "Answer or end an alliance",
-            description = "active accepts a proposal, which only the clan that received it can do and which needs a "
-                    + "free ally slot on both sides. declined turns a proposal down or withdraws your own, and ended "
-                    + "breaks an active alliance. Founders of either clan only.")
+            description = "Founders only. active accepts, receiver only, with a free ally slot on both sides. "
+                    + "declined rejects or withdraws, ended breaks it.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/alliances/{allianceId}")
     public ResponseEntity<ClanAllianceResponse> resolve(

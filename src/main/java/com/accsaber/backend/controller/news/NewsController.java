@@ -27,9 +27,8 @@ public class NewsController {
 
     private final NewsService newsService;
 
-    @Operation(summary = "List the news posts", description = "Published posts with anything pinned at the top and the rest "
-            + "newest first. Filter with type if you only care about one sort, which is one of BATCH, CAMPAIGN, MILESTONE_SET, "
-            + "CURVE or GENERAL. Drafts never appear here.")
+    @Operation(summary = "List news", description = "Pinned first, then newest. type is BATCH, CAMPAIGN, "
+            + "MILESTONE_SET, CURVE or GENERAL.")
     @GetMapping
     public ResponseEntity<Page<PublicNewsResponse>> list(
             @RequestParam(required = false) NewsType type,
@@ -37,8 +36,7 @@ public class NewsController {
         return ResponseEntity.ok(newsService.findPublic(type, pageable));
     }
 
-    @Operation(summary = "Get one news post", description = "A single published post. You can address it either by its id or "
-            + "by its slug, the readable version of the title, so whichever you happen to have works.")
+    @Operation(summary = "Get a news post", description = "Id or slug both work.")
     @GetMapping("/{idOrSlug}")
     public ResponseEntity<PublicNewsResponse> get(@PathVariable String idOrSlug) {
         return ResponseEntity.ok(newsService.findPublic(idOrSlug));

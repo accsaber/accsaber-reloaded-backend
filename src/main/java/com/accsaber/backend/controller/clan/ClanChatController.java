@@ -37,11 +37,9 @@ public class ClanChatController {
     private final ChatService chatService;
     private final ClanChatChannel clanChatChannel;
 
-    @Operation(summary = "Read a clan's chat",
-            description = "Members only, newest first. Messages from members come with content. Things that happened to "
-                    + "the clan come with an event instead, like member_joined, member_kicked or alliance_formed, where "
-                    + "author is whoever did it, subject is the player it happened to and clan is the other clan "
-                    + "involved. Connect to /ws/clans/chat?clanId=...&token=... to get both as they happen.")
+    @Operation(summary = "Read clan chat",
+            description = "Members only, newest first. Messages have content, clan events have an event like "
+                    + "member_joined instead. Live feed at /ws/clans/chat?clanId=...&token=...")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/chat")
     public ResponseEntity<Page<ChatMessageResponse>> messages(
@@ -51,7 +49,7 @@ public class ClanChatController {
         return ResponseEntity.ok(chatService.getMessages(clanChatChannel, clanId, principal.getUserId(), pageable));
     }
 
-    @Operation(summary = "Send a clan chat message", description = "Members only, and the chat rate limit applies.")
+    @Operation(summary = "Post in clan chat", description = "Members only. Chat rate limit applies.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{clanId}/chat")
     public ResponseEntity<ChatMessageResponse> send(

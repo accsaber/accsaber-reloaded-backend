@@ -36,9 +36,8 @@ public class ClanRivalController {
 
     private final ClanRivalService rivalService;
 
-    @Operation(summary = "List a clan's rivals",
-            description = "The clans this one has called rivals, most recent first. Pass incoming=true for the clans "
-                    + "that have called this one a rival instead.")
+    @Operation(summary = "A clan's rivals",
+            description = "Newest first. incoming=true lists clans that called this one a rival.")
     @GetMapping("/{clanId}/rivals")
     public ResponseEntity<Page<ClanRivalResponse>> rivals(
             @PathVariable UUID clanId,
@@ -47,9 +46,8 @@ public class ClanRivalController {
         return ResponseEntity.ok(rivalService.list(clanId, incoming, pageable));
     }
 
-    @Operation(summary = "Call a clan a rival",
-            description = "Commander or above. It is a status and nothing more, and both clans see it in their chat. "
-                    + "An ally cannot be a rival, so end the alliance first.")
+    @Operation(summary = "Call a rival",
+            description = "Commander or above. Status only, shows in both clans' chat. Allies cannot be rivals.")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/{clanId}/rivals")
     public ResponseEntity<ClanRivalResponse> declare(

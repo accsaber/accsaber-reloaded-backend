@@ -24,7 +24,7 @@ public class CdnLimitsController {
 
     private final CdnProperties cdn;
 
-    @Operation(summary = "Get the upload limits", description = "How big a file can be and which types we accept, per kind of upload. Worth reading these before you send something rather than finding out from a 413.")
+    @Operation(summary = "Upload limits", description = "Max size and allowed types per upload kind.")
     @GetMapping("/limits")
     public ResponseEntity<CdnLimitsResponse> getLimits() {
         return ResponseEntity.ok(CdnLimitsResponse.builder()

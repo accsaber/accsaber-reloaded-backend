@@ -33,33 +33,29 @@ public class AdminJobController {
 
     private final AdminJobService jobService;
 
-    @Operation(summary = "List the job catalogue", description = "Every job you can start, with the inputs each one takes. "
-            + "A field tells you its key, what kind of thing it points at, whether it is required and whether it takes more "
-            + "than one. Read this rather than hardcoding a list, because a new job type shows up here on its own.")
+    @Operation(summary = "List job types", description = "Every job you can start and the fields each one "
+            + "takes. New job types show up here on their own.")
     @GetMapping("/types")
     public ResponseEntity<List<JobTypeResponse>> types() {
         return ResponseEntity.ok(jobService.catalogue());
     }
 
-    @Operation(summary = "Start a background job", description = "Kicks off one of the heavy maintenance jobs and hands you "
-            + "back its id straight away. Which extra fields you need depends on the type, and you get a 422 telling you which "
-            + "one is missing if you leave it out. Use the id with the routes below to see whether it finished or blew up. "
-            + "Nothing is queued, so starting the same job twice really does run it twice.")
+    @Operation(summary = "Start a job", description = "Gives you the job id right away. A missing field "
+            + "gets a 422. Starting the same job twice runs it twice.")
     @PostMapping
     public ResponseEntity<JobResponse> run(@Valid @RequestBody RunJobRequest request) {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(JobResponse.from(jobService.run(request)));
     }
 
-    @Operation(summary = "List jobs", description = "Everything running right now, newest first, followed by the last 50 that "
-            + "finished. This is held in memory rather than the database, so a restart clears it, which is fine because a "
-            + "restart also kills whatever was running.")
+    @Operation(summary = "Running and recent jobs", description = "Running jobs first, then the last 50 finished. A restart clears "
+            + "the list.")
     @GetMapping
     public ResponseEntity<List<JobResponse>> list() {
         return ResponseEntity.ok(jobService.list().stream().map(JobResponse::from).toList());
     }
 
-    @Operation(summary = "Get one job", description = "The state of a single job, including the error message if it failed. "
-            + "Jobs drop off the end of the recent list eventually, so an id that used to work can start coming back as a 404.")
+    @Operation(summary = "Check a job", description = "Shows the error if it failed. Old jobs fall off the list and "
+            + "start giving 404.")
     @GetMapping("/{jobId}")
     public ResponseEntity<JobResponse> get(@PathVariable UUID jobId) {
         return ResponseEntity.ok(JobResponse.from(jobService.find(jobId)
