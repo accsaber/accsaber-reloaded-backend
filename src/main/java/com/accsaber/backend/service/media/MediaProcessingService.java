@@ -169,7 +169,8 @@ public class MediaProcessingService {
 
     private int sourcePageCount(Path input) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(cdn.getVipsBinary(), "getfield", input.toString(), "n-pages");
+            String header = Paths.get(cdn.getVipsBinary()).resolveSibling("vipsheader").toString();
+            ProcessBuilder pb = new ProcessBuilder(header, "-f", "n-pages", input.toString());
             pb.environment().put("VIPS_CONCURRENCY", "1");
             pb.redirectErrorStream(true);
             Process proc = pb.start();
