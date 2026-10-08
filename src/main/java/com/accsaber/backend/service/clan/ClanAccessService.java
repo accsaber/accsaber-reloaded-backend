@@ -37,7 +37,7 @@ public class ClanAccessService {
     public ClanMember require(UUID clanId, Long userId, ClanPermission permission) {
         ClanMember membership = memberRepository.findOpenByClanIdAndUserId(clanId, userId)
                 .orElseThrow(() -> new ForbiddenException("You are not a member of this clan"));
-        if (!membership.getRole().isAtLeast(permission.minimum())) {
+        if (!membership.getRole().isAtLeast(permission.getMinimum())) {
             throw new ForbiddenException("Your rank in this clan cannot do that");
         }
         return membership;

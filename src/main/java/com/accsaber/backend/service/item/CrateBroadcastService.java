@@ -10,8 +10,6 @@ import com.accsaber.backend.model.event.CrateOpenedEvent;
 import com.accsaber.backend.websocket.server.CrateFeedWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,11 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CrateBroadcastService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
 
     private final CrateFeedWebSocketHandler crateFeedHandler;
 

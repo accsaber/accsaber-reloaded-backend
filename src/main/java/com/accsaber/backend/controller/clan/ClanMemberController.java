@@ -23,7 +23,7 @@ import com.accsaber.backend.model.dto.request.clan.ResolveClanJoinRequest;
 import com.accsaber.backend.model.dto.request.clan.TransferClanFounderRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanMemberRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanJoinRequestResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanMemberResponse;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.clan.ClanJoinRequestService;
 import com.accsaber.backend.service.clan.ClanMembershipService;
@@ -44,10 +44,11 @@ public class ClanMemberController {
 
     @Operation(summary = "List a clan's members",
             description = "Founder first, then commanders, officers and members, each rank ordered by who joined "
-                    + "earliest. online is whether the player has the site open right now, and lastPlayedAt is "
-                    + "their newest score.")
+                    + "earliest. Each player carries membership: online is whether they have the site open right now, "
+                    + "lastPlayedAt is their newest score, strengthShare their share of the clan strength, and the "
+                    + "season fields what they brought the clan this season.")
     @GetMapping("/{clanId}/members")
-    public ResponseEntity<Page<ClanMemberResponse>> members(
+    public ResponseEntity<Page<PlayerRef>> members(
             @PathVariable UUID clanId,
             @PageableDefault(size = 50) Pageable pageable) {
         return ResponseEntity.ok(membershipService.roster(clanId, pageable));
@@ -58,7 +59,7 @@ public class ClanMemberController {
                     + "change someone ranked below you, and officer and commander slots come from the clan level.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/members/{userId}")
-    public ResponseEntity<ClanMemberResponse> changeRole(
+    public ResponseEntity<PlayerRef> changeRole(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @PathVariable Long userId,
@@ -87,7 +88,7 @@ public class ClanMemberController {
                     + "the founder has gone without a score for long enough.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/founder")
-    public ResponseEntity<ClanMemberResponse> transferFounder(
+    public ResponseEntity<PlayerRef> transferFounder(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @Valid @RequestBody TransferClanFounderRequest request) {

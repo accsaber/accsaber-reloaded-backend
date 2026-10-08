@@ -146,7 +146,7 @@ public class MissionBuilderService {
             case STREAK_N_IN_CATEGORY ->
                 buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
             case STREAK_SUM_N, SNIPE_RIVAL_ANY_MAP, AP_GAIN_OVERALL, BATCH_PLAY_N, PB_RANKED_BEFORE_N,
-                    CAMPAIGN_COMPLETE_N ->
+                    CAMPAIGN_COMPLETE_N, MISSIONS_COMPLETE_N ->
                 failBuild("event-only-type");
             case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
             case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
@@ -854,11 +854,16 @@ public class MissionBuilderService {
         return MissionBand.extreme;
     }
 
-    private Item rollItemReward(MissionTemplate template, Random rng, MissionPoolCache cache) {
+    public Item rollCrateDrop(MissionTemplate template, Random rng, Item crate) {
         if (template.getAwardsItem() != null)
             return template.getAwardsItem();
-        if (cache.eventCrate() != null && rng.nextInt(100) < 20)
-            return cache.eventCrate();
+        return crate != null && rng.nextInt(100) < 20 ? crate : null;
+    }
+
+    private Item rollItemReward(MissionTemplate template, Random rng, MissionPoolCache cache) {
+        Item item = rollCrateDrop(template, rng, cache.eventCrate());
+        if (item != null)
+            return item;
         List<Item> pool = cache.poolableItems();
         if (pool.isEmpty())
             return null;

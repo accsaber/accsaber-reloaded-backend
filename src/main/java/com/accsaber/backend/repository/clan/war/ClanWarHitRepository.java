@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.clan.war;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -43,8 +44,39 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
             SELECT h FROM ClanWarHit h
             JOIN FETCH h.attacker JOIN FETCH h.victim
             WHERE h.war.id = :warId
+              AND (:userId IS NULL OR h.attacker.id = :userId OR h.victim.id = :userId)
             ORDER BY h.createdAt DESC
             """,
-            countQuery = "SELECT COUNT(h) FROM ClanWarHit h WHERE h.war.id = :warId")
-    Page<ClanWarHit> findPageByWarId(@Param("warId") UUID warId, Pageable pageable);
+            countQuery = """
+                    SELECT COUNT(h) FROM ClanWarHit h
+                    WHERE h.war.id = :warId
+                      AND (:userId IS NULL OR h.attacker.id = :userId OR h.victim.id = :userId)
+                    """)
+    Page<ClanWarHit> findPageByWarId(@Param("warId") UUID warId, @Param("userId") Long userId, Pageable pageable);
+
+    interface TimelinePointView {
+        Instant getAt();
+
+        UUID getClanId();
+
+        double getDamage();
+
+        long getHits();
+
+        long getBreaks();
+
+        double getStandingMoved();
+    }
+
+    @Query(value = """
+            SELECT date_trunc('hour', h.created_at) AS at, p.clan_id AS clanId, SUM(h.damage) AS damage,
+                   COUNT(*) AS hits, COUNT(*) FILTER (WHERE h.broke) AS breaks,
+                   SUM(h.standing_moved) AS standingMoved
+            FROM clan_war_hits h
+            JOIN clan_war_participants p ON p.war_id = h.war_id AND p.user_id = h.attacker_user_id
+            WHERE h.war_id = :warId
+            GROUP BY 1, 2
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<TimelinePointView> findHourlyTimeline(@Param("warId") UUID warId);
 }

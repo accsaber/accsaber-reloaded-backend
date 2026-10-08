@@ -5,10 +5,9 @@ import java.util.UUID;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +22,6 @@ public class ClanWarScoreGate {
     private volatile Set<Long> participantIds = Set.of();
 
     @PostConstruct
-    public void init() {
-        refresh();
-    }
-
     @Scheduled(fixedDelay = 300_000, initialDelay = 300_000)
     public void refresh() {
         poolDifficultyIds = Set.copyOf(warRepository.findActivePoolDifficultyIds());
@@ -34,16 +29,7 @@ public class ClanWarScoreGate {
     }
 
     public void refreshAfterCommit() {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            refresh();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                refresh();
-            }
-        });
+        AfterCommit.run(this::refresh);
     }
 
     public boolean mayMatter(Long userId, UUID mapDifficultyId) {

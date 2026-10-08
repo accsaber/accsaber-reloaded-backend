@@ -15,8 +15,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -40,6 +38,7 @@ import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
@@ -205,12 +204,7 @@ public class DuplicateUserService {
 
         executeMerge(link, primary, secondary, staffUserId, reason);
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                self.recalculateAfterMerge(primaryUserId);
-            }
-        });
+        AfterCommit.run(() -> self.recalculateAfterMerge(primaryUserId));
 
         return toLinkResponse(link);
     }
@@ -232,12 +226,7 @@ public class DuplicateUserService {
                 })
                 .toList();
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                self.recalculateAfterBulkMerge(affectedPrimaryIds);
-            }
-        });
+        AfterCommit.run(() -> self.recalculateAfterBulkMerge(affectedPrimaryIds));
 
         return results;
     }
@@ -307,12 +296,7 @@ public class DuplicateUserService {
         Long secondaryUserId = secondary.getId();
         log.info("Unmerged user {} from {}: {} actions reversed", secondaryUserId, primaryUserId, actions.size());
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                self.recalculateAfterUnmerge(primaryUserId, secondaryUserId);
-            }
-        });
+        AfterCommit.run(() -> self.recalculateAfterUnmerge(primaryUserId, secondaryUserId));
 
         return toLinkResponse(link);
     }

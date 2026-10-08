@@ -61,8 +61,8 @@ public class ClanWarRosterService {
         sync(war);
         feed.war(war);
         notifier.warStarted(war);
-        for (Clan clan : List.of(war.getAttackerClan(), war.getDefenderClan())) {
-            chatChannel.announce(clan, ChatNotice.ofWar(ChatEvent.war_started, null, other(war, clan), war));
+        for (Clan clan : war.sides()) {
+            chatChannel.announce(clan, ChatNotice.ofWar(ChatEvent.war_started, null, war.opponentOf(clan), war));
         }
     }
 
@@ -94,7 +94,7 @@ public class ClanWarRosterService {
                     .anyMatch(member -> member.userId().equals(participant.getUser().getId()));
             participant.setLeftAt(stillIn ? null : now);
         }
-        for (Clan clan : List.of(war.getAttackerClan(), war.getDefenderClan())) {
+        for (Clan clan : war.sides()) {
             for (MemberStrength member : rosters.get(clan.getId())) {
                 if (!existing.containsKey(member.userId())) {
                     existing.put(member.userId(), ClanWarParticipant.builder()
@@ -153,9 +153,5 @@ public class ClanWarRosterService {
             int target = side.size() == 1 ? 0 : (int) Math.round(i * (enemies.size() - 1.0) / (side.size() - 1.0));
             side.get(i).setDuelTarget(enemies.get(target).getUser());
         }
-    }
-
-    private static Clan other(ClanWar war, Clan clan) {
-        return war.getAttackerClan().getId().equals(clan.getId()) ? war.getDefenderClan() : war.getAttackerClan();
     }
 }

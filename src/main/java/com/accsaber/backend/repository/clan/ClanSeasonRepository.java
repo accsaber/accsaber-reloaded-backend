@@ -22,16 +22,11 @@ public interface ClanSeasonRepository extends JpaRepository<ClanSeason, UUID> {
 
     Page<ClanSeason> findAllByOrderByStartsAtDesc(Pageable pageable);
 
-    Optional<ClanSeason> findTopByOrderByEndsAtDesc();
-
     @Query("""
             SELECT s FROM ClanSeason s
             WHERE s.closedAt IS NULL AND s.startsAt <= :now AND s.endsAt > :now
             """)
     Optional<ClanSeason> findCurrent(@Param("now") Instant now);
-
-    @Query("SELECT COUNT(s) > 0 FROM ClanSeason s WHERE s.closedAt IS NULL AND s.endsAt > :now")
-    boolean existsOpenUntilAfter(@Param("now") Instant now);
 
     @Query("SELECT s.id FROM ClanSeason s WHERE s.closedAt IS NULL AND s.endsAt <= :now ORDER BY s.endsAt")
     List<UUID> findEndedUnclosedIds(@Param("now") Instant now);

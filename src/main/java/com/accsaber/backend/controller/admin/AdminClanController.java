@@ -101,7 +101,7 @@ public class AdminClanController {
     }
 
     @Operation(summary = "Create a clan season",
-            description = "Seasons cannot overlap. The scheduler opens the next one on its own when none is running.")
+            description = "Seasons cannot overlap. None opens on its own, so wars stay closed until staff create one.")
     @PostMapping("/seasons")
     public ResponseEntity<ClanSeasonResponse> createSeason(@Valid @RequestBody ClanSeasonRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(seasonService.create(request));

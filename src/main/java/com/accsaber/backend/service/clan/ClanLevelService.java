@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.clan;
 
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,6 @@ import com.accsaber.backend.model.dto.response.clan.ClanLevelStepResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanUnlocksResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanXpGrantResponse;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
-import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.item.Item;
@@ -28,9 +28,9 @@ import com.accsaber.backend.model.entity.clan.ClanLevelCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLevelItem;
 import com.accsaber.backend.model.entity.clan.ClanLevelWarMode;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
+import com.accsaber.backend.model.entity.clan.ClanXpSource;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
-import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelCapacityRepository;
@@ -38,8 +38,10 @@ import com.accsaber.backend.repository.clan.ClanLevelItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelWarModeRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.service.item.ItemMapper;
+import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.util.LevelCurve;
 
 import lombok.RequiredArgsConstructor;
@@ -49,10 +51,7 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ClanLevelService {
 
-    private static final UUID CLAN_LEVEL_CURVE_ID = UUID.fromString("acc00000-0000-0000-0000-000000000030");
-    private static final int LEVEL_COST_CAP = 100;
-
-    private final CurveRepository curveRepository;
+    private final LevelService playerLevelService;
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanXpGrantRepository grantRepository;
@@ -62,8 +61,7 @@ public class ClanLevelService {
     private final ClanLevelItemRepository levelItemRepository;
     private final ItemRepository itemRepository;
     private final ClanProperties clanProperties;
-
-    private volatile LevelCurve cachedCurve;
+    private final ClanSeasonRepository seasonRepository;
 
     public record CapacityTable(List<ClanLevelCapacity> rows, int maxMembers) {
 
@@ -185,7 +183,17 @@ public class ClanLevelService {
         Clan clan = clanRepository.findByIdAndActiveTrue(clanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
         LevelResponse progress = levelOf(clan);
-        return new ClanLevelResponse(progress, unlocks(level -> level <= progress.getLevel()));
+        return new ClanLevelResponse(progress, loadUnlockRows().unlocks(level -> level <= progress.getLevel()),
+                rosterFactor(clan, memberRepository.countByClan_IdAndLeftAtIsNull(clanId)), seasonXpBySource(clanId));
+    }
+
+    private Map<ClanXpSource, Double> seasonXpBySource(UUID clanId) {
+        Instant now = Instant.now();
+        Map<ClanXpSource, Double> bySource = new EnumMap<>(ClanXpSource.class);
+        seasonRepository.findCurrent(now).ifPresent(season -> grantRepository
+                .sumBySource(clanId, season.getStartsAt(), now)
+                .forEach(row -> bySource.put(ClanXpSource.valueOf(row.getSource()), row.getXp())));
+        return bySource;
     }
 
     public List<ClanLevelStepResponse> table() {
@@ -203,10 +211,6 @@ public class ClanLevelService {
 
     public Page<ClanXpGrantResponse> xpHistory(UUID clanId, Pageable pageable) {
         return grantRepository.findByClan_IdOrderByCreatedAtDesc(clanId, pageable).map(ClanXpGrantResponse::of);
-    }
-
-    private ClanUnlocksResponse unlocks(IntPredicate levelFilter) {
-        return loadUnlockRows().unlocks(levelFilter);
     }
 
     private UnlockRows loadUnlockRows() {
@@ -235,13 +239,6 @@ public class ClanLevelService {
     }
 
     private LevelCurve curve() {
-        LevelCurve curve = cachedCurve;
-        if (curve == null) {
-            Curve stored = curveRepository.findById(CLAN_LEVEL_CURVE_ID)
-                    .orElseThrow(() -> new IllegalStateException("Clan level curve not found"));
-            curve = new LevelCurve(stored.getXParameterValue(), stored.getYParameterValue(), LEVEL_COST_CAP);
-            cachedCurve = curve;
-        }
-        return curve;
+        return playerLevelService.getLevelCurve();
     }
 }

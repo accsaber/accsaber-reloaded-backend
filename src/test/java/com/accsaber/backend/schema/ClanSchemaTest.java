@@ -90,16 +90,18 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("V171 seeds the clan curves, cosmetic types, starting capacities and launch war modes")
+    @DisplayName("the clan roster curve, cosmetic types, starting capacities and launch war modes are seeded, "
+            + "and clans level on the player curve")
     void seedsArePresent() {
-        assertThat(((Number) single("SELECT COUNT(*) FROM curves WHERE id IN "
-                + "('acc00000-0000-0000-0000-000000000030', 'acc00000-0000-0000-0000-000000000031')")).intValue())
-                .isEqualTo(2);
+        assertThat(((Number) single("SELECT COUNT(*) FROM curves WHERE id = "
+                + "'acc00000-0000-0000-0000-000000000031'")).intValue()).isEqualTo(1);
+        assertThat(((Number) single("SELECT COUNT(*) FROM curves WHERE id = "
+                + "'acc00000-0000-0000-0000-000000000030'")).intValue()).isZero();
         @SuppressWarnings("unchecked")
         List<String> children = entityManager.createNativeQuery("SELECT child.key FROM item_types child "
                 + "JOIN item_types parent ON parent.id = child.parent_type_id "
                 + "WHERE parent.key = 'clan_cosmetic' ORDER BY child.key").getResultList();
-        assertThat(children).containsExactly("clan_banner", "clan_tag_card", "clan_title_effect");
+        assertThat(children).containsExactly("clan_banner", "clan_border", "clan_tag_card", "clan_title_effect");
         assertThat(((Number) single("SELECT amount FROM clan_level_capacities "
                 + "WHERE level = 0 AND capacity = 'member_slots'")).intValue()).isEqualTo(10);
         assertThat(((Number) single("SELECT COUNT(*) FROM clan_level_war_modes WHERE level = 0")).intValue())
@@ -107,10 +109,10 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("clan cosmetic types reuse the border colour, background and title render contracts")
+    @DisplayName("the tag card is a shape with variants, the banner and title effect reuse the profile contracts")
     void cosmeticTypesReuseRenderContracts() {
-        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_tag_card') = "
-                + "(SELECT value_schema FROM item_types WHERE key = 'profile_border_color')")).isEqualTo(true);
+        assertThat(single("SELECT jsonb_exists_all(value_schema -> 'properties', ARRAY['left', 'right', 'decals', 'variants']) "
+                + "FROM item_types WHERE key = 'clan_tag_card'")).isEqualTo(true);
         assertThat(single("SELECT COUNT(*) FROM item_types WHERE key = 'clan_card'")).isEqualTo(0L);
         assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_banner') = "
                 + "(SELECT value_schema FROM item_types WHERE key = 'profile_background')")).isEqualTo(true);

@@ -143,8 +143,7 @@ public class ClanWarPoolService {
                 .toList();
         List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
-                List.of(war.getAttackerClan(), war.getDefenderClan()));
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.sides());
         Map<UUID, MyScoreSummary> viewerScores = viewerScores(viewerId, difficultyIds);
         return entries.stream()
                 .map(entry -> new ClanWarPoolEntryResponse(difficulties.get(entry.getMapDifficulty().getId()),

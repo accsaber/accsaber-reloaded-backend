@@ -1,6 +1,7 @@
 package com.accsaber.backend.model.entity.clan.war;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -90,4 +91,12 @@ public class ClanWar {
 
     @Column(name = "ended_at")
     private Instant endedAt;
+
+    public List<Clan> sides() {
+        return List.of(attackerClan, defenderClan);
+    }
+
+    public Clan opponentOf(Clan clan) {
+        return attackerClan.getId().equals(clan.getId()) ? defenderClan : attackerClan;
+    }
 }

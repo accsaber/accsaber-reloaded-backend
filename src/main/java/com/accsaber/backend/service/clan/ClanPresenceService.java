@@ -20,8 +20,6 @@ import com.accsaber.backend.websocket.server.ClanPresenceBroadcast;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,10 +31,7 @@ public class ClanPresenceService {
 
     static final Duration OFFLINE_GRACE = Duration.ofSeconds(30);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
 
     private final Map<Long, Instant> pendingOffline = new ConcurrentHashMap<>();
 

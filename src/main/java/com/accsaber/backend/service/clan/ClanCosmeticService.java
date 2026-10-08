@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanItemResponse;
@@ -59,7 +61,11 @@ public class ClanCosmeticService {
         }
         return equippedRepository.findByClanIds(clanIds).stream()
                 .collect(Collectors.groupingBy(e -> e.getClan().getId(),
-                        Collectors.mapping(e -> ItemMapper.toItemResponse(e.getItem()), Collectors.toList())));
+                        Collectors.mapping(ClanCosmeticService::toEquippedResponse, Collectors.toList())));
+    }
+
+    public static ItemResponse toEquippedResponse(ClanEquippedItem equipped) {
+        return ItemMapper.toItemResponse(equipped.getItem()).toBuilder().variantKey(equipped.getVariantKey()).build();
     }
 
     public Map<UUID, PublicClanResponse> publicRefs(Collection<Clan> clans) {
@@ -70,7 +76,7 @@ public class ClanCosmeticService {
     }
 
     @Transactional
-    public List<ItemResponse> equip(UUID clanId, Long playerId, UUID itemId) {
+    public List<ItemResponse> equip(UUID clanId, Long playerId, UUID itemId, String variantKey) {
         User actor = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
         accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
@@ -85,6 +91,7 @@ public class ClanCosmeticService {
         ClanEquippedItem slot = equippedRepository.findById(new ClanEquippedItem.Key(clanId, type.getId()))
                 .orElseGet(() -> ClanEquippedItem.builder().clan(clan).itemType(type).build());
         slot.setItem(item);
+        slot.setVariantKey(validVariant(item, variantKey));
         equippedRepository.saveAndFlush(slot);
         audit(clan, actor, type.getKey(), itemId);
         refCache.refreshAfterCommit(clanId);
@@ -100,6 +107,21 @@ public class ClanCosmeticService {
             audit(clan, actor, itemTypeKey, null);
             refCache.refreshAfterCommit(clanId);
         }
+    }
+
+    private static String validVariant(Item item, String variantKey) {
+        if (variantKey == null || variantKey.isBlank()) {
+            return null;
+        }
+        JsonNode variants = item.getValue() == null ? null : item.getValue().get("variants");
+        if (variants != null && variants.isArray()) {
+            for (JsonNode variant : variants) {
+                if (variantKey.equals(variant.path("key").asText())) {
+                    return variantKey;
+                }
+            }
+        }
+        throw new ValidationException("variantKey", "is not a variant of this item");
     }
 
     private void audit(Clan clan, User actor, String itemTypeKey, UUID itemId) {

@@ -155,4 +155,13 @@ class ClanRosterTest {
         verify(memberRepository).saveAndFlush(member);
         verify(userMissionRepository).voidActiveClanRowsForUser(USER);
     }
+
+    @Test
+    void closingTheWholeRosterExpiresTheClansMissions() {
+        UUID clanId = UUID.randomUUID();
+
+        roster.closeAll(clanId, ClanLeaveReason.disbanded);
+
+        verify(userMissionRepository).expireActiveForClan(clanId);
+    }
 }

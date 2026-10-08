@@ -19,6 +19,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -79,7 +81,7 @@ class ClanCosmeticServiceTest {
     void onlyTheFounderEquips() {
         when(accessService.require(CLAN_ID, FOUNDER, ClanPermission.CUSTOMIZE)).thenThrow(new ForbiddenException());
 
-        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, UUID.randomUUID(), null))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -87,7 +89,7 @@ class ClanCosmeticServiceTest {
     void aPlayerCosmeticCannotGoOnAClan() {
         Item title = item(null, "title");
 
-        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, title.getId()))
+        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, title.getId(), null))
                 .isInstanceOf(ValidationException.class);
     }
 
@@ -95,7 +97,7 @@ class ClanCosmeticServiceTest {
     void aCosmeticTheClanDoesNotOwnIsNotFound() {
         Item card = item(clanCosmetic, "clan_tag_card");
 
-        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, card.getId()))
+        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, card.getId(), null))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(equippedRepository, never()).saveAndFlush(any());
     }
@@ -105,7 +107,7 @@ class ClanCosmeticServiceTest {
         Item card = item(clanCosmetic, "clan_tag_card");
         when(clanItemRepository.existsByClan_IdAndItem_Id(CLAN_ID, card.getId())).thenReturn(true);
 
-        service.equip(CLAN_ID, FOUNDER, card.getId());
+        service.equip(CLAN_ID, FOUNDER, card.getId(), null);
 
         ArgumentCaptor<ClanEquippedItem> slot = ArgumentCaptor.forClass(ClanEquippedItem.class);
         verify(equippedRepository).saveAndFlush(slot.capture());
@@ -116,6 +118,21 @@ class ClanCosmeticServiceTest {
         assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.cosmetic_equipped);
         assertThat(audit.getValue().getDetails()).containsEntry("itemType", "clan_tag_card");
         verify(refCache).refreshAfterCommit(CLAN_ID);
+    }
+
+    @Test
+    void aVariantTheItemOffersIsStoredAndAnUnknownOneIsRefused() throws Exception {
+        Item card = item(clanCosmetic, "clan_tag_card");
+        card.setValue(new ObjectMapper().readTree("{\"variants\": [{\"key\": \"gold\"}]}"));
+        when(clanItemRepository.existsByClan_IdAndItem_Id(CLAN_ID, card.getId())).thenReturn(true);
+
+        service.equip(CLAN_ID, FOUNDER, card.getId(), "gold");
+
+        ArgumentCaptor<ClanEquippedItem> slot = ArgumentCaptor.forClass(ClanEquippedItem.class);
+        verify(equippedRepository).saveAndFlush(slot.capture());
+        assertThat(slot.getValue().getVariantKey()).isEqualTo("gold");
+        assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, card.getId(), "silver"))
+                .isInstanceOf(ValidationException.class);
     }
 
     @Test

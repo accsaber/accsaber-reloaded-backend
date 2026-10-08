@@ -26,7 +26,9 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanXpSource;
+import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.mission.MissionPool;
+import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -64,6 +66,28 @@ class ClanMissionServiceTest {
     private UserMission mission(double xpMultiplier) {
         return UserMission.builder().id(UUID.randomUUID()).pool(MissionPool.clan).clan(clan)
                 .template(MissionTemplate.builder().xpMultiplier(xpMultiplier).build()).build();
+    }
+
+    private UserMission targeted(MissionType type, EventMissionTargets targets) {
+        return UserMission.builder().pool(MissionPool.clan).clan(clan)
+                .template(MissionTemplate.builder().type(type).pool(MissionPool.clan).eventTargets(targets).build())
+                .build();
+    }
+
+    @Test
+    void aPooledMissionNeedsHalfOfAFiveMemberClansShareToBePaid() {
+        EventMissionTargets plays = new EventMissionTargets(null, null, null, null, null, null, 37, null, null, null,
+                null, null, null, null);
+        EventMissionTargets xp = new EventMissionTargets(null, null, null, null, null, null, null, 7400, null, null,
+                null, null, null, null);
+
+        assertThat(service.minRewardedContribution(targeted(MissionType.PLAY_N_MAPS, plays))).isEqualTo(3.7);
+        assertThat(service.minRewardedContribution(targeted(MissionType.XP_IN_WINDOW, xp))).isEqualTo(740.0);
+    }
+
+    @Test
+    void aPerMemberMissionPaysEveryClearer() {
+        assertThat(service.minRewardedContribution(targeted(MissionType.SCORES_N, null))).isZero();
     }
 
     @Test
@@ -110,12 +134,5 @@ class ClanMissionServiceTest {
         service.contributors(clan.getId(), mission.getId(), Pageable.unpaged());
 
         verify(sharedMissionContextLoader).contributors(mission.getId(), Pageable.unpaged());
-    }
-
-    @Test
-    void endingAClanExpiresEveryOpenRowItOwns() {
-        service.endAll(clan.getId());
-
-        verify(userMissionRepository).expireActiveForClan(clan.getId());
     }
 }

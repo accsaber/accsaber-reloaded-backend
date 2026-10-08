@@ -75,8 +75,6 @@ class ClanServiceTest {
     @Mock
     private ClanAllianceService allianceService;
     @Mock
-    private ClanMissionService missionService;
-    @Mock
     private ClanWarService warService;
     @Mock
     private ClanNotifier notifier;
@@ -271,7 +269,6 @@ class ClanServiceTest {
         assertThat(clan.isActive()).isFalse();
         verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
         verify(allianceService).endAll(eq(clan), any());
-        verify(missionService).endAll(clanId);
         verify(warService).forfeitAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
     }

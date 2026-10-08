@@ -11,8 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.BeatSaverClient;
@@ -37,6 +35,7 @@ import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.service.map.NoteAccuracyComplexityRater.Rating;
 import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.playlist.PlaylistService;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -428,37 +427,17 @@ public class MapImportService {
 
     private void scheduleMapCoverMirror(UUID mapId) {
         if (mapId == null) return;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    cdnSyncService.mirrorMapCoverAsync(mapId);
-                }
-            });
-        } else {
-            cdnSyncService.mirrorMapCoverAsync(mapId);
-        }
+        AfterCommit.run(() -> cdnSyncService.mirrorMapCoverAsync(mapId));
     }
 
     private void scheduleAutoCriteriaCheck(UUID difficultyId) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        autoCriteriaService.runCheckAsync(difficultyId);
-                    } catch (Exception e) {
-                        log.warn("Failed to schedule auto criteria check for difficulty {}: {}", difficultyId, e.getMessage());
-                    }
-                }
-            });
-        } else {
+        AfterCommit.run(() -> {
             try {
                 autoCriteriaService.runCheckAsync(difficultyId);
             } catch (Exception e) {
                 log.warn("Failed to schedule auto criteria check for difficulty {}: {}", difficultyId, e.getMessage());
             }
-        }
+        });
     }
 
     public ComplexityEstimateResponse estimateForDifficulty(String songHash, Difficulty difficulty,

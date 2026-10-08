@@ -10,4 +10,6 @@ public class EquipClanItemRequest {
 
     @NotNull
     private UUID itemId;
+
+    private String variantKey;
 }

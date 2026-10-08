@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -61,7 +63,6 @@ public class ClanService {
     private final ClanCosmeticService cosmeticService;
     private final ClanStandingService standingService;
     private final ClanAllianceService allianceService;
-    private final ClanMissionService missionService;
     private final ClanWarService warService;
     private final ClanNotifier notifier;
     private final ClanRefCache refCache;
@@ -93,6 +94,8 @@ public class ClanService {
                 .slug(slugFor(name, tag, null))
                 .description(request.getDescription())
                 .tagColor(normalizedColor(request.getTagColor()))
+                .primaryColor(normalizedColor(request.getPrimaryColor()))
+                .secondaryColor(normalizedColor(request.getSecondaryColor()))
                 .build());
         roster.seat(clan, founder, ClanRole.founder);
         levelService.grantStartingItems(clan.getId());
@@ -170,7 +173,6 @@ public class ClanService {
         clanRepository.saveAndFlush(clan);
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
         allianceService.endAll(clan, actor);
-        missionService.endAll(clan.getId());
         warService.forfeitAll(clan.getId());
         auditRepository.save(ClanAuditEntry.builder()
                 .clan(clan).actor(actor).action(ClanAuditAction.disbanded)
@@ -184,44 +186,45 @@ public class ClanService {
     }
 
     private Clan findActive(String slugOrId) {
-        UUID id = parseUuid(slugOrId);
+        UUID id = Slugs.uuidOrNull(slugOrId);
         return (id != null ? clanRepository.findByIdAndActiveTrue(id) : clanRepository.findBySlugAndActiveTrue(slugOrId))
                 .orElseThrow(() -> new ResourceNotFoundException("Clan", slugOrId));
     }
 
     private Map<String, Object> applyChanges(Clan clan, UpdateClanRequest request) {
         Map<String, Object> changes = new LinkedHashMap<>();
-        if (request.getName() != null && !request.getName().trim().equals(clan.getName())) {
-            clan.setName(request.getName().trim());
-            changes.put("name", clan.getName());
-        }
-        if (request.getTag() != null && !request.getTag().toUpperCase(Locale.ROOT).equals(clan.getTag())) {
-            clan.setTag(request.getTag().toUpperCase(Locale.ROOT));
-            changes.put("tag", clan.getTag());
-        }
+        apply(request.getName(), String::trim, clan.getName(), clan::setName, "name", changes);
+        apply(request.getTag(), tag -> tag.toUpperCase(Locale.ROOT), clan.getTag(), clan::setTag, "tag", changes);
         if (changes.containsKey("name")) {
             clan.setSlug(slugFor(clan.getName(), clan.getTag(), clan.getSlug()));
         }
-        if (request.getDescription() != null && !request.getDescription().equals(clan.getDescription())) {
-            clan.setDescription(request.getDescription());
-            changes.put("description", clan.getDescription());
-        }
-        if (request.getTagColor() != null) {
-            String tagColor = normalizedColor(request.getTagColor());
-            if (!Objects.equals(tagColor, clan.getTagColor())) {
-                clan.setTagColor(tagColor);
-                changes.put("tagColor", tagColor == null ? "cleared" : tagColor);
-            }
-        }
-        if (request.getAcceptingRequests() != null && request.getAcceptingRequests() != clan.isAcceptingRequests()) {
-            clan.setAcceptingRequests(request.getAcceptingRequests());
-            changes.put("acceptingRequests", clan.isAcceptingRequests());
-        }
+        apply(request.getDescription(), UnaryOperator.identity(), clan.getDescription(), clan::setDescription,
+                "description", changes);
+        apply(request.getTagColor(), ClanService::normalizedColor, clan.getTagColor(), clan::setTagColor, "tagColor",
+                changes);
+        apply(request.getPrimaryColor(), ClanService::normalizedColor, clan.getPrimaryColor(), clan::setPrimaryColor,
+                "primaryColor", changes);
+        apply(request.getSecondaryColor(), ClanService::normalizedColor, clan.getSecondaryColor(),
+                clan::setSecondaryColor, "secondaryColor", changes);
+        apply(request.getAcceptingRequests(), UnaryOperator.identity(), clan.isAcceptingRequests(),
+                clan::setAcceptingRequests, "acceptingRequests", changes);
         return changes;
     }
 
     private static Map<String, Object> iconChange(String iconUrl) {
         return new LinkedHashMap<>(Map.of("icon", iconUrl == null ? "removed" : "updated"));
+    }
+
+    private static <T> void apply(T requested, UnaryOperator<T> normalize, T current, Consumer<T> setter, String key,
+            Map<String, Object> changes) {
+        if (requested == null) {
+            return;
+        }
+        T value = normalize.apply(requested);
+        if (!Objects.equals(value, current)) {
+            setter.accept(value);
+            changes.put(key, value == null ? "cleared" : value);
+        }
     }
 
     private static String normalizedColor(String color) {
@@ -302,13 +305,5 @@ public class ClanService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
-    }
-
-    private static UUID parseUuid(String value) {
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }

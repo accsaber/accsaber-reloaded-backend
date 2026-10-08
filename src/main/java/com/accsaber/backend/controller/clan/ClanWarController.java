@@ -120,12 +120,13 @@ public class ClanWarController {
             description = "Newest first. A hit is a play that beat an enemy's score on a pool map, or found them with no "
                     + "score there at all, which is missingScore and hits softer. broke is the hit that emptied their "
                     + "guard, with the Standing it moved, and xpAwarded is what each hit in that guard earned once it "
-                    + "broke.")
+                    + "broke. Pass userId to keep only the hits that player dealt or took.")
     @GetMapping("/wars/{warId}/hits")
     public ResponseEntity<Page<ClanWarHitResponse>> hits(
             @PathVariable UUID warId,
+            @RequestParam(required = false) Long userId,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(warService.hits(warId, pageable));
+        return ResponseEntity.ok(warService.hits(warId, userId, pageable));
     }
 
     @Operation(summary = "Lend a player to an ally's war",

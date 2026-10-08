@@ -307,7 +307,7 @@ public class MissionProgressService {
     private double evaluate(UserMission mission, ScoreResponse score, EvalContext ctx) {
         MissionType type = mission.getTemplate().getType();
         return switch (type) {
-            case CAMPAIGN_COMPLETE_N -> throw new IllegalStateException(
+            case CAMPAIGN_COMPLETE_N, MISSIONS_COMPLETE_N -> throw new IllegalStateException(
                     "Non-score-triggered mission type reached score evaluation: " + type);
             case SNIPE_RIVAL_ANY_MAP -> evalSnipeRivalAnyMap(mission, score, ctx);
             case AP_GAIN_OVERALL -> evalApGainOverall(score, ctx);
@@ -476,6 +476,20 @@ public class MissionProgressService {
 
         publishCompletionEvent(userId, mission);
         contributeToParent(mission, userId, completedAt);
+        if (mission.getPool() == MissionPool.daily || mission.getPool() == MissionPool.weekly) {
+            creditMissionCompletion(userId, completedAt);
+        }
+    }
+
+    private void creditMissionCompletion(Long userId, Instant completedAt) {
+        for (UserMission mission : openMissionsFor(userId, MissionTrigger.MISSION)) {
+            if (mission.getStatus() == MissionStatus.active && bankPersonal(mission, 1)) {
+                completeMission(mission, userId, completedAt);
+            }
+        }
+        for (UserMission mission : sharedMissionsFor(MissionTrigger.MISSION, new EvalContext(userId))) {
+            contribute(mission, userId, 1);
+        }
     }
 
     private void contributeToParent(UserMission mission, Long userId, Instant completedAt) {
@@ -507,7 +521,7 @@ public class MissionProgressService {
         }
         EvalContext ctx = new EvalContext(userId);
         for (UserMission window : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
-            if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW)
+            if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW || window.getPool() == MissionPool.clan)
                 continue;
             contribute(window, userId, xpAmount);
         }

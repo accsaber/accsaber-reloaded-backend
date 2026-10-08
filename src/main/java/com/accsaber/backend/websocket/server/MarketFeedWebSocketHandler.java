@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.accsaber.backend.util.Slugs;
+
 @Component
 public class MarketFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
@@ -16,18 +18,6 @@ public class MarketFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
         if (uri == null) {
             return null;
         }
-        String raw = UriComponentsBuilder.fromUri(uri).build().getQueryParams().getFirst("listingId");
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    public void broadcast(UUID listingId, String json) {
-        sendToRoom(listingId, json);
+        return Slugs.uuidOrNull(UriComponentsBuilder.fromUri(uri).build().getQueryParams().getFirst("listingId"));
     }
 }

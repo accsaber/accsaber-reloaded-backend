@@ -159,7 +159,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND (m.pool = com.accsaber.backend.model.entity.mission.MissionPool.community
                                OR (t.eventTargets IS NOT NULL AND m.clan.id IN (
                                    SELECT cm.clan.id FROM ClanMember cm
-                                   WHERE cm.user.id = :userId AND cm.leftAt IS NULL)))
+                                   WHERE cm.user.id = :userId AND cm.leftAt IS NULL
+                                     AND cm.joinedAt <= m.assignedAt)))
                         """)
         List<UserMission> findActiveSharedFor(@Param("userId") Long userId);
 
@@ -215,14 +216,14 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH ir.type
                         WHERE m.clan.id = :clanId
                           AND m.parentMission IS NULL
-                          AND (:current = false OR m.expiresAt > :now)
+                          AND ((:current = true AND m.expiresAt > :now) OR (:current = false AND m.expiresAt <= :now))
                         ORDER BY m.assignedAt DESC
                         """,
                         countQuery = """
                         SELECT COUNT(m) FROM UserMission m
                         WHERE m.clan.id = :clanId
                           AND m.parentMission IS NULL
-                          AND (:current = false OR m.expiresAt > :now)
+                          AND ((:current = true AND m.expiresAt > :now) OR (:current = false AND m.expiresAt <= :now))
                         """)
         Page<UserMission> findClanShared(@Param("clanId") UUID clanId, @Param("current") boolean current,
                         @Param("now") Instant now, Pageable pageable);
@@ -236,6 +237,8 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND p.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                           AND p.expiresAt > :now
                           AND t.eventTargets IS NULL
+                          AND EXISTS (SELECT 1 FROM ClanMember cm WHERE cm.clan.id = :clanId AND cm.user.id = :userId
+                                      AND cm.leftAt IS NULL AND cm.joinedAt <= p.assignedAt)
                           AND NOT EXISTS (SELECT 1 FROM UserMission c WHERE c.parentMission = p AND c.user.id = :userId)
                         """)
         List<UserMission> findPerMemberParentsMissing(@Param("clanId") UUID clanId, @Param("userId") Long userId,

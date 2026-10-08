@@ -2,7 +2,6 @@ package com.accsaber.backend.service.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,7 +14,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -80,51 +78,11 @@ class ClanSeasonServiceTest {
 
     @BeforeEach
     void setUp() {
-        clanProperties.setSeasonLength(Period.ofMonths(6));
         clanProperties.setMissionContribution(100.0);
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
                 clanItemRepository, standingService, warService, itemService, itemRepository, clanProperties);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
-    }
-
-    @Nested
-    class EnsureCurrent {
-
-        @Test
-        void aRunningOrUpcomingSeasonMeansNothingOpens() {
-            when(seasonRepository.existsOpenUntilAfter(any())).thenReturn(true);
-
-            service.ensureCurrent();
-
-            verify(seasonRepository, never()).save(any());
-        }
-
-        @Test
-        void theFirstSeasonOpensNowAndRunsSixMonths() {
-            ArgumentCaptor<ClanSeason> saved = ArgumentCaptor.forClass(ClanSeason.class);
-
-            service.ensureCurrent();
-
-            verify(seasonRepository).save(saved.capture());
-            assertThat(saved.getValue().getSlug()).isEqualTo("season-1");
-            assertThat(saved.getValue().getStartsAt()).isCloseTo(Instant.now(), within(5, ChronoUnit.SECONDS));
-            assertThat(ChronoUnit.DAYS.between(saved.getValue().getStartsAt(), saved.getValue().getEndsAt()))
-                    .isBetween(180L, 185L);
-        }
-
-        @Test
-        void theNextSeasonIsNumberedAfterTheOnesBeforeIt() {
-            when(seasonRepository.count()).thenReturn(3L);
-            when(seasonRepository.findTopByOrderByEndsAtDesc()).thenReturn(Optional.of(
-                    ClanSeason.builder().endsAt(Instant.now().minus(1, ChronoUnit.HOURS)).build()));
-            ArgumentCaptor<ClanSeason> saved = ArgumentCaptor.forClass(ClanSeason.class);
-
-            service.ensureCurrent();
-
-            verify(seasonRepository).save(saved.capture());
-            assertThat(saved.getValue().getName()).isEqualTo("Season 4");
-        }
     }
 
     @Nested

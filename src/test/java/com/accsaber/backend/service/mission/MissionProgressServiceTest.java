@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -820,6 +821,29 @@ class MissionProgressServiceTest {
                 }
 
                 @Test
+                void xpFromOutsideScoresFeedsCommunityXpDrivesButNotClanOnes() {
+                        UserMission community = mission(MissionType.XP_IN_WINDOW);
+                        community.setPool(MissionPool.community);
+                        community.setUser(null);
+                        community.getTemplate().setPool(MissionPool.community);
+                        community.setTargetXp(100000);
+                        UserMission clanDrive = clanRow(MissionType.XP_IN_WINDOW);
+                        clanDrive.setUser(null);
+                        when(userMissionRepository.findAllActiveByUser(USER_ID)).thenReturn(List.of());
+                        when(userMissionRepository.findActiveSharedFor(USER_ID))
+                                        .thenReturn(List.of(community, clanDrive));
+                        when(contributionRepository.acceptContribution(eq(community.getId()), eq(USER_ID),
+                                        anyDouble(), any(), any())).thenReturn(150.0);
+
+                        service.creditXp(USER_ID, 150.0);
+
+                        verify(contributionRepository).acceptContribution(eq(community.getId()), eq(USER_ID),
+                                        eq(150.0), any(), any());
+                        verify(contributionRepository, never()).acceptContribution(eq(clanDrive.getId()), anyLong(),
+                                        anyDouble(), any(), any());
+                }
+
+                @Test
                 void clearingAMemberRowCountsOnceTowardItsParent() {
                         UserMission parent = clanRow(MissionType.SCORES_N);
                         parent.setUser(null);
@@ -853,6 +877,45 @@ class MissionProgressServiceTest {
                         assertThat(memberRow.getStatus()).isEqualTo(MissionStatus.completed);
                         verify(contributionRepository, never()).acceptContribution(any(), anyLong(), anyDouble(),
                                         any(), any());
+                }
+
+                private UserMission missionGrind() {
+                        UserMission grind = clanRow(MissionType.MISSIONS_COMPLETE_N);
+                        grind.setUser(null);
+                        grind.setTargetCount(15);
+                        when(userMissionRepository.findActiveSharedFor(USER_ID)).thenReturn(List.of(grind));
+                        return grind;
+                }
+
+                @ParameterizedTest
+                @EnumSource(value = MissionPool.class, names = { "daily", "weekly" })
+                void aClearedDailyOrWeeklyCountsOnceTowardTheMissionGrind(MissionPool pool) {
+                        UserMission grind = missionGrind();
+                        UserMission own = mission(MissionType.SCORES_N);
+                        own.setPool(pool);
+                        own.setTargetCount(1);
+                        givenMissions(own);
+                        when(contributionRepository.acceptContribution(eq(grind.getId()), eq(USER_ID), eq(1.0),
+                                        any(), any())).thenReturn(1.0);
+
+                        service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
+
+                        assertThat(own.getStatus()).isEqualTo(MissionStatus.completed);
+                        verify(userMissionRepository).bankSharedProgress(grind.getId(), 1, 0.0);
+                }
+
+                @Test
+                void clearingAClanMemberRowDoesNotFeedTheMissionGrind() {
+                        UserMission grind = missionGrind();
+                        UserMission memberRow = clanRow(MissionType.SCORES_N);
+                        memberRow.setTargetCount(1);
+                        givenMissions(memberRow);
+
+                        service.onScoreSubmitted(new ScoreSubmittedEvent(score(true)));
+
+                        assertThat(memberRow.getStatus()).isEqualTo(MissionStatus.completed);
+                        verify(contributionRepository, never()).acceptContribution(eq(grind.getId()), anyLong(),
+                                        anyDouble(), any(), any());
                 }
         }
 }

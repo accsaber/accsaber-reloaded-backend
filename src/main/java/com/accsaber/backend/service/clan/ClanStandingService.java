@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
 import com.accsaber.backend.repository.clan.ClanStandingEventRepository;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,7 +56,7 @@ public class ClanStandingService {
         if (slugOrId == null || CURRENT_SEASON.equals(slugOrId)) {
             return currentSeason().orElseThrow(() -> new ResourceNotFoundException("ClanSeason", CURRENT_SEASON));
         }
-        UUID id = parseUuid(slugOrId);
+        UUID id = Slugs.uuidOrNull(slugOrId);
         return (id != null ? seasonRepository.findById(id) : seasonRepository.findBySlug(slugOrId))
                 .orElseThrow(() -> new ResourceNotFoundException("ClanSeason", slugOrId));
     }
@@ -134,13 +135,5 @@ public class ClanStandingService {
 
     public List<ClanSeasonStandingRepository.RankingRow> fullLiveRanking(UUID seasonId) {
         return standingRepository.findFullLiveRanking(seasonId, clanProperties.getStandingPerSkill());
-    }
-
-    private static UUID parseUuid(String value) {
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }

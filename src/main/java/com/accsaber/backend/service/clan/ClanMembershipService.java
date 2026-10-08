@@ -19,7 +19,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.response.clan.ClanMemberResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanMembershipResponse;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
@@ -29,6 +29,7 @@ import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
@@ -36,6 +37,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
@@ -61,21 +63,53 @@ public class ClanMembershipService {
     private final ClanChatChannel chatChannel;
     private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
+    private final ClanSeasonRepository seasonRepository;
+    private final ClanStrengthService strengthService;
 
-    public Page<ClanMemberResponse> roster(UUID clanId, Pageable pageable) {
-        if (clanRepository.findByIdAndActiveTrue(clanId).isEmpty()) {
-            throw new ResourceNotFoundException("Clan", clanId);
-        }
+    public Page<PlayerRef> roster(UUID clanId, Pageable pageable) {
+        Clan clan = clanRepository.findByIdAndActiveTrue(clanId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
         Page<ClanMember> page = memberRepository.findRoster(clanId, pageable);
-        List<Long> userIds = page.getContent().stream().map(m -> m.getUser().getId()).toList();
+        Map<Long, ClanMembershipResponse> memberships = memberships(clan, page.getContent());
+        return page.map(m -> PlayerRef.of(m.getUser(), memberships.get(m.getUser().getId())));
+    }
+
+    private Map<Long, ClanMembershipResponse> memberships(Clan clan, List<ClanMember> members) {
+        List<Long> userIds = members.stream().map(m -> m.getUser().getId()).toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
         Set<Long> online = notificationHandler.onlineAmong(userIds);
         Map<Long, Instant> lastPlayed = lastPlayedAt(userIds);
-        return page.map(m -> new ClanMemberResponse(PlayerRef.of(m.getUser()), m.getRole(), m.getJoinedAt(),
-                online.contains(m.getUser().getId()), lastPlayed.get(m.getUser().getId())));
+        Map<Long, Double> shares = strengthService.memberStrengths(clan.getId()).stream()
+                .collect(Collectors.toMap(ClanStrengthService.MemberStrength::userId,
+                        ClanStrengthService.MemberStrength::share));
+        Map<Long, ClanMemberRepository.MemberSeasonStatsView> stats = seasonStats(clan.getId(), userIds);
+        double clanXpPerPlayXp = clanProperties.getPlayXpShare()
+                / levelService.rosterFactor(clan, memberRepository.countByClan_IdAndLeftAtIsNull(clan.getId()));
+        return members.stream().collect(Collectors.toMap(m -> m.getUser().getId(), m -> {
+            Long userId = m.getUser().getId();
+            ClanMemberRepository.MemberSeasonStatsView row = stats.get(userId);
+            return new ClanMembershipResponse(m.getRole(), m.getJoinedAt(), online.contains(userId),
+                    lastPlayed.get(userId), shares.getOrDefault(userId, 0.0),
+                    row == null ? 0.0 : row.getPlayXp() * clanXpPerPlayXp,
+                    row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks());
+        }));
+    }
+
+    private Map<Long, ClanMemberRepository.MemberSeasonStatsView> seasonStats(UUID clanId, List<Long> userIds) {
+        ClanSeason season = seasonRepository.findCurrent(Instant.now()).orElse(null);
+        if (season == null) {
+            return Map.of();
+        }
+        Instant grantedUntil = Instant.now().truncatedTo(ChronoUnit.DAYS);
+        return memberRepository.findSeasonStats(clanId, userIds, season.getId(), season.getStartsAt(), grantedUntil)
+                .stream()
+                .collect(Collectors.toMap(ClanMemberRepository.MemberSeasonStatsView::getUserId, row -> row));
     }
 
     @Transactional
-    public ClanMemberResponse changeRole(UUID clanId, Long playerId, Long targetUserId, ClanRole role) {
+    public PlayerRef changeRole(UUID clanId, Long playerId, Long targetUserId, ClanRole role) {
         User actorUser = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
         ClanMember target = openMember(clanId, targetUserId);
@@ -118,7 +152,7 @@ public class ClanMembershipService {
     }
 
     @Transactional
-    public ClanMemberResponse transferFounder(UUID clanId, Long playerId, Long targetUserId) {
+    public PlayerRef transferFounder(UUID clanId, Long playerId, Long targetUserId) {
         User actorUser = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
         if (actorUser.getId().equals(targetUserId)) {
@@ -175,7 +209,7 @@ public class ClanMembershipService {
         clanService.disband(clan, member.getUser(), null);
     }
 
-    private ClanMemberResponse claimFounder(Clan clan, User claimant) {
+    private PlayerRef claimFounder(Clan clan, User claimant) {
         List<ClanMember> members = memberRepository.findRoster(clan.getId(), Pageable.unpaged()).getContent();
         ClanMember founder = members.stream().filter(m -> m.getRole() == ClanRole.founder).findFirst()
                 .orElseThrow(() -> new ConflictException("This clan has no founder to replace"));
@@ -258,9 +292,8 @@ public class ClanMembershipService {
                         ScoreRepository.LastPlayedView::getLastPlayedAt));
     }
 
-    private ClanMemberResponse toResponse(ClanMember member) {
-        Long userId = member.getUser().getId();
-        return new ClanMemberResponse(PlayerRef.of(member.getUser()), member.getRole(), member.getJoinedAt(),
-                !notificationHandler.onlineAmong(List.of(userId)).isEmpty(), lastPlayedAt(List.of(userId)).get(userId));
+    private PlayerRef toResponse(ClanMember member) {
+        return PlayerRef.of(member.getUser(), memberships(member.getClan(), List.of(member))
+                .get(member.getUser().getId()));
     }
 }

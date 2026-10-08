@@ -46,6 +46,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
@@ -81,6 +82,10 @@ class ClanMembershipServiceTest {
     private NotificationWebSocketHandler notificationHandler;
     @Mock
     private ClanChatChannel chatChannel;
+    @Mock
+    private ClanSeasonRepository seasonRepository;
+    @Mock
+    private ClanStrengthService strengthService;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanMembershipService service;
@@ -91,7 +96,7 @@ class ClanMembershipServiceTest {
     void setUp() {
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
                 scoreRepository, userRepository, roster, accessService, levelService, clanService, notificationHandler,
-                chatChannel, notifier, clanProperties);
+                chatChannel, notifier, clanProperties, seasonRepository, strengthService);
         lenient().when(roster.lock(CLAN_ID)).thenReturn(clan);
         lenient().when(notificationHandler.onlineAmong(anyCollection())).thenReturn(Set.of());
     }
@@ -170,7 +175,7 @@ class ClanMembershipServiceTest {
             var response = service.changeRole(CLAN_ID, 1L, 2L, ClanRole.officer);
 
             assertThat(target.getRole()).isEqualTo(ClanRole.officer);
-            assertThat(response.role()).isEqualTo(ClanRole.officer);
+            assertThat(response.membership().role()).isEqualTo(ClanRole.officer);
             ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
             verify(auditRepository).save(audit.capture());
             assertThat(audit.getValue().getAction()).isEqualTo(ClanAuditAction.role_changed);

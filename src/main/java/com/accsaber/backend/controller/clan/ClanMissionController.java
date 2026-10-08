@@ -31,8 +31,8 @@ public class ClanMissionController {
     private final ClanMissionService missionService;
 
     @Operation(summary = "List a clan's missions",
-            description = "This week's missions by default, newest first. Pass current=false for every mission the clan "
-                    + "has had. A counter mission fills with whatever the members put in. A skill mission hands every "
+            description = "This week's missions by default, newest first. Pass current=false for the clan's finished "
+                    + "missions. A counter mission fills with whatever the members put in. A skill mission hands every "
                     + "member their own target, and its bar counts how many of them cleared theirs, which you find "
                     + "under your own missions with pool=clan. Signed in, yourContribution is your share of the bar.")
     @GetMapping("/{clanId}/missions")

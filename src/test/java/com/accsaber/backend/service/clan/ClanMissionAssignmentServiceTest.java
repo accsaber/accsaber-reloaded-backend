@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -33,7 +35,6 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.clan.Clan;
-import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.MissionPool;
@@ -72,8 +73,6 @@ class ClanMissionAssignmentServiceTest {
     @Mock
     private MissionRolloverService rolloverService;
     @Mock
-    private ClanLevelService levelService;
-    @Mock
     private TransactionTemplate transactionTemplate;
     @Mock
     private Executor backfillExecutor;
@@ -87,10 +86,13 @@ class ClanMissionAssignmentServiceTest {
     void setUp() {
         service = new ClanMissionAssignmentService(clanRepository, memberRepository, templateRepository,
                 userMissionRepository, missionAssignmentService, builderService, rowFactory, rolloverService,
-                levelService, clanProperties, transactionTemplate, backfillExecutor);
+                clanProperties, transactionTemplate);
+        ReflectionTestUtils.setField(service, "backfillExecutor", backfillExecutor);
         lenient().when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
         lenient().when(rolloverService.nextRollover(eq(MissionPool.clan), any())).thenReturn(WEEK_END);
         lenient().when(userMissionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(builderService.rollCrateDrop(any(), any(), any()))
+                .thenAnswer(inv -> inv.<MissionTemplate>getArgument(0).getAwardsItem());
     }
 
     private MissionTemplate template(EventMissionTargets targets) {
@@ -105,7 +107,7 @@ class ClanMissionAssignmentServiceTest {
 
     private void slots(int amount, MissionTemplate... templates) {
         when(templateRepository.findByPoolAndActiveTrue(MissionPool.clan)).thenReturn(List.of(templates));
-        when(levelService.capacityOf(clan, ClanCapacity.mission_slots)).thenReturn(amount);
+        clanProperties.setMissionSlots(amount);
         when(builderService.weightedPickExcluding(anyList(), any(Random.class), any())).thenAnswer(inv -> {
             List<MissionTemplate> pool = inv.getArgument(0);
             Set<UUID> tried = inv.getArgument(2);
@@ -138,10 +140,31 @@ class ClanMissionAssignmentServiceTest {
     }
 
     @Test
+    void aCounterCarriesTheCrateItRolled() {
+        clanProperties.setRosterReferenceMembers(5.0);
+        MissionTemplate counter = template(counterTargets(25));
+        counter.setAwardsItem(null);
+        Item crate = Item.builder().id(UUID.randomUUID()).build();
+        slots(1, counter);
+        when(missionAssignmentService.activeCrateSentinel()).thenReturn(crate);
+        doReturn(crate).when(builderService).rollCrateDrop(eq(counter), any(), eq(crate));
+        when(memberRepository.findOpenUserIds(clan.getId())).thenReturn(List.of(1L));
+        when(rowFactory.build(null, counter, null)).thenReturn(UserMission.builder().template(counter)
+                .pool(MissionPool.clan).targetCount(25).build());
+
+        service.fill(clan.getId());
+
+        ArgumentCaptor<UserMission> saved = ArgumentCaptor.forClass(UserMission.class);
+        verify(userMissionRepository).save(saved.capture());
+        assertThat(saved.getValue().getItemReward()).isSameAs(crate);
+    }
+
+    @Test
     void aPerMemberMissionGivesEachPlayingMemberTheirOwnRowAndCapsTheClearsAtTheRowsBuilt() {
         clanProperties.setMissionClears(2);
         clanProperties.setRosterReferenceMembers(2.0);
         MissionTemplate perMember = template(null);
+        perMember.setFixedXp(150);
         slots(1, perMember);
         when(memberRepository.findOpenUserIds(clan.getId())).thenReturn(List.of(1L, 2L, 3L));
         when(missionAssignmentService.contextFor(1L)).thenReturn(context(1L, true));
@@ -157,6 +180,7 @@ class ClanMissionAssignmentServiceTest {
         verify(userMissionRepository).save(parent.capture());
         assertThat(parent.getValue().getTargetCount()).isEqualTo(2);
         assertThat(parent.getValue().getItemReward()).isSameAs(perMember.getAwardsItem());
+        assertThat(parent.getValue().getXpReward()).isEqualTo(150);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UserMission>> rows = ArgumentCaptor.forClass(List.class);
         verify(userMissionRepository).saveAll(rows.capture());

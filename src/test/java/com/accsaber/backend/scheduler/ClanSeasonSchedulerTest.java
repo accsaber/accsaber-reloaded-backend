@@ -2,9 +2,9 @@ package com.accsaber.backend.scheduler;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -12,7 +12,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,25 +31,25 @@ class ClanSeasonSchedulerTest {
     private ClanSeasonScheduler scheduler;
 
     @Test
-    void endedSeasonsCloseBeforeTheNextOneOpens() {
+    void endedSeasonsCloseAndNoneOpensOnItsOwn() {
         UUID ended = UUID.randomUUID();
         when(seasonRepository.findEndedUnclosedIds(any())).thenReturn(List.of(ended));
 
         scheduler.rollSeasons();
 
-        InOrder order = inOrder(seasonService);
-        order.verify(seasonService).close(ended);
-        order.verify(seasonService).ensureCurrent();
+        verify(seasonService).close(ended);
+        verifyNoMoreInteractions(seasonService);
     }
 
     @Test
-    void aFailedCloseDoesNotOpenANewSeasonOnTopOfIt() {
+    void aFailedCloseStopsTheSweep() {
         UUID ended = UUID.randomUUID();
-        when(seasonRepository.findEndedUnclosedIds(any())).thenReturn(List.of(ended));
+        UUID next = UUID.randomUUID();
+        when(seasonRepository.findEndedUnclosedIds(any())).thenReturn(List.of(ended, next));
         doThrow(new IllegalStateException("boom")).when(seasonService).close(ended);
 
         scheduler.rollSeasons();
 
-        verify(seasonService, never()).ensureCurrent();
+        verify(seasonService, never()).close(next);
     }
 }

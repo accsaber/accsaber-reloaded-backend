@@ -12,17 +12,12 @@ import com.accsaber.backend.model.event.ChatMessageEvent;
 import com.accsaber.backend.websocket.server.ChatBroadcast;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @Service
 public class ChatBroadcastService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatBroadcastService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
 
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

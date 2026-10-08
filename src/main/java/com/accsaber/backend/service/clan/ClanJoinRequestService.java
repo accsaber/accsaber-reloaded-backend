@@ -21,6 +21,8 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanJoinDirection;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
 import com.accsaber.backend.model.entity.clan.ClanJoinStatus;
+import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
+import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
@@ -93,7 +95,7 @@ public class ClanJoinRequestService {
         request.setResolvedAt(Instant.now());
         joinRequestRepository.saveAndFlush(request);
         if (status == ClanJoinStatus.accepted) {
-            Clan clan = roster.lock(request.getClan().getId());
+            Clan clan = lockForAdmission(request);
             roster.admit(clan, request.getUser(), ClanRole.member);
             chatChannel.announce(clan, ChatNotice.ofPlayer(ChatEvent.member_joined, request.getUser(), null));
             if (request.getDirection() == ClanJoinDirection.request) {
@@ -101,6 +103,29 @@ public class ClanJoinRequestService {
             }
         }
         return toResponse(request);
+    }
+
+    private Clan lockForAdmission(ClanJoinRequest request) {
+        UUID clanId = request.getClan().getId();
+        ClanMember current = request.getDirection() == ClanJoinDirection.invite
+                ? memberRepository.findOpenByUserId(request.getUser().getId()).orElse(null)
+                : null;
+        if (current == null) {
+            return roster.lock(clanId);
+        }
+        UUID previousId = current.getClan().getId();
+        if (previousId.equals(clanId)) {
+            throw new ConflictException("That player is already in this clan");
+        }
+        if (current.getRole() == ClanRole.founder) {
+            throw new ValidationException("Hand your clan to another member before joining another");
+        }
+        List<Clan> locked = roster.lockPair(previousId, clanId);
+        boolean previousFirst = locked.get(0).getId().equals(previousId);
+        roster.close(current, ClanLeaveReason.left);
+        chatChannel.announce(locked.get(previousFirst ? 0 : 1),
+                ChatNotice.ofPlayer(ChatEvent.member_left, current.getUser(), null));
+        return locked.get(previousFirst ? 1 : 0);
     }
 
     private ClanJoinRequestResponse toResponse(ClanJoinRequest request) {

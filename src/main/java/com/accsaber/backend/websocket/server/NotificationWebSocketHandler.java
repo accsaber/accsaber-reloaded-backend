@@ -34,7 +34,7 @@ public class NotificationWebSocketHandler extends RoomWebSocketHandler<Long> {
     }
 
     public void sendToUser(Long userId, String json) {
-        sendToRoom(userId, json);
+        broadcast(userId, json);
     }
 
     public Set<Long> onlineAmong(Collection<Long> userIds) {

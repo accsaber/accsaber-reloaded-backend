@@ -497,7 +497,7 @@ class StatisticsQueryIntegrationTest {
     private static MissionPool poolFor(MissionType type) {
         return switch (type) {
             case STREAK_SUM_N, SNIPE_RIVAL_ANY_MAP, AP_GAIN_OVERALL, BATCH_PLAY_N, PB_RANKED_BEFORE_N,
-                    CAMPAIGN_COMPLETE_N ->
+                    CAMPAIGN_COMPLETE_N, MISSIONS_COMPLETE_N ->
                 MissionPool.event;
             default -> MissionPool.daily;
         };

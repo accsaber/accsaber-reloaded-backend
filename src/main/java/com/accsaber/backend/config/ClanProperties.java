@@ -1,7 +1,6 @@
 package com.accsaber.backend.config;
 
 import java.time.Duration;
-import java.time.Period;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -19,16 +18,17 @@ public class ClanProperties {
     private Duration joinCooldown = Duration.ofDays(14);
     private int maxMembers = 50;
     private int founderInactivityDays = 30;
-    private Period seasonLength = Period.ofMonths(6);
-    private double playXpShare = 0.025;
+    private double playXpShare = 0.00575;
     private double standingPerSkill = 10.0;
     private double rosterReferenceStrength = 280.0;
     private double rosterReferenceMembers = 5.0;
     private double rosterFactorExponent = 0.5;
+    private int missionSlots = 3;
     private int missionClears = 1;
-    private double missionXp = 300.0;
+    private double missionXp = 69.0;
     private double missionStanding = 100.0;
     private double missionContribution = 150.0;
+    private double missionMinShare = 0.5;
     private List<TrustTier> trustTiers = List.of(
             new TrustTier(Duration.ZERO, 0.0, 1),
             new TrustTier(Duration.ofDays(30), 100.0, 2),
@@ -57,8 +57,8 @@ public class ClanProperties {
         private double breakDecay = 0.75;
         private double breakContribution = 50.0;
         private double breakXp = 250.0;
-        private double breakClanXp = 100.0;
-        private double winClanXp = 1500.0;
+        private double breakClanXp = 23.0;
+        private double winClanXp = 345.0;
         private double xpPerContribution = 1.0;
         private double warSizeExponent = 0.6;
         private double loanXpShare = 0.25;

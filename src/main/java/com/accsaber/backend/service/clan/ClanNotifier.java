@@ -2,7 +2,6 @@ package com.accsaber.backend.service.clan;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
@@ -66,11 +65,11 @@ public class ClanNotifier {
     }
 
     public void warStarted(ClanWar war) {
-        bothSides(war, clan -> "Your war against " + label(opponent(war, clan)) + " has started");
+        bothSides(war, clan -> "Your war against " + label(war.opponentOf(clan)) + " has started");
     }
 
     public void warEnded(ClanWar war) {
-        bothSides(war, clan -> "Your war against " + label(opponent(war, clan)) + " is over: "
+        bothSides(war, clan -> "Your war against " + label(war.opponentOf(clan)) + " is over: "
                 + war.getOutcome().name().replace('_', ' '));
     }
 
@@ -87,13 +86,9 @@ public class ClanNotifier {
     }
 
     private void bothSides(ClanWar war, Function<Clan, String> title) {
-        Stream.of(war.getAttackerClan(), war.getDefenderClan()).forEach(clan -> notificationService.notifyAll(
+        war.sides().forEach(clan -> notificationService.notifyAll(
                 memberRepository.findOpenUserIds(clan.getId()), NotificationType.clan_war, null, title.apply(clan),
                 warLink(war)));
-    }
-
-    private static Clan opponent(ClanWar war, Clan clan) {
-        return war.getAttackerClan().getId().equals(clan.getId()) ? war.getDefenderClan() : war.getAttackerClan();
     }
 
     private static String label(Clan clan) {

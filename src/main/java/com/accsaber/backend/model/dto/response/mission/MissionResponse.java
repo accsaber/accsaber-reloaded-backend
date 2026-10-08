@@ -91,7 +91,7 @@ public class MissionResponse {
                 .parentMissionId(m.getParentMission() != null ? m.getParentMission().getId() : null)
                 .code(community ? template.getCode() : null)
                 .week(community ? template.weekOf(event) : null)
-                .endsWithWeek(community ? template.getCompletableUntil() != null : null)
+                .endsWithWeek(community ? template.getCompletableUntil() != null : template.isClan() ? true : null)
                 .name(template.getName())
                 .description(renderDescription(m))
                 .type(template.getType().name())

@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.accsaber.backend.util.Slugs;
+
 @Component
 public class ClanFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
@@ -14,15 +16,6 @@ public class ClanFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
         if (session.getUri() == null) {
             return null;
         }
-        String clanId = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams().getFirst("clanId");
-        try {
-            return clanId == null ? null : UUID.fromString(clanId);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    public void broadcast(UUID clanId, String json) {
-        sendToRoom(clanId, json);
+        return Slugs.uuidOrNull(UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams().getFirst("clanId"));
     }
 }

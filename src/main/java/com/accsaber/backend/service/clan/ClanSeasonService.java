@@ -1,7 +1,6 @@
 package com.accsaber.backend.service.clan;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,25 +146,6 @@ public class ClanSeasonService {
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("That season overlaps another one or reuses its slug");
         }
-    }
-
-    @Transactional
-    public void ensureCurrent() {
-        Instant now = Instant.now();
-        if (seasonRepository.existsOpenUntilAfter(now)) {
-            return;
-        }
-        Instant start = seasonRepository.findTopByOrderByEndsAtDesc()
-                .map(ClanSeason::getEndsAt)
-                .filter(end -> end.isAfter(now))
-                .orElse(now);
-        long number = seasonRepository.count() + 1;
-        seasonRepository.save(ClanSeason.builder()
-                .name("Season " + number)
-                .slug("season-" + number)
-                .startsAt(start)
-                .endsAt(start.atZone(ZoneOffset.UTC).plus(clanProperties.getSeasonLength()).toInstant())
-                .build());
     }
 
     @Transactional

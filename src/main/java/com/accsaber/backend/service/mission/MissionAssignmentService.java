@@ -190,10 +190,13 @@ public class MissionAssignmentService {
         List<MissionTemplate> daily = templateRepository.findByPoolAndActiveTrue(MissionPool.daily);
         List<MissionTemplate> weekly = templateRepository.findByPoolAndActiveTrue(MissionPool.weekly);
         List<Item> poolable = itemRepository.findByMissionPoolableTrueAndActiveTrueAndDeprecatedFalse();
-        Item eventCrate = itemRepository.findByType_Key("crate").stream()
+        return new MissionPoolCache(daily, weekly, poolable, activeCrateSentinel(), new ConcurrentHashMap<>());
+    }
+
+    public Item activeCrateSentinel() {
+        return itemRepository.findByType_Key("crate").stream()
                 .filter(i -> i.isActive() && ItemService.isActiveCrateSentinel(i))
                 .findFirst().orElse(null);
-        return new MissionPoolCache(daily, weekly, poolable, eventCrate, new ConcurrentHashMap<>());
     }
 
     private void purgeAndRollPool(MissionPool pool, boolean freshSeed) {

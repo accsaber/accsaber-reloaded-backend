@@ -11,14 +11,13 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategoryStatistics;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.service.skill.SkillService;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,16 +69,7 @@ public class RankingService {
     }
 
     public void updateRankingsAsync(UUID categoryId, Runnable postRankingCallback) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    dispatchRankingUpdate(categoryId, postRankingCallback);
-                }
-            });
-        } else {
-            dispatchRankingUpdate(categoryId, postRankingCallback);
-        }
+        AfterCommit.run(() -> dispatchRankingUpdate(categoryId, postRankingCallback));
     }
 
     private void dispatchRankingUpdate(UUID categoryId, Runnable postRankingCallback) {
@@ -129,16 +119,7 @@ public class RankingService {
     }
 
     public void updateRankingForUserAsync(UUID categoryId, Long userId, Runnable postRankingCallback) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    rankingExecutor.execute(() -> updateRankingForUser(categoryId, userId, postRankingCallback));
-                }
-            });
-        } else {
-            rankingExecutor.execute(() -> updateRankingForUser(categoryId, userId, postRankingCallback));
-        }
+        AfterCommit.run(() -> rankingExecutor.execute(() -> updateRankingForUser(categoryId, userId, postRankingCallback)));
     }
 
     @CacheEvict(value = "leaderboards", allEntries = true)

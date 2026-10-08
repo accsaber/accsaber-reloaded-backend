@@ -97,6 +97,7 @@ public class ClanRoster {
         Instant now = Instant.now();
         memberRepository.closeOpenByClanId(clanId, reason, now);
         joinRequestRepository.expirePendingForClan(clanId, now);
+        userMissionRepository.expireActiveForClan(clanId);
         eventPublisher.publishEvent(new ClanMembershipChangedEvent(clanId));
     }
 }

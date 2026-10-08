@@ -76,14 +76,16 @@ public class ClanProgressionController {
 
     @Operation(summary = "Equip a clan cosmetic",
             description = "Founder only. Puts an owned cosmetic in the slot for its type, replacing whatever was there, "
-                    + "and returns everything the clan now has equipped.")
+                    + "in the given variant when the item has variants, and returns everything the clan now has "
+                    + "equipped.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/{clanId}/equipped")
     public ResponseEntity<List<ItemResponse>> equip(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @Valid @RequestBody EquipClanItemRequest request) {
-        return ResponseEntity.ok(cosmeticService.equip(clanId, principal.getUserId(), request.getItemId()));
+        return ResponseEntity.ok(cosmeticService.equip(clanId, principal.getUserId(), request.getItemId(),
+                request.getVariantKey()));
     }
 
     @Operation(summary = "Clear a clan cosmetic slot", description = "Founder only. Empties the slot for that item type key.")

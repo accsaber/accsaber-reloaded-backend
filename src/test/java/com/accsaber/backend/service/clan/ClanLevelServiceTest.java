@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanLevelStepResponse;
-import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLevelCapacity;
@@ -39,15 +38,17 @@ import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemType;
-import com.accsaber.backend.repository.CurveRepository;
 import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelCapacityRepository;
 import com.accsaber.backend.repository.clan.ClanLevelItemRepository;
 import com.accsaber.backend.repository.clan.ClanLevelWarModeRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.util.LevelCurve;
 
 @ExtendWith(MockitoExtension.class)
 class ClanLevelServiceTest {
@@ -55,7 +56,7 @@ class ClanLevelServiceTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
-    private CurveRepository curveRepository;
+    private LevelService playerLevelService;
     @Mock
     private ClanRepository clanRepository;
     @Mock
@@ -70,17 +71,18 @@ class ClanLevelServiceTest {
     private ClanLevelWarModeRepository warModeRepository;
     @Mock
     private ClanLevelItemRepository levelItemRepository;
+    @Mock
+    private ClanSeasonRepository seasonRepository;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanLevelService levelService;
 
     @BeforeEach
     void setUp() {
-        levelService = new ClanLevelService(curveRepository, clanRepository, memberRepository, grantRepository,
+        levelService = new ClanLevelService(playerLevelService, clanRepository, memberRepository, grantRepository,
                 clanItemRepository, capacityRepository, warModeRepository, levelItemRepository, itemRepository,
-                clanProperties);
-        lenient().when(curveRepository.findById(UUID.fromString("acc00000-0000-0000-0000-000000000030")))
-                .thenReturn(Optional.of(Curve.builder().xParameterValue(100.0).yParameterValue(1.0).build()));
+                clanProperties, seasonRepository);
+        lenient().when(playerLevelService.getLevelCurve()).thenReturn(new LevelCurve(100.0, 1.0, 100));
     }
 
     private ClanLevelCapacity row(int level, ClanCapacity capacity, int amount) {
@@ -88,7 +90,7 @@ class ClanLevelServiceTest {
     }
 
     @Test
-    void levelComesFromTheClanCurve() {
+    void levelComesFromThePlayerLevelCurve() {
         assertThat(levelService.levelOf(Clan.builder().totalXp(350.0).build()).getLevel()).isEqualTo(2);
     }
 
@@ -98,15 +100,15 @@ class ClanLevelServiceTest {
         @Test
         void capacitiesStackEveryRowAtOrBelowTheLevel() {
             when(capacityRepository.findAll()).thenReturn(List.of(
-                    row(0, ClanCapacity.mission_slots, 1),
-                    row(3, ClanCapacity.mission_slots, 1),
-                    row(9, ClanCapacity.mission_slots, 1),
+                    row(0, ClanCapacity.ally_slots, 1),
+                    row(3, ClanCapacity.ally_slots, 1),
+                    row(9, ClanCapacity.ally_slots, 1),
                     row(3, ClanCapacity.officer_slots, 2)));
 
             ClanLevelService.CapacityTable table = levelService.capacities();
 
-            assertThat(table.at(0, ClanCapacity.mission_slots)).isEqualTo(1);
-            assertThat(table.at(5, ClanCapacity.mission_slots)).isEqualTo(2);
+            assertThat(table.at(0, ClanCapacity.ally_slots)).isEqualTo(1);
+            assertThat(table.at(5, ClanCapacity.ally_slots)).isEqualTo(2);
             assertThat(table.at(5, ClanCapacity.officer_slots)).isEqualTo(2);
             assertThat(table.at(2, ClanCapacity.officer_slots)).isZero();
         }

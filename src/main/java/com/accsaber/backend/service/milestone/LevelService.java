@@ -103,7 +103,7 @@ public class LevelService {
         cachedLevelCurve = null;
     }
 
-    private LevelCurve getLevelCurve() {
+    public LevelCurve getLevelCurve() {
         LevelCurve curve = cachedLevelCurve;
         if (curve == null) {
             synchronized (curveLock) {

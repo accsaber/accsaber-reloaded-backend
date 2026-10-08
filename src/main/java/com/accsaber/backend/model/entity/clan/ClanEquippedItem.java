@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemType;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -43,6 +44,9 @@ public class ClanEquippedItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "item_id", nullable = false)
     private Item item;
+
+    @Column(name = "variant_key")
+    private String variantKey;
 
     @Getter
     @Setter

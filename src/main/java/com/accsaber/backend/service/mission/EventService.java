@@ -55,7 +55,7 @@ public class EventService {
     }
 
     public UUID resolveId(String idOrSlug) {
-        UUID id = tryParseUuid(idOrSlug);
+        UUID id = Slugs.uuidOrNull(idOrSlug);
         if (id != null) {
             return id;
         }
@@ -176,13 +176,5 @@ public class EventService {
             }
         });
         return slug;
-    }
-
-    private UUID tryParseUuid(String value) {
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }

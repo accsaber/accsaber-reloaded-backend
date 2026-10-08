@@ -13,8 +13,6 @@ import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.websocket.server.ScoreFeedWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,10 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class ScoreBroadcastService {
 
     private static final Logger log = LoggerFactory.getLogger(ScoreBroadcastService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
 
     private final ScoreFeedWebSocketHandler scoreFeedHandler;
 

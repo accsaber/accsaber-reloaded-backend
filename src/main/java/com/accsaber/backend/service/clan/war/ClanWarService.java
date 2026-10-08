@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarTimelinePointResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
@@ -183,17 +184,16 @@ public class ClanWarService {
     public Page<ClanWarParticipantResponse> participants(UUID warId, Pageable pageable) {
         ClanWar war = warRepository.findWithRefsById(warId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
-                List.of(war.getAttackerClan(), war.getDefenderClan()));
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.sides());
         Page<ClanWarParticipant> page = participantRepository.findPageByWarId(warId, pageable);
         return page.map(p -> ClanWarParticipantResponse.of(p, clans.get(p.getClan().getId())));
     }
 
-    public Page<ClanWarHitResponse> hits(UUID warId, Pageable pageable) {
+    public Page<ClanWarHitResponse> hits(UUID warId, Long userId, Pageable pageable) {
         if (!warRepository.existsById(warId)) {
             throw new ResourceNotFoundException("ClanWar", warId);
         }
-        Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, pageable);
+        Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, userId, pageable);
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
                 page.getContent().stream().map(hit -> hit.getMapDifficulty().getId()).toList());
         return page.map(hit -> ClanWarHitResponse.of(hit, difficulties.get(hit.getMapDifficulty().getId())));
@@ -209,10 +209,8 @@ public class ClanWarService {
         notifier.warEnded(war);
         scoreGate.refreshAfterCommit();
         eventPublisher.publishEvent(new ClanWarEndedEvent(war.getId()));
-        chatChannel.announce(war.getAttackerClan(),
-                ChatNotice.ofWar(ChatEvent.war_ended, actor, war.getDefenderClan(), war));
-        chatChannel.announce(war.getDefenderClan(),
-                ChatNotice.ofWar(ChatEvent.war_ended, actor, war.getAttackerClan(), war));
+        war.sides().forEach(clan -> chatChannel.announce(clan,
+                ChatNotice.ofWar(ChatEvent.war_ended, actor, war.opponentOf(clan), war)));
     }
 
     private void assertCanDeclare(Clan attacker, Clan defender, DeclareClanWarRequest request) {
@@ -250,6 +248,11 @@ public class ClanWarService {
     }
 
     private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId, Long viewerId) {
-        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId));
+        List<ClanWarTimelinePointResponse> timeline = hitRepository.findHourlyTimeline(war.getId()).stream()
+                .map(point -> new ClanWarTimelinePointResponse(point.getAt(), point.getClanId(), point.getDamage(),
+                        point.getHits(), point.getBreaks(), point.getStandingMoved()))
+                .toList();
+        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId),
+                timeline);
     }
 }

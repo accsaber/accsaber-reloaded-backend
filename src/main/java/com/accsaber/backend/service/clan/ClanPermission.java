@@ -2,6 +2,11 @@ package com.accsaber.backend.service.clan;
 
 import com.accsaber.backend.model.entity.clan.ClanRole;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum ClanPermission {
     READ_AUDIT(ClanRole.member),
     CHAT(ClanRole.member),
@@ -20,12 +25,4 @@ public enum ClanPermission {
     DISBAND(ClanRole.founder);
 
     private final ClanRole minimum;
-
-    ClanPermission(ClanRole minimum) {
-        this.minimum = minimum;
-    }
-
-    public ClanRole minimum() {
-        return minimum;
-    }
 }

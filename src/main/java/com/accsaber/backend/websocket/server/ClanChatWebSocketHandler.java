@@ -15,10 +15,6 @@ public class ClanChatWebSocketHandler extends RoomWebSocketHandler<UUID> {
         return (UUID) session.getAttributes().get(ClanChatHandshakeInterceptor.ATTR_CLAN_ID);
     }
 
-    public void broadcast(UUID clanId, String json) {
-        sendToRoom(clanId, json);
-    }
-
     public void keepOnly(UUID clanId, Supplier<Collection<Long>> members) {
         if (!hasSessions(clanId)) {
             return;

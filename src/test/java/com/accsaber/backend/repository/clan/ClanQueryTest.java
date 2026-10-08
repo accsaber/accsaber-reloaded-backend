@@ -3,6 +3,7 @@ package com.accsaber.backend.repository.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -431,7 +432,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("season lookups find the running season, the ended ones and whether one is still open")
+    @DisplayName("season lookups find the running season and the ended ones")
     void seasonLookups() {
         Instant now = Instant.now();
         UUID ended = season(now.minus(60, ChronoUnit.DAYS), now.minus(10, ChronoUnit.DAYS));
@@ -439,9 +440,6 @@ class ClanQueryTest {
 
         assertThat(seasonRepository.findCurrent(now)).get().extracting(ClanSeason::getId).isEqualTo(running);
         assertThat(seasonRepository.findEndedUnclosedIds(now)).containsExactly(ended);
-        assertThat(seasonRepository.existsOpenUntilAfter(now)).isTrue();
-        assertThat(seasonRepository.findTopByOrderByEndsAtDesc()).get().extracting(ClanSeason::getId)
-                .isEqualTo(running);
     }
 
     @Test
@@ -605,6 +603,24 @@ class ClanQueryTest {
         assertThat(userMissionRepository.expireActiveForClan(owls.getId())).isEqualTo(2);
         assertThat(statusOf(counter)).isEqualTo(MissionStatus.expired);
         assertThat(statusOf(community)).isEqualTo(MissionStatus.active);
+    }
+
+    @Test
+    @DisplayName("a member who joined after a clan mission opened cannot count toward it")
+    void lateJoinersSitOutTheWeek() {
+        UUID counter = mission(template("counter", "clan", "{\"count\": 20}"), owls, null, null, "active", 0, null);
+        UUID perMember = template("per-member", "clan", null);
+        mission(perMember, owls, null, null, "active", 0, null);
+        entityManager.createNativeQuery("UPDATE clan_members SET joined_at = NOW() + INTERVAL '1 hour' WHERE user_id = ?1")
+                .setParameter(1, officer.getId()).executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(userMissionRepository.findActiveSharedFor(founder.getId())).extracting(UserMission::getId)
+                .contains(counter);
+        assertThat(userMissionRepository.findActiveSharedFor(officer.getId())).isEmpty();
+        assertThat(userMissionRepository.findPerMemberParentsMissing(owls.getId(), officer.getId(), Instant.now()))
+                .isEmpty();
     }
 
     @Test
@@ -819,7 +835,7 @@ class ClanQueryTest {
                     assertThat(view.getScore()).isEqualTo(950000);
                 });
         assertThat(hitRepository.countByWar_IdAndVictim_IdAndVictimCycle(warId, lapizStar.getId(), 0)).isZero();
-        assertThat(hitRepository.findPageByWarId(warId, PageRequest.of(0, 10)).getTotalElements()).isZero();
+        assertThat(hitRepository.findPageByWarId(warId, null, PageRequest.of(0, 10)).getTotalElements()).isZero();
     }
 
     @Test
@@ -850,6 +866,64 @@ class ClanQueryTest {
         assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, second.getId())
                 .setParameter(5, scoreId).executeUpdate()).isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("the war timeline sums each clan's hits per hour, and season stats count a member's hits and play XP")
+    void hourlyTimelineAndSeasonStats() {
+        MapDifficulty first = rankedAt(6.0);
+        MapDifficulty second = rankedAt(7.0);
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        User lapizStar = user(76561190000000312L, "Lapiz Star");
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard) "
+                + "VALUES (?1, ?2, ?3, 1, 100)";
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, lapizStar.getId())
+                .setParameter(3, lapiz.getId()).executeUpdate();
+        score(founder, first, 0.0, Instant.now());
+        score(lapizStar, first, 0.0, Instant.now());
+        entityManager.flush();
+        String scoreOf = "SELECT id FROM scores WHERE user_id = ?1";
+        UUID founderScore = (UUID) entityManager.createNativeQuery(scoreOf).setParameter(1, founder.getId())
+                .getSingleResult();
+        UUID starScore = (UUID) entityManager.createNativeQuery(scoreOf).setParameter(1, lapizStar.getId())
+                .getSingleResult();
+        Instant hour = Instant.parse("2026-10-01T12:00:00Z");
+        String hit = "INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, victim_cycle, "
+                + "map_difficulty_id, attacker_score_id, damage, guard_after, broke, standing_moved, created_at) "
+                + "VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, 0, ?7, ?8, ?9)";
+        Object[][] hits = {
+                {founder, lapizStar, first, founderScore, 40.0, false, 0.0, hour.plusSeconds(60)},
+                {founder, lapizStar, second, founderScore, 60.0, true, 5.0, hour.plusSeconds(1800)},
+                {lapizStar, founder, first, starScore, 30.0, false, 0.0, hour.plus(2, ChronoUnit.HOURS)}};
+        for (Object[] row : hits) {
+            entityManager.createNativeQuery(hit).setParameter(1, warId).setParameter(2, ((User) row[0]).getId())
+                    .setParameter(3, ((User) row[1]).getId()).setParameter(4, ((MapDifficulty) row[2]).getId())
+                    .setParameter(5, row[3]).setParameter(6, row[4]).setParameter(7, row[5])
+                    .setParameter(8, row[6]).setParameter(9, row[7]).executeUpdate();
+        }
+
+        assertThat(hitRepository.findHourlyTimeline(warId))
+                .extracting(p -> p.getAt(), p -> p.getClanId(), p -> p.getDamage(), p -> p.getHits(),
+                        p -> p.getBreaks(), p -> p.getStandingMoved())
+                .containsExactly(
+                        tuple(hour, owls.getId(), 100.0, 2L, 1L, 5.0),
+                        tuple(hour.plus(2, ChronoUnit.HOURS), lapiz.getId(), 30.0,
+                                1L, 0L, 0.0));
+
+        Instant now = Instant.now();
+        MapDifficulty third = rankedAt(8.0);
+        score(founder, third, 500.0, now.minus(20, ChronoUnit.DAYS));
+        score(founder, second, 40.0, now.minus(5, ChronoUnit.DAYS));
+        score(founder, third, 60.0, now.minus(2, ChronoUnit.DAYS));
+        score(founder, second, 900.0, now.minus(12, ChronoUnit.HOURS));
+        entityManager.flush();
+        assertThat(memberRepository.findSeasonStats(owls.getId(), List.of(founder.getId(), member.getId()), current,
+                now.minus(10, ChronoUnit.DAYS), now.minus(1, ChronoUnit.DAYS)))
+                .extracting(s -> s.getUserId(), s -> s.getPlayXp(), s -> s.getHits(), s -> s.getBreaks())
+                .containsExactlyInAnyOrder(tuple(founder.getId(), 100.0, 2L, 1L), tuple(member.getId(), 0.0, 0L, 0L));
     }
 
     private UUID loan(UUID warId, Clan into, Clan lender, User player, String status, Instant endedAt) {

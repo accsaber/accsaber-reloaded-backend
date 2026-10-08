@@ -87,7 +87,7 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
         }
     }
 
-    protected void sendToRoom(K key, String json) {
+    public void broadcast(K key, String json) {
         Set<WebSocketSession> room = rooms.get(key);
         if (room == null || room.isEmpty()) {
             return;

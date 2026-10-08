@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -28,6 +26,7 @@ import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.service.map.MapDifficultyComplexityService.RankedChange;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,7 +73,7 @@ public class ReweightService {
         writeChanges(List.of(difficulty), Map.of(mapDifficultyId, new Change(complexity, reason)),
                 staffUserId, staffId);
 
-        afterCommit(() -> {
+        AfterCommit.run(() -> {
             scoreRecalculationService.recalculateDifficultyAsync(mapDifficultyId);
             scenarioService.rebuildAsync();
             roundService.evictCache();
@@ -175,7 +174,7 @@ public class ReweightService {
 
         writeChanges(difficulties, changes, staffUserId, staffId);
 
-        afterCommit(() -> {
+        AfterCommit.run(() -> {
             scoreRecalculationService.recalculateBatchAsync(difficulties);
             scenarioService.rebuildAsync();
             roundService.evictCache();
@@ -200,18 +199,5 @@ public class ReweightService {
     }
 
     private record Change(Double complexity, String reason) {
-    }
-
-    private static void afterCommit(Runnable action) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            action.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
     }
 }

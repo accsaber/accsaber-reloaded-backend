@@ -19,8 +19,6 @@ import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -28,10 +26,7 @@ import lombok.RequiredArgsConstructor;
 public class CampaignProgressBroadcastService {
 
     private static final Logger log = LoggerFactory.getLogger(CampaignProgressBroadcastService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper()
             .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
     private final CampaignProgressWebSocketHandler campaignProgressHandler;

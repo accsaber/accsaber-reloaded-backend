@@ -1,6 +1,7 @@
 package com.accsaber.backend.util;
 
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 public final class Slugs {
@@ -17,5 +18,16 @@ public final class Slugs {
         }
         String lowered = NON_SLUG_RUNS.matcher(input.toLowerCase(Locale.ROOT)).replaceAll("-");
         return EDGE_DASHES.matcher(lowered).replaceAll("");
+    }
+
+    public static UUID uuidOrNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

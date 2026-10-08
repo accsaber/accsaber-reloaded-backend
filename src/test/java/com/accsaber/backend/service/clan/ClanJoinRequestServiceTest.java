@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,6 +29,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanJoinDirection;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
 import com.accsaber.backend.model.entity.clan.ClanJoinStatus;
+import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
@@ -166,6 +168,34 @@ class ClanJoinRequestServiceTest {
             service.resolve(request.getId(), 2L, ClanJoinStatus.accepted);
 
             verify(roster).admit(clan, player, ClanRole.member);
+        }
+
+        @Test
+        void acceptingAnInviteFromAnotherClanDesertsTheOldOne() {
+            ClanJoinRequest request = pending(ClanJoinDirection.invite);
+            Clan old = Clan.builder().id(UUID.randomUUID()).name("Old").tag("OLD").slug("old").build();
+            ClanMember stint = ClanMember.builder().clan(old).user(player).role(ClanRole.commander).build();
+            when(memberRepository.findOpenByUserId(2L)).thenReturn(Optional.of(stint));
+            when(roster.lockPair(old.getId(), CLAN_ID)).thenReturn(List.of(clan, old));
+
+            service.resolve(request.getId(), 2L, ClanJoinStatus.accepted);
+
+            verify(roster).close(stint, ClanLeaveReason.left);
+            verify(chatChannel).announce(old, ChatNotice.ofPlayer(ChatEvent.member_left, player, null));
+            verify(roster).admit(clan, player, ClanRole.member);
+        }
+
+        @Test
+        void aFounderMustHandOverTheirClanBeforeAcceptingAnInvite() {
+            ClanJoinRequest request = pending(ClanJoinDirection.invite);
+            Clan old = Clan.builder().id(UUID.randomUUID()).name("Old").tag("OLD").slug("old").build();
+            when(memberRepository.findOpenByUserId(2L))
+                    .thenReturn(Optional.of(ClanMember.builder().clan(old).user(player).role(ClanRole.founder).build()));
+
+            assertThatThrownBy(() -> service.resolve(request.getId(), 2L, ClanJoinStatus.accepted))
+                    .isInstanceOf(ValidationException.class);
+            verify(roster, never()).close(any(), any());
+            verify(roster, never()).admit(any(), any(), any());
         }
 
         @Test

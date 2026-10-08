@@ -12,8 +12,6 @@ import com.accsaber.backend.model.event.MissionCompletedEvent;
 import com.accsaber.backend.websocket.server.MissionFeedWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,11 +20,7 @@ import lombok.RequiredArgsConstructor;
 public class MissionBroadcastService {
 
     private static final Logger log = LoggerFactory.getLogger(MissionBroadcastService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .registerModule(PlainDoubleJackson2Module.create())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
 
     private final MissionFeedWebSocketHandler missionFeedHandler;
 

@@ -17,7 +17,8 @@ public enum MissionType {
     AP_GAIN_OVERALL(MissionTrigger.SCORE, MissionProgressAxis.AP),
     BATCH_PLAY_N(MissionTrigger.SCORE, MissionProgressAxis.COUNT),
     PB_RANKED_BEFORE_N(MissionTrigger.SCORE, MissionProgressAxis.COUNT),
-    CAMPAIGN_COMPLETE_N(MissionTrigger.CAMPAIGN, MissionProgressAxis.COUNT);
+    CAMPAIGN_COMPLETE_N(MissionTrigger.CAMPAIGN, MissionProgressAxis.COUNT),
+    MISSIONS_COMPLETE_N(MissionTrigger.MISSION, MissionProgressAxis.COUNT);
 
     private final MissionTrigger trigger;
     private final MissionProgressAxis axis;
@@ -38,7 +39,7 @@ public enum MissionType {
     public boolean hasFixedTarget() {
         return switch (this) {
             case STREAK_SUM_N, SNIPE_RIVAL_ANY_MAP, AP_GAIN_OVERALL, BATCH_PLAY_N, PB_RANKED_BEFORE_N,
-                    CAMPAIGN_COMPLETE_N -> true;
+                    CAMPAIGN_COMPLETE_N, MISSIONS_COMPLETE_N -> true;
             default -> false;
         };
     }

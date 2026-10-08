@@ -5,8 +5,11 @@ import java.math.BigDecimal;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public final class PlainDoubleJackson2Module {
 
@@ -45,5 +48,12 @@ public final class PlainDoubleJackson2Module {
         module.addSerializer(Double.class, serializer);
         module.addSerializer(Double.TYPE, serializer);
         return module;
+    }
+
+    public static ObjectMapper mapper() {
+        return new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .registerModule(create())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 }

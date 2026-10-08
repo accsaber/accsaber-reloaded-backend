@@ -17,6 +17,21 @@ public interface ClanXpGrantRepository extends JpaRepository<ClanXpGrant, UUID> 
 
     Page<ClanXpGrant> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
 
+    interface SourceXpView {
+        String getSource();
+
+        double getXp();
+    }
+
+    @Query(value = """
+            SELECT g.source AS source, SUM(g.amount) AS xp
+            FROM clan_xp_grants g
+            WHERE g.clan_id = :clanId AND g.created_at >= :from AND g.created_at < :to
+            GROUP BY g.source
+            """, nativeQuery = true)
+    List<SourceXpView> sumBySource(@Param("clanId") UUID clanId, @Param("from") Instant from,
+            @Param("to") Instant to);
+
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO clan_xp_grants (clan_id, source, source_id, raw_amount, roster_factor, amount)

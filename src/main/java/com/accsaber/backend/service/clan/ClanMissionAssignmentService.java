@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +18,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.clan.Clan;
-import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanMember;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionProgressAxis;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
@@ -34,10 +35,12 @@ import com.accsaber.backend.service.mission.MissionPoolCache;
 import com.accsaber.backend.service.mission.MissionRolloverService;
 import com.accsaber.backend.service.mission.MissionRowFactory;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ClanMissionAssignmentService {
 
     private final ClanRepository clanRepository;
@@ -48,30 +51,12 @@ public class ClanMissionAssignmentService {
     private final MissionBuilderService builderService;
     private final MissionRowFactory rowFactory;
     private final MissionRolloverService rolloverService;
-    private final ClanLevelService levelService;
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
-    private final Executor backfillExecutor;
 
-    public ClanMissionAssignmentService(ClanRepository clanRepository, ClanMemberRepository memberRepository,
-            MissionTemplateRepository templateRepository, UserMissionRepository userMissionRepository,
-            MissionAssignmentService missionAssignmentService, MissionBuilderService builderService,
-            MissionRowFactory rowFactory, MissionRolloverService rolloverService, ClanLevelService levelService,
-            ClanProperties clanProperties, TransactionTemplate transactionTemplate,
-            @Qualifier("backfillExecutor") Executor backfillExecutor) {
-        this.clanRepository = clanRepository;
-        this.memberRepository = memberRepository;
-        this.templateRepository = templateRepository;
-        this.userMissionRepository = userMissionRepository;
-        this.missionAssignmentService = missionAssignmentService;
-        this.builderService = builderService;
-        this.rowFactory = rowFactory;
-        this.rolloverService = rolloverService;
-        this.levelService = levelService;
-        this.clanProperties = clanProperties;
-        this.transactionTemplate = transactionTemplate;
-        this.backfillExecutor = backfillExecutor;
-    }
+    @Autowired
+    @Qualifier("backfillExecutor")
+    private Executor backfillExecutor;
 
     @Transactional
     public int expireStale() {
@@ -92,18 +77,19 @@ public class ClanMissionAssignmentService {
         Instant expiresAt = rolloverService.nextRollover(MissionPool.clan, Instant.now());
         List<Long> members = memberRepository.findOpenUserIds(clanId);
         Random rng = new Random();
+        Item crate = missionAssignmentService.activeCrateSentinel();
         Set<UUID> tried = new HashSet<>();
-        int slots = levelService.capacityOf(clan, ClanCapacity.mission_slots);
         int opened = 0;
-        while (opened < slots) {
+        while (opened < clanProperties.getMissionSlots()) {
             MissionTemplate template = builderService.weightedPickExcluding(templates, rng, tried);
             if (template == null) {
                 break;
             }
             tried.add(template.getId());
+            Item reward = builderService.rollCrateDrop(template, rng, crate);
             boolean open = template.isPerMember()
-                    ? openPerMember(clan, template, members, expiresAt, rng)
-                    : openPooled(clan, template, members.size(), expiresAt);
+                    ? openPerMember(clan, template, members, expiresAt, rng, reward)
+                    : openPooled(clan, template, members.size(), expiresAt, reward);
             if (open) {
                 opened++;
             }
@@ -143,10 +129,12 @@ public class ClanMissionAssignmentService {
         return openMembers / clanProperties.getRosterReferenceMembers();
     }
 
-    private boolean openPooled(Clan clan, MissionTemplate template, int openMembers, Instant expiresAt) {
+    private boolean openPooled(Clan clan, MissionTemplate template, int openMembers, Instant expiresAt,
+            Item reward) {
         UserMission mission = rowFactory.build(null, template, null);
         double factor = headcountShare(openMembers);
         mission.setClan(clan);
+        mission.setItemReward(reward);
         mission.setExpiresAt(expiresAt);
         mission.setTargetCount(scaled(mission.getTargetCount(), factor));
         mission.setTargetXp(scaled(mission.getTargetXp(), factor));
@@ -158,7 +146,7 @@ public class ClanMissionAssignmentService {
     }
 
     private boolean openPerMember(Clan clan, MissionTemplate template, List<Long> members, Instant expiresAt,
-            Random rng) {
+            Random rng, Item reward) {
         MissionPoolCache cache = emptyCache();
         List<UserMission> rows = new ArrayList<>();
         for (Long userId : members) {
@@ -176,7 +164,8 @@ public class ClanMissionAssignmentService {
                 .pool(MissionPool.clan)
                 .clan(clan)
                 .targetCount(Math.min(rows.size(), clears))
-                .itemReward(template.getAwardsItem())
+                .xpReward(template.getFixedXp() != null ? template.getFixedXp() : 0)
+                .itemReward(reward)
                 .expiresAt(expiresAt)
                 .build());
         for (UserMission row : rows) {

@@ -44,6 +44,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
+import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
@@ -66,6 +67,8 @@ class SharedMissionServiceTest {
     private ItemService itemService;
     @Mock
     private MissionProgressService missionProgressService;
+    @Mock
+    private ClanMissionService clanMissionService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -228,6 +231,30 @@ class SharedMissionServiceTest {
 
             verify(contributionRepository).findUnrewarded(missionId, PageRequest.of(0, 200,
                     Sort.by(Sort.Direction.DESC, "contribution").and(Sort.by("firstAt"))));
+        }
+
+        @Test
+        void aClanContributorUnderTheMinimumShareIsClosedOutUnpaid() {
+            UUID missionId = UUID.randomUUID();
+            UserMission completed = communityRow(missionId, MissionStatus.completed);
+            completed.setPool(MissionPool.clan);
+            when(userMissionRepository.findSharedById(missionId)).thenReturn(Optional.of(completed));
+            when(clanMissionService.minRewardedContribution(completed)).thenReturn(2.0);
+            MissionContribution passenger = contribution(22L);
+            passenger.setContribution(1.0);
+            when(contributionRepository.findUnrewarded(eq(missionId), any()))
+                    .thenReturn(List.of(contribution(11L), passenger))
+                    .thenReturn(List.of());
+            when(contributionRepository.markRewarded(eq(missionId), anyLong(), any())).thenReturn(1);
+            runTransactionsInline();
+
+            service.payRewards(missionId);
+
+            verify(contributionRepository).markRewarded(eq(missionId), eq(22L), any());
+            verify(levelUpAwardService).addMissionXp(eq(11L), any(), eq(250.0));
+            verify(levelUpAwardService, never()).addMissionXp(eq(22L), any(), any());
+            verify(itemService).awardSystem(eq(11L), any(), any(), any(), any());
+            verify(itemService, never()).awardSystem(eq(22L), any(), any(), any(), any());
         }
     }
 

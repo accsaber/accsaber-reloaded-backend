@@ -134,7 +134,8 @@ public class MissionShortfallService {
     private String reachedExpression(MissionType type) {
         return switch (type) {
             case PLAY_N_MAPS, PB_ABOVE_THRESHOLD, STREAK_N_IN_CATEGORY, STREAK_SUM_N, SCORES_N,
-                    SNIPE_RIVAL_ANY_MAP, BATCH_PLAY_N, PB_RANKED_BEFORE_N, CAMPAIGN_COMPLETE_N ->
+                    SNIPE_RIVAL_ANY_MAP, BATCH_PLAY_N, PB_RANKED_BEFORE_N, CAMPAIGN_COMPLETE_N,
+                    MISSIONS_COMPLETE_N ->
                 "m.progress_count::double precision / NULLIF(m.target_count, 0)";
             case XP_IN_WINDOW -> "m.progress_count::double precision / NULLIF(m.target_xp, 0)";
             case AP_GAIN_OVERALL -> "m.progress_ap / NULLIF(m.target_ap, 0)";

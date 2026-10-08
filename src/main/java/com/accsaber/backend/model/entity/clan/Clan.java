@@ -48,6 +48,12 @@ public class Clan {
     @Column(name = "tag_color")
     private String tagColor;
 
+    @Column(name = "primary_color")
+    private String primaryColor;
+
+    @Column(name = "secondary_color")
+    private String secondaryColor;
+
     @Column(name = "accepting_requests", nullable = false)
     @Builder.Default
     private boolean acceptingRequests = true;

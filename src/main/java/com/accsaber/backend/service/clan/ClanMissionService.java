@@ -14,6 +14,8 @@ import com.accsaber.backend.model.dto.response.mission.MissionContributorRespons
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanXpSource;
+import com.accsaber.backend.model.dto.EventMissionTargets;
+import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
@@ -58,8 +60,19 @@ public class ClanMissionService {
                 clanProperties.getMissionStanding() * weight, ClanStandingSource.mission, sourceId));
     }
 
-    @Transactional
-    public void endAll(UUID clanId) {
-        userMissionRepository.expireActiveForClan(clanId);
+    public double minRewardedContribution(UserMission mission) {
+        MissionTemplate template = mission.getTemplate();
+        if (!template.isClan() || template.isPerMember()) {
+            return 0.0;
+        }
+        EventMissionTargets targets = template.getEventTargets();
+        Number base = switch (template.getType().getAxis()) {
+            case XP -> targets.xp();
+            case AP -> targets.ap();
+            case COUNT -> targets.count();
+            case BINARY -> null;
+        };
+        return base == null ? 0.0
+                : base.doubleValue() / clanProperties.getRosterReferenceMembers() * clanProperties.getMissionMinShare();
     }
 }

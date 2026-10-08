@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -10,8 +11,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
@@ -22,7 +21,7 @@ import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanEquippedItemRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
-import com.accsaber.backend.service.item.ItemMapper;
+import com.accsaber.backend.service.infra.AfterCommit;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClanRefCache {
 
-    private static final String TAG_COSMETIC = "clan_tag_card";
+    private static final Set<String> REF_COSMETICS = Set.of("clan_tag_card", "clan_border");
 
     private static volatile Map<Long, PublicClanResponse> byUser = Map.of();
 
@@ -41,10 +40,6 @@ public class ClanRefCache {
 
     public static PublicClanResponse forUser(Long userId) {
         return userId == null ? null : byUser.get(userId);
-    }
-
-    public static PublicClanResponse forUser(String userId) {
-        return userId == null ? null : byUser.get(Long.valueOf(userId));
     }
 
     @PostConstruct
@@ -67,16 +62,7 @@ public class ClanRefCache {
     }
 
     public void refreshAfterCommit(UUID clanId) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            refresh(clanId);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                refresh(clanId);
-            }
-        });
+        AfterCommit.run(() -> refresh(clanId));
     }
 
     synchronized void refresh(UUID clanId) {
@@ -92,8 +78,8 @@ public class ClanRefCache {
 
     private static Map<UUID, List<ItemResponse>> tagCosmetics(List<ClanEquippedItem> equipped) {
         return equipped.stream()
-                .filter(e -> TAG_COSMETIC.equals(e.getItem().getType().getKey()))
+                .filter(e -> REF_COSMETICS.contains(e.getItem().getType().getKey()))
                 .collect(Collectors.groupingBy(e -> e.getClan().getId(),
-                        Collectors.mapping(e -> ItemMapper.toItemResponse(e.getItem()), Collectors.toList())));
+                        Collectors.mapping(ClanCosmeticService::toEquippedResponse, Collectors.toList())));
     }
 }

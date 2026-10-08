@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
@@ -182,7 +181,7 @@ public class ClanWarLoanService {
     }
 
     private Clan sideOf(ClanWar war, UUID clanId) {
-        return Stream.of(war.getAttackerClan(), war.getDefenderClan())
+        return war.sides().stream()
                 .filter(clan -> clan.getId().equals(clanId))
                 .findFirst()
                 .orElseThrow(() -> new ValidationException("clanId", "must be one of the clans in this war"));
@@ -191,7 +190,7 @@ public class ClanWarLoanService {
     private List<ClanWarLoanResponse> responses(List<ClanWarLoan> loans) {
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(loans.stream()
                 .flatMap(loan -> Stream.of(loan.getClan(), loan.getLendingClan()))
-                .collect(Collectors.toList()));
+                .toList());
         return loans.stream().map(loan -> ClanWarLoanResponse.of(loan, clans)).toList();
     }
 }

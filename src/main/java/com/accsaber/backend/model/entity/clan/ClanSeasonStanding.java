@@ -1,10 +1,7 @@
 package com.accsaber.backend.model.entity.clan;
 
 import java.io.Serializable;
-import java.time.Instant;
 import java.util.UUID;
-
-import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,10 +40,6 @@ public class ClanSeasonStanding {
 
     @Column(nullable = false)
     private double earned;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
 
     @Getter
     @Setter

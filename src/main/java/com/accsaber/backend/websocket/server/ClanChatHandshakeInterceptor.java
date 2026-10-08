@@ -14,6 +14,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.security.PlayerTokenResolver;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,7 +32,7 @@ public class ClanChatHandshakeInterceptor implements HandshakeInterceptor {
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
         MultiValueMap<String, String> params = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
-        UUID clanId = parseUuid(params.getFirst("clanId"));
+        UUID clanId = Slugs.uuidOrNull(params.getFirst("clanId"));
         if (clanId == null) {
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
@@ -54,16 +55,5 @@ public class ClanChatHandshakeInterceptor implements HandshakeInterceptor {
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Exception exception) {
-    }
-
-    private static UUID parseUuid(String value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }

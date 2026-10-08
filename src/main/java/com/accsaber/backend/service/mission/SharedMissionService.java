@@ -32,6 +32,7 @@ import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,7 @@ public class SharedMissionService {
     private final LevelUpAwardService levelUpAwardService;
     private final ItemService itemService;
     private final MissionProgressService missionProgressService;
+    private final ClanMissionService clanMissionService;
     private final TransactionTemplate transactionTemplate;
 
     @Scheduled(cron = "${accsaber.scheduler.community-mission-cron:0 20 * * * *}")
@@ -161,6 +163,7 @@ public class SharedMissionService {
             markAllRewarded(missionId);
             return;
         }
+        double floor = clanMissionService.minRewardedContribution(mission);
         int paid = 0;
         while (true) {
             List<MissionContribution> page = contributionRepository
@@ -170,7 +173,9 @@ public class SharedMissionService {
             }
             int paidInPage = 0;
             for (MissionContribution contribution : page) {
-                if (payOne(missionId, contribution.getUser().getId(), xpReward, itemRewardId, template)) {
+                boolean earned = contribution.getContribution() >= floor;
+                if (payOne(missionId, contribution.getUser().getId(), earned ? xpReward : 0,
+                        earned ? itemRewardId : null, template)) {
                     paidInPage++;
                 }
             }

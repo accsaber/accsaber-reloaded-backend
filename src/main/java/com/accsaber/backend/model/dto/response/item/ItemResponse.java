@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class ItemResponse {
 
     private UUID id;
@@ -33,4 +33,5 @@ public class ItemResponse {
     private Integer unlockLevel;
     private Instant obtainableUntil;
     private Instant createdAt;
+    private String variantKey;
 }

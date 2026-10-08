@@ -15,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.security.PlayerTokenResolver;
 import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
+import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
         MultiValueMap<String, String> params = UriComponentsBuilder.fromUri(request.getURI())
                 .build().getQueryParams();
-        UUID campaignId = parseCampaignId(params.getFirst("campaignId"));
+        UUID campaignId = Slugs.uuidOrNull(params.getFirst("campaignId"));
         if (campaignId == null) {
             log.warn("Presence handshake rejected: missing or invalid campaignId '{}'", params.getFirst("campaignId"));
             response.setStatusCode(HttpStatus.BAD_REQUEST);
@@ -70,16 +71,5 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Exception exception) {
-    }
-
-    private static UUID parseCampaignId(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }

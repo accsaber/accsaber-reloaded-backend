@@ -54,6 +54,36 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
             countQuery = "SELECT COUNT(m) FROM ClanMember m WHERE m.clan.id = :clanId AND m.leftAt IS NULL")
     Page<ClanMember> findRoster(@Param("clanId") UUID clanId, Pageable pageable);
 
+    interface MemberSeasonStatsView {
+        Long getUserId();
+
+        double getPlayXp();
+
+        long getHits();
+
+        long getBreaks();
+    }
+
+    @Query(value = """
+            SELECT m.user_id AS userId,
+                   COALESCE((SELECT SUM(s.xp_gained) FROM scores s
+                             WHERE s.user_id = m.user_id AND s.xp_gained > 0
+                               AND COALESCE(s.time_set, s.created_at) >= GREATEST(m.joined_at, :from)
+                               AND COALESCE(s.time_set, s.created_at) < :to), 0) AS playXp,
+                   war.hits AS hits, war.breaks AS breaks
+            FROM clan_members m
+            CROSS JOIN LATERAL (
+                SELECT COUNT(*) AS hits, COUNT(*) FILTER (WHERE h.broke) AS breaks
+                FROM clan_war_hits h
+                JOIN clan_wars w ON w.id = h.war_id
+                JOIN clan_war_participants p ON p.war_id = h.war_id AND p.user_id = h.attacker_user_id
+                WHERE h.attacker_user_id = m.user_id AND p.clan_id = m.clan_id AND w.season_id = :seasonId) war
+            WHERE m.clan_id = :clanId AND m.left_at IS NULL AND m.user_id IN (:userIds)
+            """, nativeQuery = true)
+    List<MemberSeasonStatsView> findSeasonStats(@Param("clanId") UUID clanId,
+            @Param("userIds") Collection<Long> userIds, @Param("seasonId") UUID seasonId,
+            @Param("from") Instant from, @Param("to") Instant to);
+
     interface MemberCountView {
         UUID getClanId();
 
