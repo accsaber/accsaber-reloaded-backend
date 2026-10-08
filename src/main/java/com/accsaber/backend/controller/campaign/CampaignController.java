@@ -478,7 +478,7 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.assertCanUploadDifficultyMedia(editorFor(authentication, principal), campaignDifficultyId);
         String url = mediaProcessingService.storeImage(file, CAMPAIGN_NODE_BORDER_SUBDIR,
-                campaignDifficultyId.toString(), MediaFormat.GIF);
+                campaignDifficultyId.toString(), MediaFormat.PNG);
         UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
         request.setNodeBorderUrl(url);
         return ResponseEntity.ok(
