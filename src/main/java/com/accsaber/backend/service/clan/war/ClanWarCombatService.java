@@ -158,8 +158,8 @@ public class ClanWarCombatService {
                 war.getId(), attackerId, victimId, difficultyId)) {
             return;
         }
-        double damage = damage(war, victim, skills.getOrDefault(attackerId, 0.0),
-                skills.getOrDefault(victimId, 0.0), victimScore == null);
+        double damage = Math.min(victim.getGuard(), damage(war, victim, skills.getOrDefault(attackerId, 0.0),
+                skills.getOrDefault(victimId, 0.0), victimScore == null));
         victim.setGuard(Math.max(0.0, victim.getGuard() - damage));
         attacker.setContribution(attacker.getContribution() + damage * sizeShare(roster, victim.getClan().getId()));
         ClanWarHit hit = hitRepository.saveAndFlush(ClanWarHit.builder()

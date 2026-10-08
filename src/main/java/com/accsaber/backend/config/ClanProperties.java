@@ -25,7 +25,7 @@ public class ClanProperties {
     private double rosterFactorExponent = 0.5;
     private int missionSlots = 3;
     private int missionClears = 1;
-    private double missionXp = 69.0;
+    private double missionXp = 70.0;
     private double missionStanding = 100.0;
     private double missionContribution = 150.0;
     private double missionMinShare = 0.5;

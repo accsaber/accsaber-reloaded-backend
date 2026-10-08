@@ -362,7 +362,7 @@ class ClanWarCombatServiceTest {
             skills(50, 50);
             lenient().when(sideRepository.findByWar_IdAndClan_Id(war.getId(), blue.getId()))
                     .thenReturn(Optional.of(blueSide));
-            ClanWarHit earlierChip = ClanWarHit.builder().attacker(User.builder().id(2L).build()).damage(75.0).build();
+            ClanWarHit earlierChip = ClanWarHit.builder().attacker(User.builder().id(2L).build()).damage(90.0).build();
             lenient().when(hitRepository.findByWar_IdAndVictim_IdAndVictimCycle(war.getId(), 11L, 0))
                     .thenAnswer(inv -> {
                         List<ClanWarHit> cycle = new ArrayList<>(savedHits);
@@ -377,6 +377,7 @@ class ClanWarCombatServiceTest {
 
             ClanWarHit breaking = savedHits.getFirst();
             assertThat(breaking.isBroke()).isTrue();
+            assertThat(breaking.getDamage()).isEqualTo(10.0);
             assertThat(breaking.getStandingMoved()).isCloseTo(1000 * 0.2 * 0.5 * 0.5, within(1e-9));
             assertThat(blueSide.getStakeRemaining()).isCloseTo(950.0, within(1e-9));
             assertThat(victim.getBrokenAt()).isNotNull();
@@ -385,9 +386,9 @@ class ClanWarCombatServiceTest {
             verify(standingService).apply(season.getId(), blue.getId(), -50.0, ClanStandingSource.war_break, source);
             verify(standingService).apply(season.getId(), red.getId(), 50.0, ClanStandingSource.war_break, source);
             verify(levelService).grantXp(red.getId(), new ClanXpAward(150.0, ClanXpSource.war_break, source, true));
-            verify(levelUpAwardService).addClanXp(1L, 50.0);
-            verify(levelUpAwardService).addClanXp(2L, 150.0);
-            assertThat(attacker.getContribution()).isEqualTo(25.0 + 50.0);
+            verify(levelUpAwardService).addClanXp(1L, 20.0);
+            verify(levelUpAwardService).addClanXp(2L, 180.0);
+            assertThat(attacker.getContribution()).isEqualTo(10.0 + 50.0);
             verify(warService, never()).end(any(), any());
             verify(feed).hit(war, breaking);
             verify(feed).war(war);
@@ -404,11 +405,11 @@ class ClanWarCombatServiceTest {
             service.fight(war.getId(), play(950_000, true));
 
             ClanWarHit breaking = savedHits.getFirst();
-            assertThat(breaking.getDamage()).isEqualTo(25.0);
-            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 25.0 / 100.0);
-            verify(levelUpAwardService).addClanXp(1L, 100.0);
-            verify(levelUpAwardService).addClanXp(2L, 300.0);
-            assertThat(attacker.getContribution()).isEqualTo(25.0 * 2.0 + 50.0 * 2.0);
+            assertThat(breaking.getDamage()).isEqualTo(10.0);
+            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 10.0 / 100.0);
+            verify(levelUpAwardService).addClanXp(1L, 40.0);
+            verify(levelUpAwardService).addClanXp(2L, 360.0);
+            assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0);
             assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
         }
 
