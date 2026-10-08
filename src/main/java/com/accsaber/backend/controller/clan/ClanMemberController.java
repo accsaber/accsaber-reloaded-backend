@@ -85,7 +85,7 @@ public class ClanMemberController {
     @Operation(summary = "Hand over or claim the clan",
             description = "The founder passes the clan to another member, and the two swap ranks. Sending your own "
                     + "user id is a claim instead, which only the longest serving commander can make, and only once "
-                    + "the founder has gone without a score for long enough.")
+                    + "the founder has gone a year without submitting a single score, PB or not.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/founder")
     public ResponseEntity<PlayerRef> transferFounder(

@@ -286,7 +286,7 @@ public class ClanMembershipService {
         if (userIds.isEmpty()) {
             return Map.of();
         }
-        return scoreRepository.findLastActiveScoreTimes(userIds).stream()
+        return scoreRepository.findLastScoreTimes(userIds).stream()
                 .filter(view -> view.getLastPlayedAt() != null)
                 .collect(Collectors.toMap(ScoreRepository.LastPlayedView::getUserId,
                         ScoreRepository.LastPlayedView::getLastPlayedAt));

@@ -990,10 +990,12 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                 Instant getLastPlayedAt();
         }
 
-        @Query("""
-                        SELECT s.user.id AS userId, MAX(s.timeSet) AS lastPlayedAt FROM Score s
-                        WHERE s.user.id IN :userIds AND s.active = true
-                        GROUP BY s.user.id
-                        """)
-        List<LastPlayedView> findLastActiveScoreTimes(@Param("userIds") Collection<Long> userIds);
+        @Query(value = """
+                        SELECT u.id AS userId,
+                               (SELECT MAX(COALESCE(s.time_set, s.created_at)) FROM scores s
+                                WHERE s.user_id = u.id) AS lastPlayedAt
+                        FROM users u
+                        WHERE u.id IN (:userIds)
+                        """, nativeQuery = true)
+        List<LastPlayedView> findLastScoreTimes(@Param("userIds") Collection<Long> userIds);
 }

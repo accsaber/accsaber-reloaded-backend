@@ -271,8 +271,20 @@ class ClanMembershipServiceTest {
             ClanMember founder = member(user(1L), ClanRole.founder, Instant.now().minus(300, ChronoUnit.DAYS));
             ClanMember veteran = member(user(2L), ClanRole.commander, Instant.now().minus(200, ChronoUnit.DAYS));
             roster(founder, veteran);
-            lenient().when(scoreRepository.findLastActiveScoreTimes(List.of(1L)))
+            lenient().when(scoreRepository.findLastScoreTimes(List.of(1L)))
                     .thenReturn(List.of(lastPlayed(1L, Instant.now().minus(2, ChronoUnit.DAYS))));
+
+            assertThatThrownBy(() -> service.transferFounder(CLAN_ID, 2L, 2L))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
+        void aFounderQuietForLessThanAYearCannotBeReplaced() {
+            ClanMember founder = member(user(1L), ClanRole.founder, Instant.now().minus(500, ChronoUnit.DAYS));
+            ClanMember veteran = member(user(2L), ClanRole.commander, Instant.now().minus(400, ChronoUnit.DAYS));
+            roster(founder, veteran);
+            lenient().when(scoreRepository.findLastScoreTimes(List.of(1L)))
+                    .thenReturn(List.of(lastPlayed(1L, Instant.now().minus(300, ChronoUnit.DAYS))));
 
             assertThatThrownBy(() -> service.transferFounder(CLAN_ID, 2L, 2L))
                     .isInstanceOf(ValidationException.class);
@@ -283,8 +295,8 @@ class ClanMembershipServiceTest {
             ClanMember founder = member(user(1L), ClanRole.founder, Instant.now().minus(300, ChronoUnit.DAYS));
             ClanMember veteran = member(user(2L), ClanRole.commander, Instant.now().minus(200, ChronoUnit.DAYS));
             roster(founder, veteran);
-            lenient().when(scoreRepository.findLastActiveScoreTimes(List.of(1L)))
-                    .thenReturn(List.of(lastPlayed(1L, Instant.now().minus(90, ChronoUnit.DAYS))));
+            lenient().when(scoreRepository.findLastScoreTimes(List.of(1L)))
+                    .thenReturn(List.of(lastPlayed(1L, Instant.now().minus(400, ChronoUnit.DAYS))));
 
             service.transferFounder(CLAN_ID, 2L, 2L);
 

@@ -99,6 +99,17 @@ class LastPlayedAtQueryTest {
         assertThat(lastPlayedAt(rows, untouchedSince)).isEqualTo(Instant.parse("2025-06-01T00:00:00Z"));
     }
 
+    @Test
+    @DisplayName("a player's last score counts attempts that did not set a pb")
+    void lastScoreTimeCountsAttemptsThatWereNotPbs() {
+        List<ScoreRepository.LastPlayedView> rows = scoreRepository.findLastScoreTimes(List.of(PLAYER_ID));
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.getUserId()).isEqualTo(PLAYER_ID);
+            assertThat(row.getLastPlayedAt()).isEqualTo(Instant.parse("2026-08-01T00:00:00Z"));
+        });
+    }
+
     private Instant lastPlayedAt(List<Object[]> rows, UUID difficultyId) {
         return rows.stream()
                 .filter(row -> difficultyId.equals(row[1]))

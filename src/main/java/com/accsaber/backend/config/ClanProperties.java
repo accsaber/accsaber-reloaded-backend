@@ -17,7 +17,7 @@ public class ClanProperties {
 
     private Duration joinCooldown = Duration.ofDays(14);
     private int maxMembers = 50;
-    private int founderInactivityDays = 30;
+    private int founderInactivityDays = 365;
     private double playXpShare = 0.00575;
     private double standingPerSkill = 10.0;
     private double rosterReferenceStrength = 280.0;
