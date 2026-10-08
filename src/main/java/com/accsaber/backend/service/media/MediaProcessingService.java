@@ -130,11 +130,11 @@ public class MediaProcessingService {
                 if (format != MediaFormat.GIF) {
                     throw e;
                 }
-                log.info("GIF encode unavailable for {}/{}, falling back to animated WebP", subdir, key);
+                log.info("GIF encode unavailable for {}/{}, falling back to a single frame PNG", subdir, key);
                 deleteQuietly(tempOutput);
-                format = MediaFormat.WEBP;
+                format = MediaFormat.PNG;
                 tempOutput = Files.createTempFile("cdn-out-", format.extension);
-                encode(format, tempInput, tempOutput, animated, maxDim);
+                encode(format, tempInput, tempOutput, false, maxDim);
             }
             Path target = baseDir.resolve(key + format.extension);
             atomicMove(tempOutput, target);

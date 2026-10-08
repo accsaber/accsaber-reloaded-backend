@@ -392,7 +392,7 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.assertCanUploadCampaignMedia(editorFor(authentication, principal), campaignId);
         String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString(),
-                MediaFormat.PNG);
+                MediaFormat.GIF);
         return ResponseEntity.ok(
                 campaignService.setBackgroundUrlAsEditor(editorFor(authentication, principal), campaignId, url));
     }
@@ -419,7 +419,7 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.assertCanUploadCampaignMedia(editorFor(authentication, principal), campaignId);
         String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString(),
-                MediaFormat.PNG);
+                MediaFormat.GIF);
         return ResponseEntity.ok(
                 campaignService.setIconUrlAsEditor(editorFor(authentication, principal), campaignId, url));
     }
@@ -446,7 +446,7 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.assertCanUploadDifficultyMedia(editorFor(authentication, principal), campaignDifficultyId);
         String url = mediaProcessingService.storeImage(file, CAMPAIGN_CHECKPOINT_SUBDIR,
-                campaignDifficultyId.toString(), MediaFormat.PNG);
+                campaignDifficultyId.toString(), MediaFormat.GIF);
         UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
         request.setCheckpointAvatarUrl(url);
         return ResponseEntity.ok(
@@ -478,7 +478,7 @@ public class CampaignController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         campaignService.assertCanUploadDifficultyMedia(editorFor(authentication, principal), campaignDifficultyId);
         String url = mediaProcessingService.storeImage(file, CAMPAIGN_NODE_BORDER_SUBDIR,
-                campaignDifficultyId.toString(), MediaFormat.PNG);
+                campaignDifficultyId.toString(), MediaFormat.GIF);
         UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
         request.setNodeBorderUrl(url);
         return ResponseEntity.ok(

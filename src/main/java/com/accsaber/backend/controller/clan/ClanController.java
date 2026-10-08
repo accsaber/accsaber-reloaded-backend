@@ -96,7 +96,7 @@ public class ClanController {
             @PathVariable UUID clanId,
             @RequestPart("file") MultipartFile file) {
         clanService.assertCanCustomize(clanId, principal.getUserId());
-        String url = mediaProcessingService.storeImage(file, CLAN_ICON_SUBDIR, clanId.toString(), MediaFormat.WEBP,
+        String url = mediaProcessingService.storeImage(file, CLAN_ICON_SUBDIR, clanId.toString(), MediaFormat.GIF,
                 cdn.getAvatarMaxDimension());
         return ResponseEntity.ok(clanService.setIcon(clanId, principal.getUserId(), url));
     }

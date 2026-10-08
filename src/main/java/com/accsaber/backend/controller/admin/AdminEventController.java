@@ -106,7 +106,7 @@ public class AdminEventController {
     @PostMapping(value = "/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventResponse> uploadIcon(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
-        String url = mediaProcessingService.storeImage(file, EVENT_ICON_SUBDIR, id.toString(), MediaFormat.PNG);
+        String url = mediaProcessingService.storeImage(file, EVENT_ICON_SUBDIR, id.toString(), MediaFormat.GIF);
         return ResponseEntity.ok(EventResponse.from(eventService.setIconUrl(id, url)));
     }
 
