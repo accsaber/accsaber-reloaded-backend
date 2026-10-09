@@ -111,6 +111,22 @@ class ClanRosterTest {
 
             assertThatCode(() -> roster.assertCanJoin(USER)).doesNotThrowAnyException();
         }
+
+        @Test
+        void aWaiverClearsTheCooldown() {
+            latestStint(Instant.now().minus(Duration.ofDays(1)), Instant.now(), ClanLeaveReason.left);
+
+            roster.waiveCooldown(USER);
+
+            assertThatCode(() -> roster.assertCanJoin(USER)).doesNotThrowAnyException();
+        }
+
+        @Test
+        void aWaiverNeedsAClosedStint() {
+            latestStint(Instant.now().minus(Duration.ofDays(1)), null, null);
+
+            assertThatThrownBy(() -> roster.waiveCooldown(USER)).isInstanceOf(ValidationException.class);
+        }
     }
 
     @Nested

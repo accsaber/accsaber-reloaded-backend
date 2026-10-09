@@ -127,6 +127,10 @@ public enum JobType {
                     + " complexity the map carries today. Nothing on the map changes. It takes about ten minutes"
                     + " because every difficulty is one call to BeatLeader."),
 
+    WAIVE_CLAN_JOIN_COOLDOWN(JobGroup.MISC, "Clear a player's clan cooldown",
+            "Lets a player who left a clan join another one right away, skipping the rest of their 14 days.",
+            JobField.required("userId", JobFieldKind.USER, "Player", RunJobRequest::getUserId)),
+
     REGENERATE_SONG_SUGGEST(JobGroup.MISC, "Regenerate song suggestions",
             "Rebuilds the song suggestion data from current scores.");
 

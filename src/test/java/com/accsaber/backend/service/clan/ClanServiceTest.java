@@ -269,6 +269,7 @@ class ClanServiceTest {
         Clan clan = Clan.builder().id(clanId).build();
         when(roster.lock(clanId)).thenReturn(clan);
         ClanMember founder = ClanMember.builder().clan(clan).role(ClanRole.founder).build();
+        when(memberRepository.countByClan_IdAndLeftAtIsNull(clanId)).thenReturn(2L);
         when(memberRepository.findOpenByUserId(PLAYER)).thenReturn(Optional.of(founder));
 
         clanService.disband(clanId, PLAYER);
@@ -280,6 +281,19 @@ class ClanServiceTest {
         verify(allianceService).endAll(eq(clan), any());
         verify(warService).forfeitAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
+    }
+
+    @Test
+    void aFounderDisbandingAloneKeepsNoCooldown() {
+        UUID clanId = UUID.randomUUID();
+        Clan clan = Clan.builder().id(clanId).build();
+        when(roster.lock(clanId)).thenReturn(clan);
+        when(memberRepository.countByClan_IdAndLeftAtIsNull(clanId)).thenReturn(1L);
+
+        clanService.disband(clanId, PLAYER);
+
+        verify(roster, never()).close(any(), any());
+        verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
     }
 
     @Nested

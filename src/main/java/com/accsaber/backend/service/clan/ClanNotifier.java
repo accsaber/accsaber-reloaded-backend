@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.clan;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAlliance;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
+import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
 import com.accsaber.backend.model.entity.notification.NotificationType;
@@ -27,6 +29,15 @@ public class ClanNotifier {
     public void invited(ClanJoinRequest invite) {
         notificationService.notify(invite.getUser().getId(), NotificationType.clan_membership,
                 invite.getCreatedBy().getId(), label(invite.getClan()) + " invited you to join", clanLink(invite.getClan()));
+    }
+
+    public void requested(ClanJoinRequest request) {
+        List<ClanRole> resolvers = Arrays.stream(ClanRole.values())
+                .filter(role -> role.isAtLeast(ClanPermission.RESOLVE_REQUESTS.getMinimum()))
+                .toList();
+        notificationService.notifyAll(memberRepository.findOpenUserIdsByRoles(request.getClan().getId(), resolvers),
+                NotificationType.clan_membership, request.getUser().getId(),
+                request.getUser().getName() + " asked to join " + label(request.getClan()), clanLink(request.getClan()));
     }
 
     public void admitted(ClanJoinRequest request, User actor) {

@@ -54,6 +54,19 @@ class ClanNotifierTest {
     }
 
     @Test
+    void aJoinRequestReachesEveryoneWhoCanResolveIt() {
+        User asker = User.builder().id(3L).name("Lapiz").build();
+        when(memberRepository.findOpenUserIdsByRoles(owls.getId(),
+                List.of(ClanRole.officer, ClanRole.commander, ClanRole.founder))).thenReturn(List.of(1L, 4L));
+
+        notifier.requested(ClanJoinRequest.builder().clan(owls).user(asker).createdBy(asker)
+                .direction(ClanJoinDirection.request).build());
+
+        verify(notificationService).notifyAll(List.of(1L, 4L), NotificationType.clan_membership, 3L,
+                "Lapiz asked to join [NOW] Night Owls", "/clans/night-owls");
+    }
+
+    @Test
     void anAllianceChangeReachesTheOtherClansFounder() {
         ClanAlliance alliance = ClanAlliance.builder().clanA(owls).clanB(lapiz).proposedByClan(lapiz).build();
         when(memberRepository.findOpenFounders(List.of(lapiz.getId())))

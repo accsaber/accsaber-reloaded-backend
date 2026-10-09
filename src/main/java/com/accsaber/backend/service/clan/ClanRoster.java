@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -57,7 +58,8 @@ public class ClanRoster {
             if (latest.getLeftAt() == null) {
                 throw new ConflictException("Leave your current clan before joining another");
             }
-            if (latest.getLeaveReason() == ClanLeaveReason.disbanded) {
+            if (latest.getLeaveReason() == ClanLeaveReason.disbanded
+                    || latest.getLeaveReason() == ClanLeaveReason.waived) {
                 return;
             }
             Instant free = latest.getJoinedAt().plus(clanProperties.getJoinCooldown());
@@ -65,6 +67,15 @@ public class ClanRoster {
                 throw new ValidationException("You can join another clan from " + free);
             }
         });
+    }
+
+    public CompletableFuture<Void> waiveCooldown(Long userId) {
+        ClanMember latest = memberRepository.findFirstByUser_IdOrderByJoinedAtDesc(userId)
+                .filter(stint -> stint.getLeftAt() != null)
+                .orElseThrow(() -> new ValidationException("That player is in a clan or has never been in one"));
+        latest.setLeaveReason(ClanLeaveReason.waived);
+        memberRepository.saveAndFlush(latest);
+        return CompletableFuture.completedFuture(null);
     }
 
     public ClanMember admit(Clan lockedClan, User user, ClanRole role) {

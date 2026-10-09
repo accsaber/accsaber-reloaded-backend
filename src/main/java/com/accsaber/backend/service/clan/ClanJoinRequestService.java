@@ -63,6 +63,8 @@ public class ClanJoinRequestService {
                 .build());
         if (invite) {
             notifier.invited(request);
+        } else {
+            notifier.requested(request);
         }
         return toResponse(request);
     }

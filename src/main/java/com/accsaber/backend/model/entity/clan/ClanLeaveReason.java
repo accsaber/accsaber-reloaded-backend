@@ -5,5 +5,6 @@ public enum ClanLeaveReason {
     kicked,
     disbanded,
     banned,
-    merged
+    merged,
+    waived
 }

@@ -22,6 +22,9 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
     @Query("SELECT m.user.id FROM ClanMember m WHERE m.clan.id = :clanId AND m.leftAt IS NULL ORDER BY m.joinedAt")
     List<Long> findOpenUserIds(@Param("clanId") UUID clanId);
 
+    @Query("SELECT m.user.id FROM ClanMember m WHERE m.clan.id = :clanId AND m.leftAt IS NULL AND m.role IN :roles")
+    List<Long> findOpenUserIdsByRoles(@Param("clanId") UUID clanId, @Param("roles") Collection<ClanRole> roles);
+
     @Query("SELECT m FROM ClanMember m JOIN FETCH m.clan WHERE m.user.id = :userId AND m.leftAt IS NULL")
     Optional<ClanMember> findOpenByUserId(@Param("userId") Long userId);
 
