@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.function.IntPredicate;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -210,7 +211,8 @@ public class ClanLevelService {
     }
 
     public Page<ClanXpGrantResponse> xpHistory(UUID clanId, Pageable pageable) {
-        return grantRepository.findByClan_IdOrderByCreatedAtDesc(clanId, pageable).map(ClanXpGrantResponse::of);
+        return grantRepository.findHistory(clanId, PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()))
+                .map(ClanXpGrantResponse::of);
     }
 
     private UnlockRows loadUnlockRows() {

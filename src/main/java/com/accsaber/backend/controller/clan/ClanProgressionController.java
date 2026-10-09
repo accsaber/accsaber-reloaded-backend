@@ -57,8 +57,8 @@ public class ClanProgressionController {
     }
 
     @Operation(summary = "Clan XP history",
-            description = "Newest first. rawAmount is what the source gave, amount is what landed after the roster "
-                    + "factor.")
+            description = "Newest first. Plays are merged into one row per UTC day, count says how many. "
+                    + "rawAmount is what the source gave, amount is what landed after the roster factor.")
     @GetMapping("/{clanId}/xp")
     public ResponseEntity<Page<ClanXpGrantResponse>> xp(
             @PathVariable UUID clanId,

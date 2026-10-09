@@ -15,7 +15,42 @@ import com.accsaber.backend.model.entity.clan.ClanXpGrant;
 
 public interface ClanXpGrantRepository extends JpaRepository<ClanXpGrant, UUID> {
 
-    Page<ClanXpGrant> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
+    interface HistoryRowView {
+        UUID getId();
+
+        String getSource();
+
+        String getSourceId();
+
+        double getRawAmount();
+
+        double getRosterFactor();
+
+        double getAmount();
+
+        Instant getCreatedAt();
+
+        long getGrants();
+    }
+
+    @Query(value = """
+            SELECT g.id AS id, g.source AS source, g.source_id AS sourceId, g.raw_amount AS rawAmount,
+                   g.roster_factor AS rosterFactor, g.amount AS amount, g.created_at AS createdAt, 1 AS grants
+            FROM clan_xp_grants g
+            WHERE g.clan_id = :clanId AND g.source <> 'play'
+            UNION ALL
+            SELECT NULL, 'play', NULL, SUM(g.raw_amount), COALESCE(SUM(g.raw_amount) / NULLIF(SUM(g.amount), 0), 1),
+                   SUM(g.amount), MAX(g.created_at), COUNT(*)
+            FROM clan_xp_grants g
+            WHERE g.clan_id = :clanId AND g.source = 'play'
+            GROUP BY date_trunc('day', g.created_at AT TIME ZONE 'UTC')
+            ORDER BY createdAt DESC
+            """, countQuery = """
+            SELECT (SELECT COUNT(*) FROM clan_xp_grants g WHERE g.clan_id = :clanId AND g.source <> 'play')
+                 + (SELECT COUNT(DISTINCT date_trunc('day', g.created_at AT TIME ZONE 'UTC'))
+                    FROM clan_xp_grants g WHERE g.clan_id = :clanId AND g.source = 'play')
+            """, nativeQuery = true)
+    Page<HistoryRowView> findHistory(@Param("clanId") UUID clanId, Pageable pageable);
 
     interface SourceXpView {
         String getSource();

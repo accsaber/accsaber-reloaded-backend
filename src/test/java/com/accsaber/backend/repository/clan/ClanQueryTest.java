@@ -309,6 +309,30 @@ class ClanQueryTest {
     }
 
     @Test
+    @DisplayName("XP history merges plays into one row per UTC day and keeps every other grant on its own")
+    void historyMergesPlaysPerDay() {
+        grantRepository.insertIfAbsent(owls.getId(), "play", "p-1", 3.0, 2.0, 1.5);
+        grantRepository.insertIfAbsent(owls.getId(), "play", "p-2", 3.0, 2.0, 1.5);
+        grantRepository.insertIfAbsent(owls.getId(), "play", "p-old", 3.0, 1.0, 3.0);
+        grantRepository.insertIfAbsent(owls.getId(), "mission", "m-1", 50.0, 1.0, 50.0);
+        grantRepository.insertIfAbsent(lapiz.getId(), "play", "p-other", 3.0, 1.0, 3.0);
+        entityManager.createNativeQuery(
+                "UPDATE clan_xp_grants SET created_at = now() - interval '2 days' WHERE source_id = 'p-old'")
+                .executeUpdate();
+
+        var page = grantRepository.findHistory(owls.getId(), PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent())
+                .extracting(r -> r.getSource(), r -> r.getGrants(), r -> r.getAmount(), r -> r.getRosterFactor())
+                .containsExactlyInAnyOrder(
+                        tuple("play", 2L, 3.0, 2.0),
+                        tuple("mission", 1L, 50.0, 1.0),
+                        tuple("play", 1L, 3.0, 1.0));
+        assertThat(page.getContent().getLast().getSourceId()).isNull();
+    }
+
+    @Test
     @DisplayName("the player catalogue and type list leave every clan cosmetic out")
     void playerCatalogueSkipsClanCosmetics() {
         Item card = clanItem("clan_tag_card", "Catalogue Card");
