@@ -99,10 +99,10 @@ class ClanRosterTest {
         }
 
         @Test
-        void aKickClearsTheCooldown() {
+        void aKickKeepsTheCooldown() {
             latestStint(Instant.now().minus(Duration.ofDays(1)), Instant.now(), ClanLeaveReason.kicked);
 
-            assertThatCode(() -> roster.assertCanJoin(USER)).doesNotThrowAnyException();
+            assertThatThrownBy(() -> roster.assertCanJoin(USER)).isInstanceOf(ValidationException.class);
         }
 
         @Test

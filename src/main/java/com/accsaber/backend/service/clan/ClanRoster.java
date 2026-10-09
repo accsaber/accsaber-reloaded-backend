@@ -57,8 +57,7 @@ public class ClanRoster {
             if (latest.getLeftAt() == null) {
                 throw new ConflictException("Leave your current clan before joining another");
             }
-            if (latest.getLeaveReason() == ClanLeaveReason.kicked
-                    || latest.getLeaveReason() == ClanLeaveReason.disbanded) {
+            if (latest.getLeaveReason() == ClanLeaveReason.disbanded) {
                 return;
             }
             Instant free = latest.getJoinedAt().plus(clanProperties.getJoinCooldown());

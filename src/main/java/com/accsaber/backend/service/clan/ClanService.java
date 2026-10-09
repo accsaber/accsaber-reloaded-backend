@@ -174,6 +174,10 @@ public class ClanService {
     public void disband(Clan clan, User actor, String reason) {
         clan.setActive(false);
         clanRepository.saveAndFlush(clan);
+        if (actor != null) {
+            memberRepository.findOpenByUserId(actor.getId())
+                    .ifPresent(founder -> roster.close(founder, ClanLeaveReason.left));
+        }
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
         allianceService.endAll(clan, actor);
         warService.forfeitAll(clan.getId());

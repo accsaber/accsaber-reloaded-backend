@@ -44,6 +44,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
+import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
@@ -267,11 +268,14 @@ class ClanServiceTest {
         UUID clanId = UUID.randomUUID();
         Clan clan = Clan.builder().id(clanId).build();
         when(roster.lock(clanId)).thenReturn(clan);
+        ClanMember founder = ClanMember.builder().clan(clan).role(ClanRole.founder).build();
+        when(memberRepository.findOpenByUserId(PLAYER)).thenReturn(Optional.of(founder));
 
         clanService.disband(clanId, PLAYER);
 
         verify(accessService).require(clanId, PLAYER, ClanPermission.DISBAND);
         assertThat(clan.isActive()).isFalse();
+        verify(roster).close(founder, ClanLeaveReason.left);
         verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
         verify(allianceService).endAll(eq(clan), any());
         verify(warService).forfeitAll(clanId);
