@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
+import com.accsaber.backend.model.dto.response.clan.ClanSeasonClosedResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonRewardResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanStandingResponse;
@@ -44,6 +46,8 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ClanSeasonService {
 
+    private static final int FEED_TOP_CLANS = 3;
+
     private final ClanSeasonRepository seasonRepository;
     private final ClanSeasonResultRepository resultRepository;
     private final ClanSeasonRewardRepository rewardRepository;
@@ -54,6 +58,7 @@ public class ClanSeasonService {
     private final ItemService itemService;
     private final ItemRepository itemRepository;
     private final ClanProperties clanProperties;
+    private final ClanFeed feed;
 
     public Page<ClanSeasonResponse> list(Pageable pageable) {
         return seasonRepository.findAllByOrderByStartsAtDesc(pageable).map(ClanSeasonResponse::of);
@@ -170,6 +175,8 @@ public class ClanSeasonService {
         payRewards(season, ranking);
         season.setClosedAt(Instant.now());
         seasonRepository.save(season);
+        feed.seasonClosed(new ClanSeasonClosedResponse(ClanSeasonResponse.of(season),
+                standingService.ranking(season, PageRequest.of(0, FEED_TOP_CLANS)).getContent()));
     }
 
     private void payRewards(ClanSeason season, List<ClanSeasonStandingRepository.RankingRow> ranking) {

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -48,6 +49,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanAllianceServiceTest {
@@ -81,6 +83,9 @@ class ClanAllianceServiceTest {
     private ClanRivalRepository rivalRepository;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
+
+    @Mock
+    private ClanFeed feed;
 
     @InjectMocks
     private ClanAllianceService service;
@@ -192,6 +197,7 @@ class ClanAllianceServiceTest {
             verify(chatChannel).announce(lapiz, ChatNotice.ofClan(ChatEvent.alliance_formed, lapizFounder, owls));
             verify(strengthService).recompute(List.of(OWLS_ID, LAPIZ_ID));
             verify(notifier).allianceChanged(alliance, owls, lapizFounder, "accepted");
+            verify(feed).clans(ClanFeedType.alliance_formed, owls, lapiz);
             assertThat(response.ally().id()).isEqualTo(OWLS_ID);
             assertThat(response.incoming()).isTrue();
             assertThat(response.trust().level()).isZero();
@@ -237,6 +243,7 @@ class ClanAllianceServiceTest {
             assertThat(alliance.getEndedAt()).isNotNull();
             verify(auditRepository, times(2)).save(any(ClanAuditEntry.class));
             verify(strengthService).recompute(List.of(OWLS_ID, LAPIZ_ID));
+            verify(feed).clans(ClanFeedType.alliance_ended, owls, lapiz);
         }
 
         @Test
@@ -300,6 +307,7 @@ class ClanAllianceServiceTest {
         verify(auditRepository).save(audit.capture());
         assertThat(audit.getValue().getClan()).isSameAs(lapiz);
         verify(strengthService).recompute(List.of(LAPIZ_ID));
+        verifyNoInteractions(feed);
     }
 
     private ClanAllianceRepository.TrustView trust(UUID allianceId, double contribution) {

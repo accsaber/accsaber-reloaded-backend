@@ -58,18 +58,20 @@ import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.map.MapService;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanWarServiceTest {
 
     @Mock
-    private ClanWarFeed feed;
+    private ClanFeed feed;
     @Mock
     private ClanNotifier notifier;
     @Mock
@@ -177,7 +179,7 @@ class ClanWarServiceTest {
                     war.getValue()));
             verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_received, commander, attacker,
                     war.getValue()));
-            verify(feed).war(war.getValue());
+            verify(feed).war(war.getValue(), ClanFeedType.war_declared);
             verify(notifier).warDeclared(war.getValue());
         }
 
@@ -321,7 +323,7 @@ class ClanWarServiceTest {
 
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.drawn);
         verify(chatChannel, never()).announce(any(), any());
-        verify(feed, never()).war(any());
+        verify(feed, never()).war(any(), any());
         verify(notifier, never()).warEnded(any());
     }
 
@@ -338,7 +340,7 @@ class ClanWarServiceTest {
         verify(scoreGate).refreshAfterCommit();
         verify(loanRepository).closeOpenForWar(war.getId(), war.getEndedAt());
         verify(eventPublisher).publishEvent(new ClanWarEndedEvent(war.getId()));
-        verify(feed).war(war);
+        verify(feed).war(war, ClanFeedType.war_ended);
         verify(notifier).warEnded(war);
     }
 

@@ -35,6 +35,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanRivalServiceTest {
@@ -51,6 +52,9 @@ class ClanRivalServiceTest {
     private ClanCosmeticService cosmeticService;
     @Mock
     private ClanChatChannel chatChannel;
+
+    @Mock
+    private ClanFeed feed;
 
     @InjectMocks
     private ClanRivalService service;
@@ -80,6 +84,7 @@ class ClanRivalServiceTest {
         assertThat(response.declaredBy().id()).isEqualTo("1");
         verify(chatChannel).announce(owls, ChatNotice.ofClan(ChatEvent.rival_declared, commander, lapiz));
         verify(chatChannel).announce(lapiz, ChatNotice.ofClan(ChatEvent.rivaled_by, commander, owls));
+        verify(feed).clans(ClanFeedType.rival_declared, owls, lapiz);
     }
 
     @Test

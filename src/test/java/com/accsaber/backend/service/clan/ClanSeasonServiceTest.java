@@ -28,12 +28,15 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
+import com.accsaber.backend.model.dto.response.clan.ClanSeasonClosedResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanSeasonResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanSeasonResult;
@@ -72,6 +75,8 @@ class ClanSeasonServiceTest {
     private ClanWarService warService;
     @Mock
     private ItemService itemService;
+    @Mock
+    private ClanFeed feed;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanSeasonService service;
@@ -80,7 +85,7 @@ class ClanSeasonServiceTest {
     void setUp() {
         clanProperties.setMissionContribution(100.0);
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
-                clanItemRepository, standingService, warService, itemService, itemRepository, clanProperties);
+                clanItemRepository, standingService, warService, itemService, itemRepository, clanProperties, feed);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
     }
@@ -133,6 +138,7 @@ class ClanSeasonServiceTest {
         @BeforeEach
         void lockSeason() {
             when(seasonRepository.findByIdForUpdate(seasonId)).thenReturn(Optional.of(season));
+            lenient().when(standingService.ranking(eq(season), any())).thenReturn(new PageImpl<>(List.of()));
         }
 
         @Test
@@ -175,6 +181,7 @@ class ClanSeasonServiceTest {
             order.verify(itemService).awardSystem(eq(21L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
                     anyString(), anyString(), eq(1));
             assertThat(season.getClosedAt()).isNotNull();
+            verify(feed).seasonClosed(new ClanSeasonClosedResponse(ClanSeasonResponse.of(season), List.of()));
         }
 
         @Test

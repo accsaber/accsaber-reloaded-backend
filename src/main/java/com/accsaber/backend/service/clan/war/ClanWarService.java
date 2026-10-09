@@ -52,12 +52,14 @@ import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.map.MapService;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -80,7 +82,7 @@ public class ClanWarService {
     private final ClanCosmeticService cosmeticService;
     private final ClanWarPoolService poolService;
     private final ClanWarResponses warResponses;
-    private final ClanWarFeed feed;
+    private final ClanFeed feed;
     private final ClanNotifier notifier;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
@@ -121,9 +123,7 @@ public class ClanWarService {
         sideRepository.saveAllAndFlush(List.of(side(war, attacker, actor, stake, attackerStanding),
                 side(war, defender, null, stake, defenderStanding)));
         poolService.seed(war, request.getMapDifficultyIds());
-        if (war.getStatus() == ClanWarStatus.picking) {
-            feed.war(war);
-        }
+        feed.war(war, ClanFeedType.war_declared);
         chatChannel.announce(attacker, ChatNotice.ofWar(ChatEvent.war_declared, actor, defender, war));
         chatChannel.announce(defender, ChatNotice.ofWar(ChatEvent.war_received, actor, attacker, war));
         notifier.warDeclared(war);
@@ -205,7 +205,7 @@ public class ClanWarService {
         war.setEndedAt(Instant.now());
         warRepository.saveAndFlush(war);
         loanRepository.closeOpenForWar(war.getId(), war.getEndedAt());
-        feed.war(war);
+        feed.war(war, ClanFeedType.war_ended);
         notifier.warEnded(war);
         scoreGate.refreshAfterCommit();
         eventPublisher.publishEvent(new ClanWarEndedEvent(war.getId()));

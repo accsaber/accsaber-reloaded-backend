@@ -50,6 +50,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanServiceTest {
@@ -82,6 +83,9 @@ class ClanServiceTest {
     private ClanRefCache refCache;
     @Spy
     private ClanProperties clanProperties = new ClanProperties();
+
+    @Mock
+    private ClanFeed feed;
 
     @InjectMocks
     private ClanService clanService;
@@ -129,6 +133,7 @@ class ClanServiceTest {
             verify(roster).seat(saved.getValue(), player, ClanRole.founder);
             assertThat(response.clan().tag()).isEqualTo("NOW");
             verify(levelService).grantStartingItems(saved.getValue().getId());
+            verify(feed).clans(ClanFeedType.clan_founded, saved.getValue());
         }
 
         @Test

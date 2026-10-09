@@ -37,6 +37,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.clan.ClanXpAward;
@@ -64,7 +65,7 @@ public class ClanWarCombatService {
     private final ClanLevelService levelService;
     private final LevelUpAwardService levelUpAwardService;
     private final ClanChatChannel chatChannel;
-    private final ClanWarFeed feed;
+    private final ClanFeed feed;
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
 

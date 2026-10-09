@@ -36,6 +36,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,6 +56,7 @@ public class ClanAllianceService {
     private final ClanCosmeticService cosmeticService;
     private final ClanStrengthService strengthService;
     private final ClanChatChannel chatChannel;
+    private final ClanFeed feed;
     private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 
@@ -182,6 +184,7 @@ public class ClanAllianceService {
         allianceRepository.saveAndFlush(alliance);
         record(pair.get(0), actor, ClanAuditAction.alliance_formed, pair.get(1));
         record(pair.get(1), actor, ClanAuditAction.alliance_formed, pair.get(0));
+        feed.clans(ClanFeedType.alliance_formed, pair.get(0), pair.get(1));
         strengthService.recompute(pair.stream().map(Clan::getId).toList());
     }
 
@@ -194,6 +197,7 @@ public class ClanAllianceService {
         if (to == ClanAllianceStatus.ended) {
             record(alliance.getClanA(), actor, ClanAuditAction.alliance_ended, alliance.getClanB());
             record(alliance.getClanB(), actor, ClanAuditAction.alliance_ended, alliance.getClanA());
+            feed.clans(ClanFeedType.alliance_ended, alliance.getClanA(), alliance.getClanB());
             strengthService.recompute(List.of(alliance.getClanA().getId(), alliance.getClanB().getId()));
         }
     }
