@@ -21,6 +21,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,7 @@ public class ClanRivalService {
     private final ClanAccessService accessService;
     private final ClanCosmeticService cosmeticService;
     private final ClanChatChannel chatChannel;
+    private final ClanFeed feed;
 
     public Page<ClanRivalResponse> list(UUID clanId, boolean incoming, Pageable pageable) {
         clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
@@ -69,6 +71,7 @@ public class ClanRivalService {
         ClanRival saved = rivalRepository.saveAndFlush(row);
         chatChannel.announce(clan, ChatNotice.ofClan(ChatEvent.rival_declared, actor, rival));
         chatChannel.announce(rival, ChatNotice.ofClan(ChatEvent.rivaled_by, actor, clan));
+        feed.clans(ClanFeedType.rival_declared, clan, rival);
         return ClanRivalResponse.of(saved, cosmeticService.publicRefs(List.of(rival)).get(rivalClanId), false);
     }
 

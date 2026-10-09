@@ -40,6 +40,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
@@ -48,7 +49,7 @@ import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
 class ClanWarRosterServiceTest {
 
     @Mock
-    private ClanWarFeed feed;
+    private ClanFeed feed;
     @Mock
     private ClanNotifier notifier;
     @Mock

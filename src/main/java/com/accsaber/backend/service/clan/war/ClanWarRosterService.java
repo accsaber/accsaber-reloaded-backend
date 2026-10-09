@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
@@ -46,7 +47,7 @@ public class ClanWarRosterService {
     private final ClanStrengthService strengthService;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
-    private final ClanWarFeed feed;
+    private final ClanFeed feed;
     private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 

@@ -58,6 +58,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.clan.ClanXpAward;
@@ -69,7 +70,7 @@ class ClanWarCombatServiceTest {
     private static final UUID MAP = UUID.randomUUID();
 
     @Mock
-    private ClanWarFeed feed;
+    private ClanFeed feed;
     @Mock
     private ClanWarRepository warRepository;
     @Mock

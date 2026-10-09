@@ -55,6 +55,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
+import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.map.MapService;
 
@@ -62,7 +63,7 @@ import com.accsaber.backend.service.map.MapService;
 class ClanWarPoolServiceTest {
 
     @Mock
-    private ClanWarFeed feed;
+    private ClanFeed feed;
     @Mock
     private ScoreRepository scoreRepository;
     @Mock

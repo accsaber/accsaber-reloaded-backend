@@ -43,6 +43,7 @@ import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.util.Slugs;
+import com.accsaber.backend.websocket.server.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -65,6 +66,7 @@ public class ClanService {
     private final ClanAllianceService allianceService;
     private final ClanWarService warService;
     private final ClanNotifier notifier;
+    private final ClanFeed feed;
     private final ClanRefCache refCache;
     private final ClanProperties clanProperties;
 
@@ -99,6 +101,7 @@ public class ClanService {
                 .build());
         roster.seat(clan, founder, ClanRole.founder);
         levelService.grantStartingItems(clan.getId());
+        feed.clans(ClanFeedType.clan_founded, clan);
         return toResponse(clan);
     }
 
