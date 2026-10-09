@@ -29,7 +29,7 @@ public class OgController {
             + "like Discord. Not JSON.")
     @GetMapping(value = "/players/{userId}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> playerOg(@PathVariable Long userId) {
-        return ResponseEntity.ok(ogService.buildPlayerOg(userId));
+        return html(ogService.buildPlayerOg(userId));
     }
 
     @Operation(summary = "Map link preview", description = "By id or BeatSaver code. Pass a difficulty id, or "
@@ -40,12 +40,16 @@ public class OgController {
             @RequestParam(required = false) UUID difficultyId,
             @RequestParam(required = false) Difficulty difficulty,
             @RequestParam(required = false) String characteristic) {
-        return ResponseEntity.ok(ogService.buildMapOg(mapIdOrCode, difficultyId, difficulty, characteristic));
+        return html(ogService.buildMapOg(mapIdOrCode, difficultyId, difficulty, characteristic));
     }
 
     @Operation(summary = "Campaign link preview", description = "By id or slug.")
     @GetMapping(value = "/campaigns/{campaignIdOrSlug}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> campaignOg(@PathVariable String campaignIdOrSlug) {
-        return ResponseEntity.ok(ogService.buildCampaignOg(campaignIdOrSlug));
+        return html(ogService.buildCampaignOg(campaignIdOrSlug));
+    }
+
+    private static ResponseEntity<String> html(String body) {
+        return ResponseEntity.ok().header("Content-Security-Policy", "default-src 'none'").body(body);
     }
 }

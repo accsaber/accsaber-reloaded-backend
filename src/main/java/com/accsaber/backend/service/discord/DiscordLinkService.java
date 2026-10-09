@@ -5,7 +5,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.model.dto.request.discord.LinkDiscordRequest;
 import com.accsaber.backend.model.dto.request.discord.UpdateDiscordLinkRequest;
 import com.accsaber.backend.model.dto.response.DiscordLinkResponse;
 import com.accsaber.backend.model.entity.user.OauthConnection;
@@ -29,33 +28,6 @@ public class DiscordLinkService {
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
     private final ProfileUrlResolver profileUrlResolver;
-
-    @Transactional
-    public DiscordLinkResponse link(Long userId, LinkDiscordRequest request) {
-        if (oauthConnectionRepository
-                .existsByProviderAndProviderUserIdAndActiveTrue(PROVIDER, request.getDiscordId())) {
-            throw new ConflictException("Discord account is already linked", request.getDiscordId());
-        }
-
-        if (oauthConnectionRepository.existsByUserIdAndProviderAndActiveTrue(userId, PROVIDER)) {
-            throw new ConflictException("Player is already linked to a Discord account", userId);
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-
-        OauthConnection connection = OauthConnection.builder()
-                .user(user)
-                .provider(PROVIDER)
-                .providerUserId(request.getDiscordId())
-                .active(true)
-                .build();
-        oauthConnectionRepository.save(connection);
-
-        log.info("Linked Discord {} to user {}", request.getDiscordId(), userId);
-
-        return toResponse(connection);
-    }
 
     @Transactional(readOnly = true)
     public DiscordLinkResponse findByDiscordId(String discordId) {

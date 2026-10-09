@@ -2,7 +2,9 @@ package com.accsaber.backend.service.oauth;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,7 @@ public class SteamOpenIdClient {
     private static final Pattern CLAIMED_ID_PATTERN = Pattern
             .compile("^https://steamcommunity\\.com/openid/id/(\\d+)$");
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
+    private static final Set<String> REQUIRED_SIGNED_FIELDS = Set.of("claimed_id", "return_to");
 
     private final OauthProperties.SteamConfig config;
     private final WebClient webClient;
@@ -42,17 +45,18 @@ public class SteamOpenIdClient {
                 .build();
     }
 
-    public String buildAuthorizeUrl(String returnTo) {
+    public String buildAuthorizeUrl(String state) {
         return OPENID_ENDPOINT
                 + "?openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
                 + "&openid.mode=checkid_setup"
-                + "&openid.return_to=" + UriUtils.encode(returnTo, StandardCharsets.UTF_8)
+                + "&openid.return_to=" + UriUtils.encode(returnToFor(state), StandardCharsets.UTF_8)
                 + "&openid.realm=" + UriUtils.encode(config.getRealm(), StandardCharsets.UTF_8)
                 + "&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select"
                 + "&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select";
     }
 
-    public Long verifyAndExtractSteamId(Map<String, String> openidParams) {
+    public Long verifyAndExtractSteamId(Map<String, String> openidParams, String state) {
+        assertBoundToUs(openidParams, state);
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         openidParams.forEach(form::add);
         form.set("openid.mode", "check_authentication");
@@ -83,5 +87,20 @@ public class SteamOpenIdClient {
             throw new UnauthorizedException("Unexpected Steam claimed_id format");
         }
         return Long.parseLong(matcher.group(1));
+    }
+
+    private void assertBoundToUs(Map<String, String> openidParams, String state) {
+        if (!returnToFor(state).equals(openidParams.get("openid.return_to"))) {
+            throw new UnauthorizedException("Steam OpenID response was not issued for this sign in");
+        }
+        String signed = openidParams.getOrDefault("openid.signed", "");
+        if (!List.of(signed.split(",")).containsAll(REQUIRED_SIGNED_FIELDS)) {
+            throw new UnauthorizedException("Steam OpenID response does not sign the required fields");
+        }
+    }
+
+    private String returnToFor(String state) {
+        String base = config.getReturnTo();
+        return base + (base.contains("?") ? "&" : "?") + "state=" + UriUtils.encode(state, StandardCharsets.UTF_8);
     }
 }

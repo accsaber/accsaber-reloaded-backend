@@ -71,11 +71,11 @@ public class OauthService {
     @Value("${accsaber.jwt.game-refresh-token-ttl:315360000}")
     private long gameRefreshTokenTtl;
 
-    public String buildStartUrl(String provider, String state, String steamReturnTo) {
+    public String buildStartUrl(String provider, String state) {
         return switch (provider) {
             case PROVIDER_DISCORD -> discordClient.buildAuthorizeUrl(state);
             case PROVIDER_BEATLEADER -> beatLeaderClient.buildAuthorizeUrl(state);
-            case PROVIDER_STEAM -> steamClient.buildAuthorizeUrl(steamReturnTo);
+            case PROVIDER_STEAM -> steamClient.buildAuthorizeUrl(state);
             default -> throw new IllegalArgumentException("Unknown provider: " + provider);
         };
     }
@@ -157,9 +157,9 @@ public class OauthService {
     }
 
     @Transactional
-    public PlayerAuthResponse handleSteamCallback(Map<String, String> openidParams, Long linkUserId,
-            String pendingLinkToken) {
-        Long rawSteamId = steamClient.verifyAndExtractSteamId(openidParams);
+    public PlayerAuthResponse handleSteamCallback(Map<String, String> openidParams, String state,
+            Long linkUserId, String pendingLinkToken) {
+        Long rawSteamId = steamClient.verifyAndExtractSteamId(openidParams, state);
         Long userId = duplicateUserService.resolvePrimaryUserId(rawSteamId);
         User user = requireUser(userId);
 

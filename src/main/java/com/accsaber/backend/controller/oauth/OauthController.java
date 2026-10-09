@@ -74,10 +74,7 @@ public class OauthController {
         Long linkUserId = principal != null ? principal.getUserId() : null;
 
         String state = stateService.createState(provider, returnTo, linkUserId, pendingLinkToken);
-        String authorizeUrl = OauthService.PROVIDER_STEAM.equals(provider)
-                ? oauthService.buildStartUrl(provider, state,
-                        appendQuery(oauthProperties.getSteam().getReturnTo(), "state", state))
-                : oauthService.buildStartUrl(provider, state, null);
+        String authorizeUrl = oauthService.buildStartUrl(provider, state);
 
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(authorizeUrl)).build();
     }
@@ -118,7 +115,7 @@ public class OauthController {
         StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_STEAM);
         try {
             PlayerAuthResponse response = oauthService.handleSteamCallback(
-                    openidParams(request), claims.linkUserId(), claims.pendingLinkToken());
+                    openidParams(request), state, claims.linkUserId(), claims.pendingLinkToken());
             return redirectWithSession(claims.returnTo(), response);
         } catch (AccSaberException e) {
             return redirectWithError(claims.returnTo(), e);
@@ -244,10 +241,6 @@ public class OauthController {
         return port < 0
                 ? uri.getScheme() + "://" + uri.getHost()
                 : uri.getScheme() + "://" + uri.getHost() + ":" + port;
-    }
-
-    private String appendQuery(String url, String key, String value) {
-        return url + (url.contains("?") ? "&" : "?") + key + "=" + encode(value);
     }
 
     private static String encode(String s) {

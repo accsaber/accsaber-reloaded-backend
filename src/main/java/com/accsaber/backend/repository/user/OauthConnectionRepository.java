@@ -18,7 +18,5 @@ public interface OauthConnectionRepository extends JpaRepository<OauthConnection
 
     List<OauthConnection> findByUserIdAndActiveTrue(Long userId);
 
-    boolean existsByProviderAndProviderUserIdAndActiveTrue(String provider, String providerUserId);
-
     boolean existsByUserIdAndProviderAndActiveTrue(Long userId, String provider);
 }

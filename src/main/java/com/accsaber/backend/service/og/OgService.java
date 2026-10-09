@@ -260,7 +260,7 @@ public class OgService {
         if (image != null) {
             sb.append("<meta property=\"og:image\" content=\"").append(escapeHtml(image)).append("\"/>");
         }
-        sb.append("<meta property=\"og:url\" content=\"").append(url).append("\"/>");
+        sb.append("<meta property=\"og:url\" content=\"").append(escapeHtml(url)).append("\"/>");
         sb.append("<meta name=\"twitter:card\" content=\"summary\"/>");
         sb.append("<meta name=\"twitter:title\" content=\"").append(safeTitle).append("\"/>");
         sb.append("<meta name=\"twitter:description\" content=\"").append(safeDesc).append("\"/>");
