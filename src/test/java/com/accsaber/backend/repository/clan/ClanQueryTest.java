@@ -238,6 +238,21 @@ class ClanQueryTest {
         assertThat(clanRepository.findByIdAndActiveTrueForUpdate(owls.getId())).contains(owls);
     }
 
+    @Test
+    @DisplayName("clan XP is added in the database and a stale entity flush leaves it alone")
+    void totalXpSurvivesAStaleFlush() {
+        double before = owls.getTotalXp();
+        assertThat(clanRepository.addTotalXp(owls.getId(), 3.0)).isEqualTo(before + 3.0);
+        assertThat(clanRepository.addTotalXp(owls.getId(), 2.0)).isEqualTo(before + 5.0);
+
+        owls.setRosterStrength(owls.getRosterStrength() + 1.0);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(clanRepository.findById(owls.getId())).get()
+                .extracting(Clan::getTotalXp).isEqualTo(before + 5.0);
+    }
+
     private MapDifficulty rankedDifficulty() {
         Category trueAcc = entityManager
                 .createQuery("SELECT c FROM Category c WHERE c.code = 'true_acc' AND c.active = true", Category.class)

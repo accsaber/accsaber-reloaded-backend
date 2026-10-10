@@ -153,7 +153,7 @@ public class ClanLevelService {
 
     @Transactional
     public boolean grantXp(UUID clanId, ClanXpAward award) {
-        Clan clan = clanRepository.findByIdAndActiveTrueForUpdate(clanId).orElse(null);
+        Clan clan = clanRepository.findByIdAndActiveTrue(clanId).orElse(null);
         if (clan == null) {
             return false;
         }
@@ -165,10 +165,10 @@ public class ClanLevelService {
                 factor, amount) == 0) {
             return false;
         }
-        int fromLevel = levelOf(clan).getLevel();
-        clan.setTotalXp(clan.getTotalXp() + amount);
-        clanRepository.saveAndFlush(clan);
-        int toLevel = levelOf(clan).getLevel();
+        double totalXp = clanRepository.addTotalXp(clanId, amount);
+        LevelCurve curve = curve();
+        int fromLevel = curve.progressAt(totalXp - amount).level();
+        int toLevel = curve.progressAt(totalXp).level();
         if (toLevel > fromLevel) {
             clanItemRepository.grantLevelItems(clanId, fromLevel, toLevel);
         }

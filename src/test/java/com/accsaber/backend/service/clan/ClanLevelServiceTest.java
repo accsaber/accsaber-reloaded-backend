@@ -129,10 +129,9 @@ class ClanLevelServiceTest {
 
         private final UUID clanId = UUID.randomUUID();
 
-        private Clan lockedClan(double totalXp, double rosterStrength) {
-            Clan clan = Clan.builder().id(clanId).totalXp(totalXp).rosterStrength(rosterStrength).build();
-            when(clanRepository.findByIdAndActiveTrueForUpdate(clanId)).thenReturn(Optional.of(clan));
-            return clan;
+        private void activeClan(double rosterStrength) {
+            when(clanRepository.findByIdAndActiveTrue(clanId))
+                    .thenReturn(Optional.of(Clan.builder().id(clanId).rosterStrength(rosterStrength).build()));
         }
 
         @Test
@@ -140,7 +139,7 @@ class ClanLevelServiceTest {
             clanProperties.setRosterReferenceStrength(280.0);
             clanProperties.setRosterReferenceMembers(5.0);
             clanProperties.setRosterFactorExponent(0.5);
-            Clan clan = lockedClan(0.0, 560.0);
+            activeClan(560.0);
             when(memberRepository.countByClan_IdAndLeftAtIsNull(clanId)).thenReturn(10L);
             when(grantRepository.insertIfAbsent(clanId, "play", "2026-09-13", 90.0, 2.0, 45.0)).thenReturn(1);
 
@@ -148,7 +147,7 @@ class ClanLevelServiceTest {
                     new ClanXpAward(90.0, ClanXpSource.play, "2026-09-13", true));
 
             assertThat(granted).isTrue();
-            assertThat(clan.getTotalXp()).isEqualTo(45.0);
+            verify(clanRepository).addTotalXp(clanId, 45.0);
         }
 
         @Test
@@ -170,19 +169,19 @@ class ClanLevelServiceTest {
 
         @Test
         void aRepeatedSourceBanksNothing() {
-            Clan clan = lockedClan(10.0, 0.0);
+            activeClan(0.0);
 
             boolean granted = levelService.grantXp(clanId,
                     new ClanXpAward(90.0, ClanXpSource.mission, "m-1", false));
 
             assertThat(granted).isFalse();
-            assertThat(clan.getTotalXp()).isEqualTo(10.0);
-            verify(clanRepository, never()).saveAndFlush(clan);
+            verify(clanRepository, never()).addTotalXp(eq(clanId), anyDouble());
         }
 
         @Test
         void crossingLevelsGrantsEveryItemInBetween() {
-            lockedClan(50.0, 0.0);
+            activeClan(0.0);
+            when(clanRepository.addTotalXp(clanId, 600.0)).thenReturn(650.0);
             when(grantRepository.insertIfAbsent(eq(clanId), anyString(), anyString(), anyDouble(), anyDouble(),
                     anyDouble())).thenReturn(1);
 
@@ -193,7 +192,8 @@ class ClanLevelServiceTest {
 
         @Test
         void stayingInTheSameLevelGrantsNoItems() {
-            lockedClan(10.0, 0.0);
+            activeClan(0.0);
+            when(clanRepository.addTotalXp(clanId, 20.0)).thenReturn(30.0);
             when(grantRepository.insertIfAbsent(eq(clanId), anyString(), anyString(), anyDouble(), anyDouble(),
                     anyDouble())).thenReturn(1);
 

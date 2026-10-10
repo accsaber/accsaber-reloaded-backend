@@ -26,6 +26,10 @@ public interface ClanRepository extends JpaRepository<Clan, UUID> {
     @Query("SELECT c FROM Clan c WHERE c.id = :id AND c.active = true")
     Optional<Clan> findByIdAndActiveTrueForUpdate(@Param("id") UUID id);
 
+    @Query(value = "UPDATE clans SET total_xp = total_xp + :amount WHERE id = :id RETURNING total_xp",
+            nativeQuery = true)
+    double addTotalXp(@Param("id") UUID id, @Param("amount") double amount);
+
     @Query("""
             SELECT c FROM Clan c
             WHERE c.active = true
