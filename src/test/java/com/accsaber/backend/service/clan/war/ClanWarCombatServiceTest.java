@@ -252,7 +252,7 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aFighterOutnumberedByTheEnemyBanksLessContributionPerDamage() {
+        void inADuelBeingOutnumberedDoesNotCutContribution() {
             clanProperties.getWar().setWarSizeExponent(0.5);
             when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
                     participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));
@@ -263,7 +263,7 @@ class ClanWarCombatServiceTest {
 
             assertThat(savedHits.getFirst().getDamage()).isEqualTo(25.0);
             assertThat(victim.getGuard()).isEqualTo(75.0);
-            assertThat(attacker.getContribution()).isEqualTo(25.0 * 0.5);
+            assertThat(attacker.getContribution()).isEqualTo(25.0);
         }
 
         @Test
@@ -399,6 +399,7 @@ class ClanWarCombatServiceTest {
 
         @Test
         void chippersFromTheBiggerSideSplitMoreBreakXpAndContribution() {
+            war.setRuleset(ClanRuleset.berserker);
             clanProperties.getWar().setWarSizeExponent(1.0);
             ClanWarParticipant chipper = participant(2L, red, 0.5);
             when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, chipper, victim));
@@ -416,6 +417,7 @@ class ClanWarCombatServiceTest {
 
         @Test
         void aLoneAttackerAgainstABigSideBanksLessClanXpPerBreak() {
+            war.setRuleset(ClanRuleset.berserker);
             clanProperties.getWar().setWarSizeExponent(1.0);
             when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
                     participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));

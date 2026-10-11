@@ -162,7 +162,7 @@ public class ClanWarCombatService {
         double damage = Math.min(victim.getGuard(), damage(war, victim, skills.getOrDefault(attackerId, 0.0),
                 skills.getOrDefault(victimId, 0.0), victimScore == null));
         victim.setGuard(Math.max(0.0, victim.getGuard() - damage));
-        attacker.setContribution(attacker.getContribution() + damage * sizeShare(roster, victim.getClan().getId()));
+        attacker.setContribution(attacker.getContribution() + damage * sizeShare(war, roster, victim.getClan().getId()));
         ClanWarHit hit = hitRepository.saveAndFlush(ClanWarHit.builder()
                 .war(war)
                 .attacker(attacker.getUser())
@@ -209,7 +209,7 @@ public class ClanWarCombatService {
         standingService.apply(seasonId, victim.getClan().getId(), -moved, ClanStandingSource.war_break, sourceId);
         standingService.apply(seasonId, attacker.getClan().getId(), moved, ClanStandingSource.war_break, sourceId);
         levelService.grantXp(attacker.getClan().getId(), new ClanXpAward(
-                config.getBreakClanXp() * sizeShare(roster, victim.getClan().getId()), ClanXpSource.war_break,
+                config.getBreakClanXp() * sizeShare(war, roster, victim.getClan().getId()), ClanXpSource.war_break,
                 sourceId, true));
         if (attacker.getLentByClan() != null) {
             levelService.grantXp(attacker.getLentByClan().getId(), new ClanXpAward(
@@ -228,7 +228,7 @@ public class ClanWarCombatService {
         List<ClanWarHit> cycle = hitRepository.findByWar_IdAndVictim_IdAndVictimCycle(war.getId(),
                 victim.getUser().getId(), victim.getGuardCycle());
         double total = cycle.stream().mapToDouble(ClanWarHit::getDamage).sum();
-        double share = sizeShare(roster, victim.getClan().getId());
+        double share = sizeShare(war, roster, victim.getClan().getId());
         Map<Long, Double> xpByChipper = new HashMap<>();
         for (ClanWarHit chip : cycle) {
             chip.setXpAwarded(config.getBreakXp() * share * chip.getDamage() / total);
@@ -243,7 +243,10 @@ public class ClanWarCombatService {
         });
     }
 
-    private double sizeShare(Map<Long, ClanWarParticipant> roster, UUID enemyClanId) {
+    private double sizeShare(ClanWar war, Map<Long, ClanWarParticipant> roster, UUID enemyClanId) {
+        if (war.getRuleset() != ClanRuleset.berserker) {
+            return 1.0;
+        }
         long enemies = roster.values().stream().filter(p -> p.getClan().getId().equals(enemyClanId)).count();
         double own = roster.size() - enemies;
         return Math.pow(own / Math.max(1, enemies), clanProperties.getWar().getWarSizeExponent());
