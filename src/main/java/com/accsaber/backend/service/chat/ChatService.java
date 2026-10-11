@@ -37,6 +37,10 @@ public class ChatService {
             Pageable pageable) {
         Long userId = duplicateUserService.resolvePrimaryUserId(playerId);
         channel.assertParticipant(channelId, userId);
+        return getTranscript(channel, channelId, pageable);
+    }
+
+    public Page<ChatMessageResponse> getTranscript(ChatChannel channel, UUID channelId, Pageable pageable) {
         Page<ChatMessage> page = channel.findMessages(channelId, pageable);
         return new PageImpl<>(channel.toResponses(page.getContent()), pageable, page.getTotalElements());
     }

@@ -217,6 +217,12 @@ public class ClanWarService {
         if (warRepository.existsOpenAttack(attacker.getId(), null)) {
             throw new ConflictException("Your clan is already attacking somebody");
         }
+        warRepository.findLastAttackEndedAt(attacker.getId(), defender.getId())
+                .map(ended -> ended.plus(clanProperties.getWar().getRedeclareCooldown()))
+                .filter(free -> free.isAfter(Instant.now()))
+                .ifPresent(free -> {
+                    throw new ConflictException("You can attack that clan again from " + free);
+                });
         if (allianceRepository.existsActiveBetween(attacker.getId(), defender.getId())) {
             throw new ConflictException("You cannot declare war on an ally");
         }

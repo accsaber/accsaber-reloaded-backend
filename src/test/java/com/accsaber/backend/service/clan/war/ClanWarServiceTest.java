@@ -11,6 +11,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -186,6 +188,16 @@ class ClanWarServiceTest {
         @Test
         void aClanAlreadyAttackingCannotOpenASecondWar() {
             when(warRepository.existsOpenAttack(attacker.getId(), null)).thenReturn(true);
+
+            assertThatThrownBy(() -> service.declare(attacker.getId(), 1L, request))
+                    .isInstanceOf(ConflictException.class);
+            verify(warRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void theSameClanCannotBeAttackedAgainRightAfterAWar() {
+            when(warRepository.findLastAttackEndedAt(attacker.getId(), defender.getId()))
+                    .thenReturn(Optional.of(Instant.now().minus(Duration.ofDays(2))));
 
             assertThatThrownBy(() -> service.declare(attacker.getId(), 1L, request))
                     .isInstanceOf(ConflictException.class);

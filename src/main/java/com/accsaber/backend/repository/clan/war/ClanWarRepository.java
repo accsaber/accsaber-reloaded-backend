@@ -27,6 +27,13 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
     boolean existsOpenAttack(@Param("attackerId") UUID attackerId, @Param("defenderId") UUID defenderId);
 
     @Query("""
+            SELECT MAX(w.endedAt) FROM ClanWar w
+            WHERE w.attackerClan.id = :attackerId AND w.defenderClan.id = :defenderId
+            """)
+    Optional<Instant> findLastAttackEndedAt(@Param("attackerId") UUID attackerId,
+            @Param("defenderId") UUID defenderId);
+
+    @Query("""
             SELECT w FROM ClanWar w
             JOIN FETCH w.attackerClan JOIN FETCH w.defenderClan JOIN FETCH w.declaredBy
             WHERE w.id = :id

@@ -198,8 +198,8 @@ class SharedMissionServiceTest {
             order.verify(levelUpAwardService).addMissionXp(eq(22L), any(), eq(250.0));
             verify(itemService).awardSystem(eq(11L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
             verify(itemService).awardSystem(eq(22L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
-            verify(missionProgressService).creditXp(11L, 250.0);
-            verify(missionProgressService).creditXp(22L, 250.0);
+            verify(missionProgressService).creditMissionXp(eq(11L), any(), eq(250.0));
+            verify(missionProgressService).creditMissionXp(eq(22L), any(), eq(250.0));
         }
 
         @Test

@@ -3,9 +3,14 @@ package com.accsaber.backend.controller.admin;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -24,6 +29,7 @@ import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanWarModeRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanWarRewardItemRequest;
 import com.accsaber.backend.model.dto.request.clan.ModerateClanRequest;
+import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanLevelStepResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonResponse;
@@ -31,6 +37,9 @@ import com.accsaber.backend.model.dto.response.clan.ClanSeasonRewardResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRewardItemResponse;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
+import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.service.chat.ChatService;
+import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanSeasonService;
 import com.accsaber.backend.service.clan.ClanService;
@@ -42,11 +51,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/v1/admin/clans")
 @PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Admin - Clans")
 public class AdminClanController {
 
@@ -55,6 +66,8 @@ public class AdminClanController {
     private final ClanSeasonService seasonService;
     private final ClanWarRewardService warRewardService;
     private final MediaProcessingService mediaProcessingService;
+    private final ChatService chatService;
+    private final ClanChatChannel clanChatChannel;
 
     @Operation(summary = "Set a level's capacity bump",
             description = "Stacks on top of lower levels. Returns the whole level table.")
@@ -174,6 +187,16 @@ public class AdminClanController {
             mediaProcessingService.deleteIfExists(ClanController.CLAN_ICON_SUBDIR, clanId.toString());
         }
         return ResponseEntity.ok(clan);
+    }
+
+    @Operation(summary = "Read a clan's chat",
+            description = "Full transcript for moderation, newest first, same shape as the member route.")
+    @GetMapping("/{clanId}/chat")
+    public ResponseEntity<Page<ChatMessageResponse>> chat(@PathVariable UUID clanId,
+            @AuthenticationPrincipal StaffUserDetails staff,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        log.info("Staff {} read chat of clan {}", staff.getStaffUser().getId(), clanId);
+        return ResponseEntity.ok(chatService.getTranscript(clanChatChannel, clanId, pageable));
     }
 
     @Operation(summary = "Disband a clan",

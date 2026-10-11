@@ -821,7 +821,7 @@ class MissionProgressServiceTest {
                 }
 
                 @Test
-                void xpFromOutsideScoresFeedsCommunityXpDrivesButNotClanOnes() {
+                void xpFromOutsideScoresFeedsCommunityAndClanXpDrives() {
                         UserMission community = mission(MissionType.XP_IN_WINDOW);
                         community.setPool(MissionPool.community);
                         community.setUser(null);
@@ -832,10 +832,29 @@ class MissionProgressServiceTest {
                         when(userMissionRepository.findAllActiveByUser(USER_ID)).thenReturn(List.of());
                         when(userMissionRepository.findActiveSharedFor(USER_ID))
                                         .thenReturn(List.of(community, clanDrive));
-                        when(contributionRepository.acceptContribution(eq(community.getId()), eq(USER_ID),
-                                        anyDouble(), any(), any())).thenReturn(150.0);
 
                         service.creditXp(USER_ID, 150.0);
+
+                        verify(contributionRepository).acceptContribution(eq(community.getId()), eq(USER_ID),
+                                        eq(150.0), any(), any());
+                        verify(contributionRepository).acceptContribution(eq(clanDrive.getId()), eq(USER_ID),
+                                        eq(150.0), any(), any());
+                }
+
+                @Test
+                void clanMissionPayoutsNeverFeedClanXpDrives() {
+                        UserMission community = mission(MissionType.XP_IN_WINDOW);
+                        community.setPool(MissionPool.community);
+                        community.setUser(null);
+                        community.getTemplate().setPool(MissionPool.community);
+                        community.setTargetXp(100000);
+                        UserMission clanDrive = clanRow(MissionType.XP_IN_WINDOW);
+                        clanDrive.setUser(null);
+                        when(userMissionRepository.findAllActiveByUser(USER_ID)).thenReturn(List.of());
+                        when(userMissionRepository.findActiveSharedFor(USER_ID))
+                                        .thenReturn(List.of(community, clanDrive));
+
+                        service.creditMissionXp(USER_ID, clanDrive.getTemplate(), 150.0);
 
                         verify(contributionRepository).acceptContribution(eq(community.getId()), eq(USER_ID),
                                         eq(150.0), any(), any());

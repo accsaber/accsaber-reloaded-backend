@@ -199,7 +199,7 @@ public class SharedMissionService {
                 }
                 if (xpReward > 0) {
                     levelUpAwardService.addMissionXp(userId, template, (double) (xpReward));
-                    missionProgressService.creditXp(userId, (double) (xpReward));
+                    missionProgressService.creditMissionXp(userId, template, (double) (xpReward));
                 }
                 if (itemRewardId != null) {
                     itemService.awardSystem(userId, itemRewardId, ItemSource.mission, missionId.toString(),

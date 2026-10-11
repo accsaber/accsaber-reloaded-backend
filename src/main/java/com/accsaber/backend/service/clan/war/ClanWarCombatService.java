@@ -208,8 +208,9 @@ public class ClanWarCombatService {
         UUID seasonId = war.getSeason().getId();
         standingService.apply(seasonId, victim.getClan().getId(), -moved, ClanStandingSource.war_break, sourceId);
         standingService.apply(seasonId, attacker.getClan().getId(), moved, ClanStandingSource.war_break, sourceId);
-        levelService.grantXp(attacker.getClan().getId(),
-                new ClanXpAward(config.getBreakClanXp(), ClanXpSource.war_break, sourceId, true));
+        levelService.grantXp(attacker.getClan().getId(), new ClanXpAward(
+                config.getBreakClanXp() * sizeShare(roster, victim.getClan().getId()), ClanXpSource.war_break,
+                sourceId, true));
         if (attacker.getLentByClan() != null) {
             levelService.grantXp(attacker.getLentByClan().getId(), new ClanXpAward(
                     config.getLoanBreakClanXp(), ClanXpSource.war_loan, sourceId, true));

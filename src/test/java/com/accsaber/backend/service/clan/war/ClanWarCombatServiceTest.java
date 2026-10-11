@@ -415,6 +415,19 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
+        void aLoneAttackerAgainstABigSideBanksLessClanXpPerBreak() {
+            clanProperties.getWar().setWarSizeExponent(1.0);
+            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
+                    participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));
+
+            service.fight(war.getId(), play(950_000, true));
+
+            ClanWarHit breaking = savedHits.stream().filter(ClanWarHit::isBroke).findFirst().orElseThrow();
+            verify(levelService).grantXp(red.getId(), new ClanXpAward(150.0 * 0.25, ClanXpSource.war_break,
+                    breaking.getId().toString(), true));
+        }
+
+        @Test
         void aLentAttackerAlsoBanksAShareOfTheBreakForTheClanThatLentThem() {
             Clan lender = Clan.builder().id(UUID.randomUUID()).build();
             attacker.setLentByClan(lender);

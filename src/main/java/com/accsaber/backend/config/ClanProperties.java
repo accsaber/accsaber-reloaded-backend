@@ -63,5 +63,6 @@ public class ClanProperties {
         private double warSizeExponent = 0.6;
         private double loanBreakClanXp = 6.0;
         private Duration loanCooldown = Duration.ofDays(3);
+        private Duration redeclareCooldown = Duration.ofDays(7);
     }
 }

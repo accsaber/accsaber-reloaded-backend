@@ -27,6 +27,7 @@ import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionProgressAxis;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
+import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.MissionTrigger;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
@@ -454,7 +455,7 @@ public class MissionProgressService {
         if (mission.getXpReward() > 0) {
             int xpReward = mission.getXpReward();
             levelUpAwardService.addMissionXp(userId, mission.getTemplate(), (double) (xpReward));
-            creditXpToWindowMissions(userId, xpReward, completedAt);
+            creditXpToWindowMissions(userId, xpReward, completedAt, mission.getPool() != MissionPool.clan);
         }
         if (mission.getItemReward() != null && !mission.isItemAwarded()) {
             try {
@@ -470,7 +471,7 @@ public class MissionProgressService {
         if (mission.getPool() == MissionPool.event) {
             int bonusXp = eventMissionService.onEventMissionCompleted(mission, userId);
             if (bonusXp > 0) {
-                creditXpToWindowMissions(userId, bonusXp, completedAt);
+                creditXpToWindowMissions(userId, bonusXp, completedAt, true);
             }
         }
 
@@ -501,15 +502,24 @@ public class MissionProgressService {
 
     @Transactional
     public void creditXp(Long userId, Double amount) {
+        creditXpFrom(userId, amount, true);
+    }
+
+    @Transactional
+    public void creditMissionXp(Long userId, MissionTemplate template, Double amount) {
+        creditXpFrom(userId, amount, template.getPool() != MissionPool.clan);
+    }
+
+    private void creditXpFrom(Long userId, Double amount, boolean feedsClan) {
         if (!missionsEnabled)
             return;
         if (amount == null)
             return;
         int gained = (int) (Rounding.round(amount, 0));
-        creditXpToWindowMissions(userId, gained, Instant.now());
+        creditXpToWindowMissions(userId, gained, Instant.now(), feedsClan);
     }
 
-    private void creditXpToWindowMissions(Long userId, int xpAmount, Instant completedAt) {
+    private void creditXpToWindowMissions(Long userId, int xpAmount, Instant completedAt, boolean feedsClan) {
         if (xpAmount <= 0)
             return;
         for (UserMission window : openMissionsFor(userId, MissionTrigger.SCORE)) {
@@ -521,7 +531,8 @@ public class MissionProgressService {
         }
         EvalContext ctx = new EvalContext(userId);
         for (UserMission window : sharedMissionsFor(MissionTrigger.SCORE, ctx)) {
-            if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW || window.getPool() == MissionPool.clan)
+            if (window.getTemplate().getType() != MissionType.XP_IN_WINDOW
+                    || (!feedsClan && window.getPool() == MissionPool.clan))
                 continue;
             contribute(window, userId, xpAmount);
         }
