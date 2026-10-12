@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.accsaber.backend.config.ClanProperties;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.item.Item;
@@ -54,6 +55,7 @@ public class ClanMissionAssignmentService {
     private final MissionRolloverService rolloverService;
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
+    private final ClanChatChannel clanChatChannel;
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -97,6 +99,9 @@ public class ClanMissionAssignmentService {
             if (open) {
                 opened++;
             }
+        }
+        if (opened > 0) {
+            clanChatChannel.announce(clan, ChatNotice.of(ChatEvent.missions_refreshed));
         }
         return opened;
     }

@@ -31,6 +31,7 @@ public enum UserSettingKey {
                     ScoreRowField.DATE }, false),
     APPEARANCE_HIDE_RELOADED_PROFILE_FEATURES("appearance.hideReloadedProfileFeatures", Boolean.class, false, false),
     APPEARANCE_SHOW_STATISTICS_CHART("appearance.showStatisticsChart", Boolean.class, false, false),
+    APPEARANCE_CLAN_CHAT_BUBBLE("appearance.clanChatBubble", Boolean.class, true, false),
 
     SYNC_NAME("sync.name", Boolean.class, true, false),
     SYNC_AVATAR("sync.avatar", Boolean.class, true, false),

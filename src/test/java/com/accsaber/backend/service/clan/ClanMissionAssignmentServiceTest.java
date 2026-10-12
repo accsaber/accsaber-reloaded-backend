@@ -34,6 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.entity.Category;
+import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.item.Item;
@@ -76,6 +77,8 @@ class ClanMissionAssignmentServiceTest {
     private TransactionTemplate transactionTemplate;
     @Mock
     private Executor backfillExecutor;
+    @Mock
+    private ClanChatChannel clanChatChannel;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanMissionAssignmentService service;
@@ -86,7 +89,7 @@ class ClanMissionAssignmentServiceTest {
     void setUp() {
         service = new ClanMissionAssignmentService(clanRepository, memberRepository, templateRepository,
                 userMissionRepository, missionAssignmentService, builderService, rowFactory, rolloverService,
-                clanProperties, transactionTemplate);
+                clanProperties, transactionTemplate, clanChatChannel);
         ReflectionTestUtils.setField(service, "backfillExecutor", backfillExecutor);
         lenient().when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
         lenient().when(rolloverService.nextRollover(eq(MissionPool.clan), any())).thenReturn(WEEK_END);
@@ -214,6 +217,7 @@ class ClanMissionAssignmentServiceTest {
                 .template(inv.getArgument(1)).pool(MissionPool.clan).targetCount(1).build());
 
         assertThat(service.fill(clan.getId())).isEqualTo(2);
+        verify(clanChatChannel).announce(clan, ChatNotice.of(ChatEvent.missions_refreshed));
     }
 
     @Test

@@ -7,6 +7,10 @@ import com.accsaber.backend.model.entity.user.User;
 
 public record ChatNotice(ChatEvent event, User actor, User subjectUser, Clan subjectClan, ClanWar war) {
 
+    public static ChatNotice of(ChatEvent event) {
+        return new ChatNotice(event, null, null, null, null);
+    }
+
     public static ChatNotice ofPlayer(ChatEvent event, User actor, User subjectUser) {
         return new ChatNotice(event, actor, subjectUser, null, null);
     }

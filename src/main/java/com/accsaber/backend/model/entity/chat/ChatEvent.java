@@ -13,5 +13,6 @@ public enum ChatEvent {
     war_started,
     war_hit,
     war_break,
-    war_ended
+    war_ended,
+    missions_refreshed
 }
