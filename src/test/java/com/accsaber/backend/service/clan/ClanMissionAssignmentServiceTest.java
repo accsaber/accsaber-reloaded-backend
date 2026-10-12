@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +122,17 @@ class ClanMissionAssignmentServiceTest {
     private MissionAssignmentContext context(Long userId, boolean plays) {
         return new MissionAssignmentContext(userId, plays ? List.of(Category.builder().build()) : List.of(), Map.of(),
                 Map.of(), 0.0);
+    }
+
+    @Test
+    void aClanOnlyGetsMissionsOnceItIsTwoDaysOld() {
+        ArgumentCaptor<Instant> now = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<Instant> createdBefore = ArgumentCaptor.forClass(Instant.class);
+
+        service.clansWithoutMissions();
+
+        verify(userMissionRepository).findClanIdsWithoutCurrentMissions(now.capture(), createdBefore.capture());
+        assertThat(Duration.between(createdBefore.getValue(), now.getValue())).isEqualTo(Duration.ofDays(2));
     }
 
     @Test

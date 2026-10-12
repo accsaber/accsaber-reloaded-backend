@@ -30,6 +30,7 @@ public class MissionResponse {
 
     private UUID id;
     private UUID parentMissionId;
+    private Boolean perMember;
     private String code;
     private String name;
     private String description;
@@ -89,6 +90,7 @@ public class MissionResponse {
         return MissionResponse.builder()
                 .id(m.getId())
                 .parentMissionId(m.getParentMission() != null ? m.getParentMission().getId() : null)
+                .perMember(isPerMemberParent(m) ? Boolean.TRUE : null)
                 .code(community ? template.getCode() : null)
                 .week(community ? template.weekOf(event) : null)
                 .endsWithWeek(community ? Boolean.valueOf(template.getCompletableUntil() != null)
@@ -225,6 +227,11 @@ public class MissionResponse {
     }
 
     public static String renderDescription(UserMission m) {
+        if (isPerMemberParent(m)) {
+            int members = m.getTargetCount() != null ? m.getTargetCount() : 0;
+            return members == 1 ? "1 member clears their own goal this week."
+                    : members + " members clear their own goal this week.";
+        }
         return MissionDescriptionRenderer.render(m.getTemplate().getDescription(),
                 new MissionDescriptionRenderer.Values(
                         m.getTargetCount(), m.getTargetXp(), m.getTargetAcc(), m.getTargetAp(),
@@ -287,5 +294,9 @@ public class MissionResponse {
                     ? players.get(targets.playerIdAsLong())
                     : null;
         }
+    }
+
+    private static boolean isPerMemberParent(UserMission m) {
+        return m.getTemplate().isPerMember() && m.getParentMission() == null;
     }
 }

@@ -20,6 +20,21 @@ import com.accsaber.backend.model.entity.mission.UserMission;
 class MissionResponseTest {
 
     @Test
+    void aPerMemberParentCountsMembersNotTheGoalEachMemberHas() {
+        MissionTemplate template = MissionTemplate.builder().type(MissionType.SCORES_N).pool(MissionPool.clan)
+                .description("Set {count} new scores this week.").build();
+        UserMission parent = UserMission.builder().id(UUID.randomUUID()).template(template).pool(MissionPool.clan)
+                .status(MissionStatus.active).targetCount(2).build();
+        UserMission child = UserMission.builder().id(UUID.randomUUID()).template(template).pool(MissionPool.clan)
+                .status(MissionStatus.active).targetCount(4).parentMission(parent).build();
+
+        assertThat(MissionResponse.from(parent).getDescription()).isEqualTo("2 members clear their own goal this week.");
+        assertThat(MissionResponse.from(parent).getPerMember()).isTrue();
+        assertThat(MissionResponse.from(child).getDescription()).isEqualTo("Set 4 new scores this week.");
+        assertThat(MissionResponse.from(child).getPerMember()).isNull();
+    }
+
+    @Test
     void apGainOverallExposesFractionalApAndMirrorsIntoTheCountPairThePluginReads() {
         UserMission mission = mission(MissionType.AP_GAIN_OVERALL);
         mission.setProgressAp(2.4321);
