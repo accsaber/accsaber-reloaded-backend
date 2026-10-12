@@ -65,6 +65,8 @@ public class MissionResponse {
     private Double yourContribution;
     private Boolean endsWithWeek;
     private Integer xpReward;
+    private Integer clanXpReward;
+    private Integer standingReward;
     private ItemResponse itemReward;
 
     private Instant assignedAt;
@@ -127,6 +129,8 @@ public class MissionResponse {
                 .targetValue(targetValue(template.getType(), m.getTargetCount(), m.getTargetXp(),
                         m.getTargetAp()))
                 .xpReward(m.getXpReward())
+                .clanXpReward(sharedContext.clanReward(m).clanXp())
+                .standingReward(sharedContext.clanReward(m).standing())
                 .itemReward(m.getItemReward() != null ? ItemMapper.toItemResponse(m.getItemReward()) : null)
                 .contributors(sharedContext.contributors(m))
                 .yourContribution(sharedContext.yourContribution(m))
@@ -257,11 +261,29 @@ public class MissionResponse {
                         category != null ? category.getName() : null));
     }
 
+    public record ClanReward(Integer clanXp, Integer standing) {
+
+        public static final ClanReward NONE = new ClanReward(null, null);
+    }
+
     public record SharedContext(
             Map<UUID, Long> contributorsByMission,
-            Map<UUID, Double> contributionByMission) {
+            Map<UUID, Double> contributionByMission,
+            Map<UUID, ClanReward> clanRewardsByMission) {
 
         public static final SharedContext EMPTY = new SharedContext(Map.of(), Map.of());
+
+        public SharedContext(Map<UUID, Long> contributorsByMission, Map<UUID, Double> contributionByMission) {
+            this(contributorsByMission, contributionByMission, Map.of());
+        }
+
+        public SharedContext withClanRewards(Map<UUID, ClanReward> clanRewards) {
+            return new SharedContext(contributorsByMission, contributionByMission, clanRewards);
+        }
+
+        public ClanReward clanReward(UserMission m) {
+            return clanRewardsByMission.getOrDefault(m.getId(), ClanReward.NONE);
+        }
 
         public Long contributors(UserMission m) {
             return m.isShared() ? contributorsByMission.getOrDefault(m.getId(), 0L) : null;

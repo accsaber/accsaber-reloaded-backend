@@ -1,7 +1,9 @@
 package com.accsaber.backend.service.clan;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,7 +40,13 @@ public class ClanMissionService {
     public Page<MissionResponse> list(UUID clanId, boolean current, Long viewerId, Pageable pageable) {
         clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
         Page<UserMission> page = userMissionRepository.findClanShared(clanId, current, Instant.now(), pageable);
-        MissionResponse.SharedContext context = sharedMissionContextLoader.load(page.getContent(), viewerId);
+        boolean seasonRunning = standingService.currentSeason().isPresent();
+        Map<UUID, MissionResponse.ClanReward> rewards = page.getContent().stream()
+                .collect(Collectors.toMap(UserMission::getId, mission -> new MissionResponse.ClanReward(
+                        (int) Math.round(clanXpFor(mission)),
+                        seasonRunning ? (int) Math.round(standingFor(mission)) : null)));
+        MissionResponse.SharedContext context = sharedMissionContextLoader.load(page.getContent(), viewerId)
+                .withClanRewards(rewards);
         return page.map(mission -> MissionResponse.from(mission, context));
     }
 
@@ -53,11 +61,17 @@ public class ClanMissionService {
     public void bankCompletion(UserMission mission) {
         UUID clanId = mission.getClan().getId();
         String sourceId = mission.getId().toString();
-        double weight = mission.getTemplate().getXpMultiplier();
-        levelService.grantXp(clanId, new ClanXpAward(clanProperties.getMissionXp() * weight, ClanXpSource.mission,
-                sourceId, false));
+        levelService.grantXp(clanId, new ClanXpAward(clanXpFor(mission), ClanXpSource.mission, sourceId, false));
         standingService.currentSeason().ifPresent(season -> standingService.apply(season.getId(), clanId,
-                clanProperties.getMissionStanding() * weight, ClanStandingSource.mission, sourceId));
+                standingFor(mission), ClanStandingSource.mission, sourceId));
+    }
+
+    private double clanXpFor(UserMission mission) {
+        return clanProperties.getMissionXp() * mission.getTemplate().getXpMultiplier();
+    }
+
+    private double standingFor(UserMission mission) {
+        return clanProperties.getMissionStanding() * mission.getTemplate().getXpMultiplier();
     }
 
     public double minRewardedContribution(UserMission mission) {

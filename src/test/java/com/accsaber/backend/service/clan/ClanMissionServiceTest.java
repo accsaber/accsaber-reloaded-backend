@@ -3,11 +3,13 @@ package com.accsaber.backend.service.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import com.accsaber.backend.config.ClanProperties;
@@ -27,7 +30,9 @@ import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanXpSource;
 import com.accsaber.backend.model.dto.EventMissionTargets;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
+import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
@@ -83,6 +88,43 @@ class ClanMissionServiceTest {
 
         assertThat(service.minRewardedContribution(targeted(MissionType.PLAY_N_MAPS, plays))).isEqualTo(3.7);
         assertThat(service.minRewardedContribution(targeted(MissionType.XP_IN_WINDOW, xp))).isEqualTo(740.0);
+    }
+
+    @Test
+    void theClanPageShowsWhatACompletionBanks() {
+        UserMission mission = UserMission.builder().id(UUID.randomUUID()).pool(MissionPool.clan).clan(clan)
+                .status(MissionStatus.active).xpReward(150).template(MissionTemplate.builder()
+                        .type(MissionType.SCORES_N).pool(MissionPool.clan).xpMultiplier(1.5).build())
+                .build();
+        when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
+        when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(mission)));
+        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);
+        when(standingService.currentSeason()).thenReturn(Optional.of(ClanSeason.builder().build()));
+
+        MissionResponse response = service.list(clan.getId(), true, null, Pageable.unpaged()).getContent().get(0);
+
+        assertThat(response.getClanXpReward()).isEqualTo(600);
+        assertThat(response.getStandingReward()).isEqualTo(60);
+        assertThat(response.getXpReward()).isEqualTo(150);
+    }
+
+    @Test
+    void withNoSeasonRunningTheClanPageShowsNoStanding() {
+        UserMission mission = UserMission.builder().id(UUID.randomUUID()).pool(MissionPool.clan).clan(clan)
+                .status(MissionStatus.active).template(MissionTemplate.builder()
+                        .type(MissionType.SCORES_N).pool(MissionPool.clan).xpMultiplier(1.0).build())
+                .build();
+        when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
+        when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(mission)));
+        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);
+        when(standingService.currentSeason()).thenReturn(Optional.empty());
+
+        MissionResponse response = service.list(clan.getId(), true, null, Pageable.unpaged()).getContent().get(0);
+
+        assertThat(response.getClanXpReward()).isEqualTo(400);
+        assertThat(response.getStandingReward()).isNull();
     }
 
     @Test
