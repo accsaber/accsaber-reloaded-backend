@@ -41,6 +41,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                             AND (:difficulty IS NULL OR d.difficulty = :difficulty)
                             AND (CAST(:characteristic AS string) IS NULL
                                  OR LOWER(d.characteristic) = LOWER(CAST(:characteristic AS string)))
+                            AND (:status IS NULL OR d.status = :status)
                         )
                         ORDER BY m.createdAt DESC
                         """)
@@ -48,6 +49,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         @Param("beatsaverCode") String beatsaverCode,
                         @Param("difficulty") Difficulty difficulty,
                         @Param("characteristic") String characteristic,
+                        @Param("status") MapDifficultyStatus status,
                         Pageable pageable);
 
         @Query(value = """

@@ -3,6 +3,7 @@ package com.accsaber.backend.service.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,6 +28,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
@@ -88,6 +90,29 @@ class MapServiceTest {
 
                         assertThatThrownBy(() -> mapService.findById(id))
                                         .isInstanceOf(ResourceNotFoundException.class);
+                }
+        }
+
+        @Nested
+        class FindByBeatsaverCode {
+
+                @Test
+                void difficultyPicksTheVersionButEveryDifficultyIsReturned() {
+                        Map map = buildMap();
+                        Category category = buildCategory();
+                        MapDifficulty expertPlus = buildDifficulty(map, category, MapDifficultyStatus.RANKED);
+                        MapDifficulty expert = buildDifficulty(map, category, MapDifficultyStatus.RANKED);
+                        expert.setDifficulty(Difficulty.EXPERT);
+                        when(mapRepository.findActiveByBeatsaverCodeMatchingDifficulty(
+                                        eq("541bf"), eq(Difficulty.EXPERT), eq("Standard"),
+                                        eq(MapDifficultyStatus.RANKED), any()))
+                                        .thenReturn(List.of(map));
+                        when(mapDifficultyRepository.findByMapIdAndActiveTrue(map.getId()))
+                                        .thenReturn(List.of(expertPlus, expert));
+
+                        MapResponse response = mapService.findByBeatsaverCode("541bf", Difficulty.EXPERT, "Standard");
+
+                        assertThat(response.getDifficulties()).hasSize(2);
                 }
         }
 

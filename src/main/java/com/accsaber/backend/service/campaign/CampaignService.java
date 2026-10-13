@@ -126,6 +126,7 @@ import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.infra.ModifierService;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -300,6 +301,7 @@ public class CampaignService {
                         .itemId(existing.getItemId())
                         .itemName(existing.getItemName())
                         .quantity(existing.getQuantity() + added.getQuantity())
+                        .item(existing.getItem())
                         .build());
     }
 
@@ -2917,6 +2919,7 @@ public class CampaignService {
                 .itemId(link.getItem().getId())
                 .itemName(link.getItem().getName())
                 .quantity(link.getQuantity())
+                .item(ItemMapper.toItemResponse(link.getItem()))
                 .build();
     }
 
@@ -2925,6 +2928,7 @@ public class CampaignService {
                 .itemId(link.getItem().getId())
                 .itemName(link.getItem().getName())
                 .quantity(link.getQuantity())
+                .item(ItemMapper.toItemResponse(link.getItem()))
                 .build();
     }
 

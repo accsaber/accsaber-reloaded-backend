@@ -105,7 +105,9 @@ public class MapController {
         return ResponseEntity.ok(mapService.findBySongHashPublic(songHash, difficulty));
     }
 
-    @Operation(summary = "Map by BeatSaver code", description = "Characteristic is case insensitive.")
+    @Operation(summary = "Map by BeatSaver code", description = "Difficulty and characteristic pick which version "
+            + "of the map to return when several share the code; every difficulty of that version is included. "
+            + "Characteristic is case insensitive.")
     @GetMapping("/by-code/{beatsaverCode}")
     public ResponseEntity<PublicMapResponse> getMapByBeatsaverCode(
             @PathVariable String beatsaverCode,

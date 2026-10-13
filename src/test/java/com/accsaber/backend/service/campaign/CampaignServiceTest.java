@@ -72,6 +72,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignTagLink;
 import com.accsaber.backend.model.entity.campaign.UserCampaign;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
@@ -414,6 +415,8 @@ class CampaignServiceTest {
                                         .containsExactlyInAnyOrder(
                                                         org.assertj.core.api.Assertions.tuple("Alpha Crate", 6),
                                                         org.assertj.core.api.Assertions.tuple("Founder Title", 1));
+                        assertThat(result.getRewards())
+                                        .allSatisfy(award -> assertThat(award.getItem().getId()).isEqualTo(award.getItemId()));
                 }
 
                 @Test
@@ -475,7 +478,7 @@ class CampaignServiceTest {
                                         .id(UUID.randomUUID()).campaign(campaign).active(true).build();
                         return CampaignDifficultyItem.builder()
                                         .campaignDifficulty(node)
-                                        .item(Item.builder().id(itemId).name(name).build())
+                                        .item(Item.builder().id(itemId).name(name).type(ItemType.builder().key("crate").build()).build())
                                         .quantity(quantity)
                                         .build();
                 }
@@ -483,7 +486,7 @@ class CampaignServiceTest {
                 private CampaignCompletionItem completionAward(UUID itemId, String name, int quantity) {
                         return CampaignCompletionItem.builder()
                                         .campaign(campaign)
-                                        .item(Item.builder().id(itemId).name(name).build())
+                                        .item(Item.builder().id(itemId).name(name).type(ItemType.builder().key("crate").build()).build())
                                         .quantity(quantity)
                                         .build();
                 }
