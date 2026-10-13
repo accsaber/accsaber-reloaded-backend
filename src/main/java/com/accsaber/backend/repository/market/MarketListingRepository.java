@@ -99,7 +99,8 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         JOIN FETCH l.item i
                         JOIN FETCH i.type
                         WHERE l.status IN :statuses
-                        AND (l.seller.id = :userId OR l.currentBidder.id = :userId OR l.winner.id = :userId)
+                        AND (l.seller.id = :userId OR l.currentBidder.id = :userId OR l.winner.id = :userId
+                            OR EXISTS (SELECT 1 FROM MarketBid b WHERE b.listing = l AND b.bidder.id = :userId))
                         """)
         Page<MarketListing> findInvolvingUser(
                         @Param("userId") Long userId,

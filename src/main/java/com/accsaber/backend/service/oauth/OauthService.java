@@ -28,6 +28,7 @@ import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.OauthConnectionRepository;
 import com.accsaber.backend.repository.user.OauthSessionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.supporter.SupporterService;
 import com.accsaber.backend.service.clan.ClanMissionAssignmentService;
 import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
@@ -64,6 +65,7 @@ public class OauthService {
     private final JwtService jwtService;
     private final MissionAssignmentService missionAssignmentService;
     private final ClanMissionAssignmentService clanMissionAssignmentService;
+    private final SupporterService supporterService;
 
     @Value("${accsaber.jwt.player-refresh-token-ttl}")
     private long playerRefreshTokenTtl;
@@ -221,6 +223,7 @@ public class OauthService {
                 .avatarUrl(user.getAvatarUrl())
                 .cdnAvatarUrl(user.getCdnAvatarUrl())
                 .country(user.getCountry())
+                .supporterTier(supporterService.findCurrentTierKey(user.getId()).orElse(null))
                 .banned(user.isBanned())
                 .connections(connections)
                 .staff(staff)

@@ -148,6 +148,7 @@ import lombok.RequiredArgsConstructor;
 public class CampaignService {
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
+    private static final int MAX_PROGRESS_BULK_IDS = 50;
     private static final int MAX_DIFFICULTIES_PER_CAMPAIGN = 200;
     private static final int MAX_BARRIERS_PER_CAMPAIGN = 100;
     private static final int MAX_TEXTS_PER_CAMPAIGN = 100;
@@ -1327,6 +1328,33 @@ public class CampaignService {
         }
         ProgressContext ctx = loadProgressContext(resolvedUserId, List.of(campaign.getId()));
         return buildProgress(campaign, resolvedUserId, ctx);
+    }
+
+    public List<CampaignProgressResponse> getUserProgressBulk(Long userId, List<UUID> campaignIds) {
+        if (campaignIds == null || campaignIds.isEmpty()) {
+            return List.of();
+        }
+        if (campaignIds.size() > MAX_PROGRESS_BULK_IDS) {
+            throw new ValidationException("ids", "max " + MAX_PROGRESS_BULK_IDS + " campaign ids per request");
+        }
+        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
+        List<Campaign> campaigns = campaignRepository.findByIdInAndActiveTrue(campaignIds);
+        if (campaigns.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Campaign> campaignById = campaigns.stream()
+                .collect(Collectors.toMap(Campaign::getId, c -> c));
+        ProgressContext ctx = loadProgressContext(resolvedUserId,
+                campaigns.stream().map(Campaign::getId).toList());
+        List<CampaignProgressResponse> results = new ArrayList<>(campaignIds.size());
+        for (UUID id : campaignIds) {
+            Campaign campaign = campaignById.get(id);
+            if (campaign == null || isDraftHiddenFrom(campaign, resolvedUserId, false)) {
+                continue;
+            }
+            results.add(buildProgress(campaign, resolvedUserId, ctx));
+        }
+        return results;
     }
 
     private ProgressContext loadProgressContext(Long resolvedUserId, Collection<UUID> campaignIds) {

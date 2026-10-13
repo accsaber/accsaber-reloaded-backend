@@ -225,6 +225,15 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getUserProgressBySlug(userId, slug));
     }
 
+    @Operation(summary = "Progress in several campaigns", description = "Pass the campaign ids you want.")
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me/progress")
+    public ResponseEntity<List<CampaignProgressResponse>> getMyProgressBulk(
+            @RequestParam("ids") List<UUID> ids,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(campaignService.getUserProgressBulk(principal.getUserId(), ids));
+    }
+
     @Operation(summary = "Create a campaign", description = "Starts as a draft. Only you and your collaborators see "
             + "it until you publish.")
     @PreAuthorize("isAuthenticated()")

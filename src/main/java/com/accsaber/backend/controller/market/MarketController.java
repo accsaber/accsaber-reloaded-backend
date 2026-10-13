@@ -116,8 +116,8 @@ public class MarketController {
         return ResponseEntity.ok(listingService.findDetail(id));
     }
 
-    @Operation(summary = "Your market activity", description = "What you are selling, winning and have won, in "
-            + "one call.")
+    @Operation(summary = "Your market activity", description = "What you are selling, have bid on and have won, "
+            + "in one call.")
     @GetMapping("/me/listings")
     public ResponseEntity<Page<MarketListingResponse>> myListings(
             @RequestParam(required = false) List<MarketListingStatus> status,

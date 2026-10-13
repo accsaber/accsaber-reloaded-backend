@@ -17,6 +17,7 @@ public class AuthMeResponse {
     String cdnAvatarUrl;
     PublicClanResponse clan;
     String country;
+    String supporterTier;
     boolean banned;
     List<OauthConnectionSummary> connections;
     StaffContext staff;
