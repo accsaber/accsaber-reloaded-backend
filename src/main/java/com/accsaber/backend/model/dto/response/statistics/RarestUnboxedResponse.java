@@ -5,11 +5,13 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 
+import com.accsaber.backend.model.dto.response.item.ItemResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class RarestUnboxedResponse {
 
     private UUID linkId;
@@ -20,10 +22,7 @@ public class RarestUnboxedResponse {
     private PublicClanResponse clan;
     private String country;
     private UUID itemId;
-    private String itemName;
-    private String iconUrl;
-    private String rarity;
-    private String typeKey;
+    private ItemResponse item;
     private Long serialNumber;
     private long modifierCount;
     private List<String> modifiers;

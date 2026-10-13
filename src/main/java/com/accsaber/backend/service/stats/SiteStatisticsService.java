@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.cache.annotation.Cacheable;
@@ -16,6 +18,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.dto.response.item.ItemResponse;
+import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.ItemHolderSort;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
@@ -55,6 +61,7 @@ public class SiteStatisticsService {
         private final ScoreRepository scoreRepository;
         private final ScoreService scoreService;
         private final StatsQueryRunner queryRunner;
+        private final ItemRepository itemRepository;
 
         @Cacheable(value = "statistics", key = "'streaks:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<ScoreResponse> getTopStreaks(UUID categoryId, String country, Pageable pageable) {
@@ -533,7 +540,7 @@ public class SiteStatisticsService {
 
                 Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
 
-                return queryRunner.paged(sql, params, pageable, row -> RarestUnboxedResponse.builder()
+                return withItems(queryRunner.paged(sql, params, pageable, row -> RarestUnboxedResponse.builder()
                                 .linkId((UUID) row[0])
                                 .userId(String.valueOf(((Number) row[1]).longValue()))
                                 .clan(ClanRefCache.forUser(((Number) row[1]).longValue()))
@@ -542,15 +549,12 @@ public class SiteStatisticsService {
                                 .cdnAvatarUrl((String) row[4])
                                 .country((String) row[5])
                                 .itemId((UUID) row[6])
-                                .itemName((String) row[7])
-                                .iconUrl((String) row[8])
-                                .rarity((String) row[9])
-                                .typeKey((String) row[10])
                                 .serialNumber(row[11] != null ? ((Number) row[11]).longValue() : null)
                                 .modifierCount(((Number) row[12]).longValue())
                                 .modifiers(splitKeys((String) row[13]))
                                 .unusualEffect((String) row[14])
-                                .build());
+                                .build()),
+                                RarestUnboxedResponse::getItemId, (row, item) -> row.toBuilder().item(item).build());
         }
 
         @Cacheable(value = "statistics", key = "'valuableinventory:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
@@ -635,12 +639,8 @@ public class SiteStatisticsService {
 
                 Map<String, Object> params = normalizedCountry != null ? Map.of("country", normalizedCountry) : Map.of();
 
-                return queryRunner.paged(sql, params, pageable, row -> FirstEditionHolderResponse.builder()
+                return withItems(queryRunner.paged(sql, params, pageable, row -> FirstEditionHolderResponse.builder()
                                 .itemId((UUID) row[0])
-                                .itemName((String) row[1])
-                                .iconUrl((String) row[2])
-                                .rarity((String) row[3])
-                                .typeKey((String) row[4])
                                 .linkId((UUID) row[5])
                                 .serialNumber(row[6] != null ? ((Number) row[6]).longValue() : null)
                                 .userId(String.valueOf(((Number) row[7]).longValue()))
@@ -649,7 +649,8 @@ public class SiteStatisticsService {
                                 .avatarUrl((String) row[9])
                                 .cdnAvatarUrl((String) row[10])
                                 .country((String) row[11])
-                                .build());
+                                .build()),
+                                FirstEditionHolderResponse::getItemId, (row, item) -> row.toBuilder().item(item).build());
         }
 
         @Cacheable(value = "statistics", key = "'completecollection:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
@@ -700,15 +701,20 @@ public class SiteStatisticsService {
                                 """;
                 sql += " ORDER BY instance_count ASC, owner_count ASC, " + rarityRank("i.rarity") + " DESC, i.name ASC";
 
-                return queryRunner.paged(sql, Map.of(), pageable, row -> ItemScarcityResponse.builder()
+                return withItems(queryRunner.paged(sql, Map.of(), pageable, row -> ItemScarcityResponse.builder()
                                 .itemId((UUID) row[0])
-                                .itemName((String) row[1])
-                                .iconUrl((String) row[2])
-                                .rarity((String) row[3])
-                                .typeKey((String) row[4])
                                 .ownerCount(((Number) row[5]).longValue())
                                 .instanceCount(((Number) row[6]).longValue())
-                                .build());
+                                .build()),
+                                ItemScarcityResponse::getItemId, (row, item) -> row.toBuilder().item(item).build());
+        }
+
+        private <T> Page<T> withItems(Page<T> page, Function<T, UUID> itemId,
+                        BiFunction<T, ItemResponse, T> attach) {
+                Map<UUID, ItemResponse> items = itemRepository
+                                .findAllById(page.getContent().stream().map(itemId).distinct().toList()).stream()
+                                .collect(Collectors.toMap(Item::getId, ItemMapper::toItemResponse));
+                return page.map(row -> attach.apply(row, items.get(itemId.apply(row))));
         }
 
         public Page<ItemHolderResponse> getItemHolders(UUID itemId, List<String> modifiers, String search,

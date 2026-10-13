@@ -4,18 +4,17 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 
+import com.accsaber.backend.model.dto.response.item.ItemResponse;
+
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class FirstEditionHolderResponse {
 
     private UUID itemId;
-    private String itemName;
-    private String iconUrl;
-    private String rarity;
-    private String typeKey;
+    private ItemResponse item;
     private UUID linkId;
     private Long serialNumber;
     private String userId;
