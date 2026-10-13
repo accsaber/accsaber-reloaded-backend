@@ -1,11 +1,9 @@
 package com.accsaber.backend.service.clan;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -14,13 +12,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanAllianceResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanTrustResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAlliance;
@@ -58,7 +54,6 @@ public class ClanAllianceService {
     private final ClanChatChannel chatChannel;
     private final ClanFeed feed;
     private final ClanNotifier notifier;
-    private final ClanProperties clanProperties;
 
     public Page<ClanAllianceResponse> list(UUID clanId, Pageable pageable) {
         clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
@@ -138,37 +133,14 @@ public class ClanAllianceService {
                 .toList());
     }
 
-    public Optional<ClanTrustResponse> trustBetween(UUID first, UUID second) {
-        return allianceRepository.findActiveBetween(first, second)
-                .map(alliance -> trustOf(List.of(alliance)).get(alliance.getId()));
-    }
-
-    private Map<UUID, ClanTrustResponse> trustOf(Collection<ClanAlliance> alliances) {
-        List<ClanAlliance> active = alliances.stream()
-                .filter(a -> a.getStatus() == ClanAllianceStatus.active)
-                .toList();
-        if (active.isEmpty()) {
+    private Map<UUID, Long> warsFoughtTogether(Collection<ClanAlliance> alliances) {
+        if (alliances.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, Double> contributions = allianceRepository
-                .findTrustContributions(active.stream().map(ClanAlliance::getId).toList()).stream()
-                .collect(Collectors.toMap(ClanAllianceRepository.TrustView::getAllianceId,
-                        ClanAllianceRepository.TrustView::getContribution));
-        Instant now = Instant.now();
-        return active.stream().collect(Collectors.toMap(ClanAlliance::getId,
-                a -> trust(Duration.between(a.getAcceptedAt(), now), contributions.getOrDefault(a.getId(), 0.0))));
-    }
-
-    private ClanTrustResponse trust(Duration age, double contribution) {
-        List<ClanProperties.TrustTier> tiers = clanProperties.getTrustTiers();
-        int level = 0;
-        for (int i = 0; i < tiers.size(); i++) {
-            ClanProperties.TrustTier tier = tiers.get(i);
-            if (age.compareTo(tier.minAge()) >= 0 && contribution >= tier.minContribution()) {
-                level = i;
-            }
-        }
-        return new ClanTrustResponse(level, tiers.get(level).loanCap(), contribution);
+        return allianceRepository.findWarsFoughtTogether(alliances.stream().map(ClanAlliance::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(ClanAllianceRepository.WarsTogetherView::getAllianceId,
+                        ClanAllianceRepository.WarsTogetherView::getWars));
     }
 
     private void accept(ClanAlliance alliance, UUID side, User actor) {
@@ -244,14 +216,14 @@ public class ClanAllianceService {
         UUID allyId = alliance.otherThan(clanId).getId();
         return ClanAllianceResponse.of(alliance, clanId,
                 cosmeticService.equippedByClanIds(List.of(allyId)).getOrDefault(allyId, List.of()),
-                trustOf(List.of(alliance)).get(alliance.getId()));
+                warsFoughtTogether(List.of(alliance)).getOrDefault(alliance.getId(), 0L));
     }
 
     private Page<ClanAllianceResponse> toResponses(UUID clanId, Page<ClanAlliance> page) {
         Map<UUID, List<ItemResponse>> equipped = cosmeticService.equippedByClanIds(
                 page.getContent().stream().map(a -> a.otherThan(clanId).getId()).distinct().toList());
-        Map<UUID, ClanTrustResponse> trust = trustOf(page.getContent());
+        Map<UUID, Long> wars = warsFoughtTogether(page.getContent());
         return page.map(a -> ClanAllianceResponse.of(a, clanId,
-                equipped.getOrDefault(a.otherThan(clanId).getId(), List.of()), trust.get(a.getId())));
+                equipped.getOrDefault(a.otherThan(clanId).getId(), List.of()), wars.getOrDefault(a.getId(), 0L)));
     }
 }

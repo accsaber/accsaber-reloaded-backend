@@ -9,6 +9,8 @@ import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -42,6 +44,10 @@ public class ClanWarSide {
     @JoinColumn(name = "clan_id", nullable = false)
     private Clan clan;
 
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ClanWarTeam team;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lead_user_id")
     private User leadUser;
@@ -57,6 +63,31 @@ public class ClanWarSide {
 
     @Column(name = "picks_submitted_at")
     private Instant picksSubmittedAt;
+
+    @Column(name = "joined_at", nullable = false)
+    private Instant joinedAt;
+
+    @Column(name = "left_at")
+    private Instant leftAt;
+
+    public static ClanWarSide joining(ClanWar war, Clan clan, ClanWarTeam team, User lead, double standing) {
+        return ClanWarSide.builder()
+                .war(war)
+                .clan(clan)
+                .team(team)
+                .leadUser(lead)
+                .standingAtDeclare(standing)
+                .joinedAt(Instant.now())
+                .build();
+    }
+
+    public boolean fallen() {
+        return leftAt == null && stake > 0.0 && stakeRemaining <= 0.0;
+    }
+
+    public boolean fighting() {
+        return leftAt == null && !fallen();
+    }
 
     @Getter
     @Setter

@@ -49,9 +49,10 @@ public class NewsService {
     private final MilestoneSetRepository milestoneSetRepository;
     private final CurveRepository curveRepository;
 
-    public Page<PublicNewsResponse> findPublic(NewsType type, Pageable pageable) {
+    public Page<PublicNewsResponse> findPublic(NewsType type, String search, Pageable pageable) {
+        String term = search == null || search.isBlank() ? null : search.trim();
         return newsRepository
-                .search(NewsStatus.PUBLISHED, null, type != null ? type.filterCode() : 0, applyPublicSort(pageable))
+                .search(NewsStatus.PUBLISHED, null, type != null ? type.filterCode() : 0, term, applyPublicSort(pageable))
                 .map(NewsService::toPublicResponse);
     }
 
@@ -67,13 +68,13 @@ public class NewsService {
 
     public Page<NewsResponse> findStaffAll(NewsStatus status, NewsType type, Pageable pageable) {
         return newsRepository
-                .search(status, null, type != null ? type.filterCode() : 0, pageable)
+                .search(status, null, type != null ? type.filterCode() : 0, null, pageable)
                 .map(NewsService::toResponse);
     }
 
     public Page<NewsResponse> findStaffByAuthor(UUID staffUserId, NewsStatus status, NewsType type, Pageable pageable) {
         return newsRepository
-                .search(status, staffUserId, type != null ? type.filterCode() : 0, pageable)
+                .search(status, staffUserId, type != null ? type.filterCode() : 0, null, pageable)
                 .map(NewsService::toResponse);
     }
 

@@ -4,6 +4,5 @@ public enum ClanXpSource {
     play,
     mission,
     war_break,
-    war_win,
-    war_loan
+    war_win
 }

@@ -60,6 +60,13 @@ public class Clan {
     @Builder.Default
     private boolean acceptingRequests = true;
 
+    @Column(name = "pacifist_from")
+    private Instant pacifistFrom;
+
+    public boolean isPacifistAt(Instant at) {
+        return pacifistFrom != null && !pacifistFrom.isAfter(at);
+    }
+
     @Column(name = "total_xp", nullable = false)
     private double totalXp;
 

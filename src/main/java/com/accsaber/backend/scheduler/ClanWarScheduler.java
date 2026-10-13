@@ -41,6 +41,8 @@ public class ClanWarScheduler {
         each(warRepository.findStartsDue(now), rosterService::start);
         Instant quietCutoff = now.minus(clanProperties.getWar().getDrawAfterQuietDays(), ChronoUnit.DAYS);
         each(warRepository.findQuietSince(quietCutoff), warId -> warService.end(warId, ClanWarOutcome.drawn));
+        each(warRepository.findActiveStartedBefore(now.minus(clanProperties.getWar().getMaxDuration())),
+                warService::endAtCap);
         each(warRepository.findEndedUnsettled(SETTLEMENT_BATCH), settlementService::settle);
     }
 

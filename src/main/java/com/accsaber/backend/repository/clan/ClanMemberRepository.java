@@ -138,12 +138,21 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
         double getSkill();
     }
 
+    interface ClanMemberSkillView {
+        UUID getClanId();
+
+        Long getUserId();
+
+        double getSkill();
+    }
+
     @Query("""
-            SELECT m.user.id AS userId, COALESCE(s.skillLevel, 0.0) AS skill
+            SELECT m.clan.id AS clanId, m.user.id AS userId, COALESCE(s.skillLevel, 0.0) AS skill
             FROM ClanMember m LEFT JOIN UserCategorySkill s ON s.user = m.user AND s.category.id = :overallId
-            WHERE m.clan.id = :clanId AND m.leftAt IS NULL
+            WHERE m.clan.id IN :clanIds AND m.leftAt IS NULL
             """)
-    List<MemberSkillView> findOpenMemberSkillsByClan(@Param("clanId") UUID clanId, @Param("overallId") UUID overallId);
+    List<ClanMemberSkillView> findOpenMemberSkillsByClans(@Param("clanIds") Collection<UUID> clanIds,
+            @Param("overallId") UUID overallId);
 
     @Query(value = """
             SELECT pair.clan_id AS clanId, MAX(s.skill_level) AS skill
@@ -156,9 +165,10 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
             JOIN user_category_skills s ON s.user_id = m.user_id AND s.category_id = :overallId
             WHERE pair.clan_id IN (:clanIds)
               AND EXISTS (
-                  SELECT 1 FROM clan_wars w JOIN clan_seasons cs ON cs.id = w.season_id
-                  WHERE (w.attacker_clan_id = pair.ally_id OR w.defender_clan_id = pair.ally_id)
-                    AND cs.starts_at <= :now AND cs.ends_at > :now)
+                  SELECT 1 FROM clan_war_sides sd
+                  JOIN clan_wars w ON w.id = sd.war_id
+                  JOIN clan_seasons cs ON cs.id = w.season_id
+                  WHERE sd.clan_id = pair.ally_id AND cs.starts_at <= :now AND cs.ends_at > :now)
             GROUP BY pair.clan_id, pair.ally_id
             """, nativeQuery = true)
     List<ClanSkillView> findFoughtAllyTopSkills(@Param("clanIds") Collection<UUID> clanIds,

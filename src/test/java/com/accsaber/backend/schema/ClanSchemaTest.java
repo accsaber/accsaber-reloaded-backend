@@ -106,6 +106,8 @@ class ClanSchemaTest {
                 + "WHERE level = 0 AND capacity = 'member_slots'")).intValue()).isEqualTo(10);
         assertThat(((Number) single("SELECT COUNT(*) FROM clan_level_war_modes WHERE level = 0")).intValue())
                 .isEqualTo(2);
+        assertThat(((Number) single("SELECT COUNT(*) FROM clan_level_capacities "
+                + "WHERE capacity IN ('lend_slots', 'receive_slots')")).intValue()).isZero();
     }
 
     @Test
@@ -270,7 +272,7 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("a participant must fight for one of the two sides of that war")
+    @DisplayName("a participant must fight for one of the clans in that war")
     void participantBelongsToASide() {
         UUID red = clan("Red", "RED");
         UUID blue = clan("Blue", "BLUE");
@@ -279,13 +281,48 @@ class ClanSchemaTest {
         UUID war = (UUID) single("INSERT INTO clan_wars (season_id, attacker_clan_id, defender_clan_id, declared_by, "
                 + "arena, arena_spec, ruleset) VALUES (?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel') "
                 + "RETURNING id", current, red, blue, alice.getId());
-        sql("INSERT INTO clan_war_sides (war_id, clan_id, stake, stake_remaining, standing_at_declare) "
-                + "VALUES (?1, ?2, 100, 100, 100)", war, red);
+        sql("INSERT INTO clan_war_sides (war_id, clan_id, team, stake, stake_remaining, standing_at_declare) "
+                + "VALUES (?1, ?2, 'attack', 100, 100, 100)", war, red);
         sql("INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard) "
                 + "VALUES (?1, ?2, ?3, 1, 100)", war, alice.getId(), red);
 
         assertThatThrownBy(() -> sql("INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, "
                 + "guard) VALUES (?1, ?2, ?3, 1, 100)", war, bob.getId(), outsider))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a side fights for the attack or the defense and nothing else")
+    void sidesBelongToATeam() {
+        UUID red = clan("Red", "RED");
+        UUID blue = clan("Blue", "BLUE");
+        UUID current = season("season-1", "2026-01-01T00:00:00Z", "2027-01-01T00:00:00Z");
+        UUID war = (UUID) single("INSERT INTO clan_wars (season_id, attacker_clan_id, defender_clan_id, declared_by, "
+                + "arena, arena_spec, ruleset) VALUES (?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel') "
+                + "RETURNING id", current, red, blue, alice.getId());
+
+        assertThatThrownBy(() -> sql("INSERT INTO clan_war_sides (war_id, clan_id, team, stake, stake_remaining, "
+                + "standing_at_declare) VALUES (?1, ?2, 'neutral', 100, 100, 100)", war, red))
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    @Test
+    @DisplayName("a request for help is pending until it is answered, and one clan has one pending per war")
+    void aidRowsKeepTheirShape() {
+        UUID red = clan("Red", "RED");
+        UUID blue = clan("Blue", "BLUE");
+        UUID helper = clan("Helper", "HLP");
+        UUID current = season("season-1", "2026-01-01T00:00:00Z", "2027-01-01T00:00:00Z");
+        UUID war = (UUID) single("INSERT INTO clan_wars (season_id, attacker_clan_id, defender_clan_id, declared_by, "
+                + "arena, arena_spec, ruleset) VALUES (?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel') "
+                + "RETURNING id", current, red, blue, alice.getId());
+        String aid = "INSERT INTO clan_war_aid (war_id, clan_id, team, direction, requested_by, status, resolved_at) "
+                + "VALUES (?1, ?2, 'defend', 'request', ?3, ?4, ?5)";
+        sql(aid, war, helper, alice.getId(), "pending", null);
+
+        assertThatThrownBy(() -> sql(aid, war, helper, alice.getId(), "pending", null))
+                .isInstanceOf(PersistenceException.class);
+        assertThatThrownBy(() -> sql(aid, war, helper, alice.getId(), "declined", null))
                 .isInstanceOf(PersistenceException.class);
     }
 

@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.clan;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.accsaber.backend.model.dto.ClanArenaSpec;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
@@ -11,6 +12,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 
 public record ClanWarResponse(
         UUID id,
@@ -20,8 +22,8 @@ public record ClanWarResponse(
         ClanWarStatus status,
         ClanWarOutcome outcome,
         PlayerRef declaredBy,
-        ClanWarSideResponse attacker,
-        ClanWarSideResponse defender,
+        ClanWarTeamResponse attack,
+        ClanWarTeamResponse defend,
         Instant declaredAt,
         Instant picksDueAt,
         Instant startsAt,
@@ -30,11 +32,15 @@ public record ClanWarResponse(
     public static ClanWarResponse of(ClanWar war, List<ClanWarSideResponse> sides) {
         return new ClanWarResponse(war.getId(), war.getArena(), war.getArenaSpec(), war.getRuleset(),
                 war.getStatus(), war.getOutcome(), PlayerRef.of(war.getDeclaredBy()),
-                side(sides, war.getAttackerClan().getId()), side(sides, war.getDefenderClan().getId()),
+                ClanWarTeamResponse.of(war.getAttackerClan().getId(), ClanWarTeam.attack, sides),
+                ClanWarTeamResponse.of(war.getDefenderClan().getId(), ClanWarTeam.defend, sides),
                 war.getDeclaredAt(), war.getPicksDueAt(), war.getStartsAt(), war.getEndedAt());
     }
 
-    private static ClanWarSideResponse side(List<ClanWarSideResponse> sides, UUID clanId) {
-        return sides.stream().filter(side -> side.clan().id().equals(clanId)).findFirst().orElse(null);
+    public List<UUID> clanIds() {
+        return Stream.of(attack, defend)
+                .flatMap(team -> team.sides().stream())
+                .map(side -> side.clan().id())
+                .toList();
     }
 }

@@ -42,7 +42,7 @@ public class ClanStrengthService {
     private final CurveRepository curveRepository;
     private final APCalculationService apCalculationService;
 
-    public record MemberStrength(Long userId, double skill, double share) {
+    public record MemberStrength(UUID clanId, Long userId, double skill, double share) {
     }
 
     @Transactional
@@ -63,17 +63,25 @@ public class ClanStrengthService {
 
     @Transactional(readOnly = true)
     public List<MemberStrength> memberStrengths(UUID clanId) {
-        List<ClanMemberRepository.MemberSkillView> rows = memberRepository.findOpenMemberSkillsByClan(clanId,
+        return memberStrengths(List.of(clanId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MemberStrength> memberStrengths(Collection<UUID> clanIds) {
+        if (clanIds.isEmpty()) {
+            return List.of();
+        }
+        List<ClanMemberRepository.ClanMemberSkillView> rows = memberRepository.findOpenMemberSkillsByClans(clanIds,
                 overallId()).stream()
-                .sorted(Comparator.comparingDouble(ClanMemberRepository.MemberSkillView::getSkill).reversed()
-                        .thenComparing(ClanMemberRepository.MemberSkillView::getUserId))
+                .sorted(Comparator.comparingDouble(ClanMemberRepository.ClanMemberSkillView::getSkill).reversed()
+                        .thenComparing(ClanMemberRepository.ClanMemberSkillView::getUserId))
                 .toList();
-        List<Double> weights = weights(rows.stream().map(ClanMemberRepository.MemberSkillView::getSkill).toList(),
+        List<Double> weights = weights(rows.stream().map(ClanMemberRepository.ClanMemberSkillView::getSkill).toList(),
                 rosterCurve());
         double total = weights.stream().mapToDouble(Double::doubleValue).sum();
         List<MemberStrength> strengths = new ArrayList<>(rows.size());
         for (int i = 0; i < rows.size(); i++) {
-            strengths.add(new MemberStrength(rows.get(i).getUserId(), rows.get(i).getSkill(),
+            strengths.add(new MemberStrength(rows.get(i).getClanId(), rows.get(i).getUserId(), rows.get(i).getSkill(),
                     total > 0 ? weights.get(i) / total : 0.0));
         }
         return strengths;

@@ -14,6 +14,7 @@ public record ClanWarHitResponse(
         int victimCycle,
         PublicMapDifficultyResponse difficulty,
         boolean missingScore,
+        boolean chip,
         double damage,
         double guardAfter,
         boolean broke,
@@ -23,7 +24,7 @@ public record ClanWarHitResponse(
 
     public static ClanWarHitResponse of(ClanWarHit hit, PublicMapDifficultyResponse difficulty) {
         return new ClanWarHitResponse(hit.getId(), PlayerRef.of(hit.getAttacker()), PlayerRef.of(hit.getVictim()),
-                hit.getVictimCycle(), difficulty, hit.getVictimScore() == null, hit.getDamage(), hit.getGuardAfter(),
+                hit.getVictimCycle(), difficulty, hit.getVictimScore() == null, hit.isChip(), hit.getDamage(), hit.getGuardAfter(),
                 hit.isBroke(), hit.getStandingMoved(), hit.getXpAwarded(), hit.getCreatedAt());
     }
 }

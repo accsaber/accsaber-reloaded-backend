@@ -21,20 +21,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
-import com.accsaber.backend.model.dto.request.clan.OfferClanWarLoanRequest;
-import com.accsaber.backend.model.dto.request.clan.ResolveClanWarLoanRequest;
+import com.accsaber.backend.model.dto.request.clan.ChooseClanWarTargetRequest;
+import com.accsaber.backend.model.dto.request.clan.OfferClanWarAidRequest;
+import com.accsaber.backend.model.dto.request.clan.RequestClanWarAidRequest;
+import com.accsaber.backend.model.dto.request.clan.ResolveClanWarAidRequest;
 import com.accsaber.backend.model.dto.request.clan.SubmitClanWarPicksRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanWarRequest;
+import com.accsaber.backend.model.dto.request.clan.UpdateClanWarSideRequest;
+import com.accsaber.backend.model.dto.response.clan.ClanWarAidResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanWarLoanResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
-import com.accsaber.backend.model.entity.clan.war.ClanWarLoanStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarAidStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.security.PlayerUserDetails;
-import com.accsaber.backend.service.clan.war.ClanWarLoanService;
+import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
+import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,7 +54,8 @@ public class ClanWarController {
 
     private final ClanWarService warService;
     private final ClanWarPoolService poolService;
-    private final ClanWarLoanService loanService;
+    private final ClanWarCoalitionService coalitionService;
+    private final ClanWarRosterService rosterService;
 
     @Operation(summary = "List clan wars",
             description = "Newest first. clanId filters to one clan, open=true hides finished wars.")
@@ -87,14 +92,15 @@ public class ClanWarController {
 
     @Operation(summary = "Submit defense picks",
             description = "Officer or above on the defense, once, in the pick window. Picks the attacker already "
-                    + "made get swapped for random maps. The pool locks right away.")
+                    + "made get swapped for random maps. The pool locks right away. A war declared as Berserker "
+                    + "is an offer: send berserker true to accept it, anything else turns the war into a Duel.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/wars/{warId}/picks")
     public ResponseEntity<ClanWarDetailResponse> submitPicks(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
             @Valid @RequestBody SubmitClanWarPicksRequest request) {
-        poolService.submitPicks(warId, principal.getUserId(), request.getMapDifficultyIds());
+        poolService.submitPicks(warId, principal.getUserId(), request.getMapDifficultyIds(), request.isBerserker());
         return ResponseEntity.ok(warService.get(warId, principal.getUserId()));
     }
 
@@ -124,58 +130,94 @@ public class ClanWarController {
         return ResponseEntity.ok(warService.hits(warId, userId, pageable));
     }
 
-    @Operation(summary = "Lend a player",
-            description = "Commander or above on an ally of one side, not in the war. The player must be free and "
-                    + "off cooldown, capped by lend slots and Trust Level. They then accept or decline.")
+    @Operation(summary = "Ask a clan for help",
+            description = "Commander or above on the clan that declared or the clan that got declared on. The other "
+                    + "clan has to be your ally, not allied with anyone on the other side, not helping in another war "
+                    + "and not pacifist. Clans joining the attack have to sit below the defender in Standing. Duels "
+                    + "only.")
     @PreAuthorize("isAuthenticated()")
-    @PostMapping("/wars/{warId}/loans")
-    public ResponseEntity<ClanWarLoanResponse> offerLoan(
+    @PostMapping("/wars/{warId}/aid-requests")
+    public ResponseEntity<ClanWarAidResponse> requestAid(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
-            @Valid @RequestBody OfferClanWarLoanRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(loanService.offer(warId, principal.getUserId(),
-                Long.valueOf(request.getUserId()), request.getClanId()));
+            @Valid @RequestBody RequestClanWarAidRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(coalitionService.request(warId, principal.getUserId(), request.getClanId()));
     }
 
-    @Operation(summary = "Answer a loan",
-            description = "The player sends accepted or declined. A lending commander can send cancelled while "
-                    + "pending. Accepted players fight until the war ends or they leave.")
+    @Operation(summary = "Offer to help in a war",
+            description = "Commander or above. Your clan offers to fight for one team, and that team's lead clan has "
+                    + "to accept. Same rules as asking for help.")
     @PreAuthorize("isAuthenticated()")
-    @PatchMapping("/wars/loans/{loanId}")
-    public ResponseEntity<ClanWarLoanResponse> resolveLoan(
+    @PostMapping("/wars/{warId}/aid-offers")
+    public ResponseEntity<ClanWarAidResponse> offerAid(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID loanId,
-            @Valid @RequestBody ResolveClanWarLoanRequest request) {
-        return ResponseEntity.ok(loanService.resolve(loanId, principal.getUserId(), request.getStatus()));
-    }
-
-    @Operation(summary = "Your loans",
-            description = "Newest first. Filter with status, like pending.")
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/wars/loans")
-    public ResponseEntity<Page<ClanWarLoanResponse>> myLoans(
-            @AuthenticationPrincipal PlayerUserDetails principal,
-            @RequestParam(required = false) ClanWarLoanStatus status,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(loanService.list(null, principal.getUserId(), status, pageable));
-    }
-
-    @Operation(summary = "A war's loans",
-            description = "Newest first. Filter with status, like pending or accepted.")
-    @GetMapping("/wars/{warId}/loans")
-    public ResponseEntity<Page<ClanWarLoanResponse>> warLoans(
             @PathVariable UUID warId,
-            @RequestParam(required = false) ClanWarLoanStatus status,
+            @Valid @RequestBody OfferClanWarAidRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(coalitionService.offer(warId, principal.getUserId(), request.getTeam()));
+    }
+
+    @Operation(summary = "Answer a request or offer",
+            description = "The clan that got asked sends accepted or declined. The clan that asked can send "
+                    + "cancelled while it is pending. Accepting puts the clan in the war straight away.")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/wars/aid/{aidId}")
+    public ResponseEntity<ClanWarAidResponse> resolveAid(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID aidId,
+            @Valid @RequestBody ResolveClanWarAidRequest request) {
+        return ResponseEntity.ok(coalitionService.resolve(aidId, principal.getUserId(), request.getStatus()));
+    }
+
+    @Operation(summary = "Requests and offers",
+            description = "Newest first. clanId keeps the ones a clan sent, got or leads the war for. warId keeps "
+                    + "one war. Filter with status, like pending.")
+    @GetMapping("/wars/aid")
+    public ResponseEntity<Page<ClanWarAidResponse>> aid(
+            @RequestParam(required = false) UUID warId,
+            @RequestParam(required = false) UUID clanId,
+            @RequestParam(required = false) ClanWarAidStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(loanService.list(warId, null, status, pageable));
+        return ResponseEntity.ok(coalitionService.list(warId, clanId, status, pageable));
+    }
+
+    @Operation(summary = "Leave a war",
+            description = "Send left true. Commander or above on a clan that joined to help. The clan's stake left "
+                    + "goes to the other team and its players stop fighting. The clans that started the war cannot "
+                    + "leave.")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/wars/{warId}/sides/{clanId}")
+    public ResponseEntity<ClanWarResponse> leave(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID warId,
+            @PathVariable UUID clanId,
+            @Valid @RequestBody UpdateClanWarSideRequest request) {
+        return ResponseEntity.ok(coalitionService.leave(warId, clanId, principal.getUserId()));
+    }
+
+    @Operation(summary = "Pick your duel target",
+            description = "Any enemy still fighting whose skill is at least 0.8 times yours. Send null to clear it. "
+                    + "A play that cannot hit or chip your pick goes to the closest score instead.")
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/wars/{warId}/target")
+    public ResponseEntity<ClanWarParticipantResponse> target(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID warId,
+            @Valid @RequestBody ChooseClanWarTargetRequest request) {
+        return ResponseEntity.ok(rosterService.choose(warId, principal.getUserId(),
+                request.getUserId() == null ? null : Long.valueOf(request.getUserId())));
     }
 
     @Operation(summary = "War participants",
-            description = "Players still in first, then by contribution. duelTarget is who their duel points at.")
+            description = "Players still in first, then by contribution. target is who they picked. inBand tells a "
+                    + "signed in viewer whether they can pick that player.")
     @GetMapping("/wars/{warId}/participants")
     public ResponseEntity<Page<ClanWarParticipantResponse>> participants(
+            @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(warService.participants(warId, pageable));
+        return ResponseEntity.ok(warService.participants(warId, principal != null ? principal.getUserId() : null,
+                pageable));
     }
 }

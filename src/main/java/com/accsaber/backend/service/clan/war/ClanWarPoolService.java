@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.response.score.MyScoreSummary;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
+import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarPoolEntry;
 import com.accsaber.backend.model.entity.clan.war.ClanWarPoolSource;
@@ -96,14 +97,16 @@ public class ClanWarPoolService {
                 throw new ValidationException("mapDifficultyIds", "a random arena takes no picks");
             }
             fillRandom(war, null, ClanWarPoolSource.random, spec.poolSize());
-            lock(war);
+            if (war.getRuleset() == ClanRuleset.duel) {
+                lock(war, false);
+            }
             return;
         }
         savePicks(war, war.getAttackerClan(), legalPicks(spec, attackerPicks, spec.attackerPicks()));
     }
 
     @Transactional
-    public void submitPicks(UUID warId, Long playerId, List<UUID> picks) {
+    public void submitPicks(UUID warId, Long playerId, List<UUID> picks, boolean berserker) {
         User actor = accessService.player(playerId);
         ClanWar war = warRepository.findByIdForUpdate(warId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
@@ -113,6 +116,9 @@ public class ClanWarPoolService {
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWarSide", warId));
         if (war.getStatus() != ClanWarStatus.picking || side.getPicksSubmittedAt() != null) {
             throw new ConflictException("This war is no longer taking picks");
+        }
+        if (berserker && war.getRuleset() != ClanRuleset.berserker) {
+            throw new ValidationException("berserker", "the attacker did not offer Berserker");
         }
         List<UUID> legal = legalPicks(war.getArenaSpec(), picks, war.getArenaSpec().defenderPicks());
         Set<UUID> taken = new HashSet<>(poolRepository.findByWarId(warId).stream()
@@ -124,7 +130,7 @@ public class ClanWarPoolService {
         if (side.getLeadUser() == null) {
             side.setLeadUser(actor);
         }
-        lock(war);
+        lock(war, berserker);
     }
 
     @Transactional
@@ -134,7 +140,7 @@ public class ClanWarPoolService {
             return;
         }
         fillRandom(war, null, ClanWarPoolSource.random, war.getArenaSpec().defenderPicks());
-        lock(war);
+        lock(war, false);
     }
 
     public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId, Long viewerId) {
@@ -144,7 +150,7 @@ public class ClanWarPoolService {
                 .toList();
         List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.sides());
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.leads());
         Map<UUID, MyScoreSummary> viewerScores = viewerScores(viewerId, difficultyIds);
         return entries.stream()
                 .map(entry -> new ClanWarPoolEntryResponse(difficulties.get(entry.getMapDifficulty().getId()),
@@ -212,6 +218,9 @@ public class ClanWarPoolService {
         if (distinct.size() != picks.size() || picks.size() != required) {
             throw new ValidationException("mapDifficultyIds", "must be " + required + " different difficulties");
         }
+        if (picks.isEmpty()) {
+            return picks;
+        }
         if (poolRepository.findLegal(distinct, spec.categoryId(), spec.complexityMin(), spec.complexityMax()).size()
                 != required) {
             throw new ValidationException("mapDifficultyIds", "every pick has to be a ranked map legal in this arena");
@@ -240,7 +249,10 @@ public class ClanWarPoolService {
                 spec.complexityMin(), spec.complexityMax());
     }
 
-    private void lock(ClanWar war) {
+    private void lock(ClanWar war, boolean berserkerAccepted) {
+        if (!berserkerAccepted) {
+            war.setRuleset(ClanRuleset.duel);
+        }
         war.setStatus(ClanWarStatus.preparing);
         war.setStartsAt(Instant.now().plus(clanProperties.getWar().getPrepDuration()));
         warRepository.saveAndFlush(war);

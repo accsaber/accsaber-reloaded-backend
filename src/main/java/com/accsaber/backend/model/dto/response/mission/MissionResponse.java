@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.mission.Event;
@@ -17,6 +18,7 @@ import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.service.item.ItemMapper;
+import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.util.MissionDescriptionRenderer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -43,7 +45,7 @@ public class MissionResponse {
     private String categoryCode;
 
     private UUID targetMapDifficultyId;
-    private String targetMapSongName;
+    private PublicMapDifficultyResponse targetMap;
     private String targetPlayerId;
     private String targetPlayerName;
 
@@ -107,9 +109,7 @@ public class MissionResponse {
                 .categoryCode(m.getCategory() != null ? m.getCategory().getCode() : null)
                 .targetMapDifficultyId(m.getTargetMapDifficulty() != null
                         ? m.getTargetMapDifficulty().getId() : null)
-                .targetMapSongName(m.getTargetMapDifficulty() != null
-                        && m.getTargetMapDifficulty().getMap() != null
-                                ? m.getTargetMapDifficulty().getMap().getSongName() : null)
+                .targetMap(targetMap(m.getTargetMapDifficulty()))
                 .targetPlayerId(m.getTargetPlayer() != null
                         ? String.valueOf(m.getTargetPlayer().getId()) : null)
                 .targetPlayerName(m.getTargetPlayer() != null
@@ -157,8 +157,7 @@ public class MissionResponse {
                 .categoryId(category != null ? category.getId() : null)
                 .categoryCode(category != null ? category.getCode() : null)
                 .targetMapDifficultyId(mapDifficulty != null ? mapDifficulty.getId() : null)
-                .targetMapSongName(mapDifficulty != null && mapDifficulty.getMap() != null
-                        ? mapDifficulty.getMap().getSongName() : null)
+                .targetMap(targetMap(mapDifficulty))
                 .targetPlayerId(player != null ? String.valueOf(player.getId()) : null)
                 .targetPlayerName(player != null ? player.getName() : null)
                 .targetAcc(targets != null ? roundAcc(targets.acc()) : null)
@@ -316,6 +315,10 @@ public class MissionResponse {
                     ? players.get(targets.playerIdAsLong())
                     : null;
         }
+    }
+
+    private static PublicMapDifficultyResponse targetMap(MapDifficulty d) {
+        return d == null ? null : MapService.toPublicDifficultyResponse(d);
     }
 
     private static boolean isPerMemberParent(UserMission m) {

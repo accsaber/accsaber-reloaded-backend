@@ -71,6 +71,9 @@ public class ClanWarHit {
     private double guardAfter;
 
     @Column(nullable = false)
+    private boolean chip;
+
+    @Column(nullable = false)
     private boolean broke;
 
     @Column(name = "standing_moved", nullable = false)

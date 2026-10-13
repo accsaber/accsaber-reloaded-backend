@@ -53,6 +53,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
         @Query(value = """
                         SELECT m FROM Map m
                         WHERE m.active = true
+                        AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND m.id IN (
                                 SELECT DISTINCT d.map.id FROM MapDifficulty d
                                 WHERE d.active = true
@@ -62,7 +63,9 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         )
                         """, countQuery = """
                         SELECT COUNT(DISTINCT d.map.id) FROM MapDifficulty d
+                        JOIN d.map m
                         WHERE d.active = true
+                        AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
                              OR d.status = :status)
@@ -70,11 +73,13 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
         Page<Map> findByDifficultyFilters(
                         @Param("categoryId") UUID categoryId,
                         @Param("status") MapDifficultyStatus status,
+                        @Param("warBanned") Boolean warBanned,
                         Pageable pageable);
 
         @Query(value = """
                         SELECT m FROM Map m
                         WHERE m.active = true
+                        AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND (search_normalize(m.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
                              OR search_normalize(m.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
                              OR search_normalize(m.songAuthor) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
@@ -91,6 +96,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         JOIN d.map m
                         WHERE d.active = true
                         AND m.active = true
+                        AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
                              OR d.status = :status)
@@ -103,5 +109,6 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         @Param("categoryId") UUID categoryId,
                         @Param("status") MapDifficultyStatus status,
                         @Param("search") String search,
+                        @Param("warBanned") Boolean warBanned,
                         Pageable pageable);
 }

@@ -51,13 +51,13 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
     @Query(value = """
             SELECT w FROM ClanWar w
             JOIN FETCH w.attackerClan JOIN FETCH w.defenderClan JOIN FETCH w.declaredBy
-            WHERE (:clanId IS NULL OR w.attackerClan.id = :clanId OR w.defenderClan.id = :clanId)
+            WHERE (:clanId IS NULL OR EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId))
               AND (:open = false OR w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended)
             ORDER BY w.declaredAt DESC
             """,
             countQuery = """
             SELECT COUNT(w) FROM ClanWar w
-            WHERE (:clanId IS NULL OR w.attackerClan.id = :clanId OR w.defenderClan.id = :clanId)
+            WHERE (:clanId IS NULL OR EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId))
               AND (:open = false OR w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended)
             """)
     Page<ClanWar> findPage(@Param("clanId") UUID clanId, @Param("open") boolean open, Pageable pageable);
@@ -67,14 +67,28 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             WHERE (w.attackerClan.id = :clanId OR w.defenderClan.id = :clanId)
               AND w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended
             """)
-    List<UUID> findOpenIdsByClanId(@Param("clanId") UUID clanId);
+    List<UUID> findOpenIdsLedByClanId(@Param("clanId") UUID clanId);
 
     @Query("""
             SELECT w.id FROM ClanWar w
-            WHERE (w.attackerClan.id = :clanId OR w.defenderClan.id = :clanId)
+            WHERE EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL)
               AND w.status = com.accsaber.backend.model.entity.clan.war.ClanWarStatus.active
             """)
     List<UUID> findActiveIdsByClanId(@Param("clanId") UUID clanId);
+
+    @Query("""
+            SELECT COUNT(w) > 0 FROM ClanWar w
+            WHERE EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL)
+              AND w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended
+            """)
+    boolean existsOpenForClan(@Param("clanId") UUID clanId);
+
+    @Query("""
+            SELECT w.id FROM ClanWar w
+            WHERE w.status = com.accsaber.backend.model.entity.clan.war.ClanWarStatus.active AND w.startsAt <= :cutoff
+            ORDER BY w.startsAt
+            """)
+    List<UUID> findActiveStartedBefore(@Param("cutoff") Instant cutoff);
 
     @Query("""
             SELECT w.id FROM ClanWar w

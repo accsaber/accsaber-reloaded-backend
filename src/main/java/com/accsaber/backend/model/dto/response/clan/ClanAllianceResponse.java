@@ -16,17 +16,17 @@ public record ClanAllianceResponse(
         boolean incoming,
         PlayerRef proposedBy,
         PlayerRef endedBy,
-        ClanTrustResponse trust,
+        long warsFoughtTogether,
         Instant createdAt,
         Instant acceptedAt,
         Instant endedAt) {
 
     public static ClanAllianceResponse of(ClanAlliance alliance, UUID clanId, List<ItemResponse> allyEquipped,
-            ClanTrustResponse trust) {
+            long warsFoughtTogether) {
         return new ClanAllianceResponse(alliance.getId(),
                 PublicClanResponse.of(alliance.otherThan(clanId), allyEquipped), alliance.getStatus(),
                 !alliance.getProposedByClan().getId().equals(clanId), PlayerRef.of(alliance.getProposedByUser()),
-                PlayerRef.of(alliance.getEndedByUser()), trust, alliance.getCreatedAt(), alliance.getAcceptedAt(),
+                PlayerRef.of(alliance.getEndedByUser()), warsFoughtTogether, alliance.getCreatedAt(), alliance.getAcceptedAt(),
                 alliance.getEndedAt());
     }
 }

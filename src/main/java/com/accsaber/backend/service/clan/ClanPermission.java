@@ -1,5 +1,8 @@
 package com.accsaber.backend.service.clan;
 
+import java.util.Arrays;
+import java.util.List;
+
 import com.accsaber.backend.model.entity.clan.ClanRole;
 
 import lombok.Getter;
@@ -17,12 +20,17 @@ public enum ClanPermission {
     PROMOTE_OFFICER(ClanRole.commander),
     MANAGE_RIVALS(ClanRole.commander),
     DECLARE_WAR(ClanRole.commander),
-    LEND(ClanRole.commander),
+    COALITION(ClanRole.commander),
     PROMOTE_COMMANDER(ClanRole.founder),
     MANAGE_ALLIANCES(ClanRole.founder),
+    MANAGE_PACIFISM(ClanRole.founder),
     CUSTOMIZE(ClanRole.founder),
     TRANSFER(ClanRole.founder),
     DISBAND(ClanRole.founder);
 
     private final ClanRole minimum;
+
+    public List<ClanRole> roles() {
+        return Arrays.stream(ClanRole.values()).filter(role -> role.isAtLeast(minimum)).toList();
+    }
 }

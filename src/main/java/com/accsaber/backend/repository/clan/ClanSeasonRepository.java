@@ -47,7 +47,7 @@ public interface ClanSeasonRepository extends JpaRepository<ClanSeason, UUID> {
                 SELECT p.user_id, p.contribution, p.joined_at AS first_at
                 FROM clan_war_participants p
                 JOIN clan_wars w ON w.id = p.war_id
-                WHERE w.season_id = :seasonId AND p.clan_id = :clanId AND p.lent_by_clan_id IS NULL
+                WHERE w.season_id = :seasonId AND p.clan_id = :clanId
                 UNION ALL
                 SELECT c.user_id,
                        c.contribution / NULLIF(GREATEST(m.progress_count, m.progress_ap), 0) * :missionContribution,

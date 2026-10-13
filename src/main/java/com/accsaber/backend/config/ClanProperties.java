@@ -1,7 +1,6 @@
 package com.accsaber.backend.config;
 
 import java.time.Duration;
-import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -30,15 +29,8 @@ public class ClanProperties {
     private double missionStanding = 100.0;
     private double missionContribution = 150.0;
     private double missionMinShare = 0.5;
-    private List<TrustTier> trustTiers = List.of(
-            new TrustTier(Duration.ZERO, 0.0, 1),
-            new TrustTier(Duration.ofDays(30), 100.0, 2),
-            new TrustTier(Duration.ofDays(120), 600.0, 3),
-            new TrustTier(Duration.ofDays(365), 3000.0, 4));
+    private Duration pacifistDelay = Duration.ofDays(7);
     private War war = new War();
-
-    public record TrustTier(Duration minAge, double minContribution, int loanCap) {
-    }
 
     @Getter
     @Setter
@@ -50,20 +42,27 @@ public class ClanProperties {
         private int poolSize = 10;
         private double maxUnderdogShare = 0.85;
         private double guard = 100.0;
-        private double baseDamage = 35.0;
+        private double baseDamage = 15.0;
         private double escalation = 1.5;
         private double disparityExponent = 1.0;
         private double missingScoreMultiplier = 0.35;
-        private double breakShare = 0.8;
+        private double breakShare = 0.5;
         private double breakDecay = 0.75;
         private double breakContribution = 50.0;
-        private double breakXp = 250.0;
-        private double breakClanXp = 23.0;
+        private double breakXp = 50.0;
+        private double breakClanXp = 6.0;
         private double winClanXp = 345.0;
-        private double xpPerContribution = 1.0;
+        private double xpPerContribution = 0.2;
         private double warSizeExponent = 0.6;
-        private double loanBreakClanXp = 6.0;
-        private Duration loanCooldown = Duration.ofDays(3);
+        private double chipDamage = 3.0;
+        private double chipWindow = 0.3;
+        private double chipSkillExponent = 2.0;
+        private double extraChipChance = 0.25;
+        private double targetBand = 0.8;
+        private double allyStakeShare = 0.3;
+        private Duration maxDuration = Duration.ofDays(28);
+        private Duration engagementWindow = Duration.ofDays(14);
+        private double engagementFull = 0.5;
         private Duration redeclareCooldown = Duration.ofDays(7);
     }
 }

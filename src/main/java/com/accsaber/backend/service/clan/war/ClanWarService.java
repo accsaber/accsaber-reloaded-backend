@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -33,18 +34,20 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
 import com.accsaber.backend.model.entity.clan.war.ClanArena;
+import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanWarEndedEvent;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarAidRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -86,7 +89,9 @@ public class ClanWarService {
     private final ClanNotifier notifier;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
-    private final ClanWarLoanRepository loanRepository;
+    private final ClanWarRosterService rosterService;
+    private final ClanWarAidRepository aidRepository;
+    private final ClanWarStakeService stakeService;
     private final ApplicationEventPublisher eventPublisher;
     private final ClanProperties clanProperties;
 
@@ -116,12 +121,12 @@ public class ClanWarService {
                 .arena(request.getArena())
                 .arenaSpec(spec)
                 .ruleset(request.getRuleset())
-                .picksDueAt(request.getArena() == ClanArena.random ? null
+                .picksDueAt(request.getArena() == ClanArena.random && request.getRuleset() == ClanRuleset.duel ? null
                         : Instant.now().plus(clanProperties.getWar().getPickWindow()))
                 .build());
-        double stake = Math.min(attackerStanding, defenderStanding);
-        sideRepository.saveAllAndFlush(List.of(side(war, attacker, actor, stake, attackerStanding),
-                side(war, defender, null, stake, defenderStanding)));
+        stakeService.rebalance(sideRepository.saveAllAndFlush(List.of(
+                ClanWarSide.joining(war, attacker, ClanWarTeam.attack, actor, attackerStanding),
+                ClanWarSide.joining(war, defender, ClanWarTeam.defend, null, defenderStanding))));
         poolService.seed(war, request.getMapDifficultyIds());
         feed.war(war, ClanFeedType.war_declared);
         chatChannel.announce(attacker, ChatNotice.ofWar(ChatEvent.war_declared, actor, defender, war));
@@ -159,7 +164,21 @@ public class ClanWarService {
 
     @Transactional
     public void forfeitAll(UUID clanId) {
-        warRepository.findOpenIdsByClanId(clanId).forEach(warId -> end(warId, ClanWarOutcome.forfeited));
+        warRepository.findOpenIdsLedByClanId(clanId).forEach(warId -> end(warId, ClanWarOutcome.forfeited));
+    }
+
+    @Transactional
+    public void endAtCap(UUID warId) {
+        warRepository.findByIdForUpdate(warId)
+                .filter(war -> war.getStatus() == ClanWarStatus.active)
+                .ifPresent(war -> {
+                    List<ClanWarSide> sides = sideRepository.findByWarId(warId);
+                    double attackDrained = stakeService.drainedShare(sides, ClanWarTeam.attack);
+                    double defendDrained = stakeService.drainedShare(sides, ClanWarTeam.defend);
+                    ClanWarOutcome outcome = defendDrained == attackDrained ? ClanWarOutcome.drawn
+                            : ClanWarOutcome.wonBy(defendDrained > attackDrained ? ClanWarTeam.attack : ClanWarTeam.defend);
+                    end(war, outcome, null);
+                });
     }
 
     @Transactional
@@ -181,12 +200,26 @@ public class ClanWarService {
         return detail(war, viewerClanId, viewerId);
     }
 
-    public Page<ClanWarParticipantResponse> participants(UUID warId, Pageable pageable) {
+    public Page<ClanWarParticipantResponse> participants(UUID warId, Long viewerId, Pageable pageable) {
         ClanWar war = warRepository.findWithRefsById(warId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.sides());
+        List<ClanWarSide> sides = sideRepository.findByWarId(warId);
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
+                sides.stream().map(ClanWarSide::getClan).toList());
         Page<ClanWarParticipant> page = participantRepository.findPageByWarId(warId, pageable);
-        return page.map(p -> ClanWarParticipantResponse.of(p, clans.get(p.getClan().getId())));
+        List<Long> userIds = page.getContent().stream().map(p -> p.getUser().getId()).collect(Collectors.toList());
+        if (viewerId != null) {
+            userIds.add(viewerId);
+        }
+        Map<Long, Double> skills = userIds.isEmpty() ? Map.of() : participantRepository.findOverallSkills(userIds)
+                .stream().collect(Collectors.toMap(ClanMemberRepository.MemberSkillView::getUserId,
+                        ClanMemberRepository.MemberSkillView::getSkill, (a, b) -> a));
+        Double viewerSkill = viewerId == null ? null : skills.getOrDefault(viewerId, 0.0);
+        return page.map(p -> {
+            double skill = skills.getOrDefault(p.getUser().getId(), 0.0);
+            return ClanWarParticipantResponse.of(p, clans.get(p.getClan().getId()), skill,
+                    viewerSkill == null ? null : rosterService.inBand(viewerSkill, skill));
+        });
     }
 
     public Page<ClanWarHitResponse> hits(UUID warId, Long userId, Pageable pageable) {
@@ -204,16 +237,24 @@ public class ClanWarService {
         war.setOutcome(outcome);
         war.setEndedAt(Instant.now());
         warRepository.saveAndFlush(war);
-        loanRepository.closeOpenForWar(war.getId(), war.getEndedAt());
+        aidRepository.cancelPendingForWar(war.getId(), war.getEndedAt());
+        List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
         feed.war(war, ClanFeedType.war_ended);
-        notifier.warEnded(war);
+        notifier.warEnded(war, sides);
         scoreGate.refreshAfterCommit();
         eventPublisher.publishEvent(new ClanWarEndedEvent(war.getId()));
-        war.sides().forEach(clan -> chatChannel.announce(clan,
-                ChatNotice.ofWar(ChatEvent.war_ended, actor, war.opponentOf(clan), war)));
+        sides.stream().filter(side -> side.getLeftAt() == null).forEach(side -> chatChannel.announce(side.getClan(),
+                ChatNotice.ofWar(ChatEvent.war_ended, actor, war.lead(side.getTeam().opponent()), war)));
     }
 
     private void assertCanDeclare(Clan attacker, Clan defender, DeclareClanWarRequest request) {
+        Instant now = Instant.now();
+        if (attacker.isPacifistAt(now)) {
+            throw new ConflictException("Your clan is pacifist");
+        }
+        if (defender.isPacifistAt(now)) {
+            throw new ConflictException("That clan is pacifist and cannot be attacked");
+        }
         if (warRepository.existsOpenAttack(attacker.getId(), null)) {
             throw new ConflictException("Your clan is already attacking somebody");
         }
@@ -240,17 +281,6 @@ public class ClanWarService {
         if (!retaliation && defenderStanding < attackerStanding * clanProperties.getWar().getPunchDownFloor()) {
             throw new ValidationException("That clan is too far below yours to attack");
         }
-    }
-
-    private ClanWarSide side(ClanWar war, Clan clan, User lead, double stake, double standing) {
-        return ClanWarSide.builder()
-                .war(war)
-                .clan(clan)
-                .leadUser(lead)
-                .stake(stake)
-                .stakeRemaining(stake)
-                .standingAtDeclare(standing)
-                .build();
     }
 
     private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId, Long viewerId) {

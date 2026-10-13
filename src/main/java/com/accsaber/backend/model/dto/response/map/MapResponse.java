@@ -21,5 +21,6 @@ public class MapResponse {
     String coverUrl;
     String cdnCoverUrl;
     List<MapDifficultyResponse> difficulties;
+    boolean warBanned;
     Instant createdAt;
 }

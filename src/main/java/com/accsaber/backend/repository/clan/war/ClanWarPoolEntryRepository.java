@@ -16,6 +16,7 @@ public interface ClanWarPoolEntryRepository extends JpaRepository<ClanWarPoolEnt
 
     String LEGAL_DIFFICULTIES = """
             FROM map_difficulties md
+            JOIN maps m ON m.id = md.map_id AND NOT m.war_banned
             JOIN categories cat ON cat.id = md.category_id AND cat.active
             JOIN map_difficulty_complexities mc ON mc.map_difficulty_id = md.id AND mc.active
             WHERE md.active AND md.status = 'ranked'

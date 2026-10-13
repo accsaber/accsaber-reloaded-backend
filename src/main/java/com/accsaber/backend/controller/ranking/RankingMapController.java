@@ -10,6 +10,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,8 +47,9 @@ public class RankingMapController {
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) MapDifficultyStatus status,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean warBanned,
             @PageableDefault(size = 20, sort = "songName", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(mapService.findAll(categoryId, status, search, pageable));
+        return ResponseEntity.ok(mapService.findAll(categoryId, status, search, warBanned, pageable));
     }
 
     @Operation(summary = "Score one difficulty with the script", description = "Looks up by song hash, "
@@ -113,6 +115,14 @@ public class RankingMapController {
             @RequestParam(required = false) Difficulty difficulty,
             @RequestParam(required = false) String characteristic) {
         return ResponseEntity.ok(mapService.findByBeatsaverCode(beatsaverCode, difficulty, characteristic));
+    }
+
+    @Operation(summary = "Ban a song from war pools", description = "Banned songs cannot be picked or rolled "
+            + "into a war pool. Pools that already hold one keep it.")
+    @PatchMapping("/{mapId}/war-banned")
+    @PreAuthorize("hasRole('RANKING_HEAD')")
+    public ResponseEntity<MapResponse> setWarBanned(@PathVariable UUID mapId, @RequestParam boolean banned) {
+        return ResponseEntity.ok(mapService.setWarBanned(mapId, banned));
     }
 
     @Operation(summary = "A map's difficulties (staff)")

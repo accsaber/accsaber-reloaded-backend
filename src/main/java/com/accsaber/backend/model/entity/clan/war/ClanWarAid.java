@@ -26,13 +26,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "clan_war_loans")
+@Table(name = "clan_war_aid")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClanWarLoan {
+public class ClanWarAid {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,22 +46,22 @@ public class ClanWarLoan {
     @JoinColumn(name = "clan_id", nullable = false)
     private Clan clan;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lending_clan_id", nullable = false)
-    private Clan lendingClan;
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ClanWarTeam team;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ClanWarAidDirection direction;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "offered_by", nullable = false)
-    private User offeredBy;
+    @JoinColumn(name = "requested_by", nullable = false)
+    private User requestedBy;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private ClanWarLoanStatus status = ClanWarLoanStatus.pending;
+    private ClanWarAidStatus status = ClanWarAidStatus.pending;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -69,7 +69,4 @@ public class ClanWarLoan {
 
     @Column(name = "resolved_at")
     private Instant resolvedAt;
-
-    @Column(name = "ended_at")
-    private Instant endedAt;
 }

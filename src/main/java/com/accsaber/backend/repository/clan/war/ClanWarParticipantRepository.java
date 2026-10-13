@@ -22,7 +22,7 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
 
     @Query(value = """
             SELECT p FROM ClanWarParticipant p
-            JOIN FETCH p.user LEFT JOIN FETCH p.duelTarget
+            JOIN FETCH p.user LEFT JOIN FETCH p.target
             WHERE p.war.id = :warId
             ORDER BY p.leftAt ASC NULLS FIRST, p.contribution DESC, p.joinedAt ASC
             """,
@@ -31,6 +31,18 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
 
     @Query("SELECT p FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.leftAt IS NULL")
     List<ClanWarParticipant> findActiveByWarId(@Param("warId") UUID warId);
+
+    @Query(value = """
+            SELECT COALESCE(AVG(CASE WHEN EXISTS (
+                       SELECT 1 FROM scores s
+                       WHERE s.user_id = p.user_id AND COALESCE(s.time_set, s.created_at) >= :since)
+                   THEN 1.0 ELSE 0.0 END), 0.0)
+            FROM clan_war_participants p
+            JOIN clan_war_sides sd ON sd.war_id = p.war_id AND sd.clan_id = p.clan_id
+            WHERE p.war_id = :warId AND sd.team = :team
+            """, nativeQuery = true)
+    double findRecentlyActiveShare(@Param("warId") UUID warId, @Param("team") String team,
+            @Param("since") Instant since);
 
     @Query(value = """
             SELECT s.user_id AS userId, s.skill_level AS skill
@@ -78,9 +90,10 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
                 (SELECT COUNT(*) FROM clan_war_participants p JOIN clan_wars w ON w.id = p.war_id
                  WHERE p.user_id = :userId AND w.status IN ('active', 'ended')) AS warsFought,
                 (SELECT COUNT(*) FROM clan_war_participants p JOIN clan_wars w ON w.id = p.war_id
+                 JOIN clan_war_sides sd ON sd.war_id = p.war_id AND sd.clan_id = p.clan_id
                  WHERE p.user_id = :userId
-                   AND ((w.outcome = 'attacker_won' AND p.clan_id = w.attacker_clan_id)
-                     OR (w.outcome = 'defender_won' AND p.clan_id = w.defender_clan_id))) AS warsWon,
+                   AND ((w.outcome = 'attacker_won' AND sd.team = 'attack')
+                     OR (w.outcome = 'defender_won' AND sd.team = 'defend'))) AS warsWon,
                 (SELECT COUNT(*) FROM clan_war_hits h WHERE h.attacker_user_id = :userId) AS hits,
                 (SELECT COUNT(*) FROM clan_war_hits h WHERE h.attacker_user_id = :userId AND h.broke) AS breaksDealt,
                 (SELECT COUNT(*) FROM clan_war_hits h WHERE h.victim_user_id = :userId AND h.broke) AS breaksSuffered,

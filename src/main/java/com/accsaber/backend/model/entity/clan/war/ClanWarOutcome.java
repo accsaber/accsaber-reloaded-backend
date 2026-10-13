@@ -6,5 +6,9 @@ public enum ClanWarOutcome {
     drawn,
     retreated,
     forfeited,
-    season_ended
+    season_ended;
+
+    public static ClanWarOutcome wonBy(ClanWarTeam team) {
+        return team == ClanWarTeam.attack ? attacker_won : defender_won;
+    }
 }

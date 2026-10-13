@@ -87,7 +87,7 @@ public class MapService {
 
     public Page<PublicMapResponse> findAllPublic(UUID categoryId, MapDifficultyStatus status, String search,
             Pageable pageable) {
-        return findAll(categoryId, status, search, pageable).map(MapService::toPublicMapResponse);
+        return findAll(categoryId, status, search, null, pageable).map(MapService::toPublicMapResponse);
     }
 
     public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId,
@@ -162,12 +162,13 @@ public class MapService {
         return result;
     }
 
-    public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Pageable pageable) {
+    public Page<MapResponse> findAll(UUID categoryId, MapDifficultyStatus status, String search, Boolean warBanned,
+            Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         Pageable effective = resolveMapSort(pageable);
         Page<Map> maps = hasSearch
-                ? mapRepository.findByDifficultyFiltersWithSearch(categoryId, status, search.trim(), effective)
-                : mapRepository.findByDifficultyFilters(categoryId, status, effective);
+                ? mapRepository.findByDifficultyFiltersWithSearch(categoryId, status, search.trim(), warBanned, effective)
+                : mapRepository.findByDifficultyFilters(categoryId, status, warBanned, effective);
         if (maps.isEmpty())
             return maps.map(m -> toMapResponse(m, List.of()));
 
@@ -299,6 +300,16 @@ public class MapService {
     public MapResponse findById(UUID mapId) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId)
                 .orElseThrow(() -> new ResourceNotFoundException("Map", mapId));
+        return toResponseWithAllDifficulties(map);
+    }
+
+    @Transactional
+    public MapResponse setWarBanned(UUID mapId, boolean banned) {
+        Map map = mapRepository.findByIdAndActiveTrue(mapId)
+                .orElseThrow(() -> new ResourceNotFoundException("Map", mapId));
+        map.setWarBanned(banned);
+        mapRepository.save(map);
+        log.info("Map {} war ban set to {}", mapId, banned);
         return toResponseWithAllDifficulties(map);
     }
 
@@ -758,11 +769,12 @@ public class MapService {
                 .coverUrl(map.getCoverUrl())
                 .cdnCoverUrl(map.getCdnCoverUrl())
                 .difficulties(difficulties)
+                .warBanned(map.isWarBanned())
                 .createdAt(map.getCreatedAt())
                 .build();
     }
 
-    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
+    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
             StaffInfo createdByInfo, VoteSummary votes,
             com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate estimate) {
@@ -792,6 +804,7 @@ public class MapService {
                 .maxCombo(MapDifficultyMetrics.maxCombo(d.getMetadata()))
                 .complexity(complexity)
                 .complexityPinned(d.isComplexityPinned())
+                .warBanned(map.isWarBanned())
                 .scriptComplexity(estimate == null ? null : estimate.getComplexity())
                 .scriptVersion(estimate == null ? null : estimate.getVersion())
                 .rankedAt(d.getRankedAt())
@@ -825,12 +838,12 @@ public class MapService {
                 .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
     }
 
-    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
+    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo) {
         return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY, null);
     }
 
-    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
+    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
             StaffInfo createdByInfo, VoteSummary votes) {
         return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, createdByInfo, votes, null);
@@ -852,6 +865,10 @@ public class MapService {
                         .toList())
                 .createdAt(map.getCreatedAt())
                 .build();
+    }
+
+    public static PublicMapDifficultyResponse toPublicDifficultyResponse(MapDifficulty d) {
+        return toPublicDifficultyResponse(toDifficultyResponse(d, null, null, null));
     }
 
     public static PublicMapDifficultyResponse toPublicDifficultyResponse(MapDifficultyResponse d) {
@@ -879,6 +896,7 @@ public class MapService {
                 .rankedAt(d.getRankedAt())
                 .createdAt(d.getCreatedAt())
                 .complexity(ranked ? d.getComplexity() : null)
+                .warBanned(d.isWarBanned())
                 .rankUpvotes(ranked ? null : d.getRankUpvotes())
                 .rankDownvotes(ranked ? null : d.getRankDownvotes())
                 .rankNeutrals(ranked ? null : d.getRankNeutrals())

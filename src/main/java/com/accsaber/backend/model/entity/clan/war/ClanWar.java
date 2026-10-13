@@ -92,11 +92,18 @@ public class ClanWar {
     @Column(name = "ended_at")
     private Instant endedAt;
 
-    public List<Clan> sides() {
+    public List<Clan> leads() {
         return List.of(attackerClan, defenderClan);
     }
 
-    public Clan opponentOf(Clan clan) {
-        return attackerClan.getId().equals(clan.getId()) ? defenderClan : attackerClan;
+    public Clan lead(ClanWarTeam team) {
+        return team == ClanWarTeam.attack ? attackerClan : defenderClan;
+    }
+
+    public ClanWarTeam leadTeamOf(UUID clanId) {
+        if (attackerClan.getId().equals(clanId)) {
+            return ClanWarTeam.attack;
+        }
+        return defenderClan.getId().equals(clanId) ? ClanWarTeam.defend : null;
     }
 }

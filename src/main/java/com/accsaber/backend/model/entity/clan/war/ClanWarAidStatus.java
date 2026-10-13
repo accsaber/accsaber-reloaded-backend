@@ -1,9 +1,8 @@
 package com.accsaber.backend.model.entity.clan.war;
 
-public enum ClanWarLoanStatus {
+public enum ClanWarAidStatus {
     pending,
     accepted,
     declined,
-    cancelled,
-    ended
+    cancelled
 }

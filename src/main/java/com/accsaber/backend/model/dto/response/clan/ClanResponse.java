@@ -14,5 +14,6 @@ public record ClanResponse(
         long memberCount,
         int memberCap,
         PlayerRef founder,
+        Instant pacifistFrom,
         Instant createdAt) {
 }

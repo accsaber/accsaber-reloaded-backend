@@ -49,12 +49,8 @@ public class ClanWarParticipant {
     private Clan clan;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lent_by_clan_id")
-    private Clan lentByClan;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "duel_target_user_id")
-    private User duelTarget;
+    @JoinColumn(name = "target_user_id")
+    private User target;
 
     @Column(name = "standing_weight", nullable = false)
     private double standingWeight;

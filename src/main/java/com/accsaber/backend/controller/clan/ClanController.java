@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
+import com.accsaber.backend.model.dto.request.clan.UpdateClanPacifismRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanAuditEntryResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
@@ -97,6 +98,19 @@ public class ClanController {
         String url = mediaProcessingService.storeImage(file, CLAN_ICON_SUBDIR, clanId.toString(), MediaFormat.GIF,
                 cdn.getAvatarMaxDimension());
         return ResponseEntity.ok(clanService.setIcon(clanId, principal.getUserId(), url));
+    }
+
+    @Operation(summary = "Turn pacifism on or off",
+            description = "Founder only. A pacifist clan cannot declare war, get declared on or help in a war. "
+                    + "Turning it on needs no open wars, and works straight away outside a season or after 7 days "
+                    + "inside one. Turning it off is immediate.")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/{clanId}/pacifism")
+    public ResponseEntity<ClanResponse> pacifism(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID clanId,
+            @Valid @RequestBody UpdateClanPacifismRequest request) {
+        return ResponseEntity.ok(clanService.setPacifism(clanId, principal.getUserId(), request.getEnabled()));
     }
 
     @Operation(summary = "Remove the clan icon", description = "Founder only.")

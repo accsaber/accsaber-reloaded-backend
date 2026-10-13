@@ -31,6 +31,9 @@ public interface NewsRepository extends JpaRepository<News, UUID> {
             WHERE n.active = true
               AND (:status IS NULL OR n.status = :status)
               AND (:authorId IS NULL OR n.staffUser.id = :authorId)
+              AND (CAST(:search AS string) IS NULL
+                   OR search_normalize(n.title) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
+                   OR search_normalize(n.description) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
               AND (
                 :typeFilter = 0
                 OR (:typeFilter = 1 AND n.batch IS NOT NULL)
@@ -48,5 +51,6 @@ public interface NewsRepository extends JpaRepository<News, UUID> {
             @Param("status") NewsStatus status,
             @Param("authorId") UUID authorId,
             @Param("typeFilter") int typeFilter,
+            @Param("search") String search,
             Pageable pageable);
 }

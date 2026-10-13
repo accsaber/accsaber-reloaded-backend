@@ -38,6 +38,7 @@ public class PublicMapDifficultyResponse {
     Instant rankedAt;
     Instant createdAt;
     Double complexity;
+    boolean warBanned;
     Integer rankUpvotes;
     Integer rankDownvotes;
     Integer rankNeutrals;

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
@@ -35,8 +34,9 @@ public class ClanWarResponses {
         }
         Map<UUID, List<ClanWarSide>> sides = sideRepository.findByWarIds(wars.stream().map(ClanWar::getId).toList())
                 .stream().collect(Collectors.groupingBy(side -> side.getWar().getId()));
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(wars.stream()
-                .flatMap(war -> Stream.of(war.getAttackerClan(), war.getDefenderClan()))
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(sides.values().stream()
+                .flatMap(List::stream)
+                .map(ClanWarSide::getClan)
                 .toList());
         return wars.stream()
                 .map(war -> ClanWarResponse.of(war, sides.getOrDefault(war.getId(), List.of()).stream()

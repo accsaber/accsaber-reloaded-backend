@@ -1,0 +1,1 @@
+ALTER TABLE maps ADD COLUMN war_banned BOOLEAN NOT NULL DEFAULT false;

@@ -16,10 +16,10 @@ import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
 
 public interface ClanAllianceRepository extends JpaRepository<ClanAlliance, UUID> {
 
-    interface TrustView {
+    interface WarsTogetherView {
         UUID getAllianceId();
 
-        double getContribution();
+        long getWars();
     }
 
     @Query("""
@@ -81,22 +81,13 @@ public interface ClanAllianceRepository extends JpaRepository<ClanAlliance, UUID
     List<UUID> findActiveAllyIds(@Param("clanIds") Collection<UUID> clanIds);
 
     @Query(value = """
-            SELECT a.id AS allianceId, SUM(p.contribution) AS contribution
+            SELECT a.id AS allianceId, COUNT(DISTINCT sa.war_id) AS wars
             FROM clan_alliances a
-            JOIN clan_war_loans l ON l.status IN ('accepted', 'ended') AND l.created_at >= a.accepted_at
-             AND ((l.lending_clan_id = a.clan_a_id AND l.clan_id = a.clan_b_id)
-               OR (l.lending_clan_id = a.clan_b_id AND l.clan_id = a.clan_a_id))
-            JOIN clan_war_participants p ON p.war_id = l.war_id AND p.user_id = l.user_id
-             AND p.lent_by_clan_id = l.lending_clan_id
+            JOIN clan_war_sides sa ON sa.clan_id = a.clan_a_id
+            JOIN clan_war_sides sb ON sb.war_id = sa.war_id AND sb.clan_id = a.clan_b_id AND sb.team = sa.team
             WHERE a.id IN (:allianceIds)
             GROUP BY a.id
             """, nativeQuery = true)
-    List<TrustView> findTrustContributions(@Param("allianceIds") Collection<UUID> allianceIds);
+    List<WarsTogetherView> findWarsFoughtTogether(@Param("allianceIds") Collection<UUID> allianceIds);
 
-    @Query("""
-            SELECT a FROM ClanAlliance a
-            WHERE a.status = com.accsaber.backend.model.entity.clan.ClanAllianceStatus.active
-              AND ((a.clanA.id = :first AND a.clanB.id = :second) OR (a.clanA.id = :second AND a.clanB.id = :first))
-            """)
-    Optional<ClanAlliance> findActiveBetween(@Param("first") UUID first, @Param("second") UUID second);
 }

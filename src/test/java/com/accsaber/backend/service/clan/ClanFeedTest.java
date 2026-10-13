@@ -21,11 +21,14 @@ import com.accsaber.backend.model.dto.response.clan.ClanSeasonClosedResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarSideResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarTeamResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanFeedEvent;
@@ -59,10 +62,17 @@ class ClanFeedTest {
     }
 
     private ClanWarResponse warResponse() {
-        ClanWarResponse response = new ClanWarResponse(war.getId(), null, null, null, null, null, null, null, null,
+        ClanWarResponse response = new ClanWarResponse(war.getId(), null, null, null, null, null, null,
+                team(war.getAttackerClan(), ClanWarTeam.attack), team(war.getDefenderClan(), ClanWarTeam.defend),
                 null, null, null, null);
         when(warResponses.of(war)).thenReturn(response);
         return response;
+    }
+
+    private static ClanWarTeamResponse team(Clan lead, ClanWarTeam team) {
+        PublicClanResponse clan = PublicClanResponse.of(lead, List.of());
+        ClanWarSideResponse side = new ClanWarSideResponse(clan, team, null, 0, 0, 0, null, null, null, false);
+        return new ClanWarTeamResponse(clan, 0, 0, List.of(side));
     }
 
     private ClanWarHit hit(boolean broke) {
@@ -105,10 +115,12 @@ class ClanFeedTest {
     @Test
     void aHitCarriesTheMapItLandedOnAndStaysInTheRooms() {
         ClanWarHit hit = hit(false);
+        List<UUID> rooms = List.of(war.getAttackerClan().getId(), war.getDefenderClan().getId());
 
-        feed.hit(war, hit);
+        feed.hit(war, hit, rooms);
 
         ClanFeedEvent event = published(1).get(0);
+        assertThat(event.clanIds()).isEqualTo(rooms);
         assertThat(event.payload().type()).isEqualTo(ClanFeedType.hit);
         assertThat(event.payload().data()).isInstanceOfSatisfying(ClanWarHitResponse.class, response -> {
             assertThat(response.id()).isEqualTo(hit.getId());
@@ -118,7 +130,7 @@ class ClanFeedTest {
 
     @Test
     void aBreakAlsoGoesToEveryone() {
-        feed.hit(war, hit(true));
+        feed.hit(war, hit(true), List.of(war.getAttackerClan().getId()));
 
         List<ClanFeedEvent> events = published(2);
         assertThat(events.get(1).clanIds()).isEmpty();

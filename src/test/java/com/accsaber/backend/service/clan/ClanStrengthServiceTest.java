@@ -132,8 +132,8 @@ class ClanStrengthServiceTest {
     @Test
     void memberSharesSplitTheWeightedRosterStrongestFirst() {
         UUID clanId = UUID.randomUUID();
-        when(memberRepository.findOpenMemberSkillsByClan(clanId, OVERALL)).thenReturn(List.of(
-                memberSkill(2L, 30.0), memberSkill(1L, 60.0), memberSkill(3L, 0.0)));
+        when(memberRepository.findOpenMemberSkillsByClans(List.of(clanId), OVERALL)).thenReturn(List.of(
+                memberSkill(clanId, 2L, 30.0), memberSkill(clanId, 1L, 60.0), memberSkill(clanId, 3L, 0.0)));
 
         List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(clanId);
 
@@ -141,10 +141,28 @@ class ClanStrengthServiceTest {
         assertThat(strengths.get(0).share()).isEqualTo(0.8);
         assertThat(strengths.get(1).share()).isEqualTo(0.2);
         assertThat(strengths.get(2).share()).isZero();
+        assertThat(strengths).allMatch(strength -> strength.clanId().equals(clanId));
     }
 
-    private ClanMemberRepository.MemberSkillView memberSkill(Long userId, double value) {
-        return new ClanMemberRepository.MemberSkillView() {
+    @Test
+    void aTeamOfClansIsWeighedAsOneRoster() {
+        UUID stars = UUID.randomUUID();
+        UUID fish = UUID.randomUUID();
+        when(memberRepository.findOpenMemberSkillsByClans(List.of(stars, fish), OVERALL)).thenReturn(List.of(
+                memberSkill(fish, 2L, 30.0), memberSkill(stars, 1L, 60.0)));
+
+        List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(List.of(stars, fish));
+
+        assertThat(strengths).extracting(ClanStrengthService.MemberStrength::clanId).containsExactly(stars, fish);
+        assertThat(strengths.get(0).share() + strengths.get(1).share()).isEqualTo(1.0);
+    }
+
+    private ClanMemberRepository.ClanMemberSkillView memberSkill(UUID clanId, Long userId, double value) {
+        return new ClanMemberRepository.ClanMemberSkillView() {
+            public UUID getClanId() {
+                return clanId;
+            }
+
             public Long getUserId() {
                 return userId;
             }

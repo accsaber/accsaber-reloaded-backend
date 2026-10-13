@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.clan.war;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -17,7 +18,9 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -45,6 +48,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
@@ -61,6 +65,7 @@ import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanStandingService;
+import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanXpAward;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
@@ -68,6 +73,7 @@ import com.accsaber.backend.service.item.LevelUpAwardService;
 class ClanWarCombatServiceTest {
 
     private static final UUID MAP = UUID.randomUUID();
+    private static final int MAX_SCORE = 1_000_000;
 
     @Mock
     private ClanFeed feed;
@@ -88,6 +94,10 @@ class ClanWarCombatServiceTest {
     @Mock
     private ClanWarService warService;
     @Mock
+    private ClanWarRosterService rosterService;
+    @Mock
+    private ClanStrengthService strengthService;
+    @Mock
     private ClanStandingService standingService;
     @Mock
     private ClanLevelService levelService;
@@ -105,8 +115,13 @@ class ClanWarCombatServiceTest {
     private final Clan blue = Clan.builder().id(UUID.randomUUID()).build();
     private final ClanSeason season = ClanSeason.builder().id(UUID.randomUUID()).build();
     private ClanWar war;
+    private ClanWarSide redSide;
+    private ClanWarSide blueSide;
     private ClanWarParticipant attacker;
     private ClanWarParticipant victim;
+    private final List<ClanWarParticipant> roster = new ArrayList<>();
+    private final Map<Long, Integer> scores = new LinkedHashMap<>();
+    private final Map<Long, Double> skills = new LinkedHashMap<>();
     private final List<ClanWarHit> savedHits = new ArrayList<>();
 
     @BeforeEach
@@ -118,17 +133,32 @@ class ClanWarCombatServiceTest {
         rules.setBreakDecay(0.5);
         rules.setBreakXp(200.0);
         rules.setBreakClanXp(150.0);
+        rules.setExtraChipChance(0.0);
+        ClanWarStakeService stakeService = new ClanWarStakeService(sideRepository, participantRepository,
+                strengthService, standingService, clanProperties);
         service = new ClanWarCombatService(warRepository, sideRepository, participantRepository, hitRepository,
-                scoreRepository, mapDifficultyRepository, scoreGate, warService, standingService, levelService,
-                levelUpAwardService, chatChannel, feed, clanProperties, transactionTemplate);
+                scoreRepository, mapDifficultyRepository, scoreGate, warService, rosterService, stakeService,
+                standingService, levelService, levelUpAwardService, chatChannel, feed, clanProperties,
+                transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).season(season).attackerClan(red).defenderClan(blue)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.active)
                 .startsAt(Instant.now().minusSeconds(3600)).build();
-        attacker = participant(1L, red, 0.5);
-        victim = participant(11L, blue, 0.5);
-        attacker.setDuelTarget(victim.getUser());
+        redSide = ClanWarSide.builder().war(war).clan(red).team(ClanWarTeam.attack).stake(1000.0)
+                .stakeRemaining(1000.0).build();
+        blueSide = ClanWarSide.builder().war(war).clan(blue).team(ClanWarTeam.defend).stake(1000.0)
+                .stakeRemaining(1000.0).build();
+        attacker = join(1L, red, 0.5, 50);
+        victim = join(11L, blue, 0.5, 50);
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
-        lenient().when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim));
+        lenient().when(sideRepository.findByWarId(war.getId())).thenAnswer(inv -> List.of(redSide, blueSide));
+        lenient().when(participantRepository.findActiveByWarId(war.getId())).thenAnswer(inv -> List.copyOf(roster));
+        lenient().when(participantRepository.findOverallSkills(anyCollection())).thenAnswer(inv -> skills.entrySet()
+                .stream().map(entry -> skill(entry.getKey(), entry.getValue())).toList());
+        lenient().when(hitRepository.findActiveScores(eq(MAP), anyCollection())).thenAnswer(inv -> scores.entrySet()
+                .stream().map(entry -> victimScore(entry.getKey(), entry.getValue())).toList());
+        lenient().when(participantRepository.findRecentlyActiveShare(any(), any(), any())).thenReturn(1.0);
+        lenient().when(mapDifficultyRepository.findById(MAP))
+                .thenReturn(Optional.of(MapDifficulty.builder().id(MAP).maxScore(MAX_SCORE).build()));
         lenient().when(mapDifficultyRepository.getReferenceById(any()))
                 .thenAnswer(inv -> MapDifficulty.builder().id(inv.getArgument(0)).build());
         lenient().when(scoreRepository.getReferenceById(any()))
@@ -141,9 +171,12 @@ class ClanWarCombatServiceTest {
         });
     }
 
-    private ClanWarParticipant participant(Long userId, Clan clan, double weight) {
-        return ClanWarParticipant.builder().war(war).user(User.builder().id(userId).build()).clan(clan)
-                .standingWeight(weight).guard(clanProperties.getWar().getGuard()).build();
+    private ClanWarParticipant join(Long userId, Clan clan, double weight, double skill) {
+        ClanWarParticipant participant = ClanWarParticipant.builder().war(war).user(User.builder().id(userId).build())
+                .clan(clan).standingWeight(weight).guard(clanProperties.getWar().getGuard()).build();
+        roster.add(participant);
+        skills.put(userId, skill);
+        return participant;
     }
 
     private ClanWarCombatService.Play play(int score, boolean active) {
@@ -156,30 +189,24 @@ class ClanWarCombatServiceTest {
         return new ClanWarCombatService.Play(response, 1L, setAt);
     }
 
-    private void victimScore(Long userId, int score) {
-        UUID scoreId = UUID.randomUUID();
-        when(hitRepository.findActiveScores(eq(MAP), anyCollection())).thenReturn(List.of(
-                new ClanWarHitRepository.VictimScoreView() {
-                    public UUID getScoreId() {
-                        return scoreId;
-                    }
+    private static ClanWarHitRepository.VictimScoreView victimScore(Long userId, int score) {
+        UUID scoreId = new UUID(userId, score);
+        return new ClanWarHitRepository.VictimScoreView() {
+            public UUID getScoreId() {
+                return scoreId;
+            }
 
-                    public Long getUserId() {
-                        return userId;
-                    }
+            public Long getUserId() {
+                return userId;
+            }
 
-                    public int getScore() {
-                        return score;
-                    }
-                }));
+            public int getScore() {
+                return score;
+            }
+        };
     }
 
-    private void skills(double attackerSkill, double victimSkill) {
-        when(participantRepository.findOverallSkills(anyCollection())).thenReturn(List.of(skill(1L, attackerSkill),
-                skill(11L, victimSkill)));
-    }
-
-    private ClanMemberRepository.MemberSkillView skill(Long userId, double value) {
+    private static ClanMemberRepository.MemberSkillView skill(Long userId, double value) {
         return new ClanMemberRepository.MemberSkillView() {
             public Long getUserId() {
                 return userId;
@@ -189,6 +216,12 @@ class ClanWarCombatServiceTest {
                 return value;
             }
         };
+    }
+
+    private static double chip(int victimScore, int playScore, double ratio) {
+        double gap = ClanWarCombatService.linear(victimScore, MAX_SCORE) - ClanWarCombatService.linear(playScore,
+                MAX_SCORE);
+        return 3.0 * (1.0 - gap / 0.3) * ratio * ratio;
     }
 
     @Nested
@@ -224,52 +257,92 @@ class ClanWarCombatServiceTest {
 
             verify(warRepository).findByIdForUpdate(war.getId());
         }
+
+        @Test
+        void aPlaySetBeforeTheWarStartedIsIgnored() {
+            service.fight(war.getId(), play(950_000, true, war.getStartsAt().minusSeconds(60)));
+
+            verifyNoInteractions(participantRepository);
+        }
     }
 
     @Nested
-    class Hits {
+    class Duels {
 
         @Test
-        void beatingTheDuelTargetChipsTheirGuardAndCountsAsContribution() {
-            victimScore(11L, 900_000);
-            skills(50, 50);
+        void aPlayHitsTheHighestEnemyScoreItBeats() {
+            join(12L, blue, 0.5, 50);
+            scores.put(11L, 900_000);
+            scores.put(12L, 940_000);
 
             service.fight(war.getId(), play(950_000, true));
 
             assertThat(savedHits).singleElement().satisfies(hit -> {
+                assertThat(hit.getVictim().getId()).isEqualTo(12L);
                 assertThat(hit.getDamage()).isEqualTo(25.0);
-                assertThat(hit.getGuardAfter()).isEqualTo(75.0);
-                assertThat(hit.isBroke()).isFalse();
-                assertThat(hit.getVictimScore()).isNotNull();
+                assertThat(hit.isChip()).isFalse();
             });
-            assertThat(victim.getGuard()).isEqualTo(75.0);
             assertThat(attacker.getContribution()).isEqualTo(25.0);
-            ChatNotice notice = new ChatNotice(ChatEvent.war_hit, attacker.getUser(), victim.getUser(), null, war);
+            ChatNotice notice = new ChatNotice(ChatEvent.war_hit, attacker.getUser(), roster.get(2).getUser(), null,
+                    war);
             verify(chatChannel).announce(red, notice);
             verify(chatChannel).announce(blue, notice);
-            verify(feed).hit(war, savedHits.getFirst());
-            verify(feed, never()).war(any());
         }
 
         @Test
-        void inADuelBeingOutnumberedDoesNotCutContribution() {
-            clanProperties.getWar().setWarSizeExponent(0.5);
-            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
-                    participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));
-            victimScore(11L, 900_000);
-            skills(50, 50);
+        void aPickedTargetTakesTheHitEvenWhenAnotherScoreIsCloser() {
+            join(12L, blue, 0.5, 50);
+            scores.put(11L, 900_000);
+            scores.put(12L, 940_000);
+            attacker.setTarget(victim.getUser());
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isEqualTo(25.0);
-            assertThat(victim.getGuard()).isEqualTo(75.0);
-            assertThat(attacker.getContribution()).isEqualTo(25.0);
+            assertThat(savedHits).singleElement().extracting(hit -> hit.getVictim().getId()).isEqualTo(11L);
         }
 
         @Test
-        void aPlayBelowTheTargetsScoreDoesNothing() {
-            victimScore(11L, 960_000);
-            skills(50, 50);
+        void aPickTheRunCannotTouchFallsBackToTheClosestScore() {
+            join(12L, blue, 0.5, 50);
+            scores.put(11L, 999_000);
+            scores.put(12L, 940_000);
+            attacker.setTarget(victim.getUser());
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).singleElement().extracting(hit -> hit.getVictim().getId()).isEqualTo(12L);
+        }
+
+        @Test
+        void aPlayThatBeatsNobodyChipsTheClosestScoreAboveIt() {
+            scores.put(11L, 960_000);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).singleElement().satisfies(hit -> {
+                assertThat(hit.isChip()).isTrue();
+                assertThat(hit.getDamage()).isCloseTo(chip(960_000, 950_000, 1.0), within(1e-9));
+                assertThat(hit.getVictimScore()).isNotNull();
+            });
+            verify(chatChannel, never()).announce(any(), any());
+            verify(hitRepository, never()).countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(any(), anyLong(),
+                    anyInt());
+        }
+
+        @Test
+        void aWeakerPlayerChipsLess() {
+            skills.put(1L, 40.0);
+            skills.put(11L, 80.0);
+            scores.put(11L, 960_000);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(chip(960_000, 950_000, 0.5), within(1e-9));
+        }
+
+        @Test
+        void aScoreOutsideTheChipWindowIsLeftAlone() {
+            scores.put(11L, 999_000);
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -277,21 +350,19 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void theSameEnemyScoreCanOnlyBeHitOnceByTheSamePlayer() {
-            victimScore(11L, 900_000);
-            skills(50, 50);
-            when(hitRepository.existsByWar_IdAndAttacker_IdAndVictimScore_Id(eq(war.getId()), eq(1L), any()))
-                    .thenReturn(true);
+        void theSameEnemyScoreIsOnlyHitOnceAndThePlayMovesOnToTheNextOne() {
+            join(12L, blue, 0.5, 50);
+            scores.put(11L, 900_000);
+            scores.put(12L, 940_000);
+            when(hitRepository.findPriorHits(war.getId(), 1L, MAP)).thenReturn(List.of(prior(12L, 940_000, false)));
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits).isEmpty();
+            assertThat(savedHits).singleElement().extracting(hit -> hit.getVictim().getId()).isEqualTo(11L);
         }
 
         @Test
         void anEnemyWithNoScoreOnTheMapIsHitSofter() {
-            skills(50, 50);
-
             service.fight(war.getId(), play(950_000, false));
 
             assertThat(savedHits).singleElement().satisfies(hit -> {
@@ -301,11 +372,13 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void eachHitInTheSameGuardHitsHarderAndSkillGapsScaleIt() {
+        void fullHitsEscalateOnFullHitsOnlyAndSkillGapsScaleThem() {
             victim.setGuard(500.0);
-            victimScore(11L, 900_000);
-            skills(40, 80);
-            when(hitRepository.countByWar_IdAndVictim_IdAndVictimCycle(war.getId(), 11L, 0)).thenReturn(2L);
+            scores.put(11L, 900_000);
+            skills.put(1L, 40.0);
+            skills.put(11L, 80.0);
+            when(hitRepository.countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(war.getId(), 11L, 0))
+                    .thenReturn(2L);
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -313,33 +386,44 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aPlaySetBeforeTheWarStartedIsIgnored() {
-            service.fight(war.getId(), play(950_000, true, war.getStartsAt().minusSeconds(60)));
+        void anExtraChipLandsOnAnotherEnemyAboveThePlay() {
+            clanProperties.getWar().setExtraChipChance(1.0);
+            join(12L, blue, 0.5, 50);
+            scores.put(11L, 900_000);
+            scores.put(12L, 960_000);
 
-            verifyNoInteractions(participantRepository);
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).extracting(hit -> hit.getVictim().getId(), ClanWarHit::isChip)
+                    .containsExactly(tuple(11L, false), tuple(12L, true));
         }
 
         @Test
-        void berserkerSwingsAtEveryUnbrokenEnemyBelowThePlay() {
-            war.setRuleset(ClanRuleset.berserker);
-            ClanWarParticipant broken = participant(12L, blue, 0.5);
-            broken.setBrokenAt(Instant.now().minusSeconds(10));
-            ClanWarParticipant another = participant(13L, blue, 0.5);
-            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim, broken,
-                    another));
-            skills(50, 50);
+        void aBrokenEnemyCannotBeHitUntilTheyRecover() {
+            victim.setBrokenAt(Instant.now().minusSeconds(60));
+            scores.put(11L, 900_000);
 
-            service.fight(war.getId(), play(950_000, false));
+            service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits).extracting(hit -> hit.getVictim().getId()).containsExactly(11L, 13L);
+            assertThat(savedHits).isEmpty();
+            verify(levelUpAwardService, never()).addClanXp(anyLong(), anyDouble());
         }
 
         @Test
-        void aBrokenPlayerWhoSetsAPersonalBestOnAPoolMapGetsTheirGuardBack() {
+        void playersOfAClanThatFellAreOutOfTheFight() {
+            blueSide.setStakeRemaining(0.0);
+            scores.put(11L, 900_000);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).isEmpty();
+        }
+
+        @Test
+        void aBrokenPlayerWhoSetsAPersonalBestGetsTheirGuardBack() {
             attacker.setGuard(0.0);
             attacker.setBrokenAt(Instant.now().minusSeconds(600));
-            victimScore(11L, 960_000);
-            skills(50, 50);
+            scores.put(11L, 999_000);
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -350,19 +434,36 @@ class ClanWarCombatServiceTest {
     }
 
     @Nested
-    class Breaks {
+    class Berserker {
 
-        private final ClanWarSide blueSide = ClanWarSide.builder().clan(blue).stake(1000.0).stakeRemaining(1000.0)
-                .build();
+        @BeforeEach
+        void berserker() {
+            war.setRuleset(ClanRuleset.berserker);
+        }
+
+        @Test
+        void aPlayHitsEveryUnbrokenEnemyItBeatsAndNeverChips() {
+            ClanWarParticipant broken = join(12L, blue, 0.5, 50);
+            broken.setBrokenAt(Instant.now().minusSeconds(10));
+            join(13L, blue, 0.5, 50);
+            join(14L, blue, 0.5, 50);
+            scores.put(14L, 960_000);
+
+            service.fight(war.getId(), play(950_000, false));
+
+            assertThat(savedHits).extracting(hit -> hit.getVictim().getId()).containsExactly(11L, 13L);
+            assertThat(savedHits).noneMatch(ClanWarHit::isChip);
+        }
+    }
+
+    @Nested
+    class Breaks {
 
         @BeforeEach
         void aBattleWornVictim() {
             victim.setGuard(10.0);
             victim.setBreaksSuffered(1);
-            victimScore(11L, 900_000);
-            skills(50, 50);
-            lenient().when(sideRepository.findByWar_IdAndClan_Id(war.getId(), blue.getId()))
-                    .thenReturn(Optional.of(blueSide));
+            scores.put(11L, 900_000);
             ClanWarHit earlierChip = ClanWarHit.builder().attacker(User.builder().id(2L).build()).damage(90.0).build();
             lenient().when(hitRepository.findByWar_IdAndVictim_IdAndVictimCycle(war.getId(), 11L, 0))
                     .thenAnswer(inv -> {
@@ -373,7 +474,7 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aBreakMovesStandingByWeightAndDecayAndPaysEveryoneWhoChipped() {
+        void aBreakTakesTheTeamStakeShareOutOfTheVictimsOwnSlice() {
             service.fight(war.getId(), play(950_000, true));
 
             ClanWarHit breaking = savedHits.getFirst();
@@ -381,7 +482,6 @@ class ClanWarCombatServiceTest {
             assertThat(breaking.getDamage()).isEqualTo(10.0);
             assertThat(breaking.getStandingMoved()).isCloseTo(1000 * 0.2 * 0.5 * 0.5, within(1e-9));
             assertThat(blueSide.getStakeRemaining()).isCloseTo(950.0, within(1e-9));
-            assertThat(victim.getBrokenAt()).isNotNull();
             assertThat(victim.getBreaksSuffered()).isEqualTo(2);
             String source = breaking.getId().toString();
             verify(standingService).apply(season.getId(), blue.getId(), -50.0, ClanStandingSource.war_break, source);
@@ -391,58 +491,76 @@ class ClanWarCombatServiceTest {
             verify(levelUpAwardService).addClanXp(2L, 180.0);
             assertThat(attacker.getContribution()).isEqualTo(10.0 + 50.0);
             verify(warService, never()).end(any(), any());
-            verify(feed).hit(war, breaking);
+            verify(rosterService, never()).sync(any(), any());
             verify(feed).war(war);
             verify(chatChannel).announce(red, new ChatNotice(ChatEvent.war_break, attacker.getUser(), victim.getUser(),
                     null, war));
         }
 
         @Test
-        void chippersFromTheBiggerSideSplitMoreBreakXpAndContribution() {
-            war.setRuleset(ClanRuleset.berserker);
-            clanProperties.getWar().setWarSizeExponent(1.0);
-            ClanWarParticipant chipper = participant(2L, red, 0.5);
-            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, chipper, victim));
+        void aBreakOnACoalitionMemberUsesTheWholeTeamStake() {
+            Clan ally = Clan.builder().id(UUID.randomUUID()).build();
+            ClanWarSide allySide = ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(500.0)
+                    .stakeRemaining(500.0).build();
+            when(sideRepository.findByWarId(war.getId())).thenReturn(List.of(redSide, blueSide, allySide));
 
             service.fight(war.getId(), play(950_000, true));
 
-            ClanWarHit breaking = savedHits.getFirst();
-            assertThat(breaking.getDamage()).isEqualTo(10.0);
-            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 10.0 / 100.0);
-            verify(levelUpAwardService).addClanXp(1L, 40.0);
-            verify(levelUpAwardService).addClanXp(2L, 360.0);
-            assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0);
-            assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
+            double fullTeamStake = 1000 + 500 / 0.3;
+            assertThat(savedHits.getFirst().getStandingMoved()).isCloseTo(fullTeamStake * 0.2 * 0.5 * 0.5, within(1e-9));
+            assertThat(blueSide.getStakeRemaining()).isCloseTo(1000 - fullTeamStake * 0.05, within(1e-9));
+            assertThat(allySide.getStakeRemaining()).isEqualTo(500.0);
         }
 
         @Test
-        void aLoneAttackerAgainstABigSideBanksLessClanXpPerBreak() {
-            war.setRuleset(ClanRuleset.berserker);
-            clanProperties.getWar().setWarSizeExponent(1.0);
-            when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(attacker, victim,
-                    participant(12L, blue, 0.5), participant(13L, blue, 0.5), participant(14L, blue, 0.5)));
+        void aBreakOnAnAllysPlayerOnlyMovesTheAllysShare() {
+            Clan ally = Clan.builder().id(UUID.randomUUID()).build();
+            ClanWarSide allySide = ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(300.0)
+                    .stakeRemaining(300.0).build();
+            when(sideRepository.findByWarId(war.getId())).thenReturn(List.of(redSide, blueSide, allySide));
+            victim.setClan(ally);
 
             service.fight(war.getId(), play(950_000, true));
 
-            ClanWarHit breaking = savedHits.stream().filter(ClanWarHit::isBroke).findFirst().orElseThrow();
-            verify(levelService).grantXp(red.getId(), new ClanXpAward(150.0 * 0.25, ClanXpSource.war_break,
-                    breaking.getId().toString(), true));
+            double fullTeamStake = 1000 + 300 / 0.3;
+            assertThat(savedHits.getFirst().getStandingMoved())
+                    .isCloseTo(fullTeamStake * 0.2 * 0.5 * 0.5 * 0.3, within(1e-9));
+            assertThat(allySide.getStakeRemaining()).isCloseTo(300 - fullTeamStake * 0.05 * 0.3, within(1e-9));
+            assertThat(blueSide.getStakeRemaining()).isEqualTo(1000.0);
         }
 
         @Test
-        void aLentAttackerAlsoBanksAShareOfTheBreakForTheClanThatLentThem() {
-            Clan lender = Clan.builder().id(UUID.randomUUID()).build();
-            attacker.setLentByClan(lender);
+        void anEnemyThatBarelyPlaysGivesLessForTheBreak() {
+            when(participantRepository.findRecentlyActiveShare(any(), eq("defend"), any())).thenReturn(0.25);
 
             service.fight(war.getId(), play(950_000, true));
 
             String source = savedHits.getFirst().getId().toString();
-            verify(levelService).grantXp(lender.getId(), new ClanXpAward(6.0, ClanXpSource.war_loan, source,
-                    true));
+            verify(standingService).apply(season.getId(), blue.getId(), -50.0, ClanStandingSource.war_break, source);
+            verify(standingService).apply(season.getId(), red.getId(), 25.0, ClanStandingSource.war_break, source);
+            verify(levelService).grantXp(red.getId(), new ClanXpAward(75.0, ClanXpSource.war_break, source, true));
+            verify(levelUpAwardService).addClanXp(1L, 10.0);
+            verify(levelUpAwardService).addClanXp(2L, 90.0);
         }
 
         @Test
-        void aBreakThatEmptiesTheStakeWinsTheWar() {
+        void aClanWhoseSliceRunsOutFallsWhileItsTeamFightsOn() {
+            Clan ally = Clan.builder().id(UUID.randomUUID()).build();
+            ClanWarSide allySide = ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(500.0)
+                    .stakeRemaining(500.0).build();
+            when(sideRepository.findByWarId(war.getId())).thenReturn(List.of(redSide, blueSide, allySide));
+            blueSide.setStakeRemaining(40.0);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(blueSide.getStakeRemaining()).isZero();
+            assertThat(blueSide.fallen()).isTrue();
+            verify(rosterService).sync(war, List.of(redSide, blueSide, allySide));
+            verify(warService, never()).end(any(), any());
+        }
+
+        @Test
+        void aBreakThatDrainsTheLastSliceWinsTheWar() {
             blueSide.setStakeRemaining(40.0);
 
             service.fight(war.getId(), play(950_000, true));
@@ -450,16 +568,38 @@ class ClanWarCombatServiceTest {
             assertThat(blueSide.getStakeRemaining()).isZero();
             verify(warService).end(war.getId(), ClanWarOutcome.attacker_won);
         }
+
+        @Test
+        void inBerserkerTheBiggerTeamSplitsMoreBreakXpAndContribution() {
+            war.setRuleset(ClanRuleset.berserker);
+            clanProperties.getWar().setWarSizeExponent(1.0);
+            ClanWarParticipant chipper = join(2L, red, 0.5, 50);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            ClanWarHit breaking = savedHits.getFirst();
+            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 10.0 / 100.0);
+            verify(levelUpAwardService).addClanXp(1L, 40.0);
+            verify(levelUpAwardService).addClanXp(2L, 360.0);
+            assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0);
+            assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
+        }
     }
 
-    @Test
-    void aBrokenDuelTargetCannotBeHitAgainUntilTheyRecover() {
-        victim.setBrokenAt(Instant.now().minusSeconds(60));
+    private static ClanWarHitRepository.PriorHitView prior(Long victimId, int score, boolean chip) {
+        UUID scoreId = new UUID(victimId, score);
+        return new ClanWarHitRepository.PriorHitView() {
+            public Long getVictimId() {
+                return victimId;
+            }
 
-        service.fight(war.getId(), play(950_000, true));
+            public UUID getVictimScoreId() {
+                return scoreId;
+            }
 
-        assertThat(savedHits).isEmpty();
-        verify(hitRepository, never()).countByWar_IdAndVictim_IdAndVictimCycle(any(), anyLong(), anyInt());
-        verify(levelUpAwardService, never()).addClanXp(anyLong(), anyDouble());
+            public boolean isChip() {
+                return chip;
+            }
+        };
     }
 }

@@ -459,7 +459,7 @@ class CampaignServiceTest {
 
                 private void stubCampaignPage() {
                         campaign.setStatus(CampaignStatus.PUBLISHED);
-                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), anyBoolean(), any(), any(),
+                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
                                         any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of(campaign)));
                         when(campaignTagLinkRepository.findByCampaign_IdIn(List.of(campaign.getId())))
@@ -571,7 +571,7 @@ class CampaignServiceTest {
                 @Test
                 void sortsNeverLovedCampaignsBehindLovedOnes() {
                         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), anyBoolean(), any(), any(),
+                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
                                         any(), anyBoolean(), any(), any(), any(), any(), any(), any(),
                                         pageable.capture()))
                                         .thenReturn(new PageImpl<>(List.of()));
@@ -1322,7 +1322,7 @@ class CampaignServiceTest {
 
                 @Test
                 void listExcludesAbandonedCampaigns() {
-                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), anyBoolean(), any(), any(),
+                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
                                         any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of()));
 
@@ -1330,7 +1330,7 @@ class CampaignServiceTest {
                                         CampaignFilter.builder().participantId(creator.getId()).build(),
                                         null, false, PageRequest.of(0, 20));
 
-                        verify(campaignRepository).findFiltered(anyBoolean(), any(), any(), anyBoolean(), any(), any(),
+                        verify(campaignRepository).findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
                                         any(), anyBoolean(), any(), any(), any(), any(), eq(creator.getId()),
                                         eq(List.of(UserCampaignStatus.IN_PROGRESS, UserCampaignStatus.COMPLETED)),
                                         any());
@@ -1342,7 +1342,7 @@ class CampaignServiceTest {
                         UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID())
                                         .user(creator).campaign(campaign)
                                         .status(UserCampaignStatus.IN_PROGRESS).active(true).build();
-                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), anyBoolean(), any(), any(),
+                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
                                         any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of(campaign)));
                         when(campaignTagLinkRepository.findByCampaign_IdIn(List.of(campaign.getId())))
@@ -1370,6 +1370,28 @@ class CampaignServiceTest {
                         assertThat(result.getProgressStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
                         assertThat(result.getCompletedDifficulties()).isEqualTo(12);
                         assertThat(result.getCampaign().getDifficultyCount()).isEqualTo(14);
+                }
+
+                @Test
+                void browseCarriesTheViewersOwnProgressOnEachCampaign() {
+                        campaign.setStatus(CampaignStatus.PUBLISHED);
+                        UserCampaign uc = UserCampaign.builder().id(UUID.randomUUID())
+                                        .user(creator).campaign(campaign)
+                                        .status(UserCampaignStatus.IN_PROGRESS).active(true).build();
+                        when(campaignRepository.findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
+                                        any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any()))
+                                        .thenReturn(new PageImpl<>(List.of(campaign)));
+                        when(userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(
+                                        creator.getId(), List.of(campaign.getId()))).thenReturn(List.of(uc));
+                        when(userCampaignScoreRepository.countActiveByUserAndCampaignIds(
+                                        creator.getId(), List.of(campaign.getId())))
+                                        .thenReturn(List.<Object[]>of(new Object[] { campaign.getId(), 5L }));
+
+                        CampaignResponse result = campaignService.findCampaigns(CampaignFilter.builder().build(),
+                                        creator.getId(), false, PageRequest.of(0, 20)).getContent().get(0);
+
+                        assertThat(result.getMyProgressStatus()).isEqualTo(UserCampaignStatus.IN_PROGRESS);
+                        assertThat(result.getMyCompletedDifficulties()).isEqualTo(5);
                 }
         }
 

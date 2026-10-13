@@ -342,10 +342,10 @@ class XpRebuildQueryTest {
                 + "(?1, ?2, ?3, ?4, 'mixed', CAST('{}' AS jsonb), 'duel', 'active', NOW()) RETURNING id")
                 .setParameter(1, season).setParameter(2, red).setParameter(3, blue).setParameter(4, user.getId())
                 .getSingleResult();
-        for (Object[] side : new Object[][] { { red, user.getId() }, { blue, rival.getId() } }) {
-            entityManager.createNativeQuery("INSERT INTO clan_war_sides (war_id, clan_id, stake, stake_remaining, "
-                    + "standing_at_declare) VALUES (?1, ?2, 100, 100, 100)").setParameter(1, war)
-                    .setParameter(2, side[0]).executeUpdate();
+        for (Object[] side : new Object[][] { { red, user.getId(), "attack" }, { blue, rival.getId(), "defend" } }) {
+            entityManager.createNativeQuery("INSERT INTO clan_war_sides (war_id, clan_id, team, stake, "
+                    + "stake_remaining, standing_at_declare) VALUES (?1, ?2, ?3, 100, 100, 100)").setParameter(1, war)
+                    .setParameter(2, side[0]).setParameter(3, side[2]).executeUpdate();
             entityManager.createNativeQuery("INSERT INTO clan_war_participants (war_id, user_id, clan_id, "
                     + "standing_weight, guard) VALUES (?1, ?2, ?3, 1, 100)").setParameter(1, war)
                     .setParameter(2, side[1]).setParameter(3, side[0]).executeUpdate();

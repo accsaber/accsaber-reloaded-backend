@@ -10,6 +10,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import com.accsaber.backend.model.dto.EventMissionTargets;
+import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
@@ -96,6 +99,26 @@ class MissionResponseTest {
 
         assertThat(response.getProgressValue()).isEqualByComparingTo(400.0);
         assertThat(response.getTargetValue()).isEqualByComparingTo(1000.0);
+    }
+
+    @Test
+    void aMapTargetCarriesTheDifficultyTheFrontendLinksTo() {
+        com.accsaber.backend.model.entity.map.Map map = com.accsaber.backend.model.entity.map.Map.builder()
+                .id(UUID.randomUUID()).songName("Ghost").beatsaverCode("1a2b").build();
+        MapDifficulty difficulty = MapDifficulty.builder().id(UUID.randomUUID()).map(map)
+                .difficulty(Difficulty.EXPERT_PLUS).characteristic("Standard")
+                .status(MapDifficultyStatus.RANKED).build();
+        UserMission mission = mission(MissionType.ACC_ON_MAP);
+        mission.setTargetMapDifficulty(difficulty);
+
+        MissionResponse response = MissionResponse.from(mission);
+
+        assertThat(response.getTargetMapDifficultyId()).isEqualTo(difficulty.getId());
+        assertThat(response.getTargetMap().getMapId()).isEqualTo(map.getId());
+        assertThat(response.getTargetMap().getSongName()).isEqualTo("Ghost");
+        assertThat(response.getTargetMap().getBeatsaverCode()).isEqualTo("1a2b");
+        assertThat(response.getTargetMap().getDifficulty()).isEqualTo(Difficulty.EXPERT_PLUS);
+        assertThat(response.getTargetMap().getCharacteristic()).isEqualTo("Standard");
     }
 
     @Test

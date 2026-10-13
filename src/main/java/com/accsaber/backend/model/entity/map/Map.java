@@ -62,6 +62,9 @@ public class Map {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "war_banned", nullable = false)
+    private boolean warBanned;
+
     @OneToMany(mappedBy = "map", fetch = FetchType.LAZY)
     private List<MapDifficulty> difficulties;
 

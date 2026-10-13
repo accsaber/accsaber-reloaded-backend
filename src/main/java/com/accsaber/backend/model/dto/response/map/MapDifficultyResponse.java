@@ -42,6 +42,7 @@ public class MapDifficultyResponse {
     Integer maxCombo;
     Double complexity;
     boolean complexityPinned;
+    boolean warBanned;
     Double scriptComplexity;
     String scriptVersion;
     Instant rankedAt;

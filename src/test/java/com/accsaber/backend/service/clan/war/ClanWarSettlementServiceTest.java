@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,7 +37,9 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
+import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.ItemType;
@@ -45,6 +48,7 @@ import com.accsaber.backend.repository.clan.ClanItemRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanXpAward;
 import com.accsaber.backend.service.item.ItemService;
@@ -57,6 +61,10 @@ class ClanWarSettlementServiceTest {
     private ClanWarRepository warRepository;
     @Mock
     private ClanWarParticipantRepository participantRepository;
+    @Mock
+    private ClanWarSideRepository sideRepository;
+    @Mock
+    private ClanWarStakeService stakeService;
     @Mock
     private ClanWarRewardItemRepository rewardItemRepository;
     @Mock
@@ -75,16 +83,23 @@ class ClanWarSettlementServiceTest {
 
     private final Clan red = Clan.builder().id(UUID.randomUUID()).tag("RED").active(true).build();
     private final Clan blue = Clan.builder().id(UUID.randomUUID()).tag("BLU").active(true).build();
+    private final Clan ally = Clan.builder().id(UUID.randomUUID()).tag("ALY").active(true).build();
     private ClanWar war;
+    private final List<ClanWarSide> sides = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         clanProperties.getWar().setWinClanXp(1000.0);
         clanProperties.getWar().setXpPerContribution(0.5);
-        service = new ClanWarSettlementService(warRepository, participantRepository, rewardItemRepository,
-                clanItemRepository, levelService, levelUpAwardService, itemService, clanProperties, transactionTemplate);
+        service = new ClanWarSettlementService(warRepository, participantRepository, sideRepository, stakeService,
+                rewardItemRepository, clanItemRepository, levelService, levelUpAwardService, itemService,
+                clanProperties, transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(red).defenderClan(blue)
                 .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won).endedAt(Instant.now()).build();
+        sides.add(ClanWarSide.builder().war(war).clan(red).team(ClanWarTeam.attack).stake(3000).build());
+        sides.add(ClanWarSide.builder().war(war).clan(blue).team(ClanWarTeam.defend).stake(3000).build());
+        lenient().when(sideRepository.findByWarId(war.getId())).thenReturn(sides);
+        lenient().when(stakeService.engagement(any(), any())).thenReturn(1.0);
         lenient().when(warRepository.findWithRefsById(war.getId())).thenReturn(Optional.of(war));
         lenient().doAnswer(inv -> {
             inv.<Consumer<TransactionStatus>>getArgument(0).accept(null);
@@ -138,6 +153,50 @@ class ClanWarSettlementServiceTest {
     }
 
     @Test
+    void aCoalitionSplitsTheWinBySliceAndRanksItsFightersTogether() {
+        sides.add(ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.attack).stake(1000).build());
+        Clan deserter = Clan.builder().id(UUID.randomUUID()).build();
+        sides.add(ClanWarSide.builder().war(war).clan(deserter).team(ClanWarTeam.attack).stake(500)
+                .leftAt(Instant.now()).build());
+        ClanWarRewardItem banner = reward("clan_banner", "clan_cosmetic", null);
+        ClanWarRewardItem trophy = reward("badge", null, 2);
+        when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of(banner, trophy));
+        when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
+                participant(21L, ally, 400), participant(31L, deserter, 350), participant(1L, red, 300),
+                participant(2L, red, 100)));
+
+        service.settle(war.getId());
+
+        String source = war.getId().toString();
+        verify(levelService).grantXp(red.getId(), new ClanXpAward(750.0, ClanXpSource.war_win, source, true));
+        verify(levelService).grantXp(ally.getId(), new ClanXpAward(250.0, ClanXpSource.war_win, source, true));
+        verify(levelService, never()).grantXp(eq(deserter.getId()), any());
+        verify(clanItemRepository).grantItem(red.getId(), banner.getItem().getId(), "war", source);
+        verify(clanItemRepository).grantItem(ally.getId(), banner.getItem().getId(), "war", source);
+        verify(itemService).awardSystem(eq(21L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
+                eq(1));
+        verify(itemService).awardSystem(eq(1L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
+                eq(1));
+        verify(itemService, never()).awardSystem(eq(31L), any(), any(), anyString(), anyString(), anyInt());
+        verify(itemService, never()).awardSystem(eq(2L), any(), any(), anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void beatingAnEnemyThatBarelyPlayedPaysLess() {
+        when(stakeService.engagement(war, ClanWarTeam.defend)).thenReturn(0.5);
+        when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of());
+        when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
+                participant(1L, red, 300), participant(11L, blue, 200)));
+
+        service.settle(war.getId());
+
+        verify(levelService).grantXp(red.getId(), new ClanXpAward(500.0, ClanXpSource.war_win,
+                war.getId().toString(), true));
+        verify(levelUpAwardService).addClanXp(1L, 75.0);
+        verify(levelUpAwardService).addClanXp(11L, 100.0);
+    }
+
+    @Test
     void aDrawStillPaysTheFightersButNoWinnings() {
         war.setOutcome(ClanWarOutcome.drawn);
         when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
@@ -167,13 +226,13 @@ class ClanWarSettlementServiceTest {
         blue.setActive(false);
         war.setOutcome(ClanWarOutcome.forfeited);
 
-        assertThat(ClanWarSettlementService.winner(war)).isSameAs(red);
+        assertThat(ClanWarSettlementService.winningTeam(war)).isEqualTo(ClanWarTeam.attack);
     }
 
     @Test
     void aRetreatHasNoWinner() {
         war.setOutcome(ClanWarOutcome.retreated);
 
-        assertThat(ClanWarSettlementService.winner(war)).isNull();
+        assertThat(ClanWarSettlementService.winningTeam(war)).isNull();
     }
 }

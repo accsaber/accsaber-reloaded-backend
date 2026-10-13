@@ -147,7 +147,6 @@ import lombok.RequiredArgsConstructor;
 public class CampaignService {
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
-    private static final int MAX_PROGRESS_BULK_IDS = 50;
     private static final int MAX_DIFFICULTIES_PER_CAMPAIGN = 200;
     private static final int MAX_BARRIERS_PER_CAMPAIGN = 100;
     private static final int MAX_TEXTS_PER_CAMPAIGN = 100;
@@ -207,8 +206,12 @@ public class CampaignService {
         Long resolvedParticipantId = filter.participantId() != null
                 ? duplicateUserService.resolvePrimaryUserId(filter.participantId())
                 : null;
+        Long resolvedMemberId = filter.memberId() != null
+                ? duplicateUserService.resolvePrimaryUserId(filter.memberId())
+                : null;
         return paginateAsResponses(
-                campaignRepository.findFiltered(hasStatus, statusArg, filter.creatorId(), hasTags, tagArg,
+                campaignRepository.findFiltered(hasStatus, statusArg, filter.creatorId(), resolvedMemberId,
+                        hasTags, tagArg,
                         CampaignStatus.DRAFT, resolvedViewerId, privileged,
                         CampaignCollaboratorStatus.ACCEPTED, searchArg, filter.official(), filter.loved(),
                         resolvedParticipantId, progressArg,
@@ -254,13 +257,20 @@ public class CampaignService {
         Map<UUID, List<CampaignItemAwardResponse>> completionItemsByCampaign = loadCompletionItemsBulk(ids);
         Map<UUID, CampaignRewards> rewardsByCampaign = loadRewardsBulk(ids, completionItemsByCampaign);
         Map<UUID, PublicStaffUserResponse> staffRefs = loadStaffRefs(page.getContent());
+        Map<UUID, UserCampaignStatus> viewerStatus = resolvedViewerId == null ? Map.of()
+                : userCampaignRepository.findByUser_IdAndCampaign_IdInAndActiveTrue(resolvedViewerId, ids).stream()
+                        .collect(Collectors.toMap(uc -> uc.getCampaign().getId(), UserCampaign::getStatus));
+        Map<UUID, Integer> viewerCompleted = viewerStatus.isEmpty() ? Map.of()
+                : countMap(userCampaignScoreRepository.countActiveByUserAndCampaignIds(resolvedViewerId, ids));
         return page.map(c -> toCampaignResponse(c, new CampaignRow(
                 tagsByCampaign.getOrDefault(c.getId(), List.of()),
                 diffCountByCampaign.getOrDefault(c.getId(), 0),
                 votesByCampaign.get(c.getId()),
                 completionItemsByCampaign.getOrDefault(c.getId(), List.of()),
                 rewardsByCampaign.getOrDefault(c.getId(), CampaignRewards.none()),
-                staffRefs)));
+                staffRefs,
+                viewerStatus.get(c.getId()),
+                viewerStatus.containsKey(c.getId()) ? viewerCompleted.getOrDefault(c.getId(), 0) : null)));
     }
 
     private Map<UUID, CampaignRewards> loadRewardsBulk(Collection<UUID> campaignIds,
@@ -1315,33 +1325,6 @@ public class CampaignService {
         }
         ProgressContext ctx = loadProgressContext(resolvedUserId, List.of(campaign.getId()));
         return buildProgress(campaign, resolvedUserId, ctx);
-    }
-
-    public List<CampaignProgressResponse> getUserProgressBulk(Long userId, List<UUID> campaignIds) {
-        if (campaignIds == null || campaignIds.isEmpty()) {
-            return List.of();
-        }
-        if (campaignIds.size() > MAX_PROGRESS_BULK_IDS) {
-            throw new ValidationException("ids", "max " + MAX_PROGRESS_BULK_IDS + " campaign ids per request");
-        }
-        Long resolvedUserId = duplicateUserService.resolvePrimaryUserId(userId);
-        List<Campaign> campaigns = campaignRepository.findByIdInAndActiveTrue(campaignIds);
-        if (campaigns.isEmpty()) {
-            return List.of();
-        }
-        Map<UUID, Campaign> campaignById = campaigns.stream()
-                .collect(Collectors.toMap(Campaign::getId, c -> c));
-        ProgressContext ctx = loadProgressContext(resolvedUserId,
-                campaigns.stream().map(Campaign::getId).toList());
-        List<CampaignProgressResponse> results = new ArrayList<>(campaignIds.size());
-        for (UUID id : campaignIds) {
-            Campaign campaign = campaignById.get(id);
-            if (campaign == null || isDraftHiddenFrom(campaign, resolvedUserId, false)) {
-                continue;
-            }
-            results.add(buildProgress(campaign, resolvedUserId, ctx));
-        }
-        return results;
     }
 
     private ProgressContext loadProgressContext(Long resolvedUserId, Collection<UUID> campaignIds) {
@@ -2639,7 +2622,7 @@ public class CampaignService {
     private CampaignResponse toCampaignResponse(Campaign campaign, List<CampaignTagResponse> tags,
             int difficultyCount, List<CampaignItemAwardResponse> completionItems) {
         return toCampaignResponse(campaign, new CampaignRow(tags, difficultyCount, null, completionItems,
-                CampaignRewards.none(), loadStaffRefs(List.of(campaign))));
+                CampaignRewards.none(), loadStaffRefs(List.of(campaign)), null, null));
     }
 
     private record CampaignRow(
@@ -2648,10 +2631,12 @@ public class CampaignService {
             CampaignVoteDirection myVote,
             List<CampaignItemAwardResponse> completionItems,
             CampaignRewards rewards,
-            Map<UUID, PublicStaffUserResponse> staffRefs) {
+            Map<UUID, PublicStaffUserResponse> staffRefs,
+            UserCampaignStatus myProgressStatus,
+            Integer myCompletedDifficulties) {
 
         static CampaignRow empty() {
-            return new CampaignRow(List.of(), 0, null, List.of(), CampaignRewards.none(), Map.of());
+            return new CampaignRow(List.of(), 0, null, List.of(), CampaignRewards.none(), Map.of(), null, null);
         }
 
         PublicStaffUserResponse staff(StaffUser staff) {
@@ -2720,6 +2705,8 @@ public class CampaignService {
                 .totalDownvotes(campaign.getTotalDownvotes())
                 .voteScore(campaign.getVoteScore())
                 .myVote(row.myVote())
+                .myProgressStatus(row.myProgressStatus())
+                .myCompletedDifficulties(row.myCompletedDifficulties())
                 .tags(row.tags())
                 .completionItems(row.completionItems())
                 .totalXp(row.rewards().totalXp())

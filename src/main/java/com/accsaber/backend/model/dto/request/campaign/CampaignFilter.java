@@ -13,6 +13,7 @@ public record CampaignFilter(
         Collection<CampaignStatus> status,
         Collection<UUID> tagIds,
         Long creatorId,
+        Long memberId,
         String search,
         Boolean official,
         Boolean loved,

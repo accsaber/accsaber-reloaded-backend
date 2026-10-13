@@ -28,12 +28,13 @@ public class NewsController {
     private final NewsService newsService;
 
     @Operation(summary = "List news", description = "Pinned first, then newest. type is BATCH, CAMPAIGN, "
-            + "MILESTONE_SET, CURVE or GENERAL.")
+            + "MILESTONE_SET, CURVE or GENERAL. search matches the title or description.")
     @GetMapping
     public ResponseEntity<Page<PublicNewsResponse>> list(
             @RequestParam(required = false) NewsType type,
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(newsService.findPublic(type, pageable));
+        return ResponseEntity.ok(newsService.findPublic(type, search, pageable));
     }
 
     @Operation(summary = "Get a news post", description = "Id or slug both work.")

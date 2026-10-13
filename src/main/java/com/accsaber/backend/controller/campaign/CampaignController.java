@@ -91,20 +91,21 @@ public class CampaignController {
         return CampaignEditor.player(principal.getUserId());
     }
 
-    @Operation(summary = "List campaigns", description = "Filter by status, tag, creator, official, loved and "
-            + "search. XP and reward totals only show up on this list.")
+    @Operation(summary = "List campaigns", description = "Filter by status, tag, creator, member (creator or "
+            + "accepted collaborator), official, loved and search. XP and reward totals only show up on this list.")
     @GetMapping
     public ResponseEntity<Page<CampaignResponse>> listCampaigns(
             @RequestParam(required = false) List<CampaignStatus> status,
             @RequestParam(required = false) List<UUID> tagIds,
             @RequestParam(required = false) Long creatorId,
+            @RequestParam(required = false) Long memberId,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean official,
             @RequestParam(required = false) Boolean loved,
             Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         CampaignFilter filter = CampaignFilter.builder()
-                .status(status).tagIds(tagIds).creatorId(creatorId).search(search)
+                .status(status).tagIds(tagIds).creatorId(creatorId).memberId(memberId).search(search)
                 .official(official).loved(loved).build();
         return ResponseEntity.ok(campaignService.findCampaigns(filter,
                 StaffPrincipals.viewerIdOf(authentication),
@@ -222,15 +223,6 @@ public class CampaignController {
             @PathVariable String slug,
             @PathVariable Long userId) {
         return ResponseEntity.ok(campaignService.getUserProgressBySlug(userId, slug));
-    }
-
-    @Operation(summary = "Progress in several campaigns", description = "Pass the campaign ids you want.")
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/me/progress")
-    public ResponseEntity<List<CampaignProgressResponse>> getMyProgressBulk(
-            @RequestParam("ids") List<UUID> ids,
-            @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.getUserProgressBulk(principal.getUserId(), ids));
     }
 
     @Operation(summary = "Create a campaign", description = "Starts as a draft. Only you and your collaborators see "

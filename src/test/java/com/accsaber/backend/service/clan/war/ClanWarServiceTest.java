@@ -2,6 +2,7 @@ package com.accsaber.backend.service.clan.war;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -47,12 +49,13 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanWarEndedEvent;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarLoanRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarAidRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -107,7 +110,11 @@ class ClanWarServiceTest {
     @Mock
     private MapService mapService;
     @Mock
-    private ClanWarLoanRepository loanRepository;
+    private ClanWarAidRepository aidRepository;
+    @Mock
+    private ClanWarStakeService stakeService;
+    @Mock
+    private ClanWarRosterService rosterService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -124,7 +131,7 @@ class ClanWarServiceTest {
         service = new ClanWarService(warRepository, sideRepository, participantRepository, hitRepository, mapService,
                 allianceRepository, memberRepository, roster, accessService, levelService, standingService,
                 cosmeticService, poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
-                scoreGate, loanRepository, eventPublisher, clanProperties);
+                scoreGate, rosterService, aidRepository, stakeService, eventPublisher, clanProperties);
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()),
@@ -160,19 +167,21 @@ class ClanWarServiceTest {
         }
 
         @Test
-        void aCommanderDeclaresAndBothSidesPutUpTheSmallerStanding() {
+        void aCommanderDeclaresAndTheTwoLeadsGetTheirStakesWorkedOut() {
+            when(sideRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
             service.declare(attacker.getId(), 1L, request);
 
             verify(accessService).require(attacker.getId(), 1L, ClanPermission.DECLARE_WAR);
             @SuppressWarnings("unchecked")
             ArgumentCaptor<List<ClanWarSide>> sides = ArgumentCaptor.forClass(List.class);
             verify(sideRepository).saveAllAndFlush(sides.capture());
-            assertThat(sides.getValue()).allSatisfy(side -> {
-                assertThat(side.getStake()).isEqualTo(800.0);
-                assertThat(side.getStakeRemaining()).isEqualTo(800.0);
-            });
+            assertThat(sides.getValue()).extracting(ClanWarSide::getClan, ClanWarSide::getTeam)
+                    .containsExactly(tuple(attacker, ClanWarTeam.attack), tuple(defender, ClanWarTeam.defend));
+            assertThat(sides.getValue()).extracting(ClanWarSide::getStandingAtDeclare).containsExactly(1000.0, 800.0);
             assertThat(sides.getValue().get(0).getLeadUser()).isSameAs(commander);
             assertThat(sides.getValue().get(1).getLeadUser()).isNull();
+            verify(stakeService).rebalance(sides.getValue());
             ArgumentCaptor<ClanWar> war = ArgumentCaptor.forClass(ClanWar.class);
             verify(warRepository).saveAndFlush(war.capture());
             assertThat(war.getValue().getPicksDueAt()).isNotNull();
@@ -205,6 +214,35 @@ class ClanWarServiceTest {
         }
 
         @Test
+        void aPacifistClanCannotDeclare() {
+            attacker.setPacifistFrom(Instant.now().minusSeconds(60));
+
+            assertThatThrownBy(() -> service.declare(attacker.getId(), 1L, request))
+                    .isInstanceOf(ConflictException.class).hasMessageContaining("pacifist");
+            attacker.setPacifistFrom(null);
+        }
+
+        @Test
+        void aPacifistClanCannotBeAttacked() {
+            defender.setPacifistFrom(Instant.now().minusSeconds(60));
+
+            assertThatThrownBy(() -> service.declare(attacker.getId(), 1L, request))
+                    .isInstanceOf(ConflictException.class).hasMessageContaining("pacifist");
+            defender.setPacifistFrom(null);
+        }
+
+        @Test
+        void aClanStillWaitingOutItsPacifistDelayCanBeAttacked() {
+            when(sideRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+            defender.setPacifistFrom(Instant.now().plus(Duration.ofDays(3)));
+
+            service.declare(attacker.getId(), 1L, request);
+
+            verify(poolService).seed(any(), any());
+            defender.setPacifistFrom(null);
+        }
+
+        @Test
         void anAllyIsOffLimits() {
             when(allianceRepository.existsActiveBetween(attacker.getId(), defender.getId())).thenReturn(true);
 
@@ -230,6 +268,7 @@ class ClanWarServiceTest {
 
         @Test
         void aRetaliationIgnoresTheFloor() {
+            when(sideRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
             when(standingService.currentStanding(defender)).thenReturn(400.0);
             lenient().when(warRepository.existsOpenAttack(defender.getId(), attacker.getId())).thenReturn(true);
 
@@ -276,6 +315,9 @@ class ClanWarServiceTest {
             when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
             lenient().when(sideRepository.findByWar_IdAndClan_Id(war.getId(), attacker.getId()))
                     .thenReturn(Optional.of(side));
+            lenient().when(sideRepository.findByWarId(war.getId())).thenReturn(List.of(
+                    ClanWarSide.builder().war(war).clan(attacker).team(ClanWarTeam.attack).build(),
+                    ClanWarSide.builder().war(war).clan(defender).team(ClanWarTeam.defend).build()));
         }
 
         private void rank(ClanRole role) {
@@ -336,24 +378,73 @@ class ClanWarServiceTest {
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.drawn);
         verify(chatChannel, never()).announce(any(), any());
         verify(feed, never()).war(any(), any());
-        verify(notifier, never()).warEnded(any());
+        verify(notifier, never()).warEnded(any(), any());
     }
 
     @Test
     void disbandingForfeitsEveryOpenWar() {
         ClanWar war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .status(ClanWarStatus.preparing).build();
-        when(warRepository.findOpenIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        when(warRepository.findOpenIdsLedByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
         when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+        List<ClanWarSide> sides = List.of(ClanWarSide.builder().war(war).clan(attacker).team(ClanWarTeam.attack)
+                .build());
+        when(sideRepository.findByWarId(war.getId())).thenReturn(sides);
 
         service.forfeitAll(attacker.getId());
 
         assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.forfeited);
         verify(scoreGate).refreshAfterCommit();
-        verify(loanRepository).closeOpenForWar(war.getId(), war.getEndedAt());
+        verify(aidRepository).cancelPendingForWar(war.getId(), war.getEndedAt());
         verify(eventPublisher).publishEvent(new ClanWarEndedEvent(war.getId()));
         verify(feed).war(war, ClanFeedType.war_ended);
-        verify(notifier).warEnded(war);
+        verify(notifier).warEnded(war, sides);
+    }
+
+    @Nested
+    class Cap {
+
+        private ClanWar war;
+        private final List<ClanWarSide> sides = new ArrayList<>();
+
+        @BeforeEach
+        void aLongWar() {
+            war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
+                    .status(ClanWarStatus.active).build();
+            lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+            lenient().when(sideRepository.findByWarId(war.getId())).thenReturn(sides);
+        }
+
+        @Test
+        void theTeamThatDrainedMoreOfTheOtherWins() {
+            when(stakeService.drainedShare(sides, ClanWarTeam.attack)).thenReturn(0.2);
+            when(stakeService.drainedShare(sides, ClanWarTeam.defend)).thenReturn(0.5);
+
+            service.endAtCap(war.getId());
+
+            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.attacker_won);
+        }
+
+        @Test
+        void anEvenFightIsADraw() {
+            when(stakeService.drainedShare(sides, ClanWarTeam.attack)).thenReturn(0.4);
+            when(stakeService.drainedShare(sides, ClanWarTeam.defend)).thenReturn(0.4);
+
+            service.endAtCap(war.getId());
+
+            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.drawn);
+        }
+
+        @Test
+        void aWarThatAlreadyEndedIsLeftAlone() {
+            war.setStatus(ClanWarStatus.ended);
+            war.setOutcome(ClanWarOutcome.retreated);
+
+            service.endAtCap(war.getId());
+
+            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.retreated);
+            verify(stakeService, never()).drainedShare(any(), any());
+        }
     }
 
     @Test

@@ -37,17 +37,17 @@ public class ClanFeed {
 
     public void war(ClanWar war, ClanFeedType globalType) {
         ClanWarResponse response = warResponses.of(war);
-        eventPublisher.publishEvent(new ClanFeedEvent(sides(war), ClanFeedBroadcast.war(war.getId(), response)));
+        eventPublisher.publishEvent(new ClanFeedEvent(response.clanIds(), ClanFeedBroadcast.war(war.getId(), response)));
         if (globalType != null) {
             everyone(new ClanFeedBroadcast(globalType, war.getId(), response));
         }
     }
 
-    public void hit(ClanWar war, ClanWarHit hit) {
+    public void hit(ClanWar war, ClanWarHit hit, List<UUID> rooms) {
         UUID difficultyId = hit.getMapDifficulty().getId();
         ClanWarHitResponse response = ClanWarHitResponse.of(hit,
                 mapService.getDifficultyResponsesPublic(List.of(difficultyId)).get(difficultyId));
-        eventPublisher.publishEvent(new ClanFeedEvent(sides(war), ClanFeedBroadcast.hit(war.getId(), response)));
+        eventPublisher.publishEvent(new ClanFeedEvent(rooms, ClanFeedBroadcast.hit(war.getId(), response)));
         if (hit.isBroke()) {
             everyone(new ClanFeedBroadcast(ClanFeedType.war_break, war.getId(), response));
         }
@@ -65,9 +65,5 @@ public class ClanFeed {
 
     private void everyone(ClanFeedBroadcast payload) {
         eventPublisher.publishEvent(new ClanFeedEvent(List.of(), payload));
-    }
-
-    private static List<UUID> sides(ClanWar war) {
-        return List.of(war.getAttackerClan().getId(), war.getDefenderClan().getId());
     }
 }

@@ -13,6 +13,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -46,10 +48,13 @@ import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.websocket.server.ClanFeedType;
 
@@ -78,6 +83,10 @@ class ClanServiceTest {
     private ClanAllianceService allianceService;
     @Mock
     private ClanWarService warService;
+    @Mock
+    private ClanWarCoalitionService coalitionService;
+    @Mock
+    private ClanWarRepository warRepository;
     @Mock
     private ClanNotifier notifier;
     @Mock
@@ -279,8 +288,75 @@ class ClanServiceTest {
         verify(roster).close(founder, ClanLeaveReason.left);
         verify(roster).closeAll(clanId, ClanLeaveReason.disbanded);
         verify(allianceService).endAll(eq(clan), any());
-        verify(warService).forfeitAll(clanId);
+        InOrder wars = inOrder(coalitionService, warService);
+        wars.verify(coalitionService).leaveAll(clanId);
+        wars.verify(warService).forfeitAll(clanId);
         verify(auditRepository).save(any(ClanAuditEntry.class));
+    }
+
+    @Nested
+    class Pacifism {
+
+        private final UUID clanId = UUID.randomUUID();
+        private Clan clan;
+
+        @BeforeEach
+        void aClan() {
+            clan = Clan.builder().id(clanId).build();
+            lenient().when(roster.lock(clanId)).thenReturn(clan);
+        }
+
+        @Test
+        void outsideASeasonItTakesHoldStraightAway() {
+            when(standingService.currentSeason()).thenReturn(Optional.empty());
+
+            ClanResponse response = clanService.setPacifism(clanId, PLAYER, true);
+
+            verify(accessService).require(clanId, PLAYER, ClanPermission.MANAGE_PACIFISM);
+            assertThat(clan.getPacifistFrom()).isBeforeOrEqualTo(Instant.now());
+            assertThat(clan.isPacifistAt(Instant.now())).isTrue();
+            assertThat(response.pacifistFrom()).isEqualTo(clan.getPacifistFrom());
+            verify(coalitionService).leaveAll(clanId);
+        }
+
+        @Test
+        void insideASeasonItWaitsOutTheDelay() {
+            when(standingService.currentSeason()).thenReturn(Optional.of(ClanSeason.builder().build()));
+
+            clanService.setPacifism(clanId, PLAYER, true);
+
+            assertThat(clan.getPacifistFrom()).isAfter(Instant.now().plus(Duration.ofDays(6)));
+            assertThat(clan.isPacifistAt(Instant.now())).isFalse();
+        }
+
+        @Test
+        void aClanWithAnOpenWarCannotTurnPacifist() {
+            when(warRepository.existsOpenForClan(clanId)).thenReturn(true);
+
+            assertThatThrownBy(() -> clanService.setPacifism(clanId, PLAYER, true))
+                    .isInstanceOf(ConflictException.class);
+            assertThat(clan.getPacifistFrom()).isNull();
+        }
+
+        @Test
+        void turningItOffIsImmediate() {
+            clan.setPacifistFrom(Instant.now().minus(Duration.ofDays(30)));
+
+            clanService.setPacifism(clanId, PLAYER, false);
+
+            assertThat(clan.getPacifistFrom()).isNull();
+            verify(warRepository, never()).existsOpenForClan(any());
+        }
+
+        @Test
+        void turningItOnTwiceKeepsTheOriginalTime() {
+            Instant since = Instant.now().minus(Duration.ofDays(3));
+            clan.setPacifistFrom(since);
+
+            clanService.setPacifism(clanId, PLAYER, true);
+
+            assertThat(clan.getPacifistFrom()).isEqualTo(since);
+        }
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignCompletionMode;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
+import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -41,6 +42,8 @@ public class CampaignResponse {
     private int totalDownvotes;
     private double voteScore;
     private CampaignVoteDirection myVote;
+    private UserCampaignStatus myProgressStatus;
+    private Integer myCompletedDifficulties;
     private List<CampaignTagResponse> tags;
     private List<CampaignItemAwardResponse> completionItems;
     private Double totalXp;

@@ -31,12 +31,23 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
     List<VictimScoreView> findActiveScores(@Param("mapDifficultyId") UUID mapDifficultyId,
             @Param("userIds") Collection<Long> userIds);
 
-    boolean existsByWar_IdAndAttacker_IdAndVictimScore_Id(UUID warId, Long attackerId, UUID victimScoreId);
+    interface PriorHitView {
+        Long getVictimId();
 
-    boolean existsByWar_IdAndAttacker_IdAndVictim_IdAndMapDifficulty_IdAndVictimScoreIsNull(UUID warId,
-            Long attackerId, Long victimId, UUID mapDifficultyId);
+        UUID getVictimScoreId();
 
-    long countByWar_IdAndVictim_IdAndVictimCycle(UUID warId, Long victimId, int victimCycle);
+        boolean isChip();
+    }
+
+    @Query(value = """
+            SELECT h.victim_user_id AS victimId, h.victim_score_id AS victimScoreId, h.chip AS chip
+            FROM clan_war_hits h
+            WHERE h.war_id = :warId AND h.attacker_user_id = :attackerId AND h.map_difficulty_id = :mapDifficultyId
+            """, nativeQuery = true)
+    List<PriorHitView> findPriorHits(@Param("warId") UUID warId, @Param("attackerId") Long attackerId,
+            @Param("mapDifficultyId") UUID mapDifficultyId);
+
+    long countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(UUID warId, Long victimId, int victimCycle);
 
     List<ClanWarHit> findByWar_IdAndVictim_IdAndVictimCycle(UUID warId, Long victimId, int victimCycle);
 

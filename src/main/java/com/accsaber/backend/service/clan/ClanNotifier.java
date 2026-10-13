@@ -1,6 +1,5 @@
 package com.accsaber.backend.service.clan;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -9,9 +8,11 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAlliance;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
-import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
-import com.accsaber.backend.model.entity.clan.war.ClanWarLoan;
+import com.accsaber.backend.model.entity.clan.war.ClanWarAid;
+import com.accsaber.backend.model.entity.clan.war.ClanWarAidDirection;
+import com.accsaber.backend.model.entity.clan.war.ClanWarAidStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -32,10 +33,8 @@ public class ClanNotifier {
     }
 
     public void requested(ClanJoinRequest request) {
-        List<ClanRole> resolvers = Arrays.stream(ClanRole.values())
-                .filter(role -> role.isAtLeast(ClanPermission.RESOLVE_REQUESTS.getMinimum()))
-                .toList();
-        notificationService.notifyAll(memberRepository.findOpenUserIdsByRoles(request.getClan().getId(), resolvers),
+        notificationService.notifyAll(memberRepository.findOpenUserIdsByRoles(request.getClan().getId(),
+                ClanPermission.RESOLVE_REQUESTS.roles()),
                 NotificationType.clan_membership, request.getUser().getId(),
                 request.getUser().getName() + " asked to join " + label(request.getClan()), clanLink(request.getClan()));
     }
@@ -75,19 +74,42 @@ public class ClanNotifier {
                 label(war.getAttackerClan()) + " declared war on your clan", warLink(war));
     }
 
-    public void warStarted(ClanWar war) {
-        bothSides(war, clan -> "Your war against " + label(war.opponentOf(clan)) + " has started");
+    public void warStarted(ClanWar war, List<ClanWarSide> sides) {
+        everySide(war, sides, side -> "Your war against " + label(war.lead(side.getTeam().opponent()))
+                + " has started");
     }
 
-    public void warEnded(ClanWar war) {
-        bothSides(war, clan -> "Your war against " + label(war.opponentOf(clan)) + " is over: "
-                + war.getOutcome().name().replace('_', ' '));
+    public void warEnded(ClanWar war, List<ClanWarSide> sides) {
+        everySide(war, sides, side -> "Your war against " + label(war.lead(side.getTeam().opponent()))
+                + " is over: " + war.getOutcome().name().replace('_', ' '));
     }
 
-    public void loanOffered(ClanWarLoan loan) {
-        notificationService.notify(loan.getUser().getId(), NotificationType.clan_war, loan.getOfferedBy().getId(),
-                label(loan.getLendingClan()) + " wants to lend you to " + label(loan.getClan()) + " for a war",
-                warLink(loan.getWar()));
+    public void aidRequested(ClanWarAid aid) {
+        ClanWar war = aid.getWar();
+        commanders(aid.getClan(), aid.getRequestedBy(), label(war.lead(aid.getTeam()))
+                + " asked your clan to help in its war against " + label(war.lead(aid.getTeam().opponent())), war);
+    }
+
+    public void aidOffered(ClanWarAid aid) {
+        ClanWar war = aid.getWar();
+        commanders(war.lead(aid.getTeam()), aid.getRequestedBy(), label(aid.getClan())
+                + " offered to fight on your side against " + label(war.lead(aid.getTeam().opponent())), war);
+    }
+
+    public void aidAnswered(ClanWarAid aid, User actor) {
+        ClanWar war = aid.getWar();
+        boolean fromLead = aid.getDirection() == ClanWarAidDirection.request;
+        boolean byInitiator = aid.getStatus() == ClanWarAidStatus.cancelled;
+        Clan to = fromLead != byInitiator ? war.lead(aid.getTeam()) : aid.getClan();
+        Clan by = to == aid.getClan() ? war.lead(aid.getTeam()) : aid.getClan();
+        commanders(to, actor, label(by) + " " + aid.getStatus().name() + " the call to fight against "
+                + label(war.lead(aid.getTeam().opponent())), war);
+    }
+
+    public void allyLeft(ClanWar war, ClanWarSide left) {
+        notificationService.notifyAll(memberRepository.findOpenUserIds(war.lead(left.getTeam()).getId()),
+                NotificationType.clan_war, null, label(left.getClan()) + " left your war against "
+                        + label(war.lead(left.getTeam().opponent())), warLink(war));
     }
 
     private void founder(Clan clan, User actor, String title) {
@@ -96,10 +118,16 @@ public class ClanNotifier {
                 clanLink(clan)));
     }
 
-    private void bothSides(ClanWar war, Function<Clan, String> title) {
-        war.sides().forEach(clan -> notificationService.notifyAll(
-                memberRepository.findOpenUserIds(clan.getId()), NotificationType.clan_war, null, title.apply(clan),
-                warLink(war)));
+    private void everySide(ClanWar war, List<ClanWarSide> sides, Function<ClanWarSide, String> title) {
+        sides.stream().filter(side -> side.getLeftAt() == null).forEach(side -> notificationService.notifyAll(
+                memberRepository.findOpenUserIds(side.getClan().getId()), NotificationType.clan_war, null,
+                title.apply(side), warLink(war)));
+    }
+
+    private void commanders(Clan clan, User actor, String title, ClanWar war) {
+        notificationService.notifyAll(memberRepository.findOpenUserIdsByRoles(clan.getId(),
+                ClanPermission.COALITION.roles()),
+                NotificationType.clan_war, actor == null ? null : actor.getId(), title, warLink(war));
     }
 
     private static String label(Clan clan) {

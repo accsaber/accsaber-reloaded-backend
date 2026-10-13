@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.clan;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,8 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.util.Slugs;
 import com.accsaber.backend.websocket.server.ClanFeedType;
@@ -65,6 +68,8 @@ public class ClanService {
     private final ClanStandingService standingService;
     private final ClanAllianceService allianceService;
     private final ClanWarService warService;
+    private final ClanWarCoalitionService coalitionService;
+    private final ClanWarRepository warRepository;
     private final ClanNotifier notifier;
     private final ClanFeed feed;
     private final ClanRefCache refCache;
@@ -125,6 +130,26 @@ public class ClanService {
     }
 
     @Transactional
+    public ClanResponse setPacifism(UUID clanId, Long playerId, boolean enabled) {
+        User actor = accessService.player(playerId);
+        Clan clan = roster.lock(clanId);
+        accessService.require(clanId, actor.getId(), ClanPermission.MANAGE_PACIFISM);
+        if (!enabled) {
+            clan.setPacifistFrom(null);
+        } else if (clan.getPacifistFrom() == null) {
+            if (warRepository.existsOpenForClan(clanId)) {
+                throw new ConflictException("Finish your clan's wars before turning pacifist");
+            }
+            Instant now = Instant.now();
+            clan.setPacifistFrom(standingService.currentSeason().isPresent()
+                    ? now.plus(clanProperties.getPacifistDelay()) : now);
+            coalitionService.leaveAll(clanId);
+        }
+        clanRepository.saveAndFlush(clan);
+        return toResponse(clan);
+    }
+
+    @Transactional
     public ClanResponse setIcon(UUID clanId, Long playerId, String iconUrl) {
         User actor = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
@@ -180,6 +205,7 @@ public class ClanService {
         }
         roster.closeAll(clan.getId(), ClanLeaveReason.disbanded);
         allianceService.endAll(clan, actor);
+        coalitionService.leaveAll(clan.getId());
         warService.forfeitAll(clan.getId());
         auditRepository.save(ClanAuditEntry.builder()
                 .clan(clan).actor(actor).action(ClanAuditAction.disbanded)
@@ -284,7 +310,7 @@ public class ClanService {
         return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.isAcceptingRequests(),
                 level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
                 extras.capacities().at(level.getLevel(), ClanCapacity.member_slots),
-                extras.founders().get(clan.getId()), clan.getCreatedAt());
+                extras.founders().get(clan.getId()), clan.getPacifistFrom(), clan.getCreatedAt());
     }
 
     private Pageable withSortExpressions(Pageable pageable) {

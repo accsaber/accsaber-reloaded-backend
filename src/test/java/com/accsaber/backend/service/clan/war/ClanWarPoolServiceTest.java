@@ -109,7 +109,8 @@ class ClanWarPoolServiceTest {
 
     private ClanWar war(ClanArena arena, ClanWarStatus status, ClanArenaSpec spec) {
         return ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender).arena(arena)
-                .arenaSpec(spec).status(status).picksDueAt(Instant.now().minusSeconds(1)).build();
+                .arenaSpec(spec).ruleset(ClanRuleset.duel).status(status).picksDueAt(Instant.now().minusSeconds(1))
+                .build();
     }
 
     private List<UUID> ids(int count) {
@@ -192,6 +193,18 @@ class ClanWarPoolServiceTest {
         }
 
         @Test
+        void aRandomBerserkerOfferWaitsForTheDefense() {
+            ClanWar war = war(ClanArena.random, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 10, 0, 0));
+            war.setRuleset(ClanRuleset.berserker);
+
+            service.seed(war, List.of());
+
+            verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null);
+            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.picking);
+            assertThat(war.getRuleset()).isEqualTo(ClanRuleset.berserker);
+        }
+
+        @Test
         void theAttackerPicksGoInAsPicksAndThePoolStaysOpen() {
             ClanWar war = war(ClanArena.mixed, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 4, 2, 2));
             allLegal();
@@ -249,7 +262,7 @@ class ClanWarPoolServiceTest {
                     .mapDifficulty(MapDifficulty.builder().id(shared).build()).pickedByClan(attacker)
                     .source(ClanWarPoolSource.pick).build()));
 
-            service.submitPicks(war.getId(), 3L, List.of(shared, fresh));
+            service.submitPicks(war.getId(), 3L, List.of(shared, fresh), false);
 
             verify(accessService).require(defender.getId(), 3L, ClanPermission.SUBMIT_PICKS);
             verify(poolRepository).insertRandom(war.getId(), defender.getId(), "replacement", 1, null, null, null);
@@ -263,19 +276,55 @@ class ClanWarPoolServiceTest {
             ClanWar war = war(ClanArena.mixed, ClanWarStatus.preparing, new ClanArenaSpec(null, null, null, 4, 2, 2));
             when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
 
-            assertThatThrownBy(() -> service.submitPicks(war.getId(), 3L, ids(2)))
+            assertThatThrownBy(() -> service.submitPicks(war.getId(), 3L, ids(2), false))
                     .isInstanceOf(ConflictException.class);
         }
 
         @Test
-        void aMissedWindowRollsTheDefenseHalfAtRandom() {
+        void theDefenseCanAcceptABerserkerOffer() {
+            ClanWar war = war(ClanArena.mixed, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 4, 2, 2));
+            war.setRuleset(ClanRuleset.berserker);
+            when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+            allLegal();
+
+            service.submitPicks(war.getId(), 3L, ids(2), true);
+
+            assertThat(war.getRuleset()).isEqualTo(ClanRuleset.berserker);
+            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+        }
+
+        @Test
+        void turningDownBerserkerMakesItADuel() {
+            ClanWar war = war(ClanArena.random, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 10, 0, 0));
+            war.setRuleset(ClanRuleset.berserker);
+            when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+
+            service.submitPicks(war.getId(), 3L, List.of(), false);
+
+            assertThat(war.getRuleset()).isEqualTo(ClanRuleset.duel);
+            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+        }
+
+        @Test
+        void berserkerCannotBeAcceptedWhenItWasNeverOffered() {
+            ClanWar war = war(ClanArena.mixed, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 4, 2, 2));
+            when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+
+            assertThatThrownBy(() -> service.submitPicks(war.getId(), 3L, ids(2), true))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
+        void aMissedWindowRollsTheDefenseHalfAtRandomAndDeclinesBerserker() {
             ClanWar war = war(ClanArena.mixed, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 4, 1, 3));
+            war.setRuleset(ClanRuleset.berserker);
             when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
 
             service.closePicks(war.getId());
 
             verify(poolRepository).insertRandom(war.getId(), null, "random", 3, null, null, null);
             assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+            assertThat(war.getRuleset()).isEqualTo(ClanRuleset.duel);
         }
 
         @Test
