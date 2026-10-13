@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class OgService {
 
-    private static final String SITE_NAME = "AccSaber Reloaded";
+    private static final String SITE_NAME = "AccSaber";
 
     @Value("${accsaber.domains}")
     private List<String> domains;
