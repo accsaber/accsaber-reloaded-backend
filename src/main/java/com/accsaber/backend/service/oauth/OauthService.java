@@ -24,6 +24,8 @@ import com.accsaber.backend.model.entity.staff.StaffUserStatus;
 import com.accsaber.backend.model.entity.user.OauthConnection;
 import com.accsaber.backend.model.entity.user.OauthSession;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.clan.ClanMember;
+import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.OauthConnectionRepository;
 import com.accsaber.backend.repository.user.OauthSessionRepository;
@@ -66,6 +68,7 @@ public class OauthService {
     private final MissionAssignmentService missionAssignmentService;
     private final ClanMissionAssignmentService clanMissionAssignmentService;
     private final SupporterService supporterService;
+    private final ClanMemberRepository clanMemberRepository;
 
     @Value("${accsaber.jwt.player-refresh-token-ttl}")
     private long playerRefreshTokenTtl;
@@ -219,6 +222,7 @@ public class OauthService {
         return AuthMeResponse.builder()
                 .userId(String.valueOf(user.getId()))
                 .clan(ClanRefCache.forUser(user.getId()))
+                .clanRole(clanMemberRepository.findOpenByUserId(user.getId()).map(ClanMember::getRole).orElse(null))
                 .name(user.getName())
                 .avatarUrl(user.getAvatarUrl())
                 .cdnAvatarUrl(user.getCdnAvatarUrl())

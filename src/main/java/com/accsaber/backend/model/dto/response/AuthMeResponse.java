@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response;
 import java.util.List;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.entity.clan.ClanRole;
 
 import lombok.Builder;
 import lombok.Value;
@@ -16,6 +17,7 @@ public class AuthMeResponse {
     String avatarUrl;
     String cdnAvatarUrl;
     PublicClanResponse clan;
+    ClanRole clanRole;
     String country;
     String supporterTier;
     boolean banned;
