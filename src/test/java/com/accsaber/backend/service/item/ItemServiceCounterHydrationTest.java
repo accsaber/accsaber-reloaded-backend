@@ -28,6 +28,7 @@ import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.repository.item.UserItemLinkCounterRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
+import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +42,8 @@ class ItemServiceCounterHydrationTest {
     private UserItemLinkCounterRepository counterRepository;
     @Mock
     private DuplicateUserService duplicateUserService;
+    @Mock
+    private UserItemTradeItemRepository tradeItemRepository;
 
     @InjectMocks
     private ItemService itemService;

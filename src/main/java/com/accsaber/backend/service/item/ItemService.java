@@ -271,13 +271,20 @@ public class ItemService {
                 .toList();
         Map<UUID, Map<String, Long>> countersByLink = counterRepository.countersByLink(linkIds(links));
         Map<String, ItemResponse> cratesBySourceId = cratesBySourceId(links);
+        Set<UUID> pendingTradeLinks = links.isEmpty() ? Set.of()
+                : Set.copyOf(tradeItemRepository.findLinkIdsInTradesWithStatus(linkIds(links), TradeStatus.pending));
         return page.map(row -> row[1] instanceof UserItemLink link
-                ? hydrate(link, countersByLink, cratesBySourceId)
+                ? withPendingTrade(hydrate(link, countersByLink, cratesBySourceId), pendingTradeLinks)
                 : UserItemResponse.builder()
                         .item(ItemMapper.toItemResponse((Item) row[0]))
                         .modifiers(List.of())
                         .quantity(0L)
                         .build());
+    }
+
+    private static UserItemResponse withPendingTrade(UserItemResponse response, Set<UUID> pendingTradeLinks) {
+        response.setPendingTrade(pendingTradeLinks.contains(response.getLinkId()));
+        return response;
     }
 
     private List<UserItemResponse> hydrateAll(List<UserItemLink> links) {

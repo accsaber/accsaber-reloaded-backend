@@ -33,6 +33,9 @@ public class UserItemResponse {
     @Setter
     private String variantKey;
 
+    @Setter
+    private boolean pendingTrade;
+
     @Getter
     @Builder
     public static class ModifierRef {

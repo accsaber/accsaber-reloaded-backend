@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -14,7 +16,9 @@ import lombok.Getter;
 public class TradeResponse {
 
     private UUID id;
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long fromUserId;
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long toUserId;
     private PlayerRef fromUser;
     private PlayerRef toUser;
