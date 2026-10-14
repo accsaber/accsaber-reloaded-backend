@@ -14,7 +14,8 @@ public record InventoryFilter(
         String search,
         List<ItemSource> source,
         List<UUID> crateItemId,
-        Boolean deprecated) {
+        Boolean deprecated,
+        boolean includeUnowned) {
 
     public List<String> typeKeysOrNull() {
         return nullIfEmpty(typeKey);

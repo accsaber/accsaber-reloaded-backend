@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.milestone;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -21,6 +22,7 @@ public class MilestoneCompletionResponse {
     private String tier;
 
     private String iconGroup;
+    private MilestoneQuerySpec querySpec;
     private Double xp;
     private Double targetValue;
     private String comparison;

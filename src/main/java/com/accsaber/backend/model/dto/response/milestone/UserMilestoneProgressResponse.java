@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.MilestoneQuerySpec;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,6 +20,7 @@ public class UserMilestoneProgressResponse {
     private String tier;
 
     private String iconGroup;
+    private MilestoneQuerySpec querySpec;
     private Double xp;
     private Double targetValue;
     private Double progress;

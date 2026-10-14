@@ -1087,11 +1087,16 @@ public class ScoreService {
         public java.util.Map<UUID, ScoreResponse> mapToResponsesByScoreId(java.util.Collection<Score> scores) {
                 java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
                                 scores.stream().map(Score::getId).toList());
+                java.util.Map<UUID, Double> complexities = mapComplexityService.findActiveComplexitiesForDifficulties(
+                                scores.stream().map(s -> s.getMapDifficulty().getId()).distinct().toList());
                 java.util.Map<UUID, ScoreResponse> responses = new java.util.HashMap<>();
                 for (Score s : scores) {
                         responses.put(s.getId(), toResponse(s,
                                         computeAccuracy(s.getScore(), s.getMapDifficulty().getMaxScore()),
-                                        modifierIds.getOrDefault(s.getId(), List.of())));
+                                        modifierIds.getOrDefault(s.getId(), List.of()))
+                                        .toBuilder()
+                                        .complexity(complexities.get(s.getMapDifficulty().getId()))
+                                        .build());
                 }
                 return responses;
         }

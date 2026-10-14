@@ -95,13 +95,14 @@ public class UserController {
             + "supporters.")
     @GetMapping("/{userId}/pinned-scores")
     public ResponseEntity<List<PinnedScoreResponse>> getPinnedScores(@PathVariable Long userId) {
-        List<PinnedScoreResponse> pinned = userService.getPinnedScores(userId).stream()
+        var pins = userService.getPinnedScores(userId);
+        var scores = scoreService.mapToResponsesByScoreId(pins.stream().map(pin -> pin.getScore()).toList());
+        return ResponseEntity.ok(pins.stream()
                 .map(pin -> PinnedScoreResponse.builder()
-                        .score(scoreService.mapToResponse(pin.getScore()))
+                        .score(scores.get(pin.getScore().getId()))
                         .comment(pin.getComment())
                         .build())
-                .toList();
-        return ResponseEntity.ok(pinned);
+                .toList());
     }
 
     @Operation(summary = "Pinned milestones", description = "In display order. Four max, eight for "

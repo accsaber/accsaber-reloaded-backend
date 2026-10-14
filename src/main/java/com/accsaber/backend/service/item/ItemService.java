@@ -159,13 +159,14 @@ public class ItemService {
         return userItemLinkRepository.findByUser_IdAndItem_Type_KeyAndEscrowedFalse(resolved, typeKey);
     }
 
-    private Page<UserItemLink> findInventory(Long userId, InventoryFilter filter, Pageable pageable) {
+    private Page<Object[]> findInventory(Long userId, InventoryFilter filter, Pageable pageable) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         InventoryFilter f = filter == null
-                ? new InventoryFilter(null, null, null, null, null, null, null, null)
+                ? new InventoryFilter(null, null, null, null, null, null, null, null, false)
                 : filter;
         return userItemLinkRepository.findInventoryFiltered(
                 resolved,
+                f.includeUnowned(),
                 f.typeKeysOrNull(),
                 f.raritiesOrNull(),
                 f.modifierKeysOrNull(),
@@ -180,7 +181,7 @@ public class ItemService {
     private static final String RARITY_ORDER_EXPRESSION = buildRarityOrderExpression();
 
     private static String buildRarityOrderExpression() {
-        StringBuilder sb = new StringBuilder("CASE l.item.rarity ");
+        StringBuilder sb = new StringBuilder("CASE i.rarity ");
         for (ItemRarity r : ItemRarity.values()) {
             sb.append("WHEN com.accsaber.backend.model.entity.item.ItemRarity.")
                     .append(r.name())
@@ -194,7 +195,12 @@ public class ItemService {
 
     private static final Map<String, String> INVENTORY_SORT_EXPRESSIONS = Map.of(
             "rarity", RARITY_ORDER_EXPRESSION,
-            "crate", "ci.name");
+            "crate", "ci.name",
+            "awardedAt", "l.awardedAt",
+            "serialNumber", "l.serialNumber",
+            "quantity", "l.quantity",
+            "item.name", "i.name",
+            "item.type.key", "t.key");
 
     private static Pageable resolveInventorySort(Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
@@ -203,9 +209,9 @@ public class ItemService {
         Sort resolved = Sort.unsorted();
         for (Sort.Order order : pageable.getSort()) {
             String expression = INVENTORY_SORT_EXPRESSIONS.get(order.getProperty());
-            resolved = resolved.and(expression == null
-                    ? Sort.by(new Sort.Order(order.getDirection(), order.getProperty(), Sort.NullHandling.NULLS_LAST))
-                    : unsafeNullsLast(order.getDirection(), expression));
+            if (expression != null) {
+                resolved = resolved.and(unsafeNullsLast(order.getDirection(), expression));
+            }
         }
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
     }
@@ -258,11 +264,20 @@ public class ItemService {
     }
 
     public Page<UserItemResponse> findInventoryHydrated(Long userId, InventoryFilter filter, Pageable pageable) {
-        Page<UserItemLink> page = findInventory(userId, filter, pageable);
-        Map<UUID, Map<String, Long>> countersByLink = counterRepository
-                .countersByLink(linkIds(page.getContent()));
-        Map<String, ItemResponse> cratesBySourceId = cratesBySourceId(page.getContent());
-        return page.map(link -> hydrate(link, countersByLink, cratesBySourceId));
+        Page<Object[]> page = findInventory(userId, filter, pageable);
+        List<UserItemLink> links = page.getContent().stream()
+                .map(row -> (UserItemLink) row[1])
+                .filter(Objects::nonNull)
+                .toList();
+        Map<UUID, Map<String, Long>> countersByLink = counterRepository.countersByLink(linkIds(links));
+        Map<String, ItemResponse> cratesBySourceId = cratesBySourceId(links);
+        return page.map(row -> row[1] instanceof UserItemLink link
+                ? hydrate(link, countersByLink, cratesBySourceId)
+                : UserItemResponse.builder()
+                        .item(ItemMapper.toItemResponse((Item) row[0]))
+                        .modifiers(List.of())
+                        .quantity(0L)
+                        .build());
     }
 
     private List<UserItemResponse> hydrateAll(List<UserItemLink> links) {

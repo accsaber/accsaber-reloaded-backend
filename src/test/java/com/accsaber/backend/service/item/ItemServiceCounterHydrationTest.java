@@ -2,6 +2,7 @@ package com.accsaber.backend.service.item;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -62,10 +63,11 @@ class ItemServiceCounterHydrationTest {
     @Test
     void inventoryCarriesStrangeCounters() {
         UserItemLink strange = link();
-        Page<UserItemLink> page = new PageImpl<>(List.of(strange), PageRequest.of(0, 20), 1);
+        Page<Object[]> page = new PageImpl<>(List.<Object[]>of(new Object[] { strange.getItem(), strange }),
+                PageRequest.of(0, 20), 1);
         when(duplicateUserService.resolvePrimaryUserId(USER_ID)).thenReturn(USER_ID);
-        when(userItemLinkRepository.findInventoryFiltered(any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any())).thenReturn(page);
+        when(userItemLinkRepository.findInventoryFiltered(any(), anyBoolean(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any())).thenReturn(page);
         when(counterRepository.countersByLink(any()))
                 .thenReturn(Map.of(strange.getId(), Map.of(StrangeTrackingService.STAT_PLAY_COUNT, 7L)));
 

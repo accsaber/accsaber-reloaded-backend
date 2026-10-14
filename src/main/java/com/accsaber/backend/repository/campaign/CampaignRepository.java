@@ -52,6 +52,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
         @Query("""
                         SELECT c FROM Campaign c
                         LEFT JOIN CampaignRewardTotals rt ON rt.campaignId = c.id
+                        LEFT JOIN UserCampaign puc ON puc.campaign = c AND puc.user.id = :participantId AND puc.active = true
                         WHERE c.active = true
                           AND (:hasStatus = false OR c.status IN :statuses)
                           AND (:creatorId IS NULL OR c.creator.id = :creatorId)
@@ -67,10 +68,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
                           AND (:hasTags = false OR EXISTS (
                               SELECT 1 FROM CampaignTagLink ctl
                               WHERE ctl.campaign = c AND ctl.campaignTag.id IN :tagIds))
-                          AND (:participantId IS NULL OR EXISTS (
-                              SELECT 1 FROM UserCampaign uc
-                              WHERE uc.campaign = c AND uc.user.id = :participantId
-                                AND uc.active = true AND uc.status IN :progressStatuses))
+                          AND (:participantId IS NULL OR puc.status IN :progressStatuses)
                           AND (:official IS NULL OR c.official = :official)
                           AND (:loved IS NULL OR c.loved = :loved)
                           AND (CAST(:search AS string) IS NULL

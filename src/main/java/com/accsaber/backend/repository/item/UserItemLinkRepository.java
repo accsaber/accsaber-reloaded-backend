@@ -32,16 +32,17 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
         List<UserItemLink> findByUser_IdAndItem_IdAndEscrowedFalse(Long userId, UUID itemId);
 
         @Query(value = """
-                        SELECT l FROM UserItemLink l
-                        JOIN l.item i
+                        SELECT i, l
+                        FROM Item i
                         JOIN i.type t
                         LEFT JOIN t.parentType pt
+                        LEFT JOIN UserItemLink l
+                                ON l.item = i AND l.user.id = :userId AND l.escrowed = FALSE
                         LEFT JOIN UserItemCrateSource cs
                                 ON cs.sourceId = l.sourceId
                                 AND l.source = com.accsaber.backend.model.entity.item.ItemSource.crate_drop
                         LEFT JOIN cs.crateItem ci
-                        WHERE l.user.id = :userId
-                        AND l.escrowed = FALSE
+                        WHERE (l.id IS NOT NULL OR (:includeUnowned = TRUE AND i.visible = TRUE AND i.active = TRUE))
                         AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
                         AND (:rarities IS NULL OR i.rarity IN :rarities)
                         AND (:modifierKeys IS NULL OR EXISTS (
@@ -53,16 +54,17 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         AND (CAST(:search AS string) IS NULL
                                 OR LOWER(i.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         """, countQuery = """
-                        SELECT COUNT(l) FROM UserItemLink l
-                        JOIN l.item i
+                        SELECT COUNT(i)
+                        FROM Item i
                         JOIN i.type t
                         LEFT JOIN t.parentType pt
+                        LEFT JOIN UserItemLink l
+                                ON l.item = i AND l.user.id = :userId AND l.escrowed = FALSE
                         LEFT JOIN UserItemCrateSource cs
                                 ON cs.sourceId = l.sourceId
                                 AND l.source = com.accsaber.backend.model.entity.item.ItemSource.crate_drop
                         LEFT JOIN cs.crateItem ci
-                        WHERE l.user.id = :userId
-                        AND l.escrowed = FALSE
+                        WHERE (l.id IS NOT NULL OR (:includeUnowned = TRUE AND i.visible = TRUE AND i.active = TRUE))
                         AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
                         AND (:rarities IS NULL OR i.rarity IN :rarities)
                         AND (:modifierKeys IS NULL OR EXISTS (
@@ -74,8 +76,9 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         AND (CAST(:search AS string) IS NULL
                                 OR LOWER(i.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
                         """)
-        Page<UserItemLink> findInventoryFiltered(
+        Page<Object[]> findInventoryFiltered(
                         @Param("userId") Long userId,
+                        @Param("includeUnowned") boolean includeUnowned,
                         @Param("typeKeys") Collection<String> typeKeys,
                         @Param("rarities") Collection<ItemRarity> rarities,
                         @Param("modifierKeys") Collection<String> modifierKeys,

@@ -229,8 +229,19 @@ public class CampaignService {
 
     private static final Set<String> NULLABLE_SORTS = Set.of("lovedAt");
 
+    static final Sort PROGRESS_SORT = nullsLast(JpaSort.unsafe(Sort.Direction.DESC, "puc.completedAt")
+            .andUnsafe(Sort.Direction.DESC, "(SELECT COUNT(ucs) FROM UserCampaignScore ucs JOIN ucs.campaignDifficulty pcd"
+                    + " WHERE ucs.campaign = c AND ucs.user = puc.user AND ucs.active = true"
+                    + " AND pcd.active = true AND pcd.barrier = false) * 1.0"
+                    + " / NULLIF((SELECT COUNT(td) FROM CampaignDifficulty td"
+                    + " WHERE td.campaign = c AND td.active = true AND td.barrier = false), 0)"))
+            .and(JpaSort.unsafe(Sort.Direction.ASC, "c.name"));
+
     private static Pageable withSortExpressions(Pageable pageable) {
         for (Sort.Order order : pageable.getSort()) {
+            if (order.getProperty().equals("progress")) {
+                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), PROGRESS_SORT);
+            }
             String expression = SORT_EXPRESSIONS.get(order.getProperty());
             if (expression == null) {
                 continue;
