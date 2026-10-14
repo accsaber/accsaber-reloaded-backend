@@ -659,8 +659,8 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("a member who joined after a clan mission opened cannot count toward it")
-    void lateJoinersSitOutTheWeek() {
+    @DisplayName("a member who joined after a clan mission opened still counts toward it")
+    void lateJoinersCountThisWeek() {
         UUID counter = mission(template("counter", "clan", "{\"count\": 20}"), owls, null, null, "active", 0, null);
         UUID perMember = template("per-member", "clan", null);
         mission(perMember, owls, null, null, "active", 0, null);
@@ -671,9 +671,10 @@ class ClanQueryTest {
 
         assertThat(userMissionRepository.findActiveSharedFor(founder.getId())).extracting(UserMission::getId)
                 .contains(counter);
-        assertThat(userMissionRepository.findActiveSharedFor(officer.getId())).isEmpty();
+        assertThat(userMissionRepository.findActiveSharedFor(officer.getId())).extracting(UserMission::getId)
+                .contains(counter);
         assertThat(userMissionRepository.findPerMemberParentsMissing(owls.getId(), officer.getId(), Instant.now()))
-                .isEmpty();
+                .hasSize(1);
     }
 
     @Test

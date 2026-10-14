@@ -60,6 +60,12 @@ public class MilestoneController {
         return ResponseEntity.ok(milestoneService.findAllSets(userId, pageable));
     }
 
+    @Operation(summary = "Get one milestone set")
+    @GetMapping("/milestones/sets/{setId}")
+    public ResponseEntity<MilestoneSetResponse> getMilestoneSet(@PathVariable UUID setId) {
+        return ResponseEntity.ok(milestoneService.findSet(setId));
+    }
+
     @Operation(summary = "Get one milestone")
     @GetMapping("/milestones/{id}")
     public ResponseEntity<MilestoneResponse> getMilestone(@PathVariable UUID id) {
@@ -80,23 +86,17 @@ public class MilestoneController {
         return ResponseEntity.ok(milestoneService.findBySet(setId));
     }
 
-    @Operation(summary = "Set prerequisite links", description = "Which milestones unlock others. Use it "
-            + "to draw the set as a tree.")
-    @GetMapping("/milestones/sets/{setId}/prerequisites")
-    public ResponseEntity<List<PrerequisiteLinkResponse>> getPrerequisiteLinksBySet(@PathVariable UUID setId) {
-        return ResponseEntity.ok(milestoneService.findPrerequisiteLinksBySet(setId));
+    @Operation(summary = "Prerequisite links", description = "Which milestones unlock others, across every "
+            + "set. Use it to draw sets as trees.")
+    @GetMapping("/milestones/prerequisites")
+    public ResponseEntity<List<PrerequisiteLinkResponse>> listPrerequisiteLinks() {
+        return ResponseEntity.ok(milestoneService.findAllActivePrerequisiteLinks());
     }
 
-    @Operation(summary = "List set groups")
+    @Operation(summary = "List set groups", description = "Each group lists its sets in display order.")
     @GetMapping("/milestones/set-groups")
     public ResponseEntity<List<MilestoneSetGroupResponse>> listSetGroups() {
         return ResponseEntity.ok(milestoneService.findAllActiveGroups());
-    }
-
-    @Operation(summary = "Sets in a group", description = "In display order.")
-    @GetMapping("/milestones/set-groups/{groupId}/links")
-    public ResponseEntity<List<MilestoneSetLinkResponse>> getSetLinksByGroup(@PathVariable UUID groupId) {
-        return ResponseEntity.ok(milestoneService.findSetLinksByGroup(groupId));
     }
 
     @Operation(summary = "Groups a set is in", description = "A set can be in more than one group.")

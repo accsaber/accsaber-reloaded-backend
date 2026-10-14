@@ -159,8 +159,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND (m.pool = com.accsaber.backend.model.entity.mission.MissionPool.community
                                OR (t.eventTargets IS NOT NULL AND m.clan.id IN (
                                    SELECT cm.clan.id FROM ClanMember cm
-                                   WHERE cm.user.id = :userId AND cm.leftAt IS NULL
-                                     AND cm.joinedAt <= m.assignedAt)))
+                                   WHERE cm.user.id = :userId AND cm.leftAt IS NULL)))
                         """)
         List<UserMission> findActiveSharedFor(@Param("userId") Long userId);
 
@@ -238,7 +237,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND p.expiresAt > :now
                           AND t.eventTargets IS NULL
                           AND EXISTS (SELECT 1 FROM ClanMember cm WHERE cm.clan.id = :clanId AND cm.user.id = :userId
-                                      AND cm.leftAt IS NULL AND cm.joinedAt <= p.assignedAt)
+                                      AND cm.leftAt IS NULL)
                           AND NOT EXISTS (SELECT 1 FROM UserMission c WHERE c.parentMission = p AND c.user.id = :userId)
                         """)
         List<UserMission> findPerMemberParentsMissing(@Param("clanId") UUID clanId, @Param("userId") Long userId,

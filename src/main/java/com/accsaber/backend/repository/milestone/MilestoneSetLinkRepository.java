@@ -15,10 +15,10 @@ public interface MilestoneSetLinkRepository extends JpaRepository<MilestoneSetLi
                         SELECT msl FROM MilestoneSetLink msl
                         JOIN FETCH msl.milestoneSet
                         JOIN FETCH msl.group
-                        WHERE msl.group.id = :groupId AND msl.active = true
+                        WHERE msl.active = true
                         ORDER BY msl.sortOrder
                         """)
-        List<MilestoneSetLink> findByGroupIdWithSets(@Param("groupId") UUID groupId);
+        List<MilestoneSetLink> findAllActiveWithSets();
 
         @Query("""
                         SELECT msl FROM MilestoneSetLink msl

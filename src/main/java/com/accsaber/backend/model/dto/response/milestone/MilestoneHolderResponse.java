@@ -4,12 +4,15 @@ import java.time.Instant;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.service.clan.ClanRefCache;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import lombok.Getter;
 
 @Getter
 public class MilestoneHolderResponse {
 
+    @JsonSerialize(using = ToStringSerializer.class)
     private final Long userId;
     private final String name;
     private final String avatarUrl;

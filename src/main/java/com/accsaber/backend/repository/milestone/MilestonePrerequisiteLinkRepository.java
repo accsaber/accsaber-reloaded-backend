@@ -24,4 +24,12 @@ public interface MilestonePrerequisiteLinkRepository extends JpaRepository<Miles
                         WHERE mpl.milestone.milestoneSet.id = :setId AND mpl.active = true
                         """)
         List<MilestonePrerequisiteLink> findBySetIdWithPrerequisites(@Param("setId") UUID setId);
+
+        @Query("""
+                        SELECT mpl FROM MilestonePrerequisiteLink mpl
+                        JOIN FETCH mpl.milestone
+                        JOIN FETCH mpl.prerequisiteMilestone
+                        WHERE mpl.active = true
+                        """)
+        List<MilestonePrerequisiteLink> findAllActiveWithPrerequisites();
 }

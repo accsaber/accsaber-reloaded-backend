@@ -196,6 +196,8 @@ public class MilestoneService {
         }
 
         Map<UUID, UserMilestoneLink> finalUserLinkMap = userLinkMap;
+        Map<UUID, List<MilestoneRewardResponse>> rewards = loadRewards(
+                milestones.stream().map(Milestone::getId).toList());
 
         Comparator<MilestoneCompletionResponse> comparator = switch (sort) {
             case "completions" -> Comparator.comparing(MilestoneCompletionResponse::getCompletions,
@@ -211,7 +213,8 @@ public class MilestoneService {
         };
 
         return milestones.stream()
-                .map(m -> toCompletionResponse(m, statsMap.get(m.getId()), finalUserLinkMap.get(m.getId())))
+                .map(m -> toCompletionResponse(m, statsMap.get(m.getId()), finalUserLinkMap.get(m.getId()),
+                        rewards.get(m.getId())))
                 .sorted(comparator)
                 .toList();
     }
@@ -227,6 +230,12 @@ public class MilestoneService {
     public Page<MilestoneSetResponse> findAllSetsAdmin(Pageable pageable) {
         return milestoneSetRepository.findAll(pageable)
                 .map(s -> toSetResponse(s, null, null));
+    }
+
+    public MilestoneSetResponse findSet(UUID setId) {
+        MilestoneSet set = milestoneSetRepository.findByIdAndActiveTrue(setId)
+                .orElseThrow(() -> new ResourceNotFoundException("MilestoneSet", setId));
+        return toSetResponse(set, null, loadSetRewards(List.of(setId)).get(setId));
     }
 
     public Page<MilestoneSetResponse> findAllSets(Long userId, Pageable pageable) {
@@ -634,8 +643,8 @@ public class MilestoneService {
                 .toList();
     }
 
-    public List<PrerequisiteLinkResponse> findPrerequisiteLinksBySet(UUID setId) {
-        return prerequisiteLinkRepository.findBySetIdWithPrerequisites(setId).stream()
+    public List<PrerequisiteLinkResponse> findAllActivePrerequisiteLinks() {
+        return prerequisiteLinkRepository.findAllActiveWithPrerequisites().stream()
                 .map(this::toPrerequisiteLinkResponse)
                 .toList();
     }
@@ -656,8 +665,13 @@ public class MilestoneService {
     // ---- Milestone Set Groups & Links ----
 
     public List<MilestoneSetGroupResponse> findAllActiveGroups() {
+        Map<UUID, List<MilestoneSetLinkResponse>> linksByGroup = setLinkRepository.findAllActiveWithSets().stream()
+                .map(this::toSetLinkResponse)
+                .collect(Collectors.groupingBy(MilestoneSetLinkResponse::getGroupId));
         return setGroupRepository.findByActiveTrue().stream()
-                .map(this::toSetGroupResponse)
+                .map(group -> toSetGroupResponse(group).toBuilder()
+                        .links(linksByGroup.getOrDefault(group.getId(), List.of()))
+                        .build())
                 .toList();
     }
 
@@ -719,12 +733,6 @@ public class MilestoneService {
                 .orElseThrow(() -> new ResourceNotFoundException("MilestoneSetLink", linkId));
         link.setActive(false);
         setLinkRepository.save(link);
-    }
-
-    public List<MilestoneSetLinkResponse> findSetLinksByGroup(UUID groupId) {
-        return setLinkRepository.findByGroupIdWithSets(groupId).stream()
-                .map(this::toSetLinkResponse)
-                .toList();
     }
 
     public List<MilestoneSetLinkResponse> findSetLinksBySet(UUID setId) {
@@ -900,7 +908,7 @@ public class MilestoneService {
     }
 
     private MilestoneCompletionResponse toCompletionResponse(Milestone m, MilestoneCompletionStats stats,
-            UserMilestoneLink userLink) {
+            UserMilestoneLink userLink, List<MilestoneRewardResponse> rewards) {
         var builder = MilestoneCompletionResponse.builder()
                 .milestoneId(m.getId())
                 .title(m.getTitle())
@@ -913,6 +921,9 @@ public class MilestoneService {
                 .targetValue(m.getTargetValue())
                 .comparison(m.getComparison())
                 .setId(m.getMilestoneSet().getId())
+                .positionX(m.getPositionX())
+                .positionY(m.getPositionY())
+                .rewards(rewards)
                 .categoryId(m.getCategory() != null ? m.getCategory().getId() : null)
                 .completions(stats != null ? stats.getCompletions() : 0L)
                 .totalPlayers(stats != null ? stats.getTotalPlayers() : 0L)
