@@ -228,6 +228,12 @@ public final class ItemMapper {
                 .build();
     }
 
+    public static JsonNode toJsonNode(Object value) {
+        if (value == null)
+            return null;
+        return MAPPER.valueToTree(value);
+    }
+
     private static List<UserItemResponse.ModifierRef> toModifierRefs(Set<ItemModifier> modifiers) {
         if (modifiers == null || modifiers.isEmpty()) {
             return List.of();

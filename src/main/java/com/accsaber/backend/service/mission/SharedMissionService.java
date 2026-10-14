@@ -107,7 +107,7 @@ public class SharedMissionService {
             if (alreadyOpen.contains(template.getId()) || !isOpenNow(template, now)) {
                 continue;
             }
-            if (completionsSoFar(template) >= allowedCompletions(template)) {
+            if (completionsSoFar(template) >= template.allowedCompletions()) {
                 continue;
             }
             if (open(template)) {
@@ -141,13 +141,6 @@ public class SharedMissionService {
     private long completionsSoFar(MissionTemplate template) {
         return userMissionRepository.countByTemplate_IdAndUserIsNullAndStatus(
                 template.getId(), MissionStatus.completed);
-    }
-
-    private long allowedCompletions(MissionTemplate template) {
-        if (!template.isRepeatable()) {
-            return 1;
-        }
-        return template.getMaxCompletions() != null ? template.getMaxCompletions() : Long.MAX_VALUE;
     }
 
     public void payRewards(UUID missionId) {

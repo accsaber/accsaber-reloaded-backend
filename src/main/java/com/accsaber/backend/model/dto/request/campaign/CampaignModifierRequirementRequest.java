@@ -5,14 +5,8 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.campaign.CampaignModifierRequirement;
 
 import jakarta.validation.constraints.NotNull;
-import lombok.Data;
 
-@Data
-public class CampaignModifierRequirementRequest {
-
-    @NotNull
-    private UUID modifierId;
-
-    @NotNull
-    private CampaignModifierRequirement requirement;
+public record CampaignModifierRequirementRequest(
+        @NotNull UUID modifierId,
+        @NotNull CampaignModifierRequirement requirement) {
 }

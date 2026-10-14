@@ -17,6 +17,7 @@ import com.accsaber.backend.model.dto.response.CurveResponse;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.CurveType;
 import com.accsaber.backend.repository.CurvePointRepository;
+import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.repository.CurveRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class CurveService {
 
     private final CurveRepository curveRepository;
     private final CurvePointRepository curvePointRepository;
+    private final LevelService levelService;
 
     @Cacheable("curves")
     public List<CurveResponse> findAllActive() {
@@ -92,6 +94,7 @@ public class CurveService {
             curve.setScale(request.getScale());
         if (request.getShift() != null)
             curve.setShift(request.getShift());
+        AfterCommit.run(levelService::evictLevelCurveCache);
 
         return toResponse(curveRepository.save(curve));
     }

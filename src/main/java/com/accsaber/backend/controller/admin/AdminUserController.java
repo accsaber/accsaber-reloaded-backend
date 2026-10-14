@@ -46,10 +46,10 @@ public class AdminUserController {
     @PatchMapping("/{userId}/country")
     public ResponseEntity<Void> setCountryOverride(@PathVariable Long userId,
             @Valid @RequestBody CountryOverrideRequest request) {
-        if (request.getCountry() == null) {
+        if (request.country() == null) {
             userService.clearCountryOverride(userId);
         } else {
-            userService.overrideCountry(userId, request.getCountry());
+            userService.overrideCountry(userId, request.country());
         }
         return ResponseEntity.noContent().build();
     }

@@ -2,18 +2,27 @@ package com.accsaber.backend.websocket;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.config.PlatformProperties;
+import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
+import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberWebSocketMessage;
 import com.accsaber.backend.service.score.ScoreIngestionService;
+import com.accsaber.backend.util.ScoreSaberWebSocketMessageNormalizer;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -25,14 +34,12 @@ public class WebSocketConnectionManager implements SmartLifecycle {
     private final PlatformProperties properties;
     private final ScoreIngestionService scoreIngestionService;
     private final IngestionLeaderLock leaderLock;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final ScheduledExecutorService reconnectScheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ExecutorService gapFillExecutor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final AtomicInteger blReconnectMs = new AtomicInteger();
-    private final AtomicInteger ssReconnectMs = new AtomicInteger();
-
-    private volatile BeatLeaderWebSocketListener blListener;
-    private volatile ScoreSaberWebSocketListener ssListener;
+    private final List<ScoreFeed> feeds;
 
     public WebSocketConnectionManager(PlatformProperties properties,
             ScoreIngestionService scoreIngestionService,
@@ -40,11 +47,9 @@ public class WebSocketConnectionManager implements SmartLifecycle {
         this.properties = properties;
         this.scoreIngestionService = scoreIngestionService;
         this.leaderLock = leaderLock;
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.configure(
-                com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        this.blReconnectMs.set(properties.getWsReconnectIntervalMs());
-        this.ssReconnectMs.set(properties.getWsReconnectIntervalMs());
+        this.feeds = List.of(
+                new ScoreFeed("beatleader", "BeatLeader", properties.getBeatleader(), this::handleBeatLeader),
+                new ScoreFeed("scoresaber", "ScoreSaber", properties.getScoresaber(), this::handleScoreSaber));
     }
 
     @Override
@@ -67,16 +72,15 @@ public class WebSocketConnectionManager implements SmartLifecycle {
             log.info("Another instance owns score ingestion - standing by until it releases");
             return;
         }
-        connectBeatLeader();
-        connectScoreSaber();
+        feeds.forEach(ScoreFeed::connect);
     }
 
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
-            closeListener(blListener);
-            closeListener(ssListener);
+            feeds.forEach(ScoreFeed::close);
             reconnectScheduler.shutdown();
+            gapFillExecutor.shutdown();
             leaderLock.release();
             log.info("WebSocket connection manager stopped");
         }
@@ -88,68 +92,18 @@ public class WebSocketConnectionManager implements SmartLifecycle {
     }
 
     public Map<String, Object> getStatus() {
-        return Map.of(
-                "beatleader", Map.of(
-                        "connected", blListener != null && blListener.isOpen(),
-                        "lastDisconnectedAt", blListener != null && blListener.getLastDisconnectedAt() != null
-                                ? blListener.getLastDisconnectedAt().toString()
-                                : "never"),
-                "scoresaber", Map.of(
-                        "connected", ssListener != null && ssListener.isOpen(),
-                        "lastDisconnectedAt", ssListener != null && ssListener.getLastDisconnectedAt() != null
-                                ? ssListener.getLastDisconnectedAt().toString()
-                                : "never",
-                        "lastMessageReceivedAt", ssListener != null && ssListener.getLastMessageReceivedAt() != null
-                                ? ssListener.getLastMessageReceivedAt().toString()
-                                : "never"));
+        Map<String, Object> status = new LinkedHashMap<>();
+        feeds.forEach(feed -> status.put(feed.platform, feed.status()));
+        return status;
     }
 
     public void reconnect(String platform) {
-        if ("beatleader".equalsIgnoreCase(platform)) {
-            closeListener(blListener);
-            blReconnectMs.set(properties.getWsReconnectIntervalMs());
-            connectBeatLeader();
-        } else if ("scoresaber".equalsIgnoreCase(platform)) {
-            closeListener(ssListener);
-            ssReconnectMs.set(properties.getWsReconnectIntervalMs());
-            connectScoreSaber();
-        }
-    }
-
-    public boolean isBeatLeaderConnected() {
-        return blListener != null && blListener.isOpen();
-    }
-
-    public boolean isScoreSaberConnected() {
-        return ssListener != null && ssListener.isOpen();
-    }
-
-    private void connectBeatLeader() {
-        String url = properties.getBeatleader().getWebsocketUrl();
-        if (url == null || url.isBlank()) {
-            log.warn("BeatLeader WebSocket URL not configured - skipping");
-            return;
-        }
-        try {
-            log.info("Connecting BeatLeader WebSocket to {}", url);
-            blListener = new BeatLeaderWebSocketListener(new URI(url), scoreIngestionService, objectMapper);
-            blListener.connect();
-        } catch (Exception e) {
-            log.error("Failed to connect BeatLeader WebSocket to {}: {}", url, e.getMessage());
-        }
-    }
-
-    private void connectScoreSaber() {
-        String url = properties.getScoresaber().getWebsocketUrl();
-        if (url == null || url.isBlank()) {
-            log.warn("ScoreSaber WebSocket URL not configured - skipping");
-            return;
-        }
-        try {
-            ssListener = new ScoreSaberWebSocketListener(new URI(url), scoreIngestionService, objectMapper);
-            ssListener.connect();
-        } catch (Exception e) {
-            log.error("Failed to connect ScoreSaber WebSocket: {}", e.getMessage());
+        for (ScoreFeed feed : feeds) {
+            if (feed.platform.equalsIgnoreCase(platform)) {
+                feed.close();
+                feed.reconnectMs.set(properties.getWsReconnectIntervalMs());
+                feed.connect();
+            }
         }
     }
 
@@ -157,75 +111,187 @@ public class WebSocketConnectionManager implements SmartLifecycle {
         if (!running.get())
             return;
         if (!leaderLock.acquire()) {
-            if (blListener != null || ssListener != null) {
+            if (feeds.stream().anyMatch(feed -> feed.client != null)) {
                 log.warn("Lost score ingestion leadership - closing both sockets");
-                closeListener(blListener);
-                closeListener(ssListener);
-                blListener = null;
-                ssListener = null;
+                feeds.forEach(feed -> {
+                    feed.close();
+                    feed.client = null;
+                });
             }
             return;
         }
-        int maxMs = properties.getWsMaxReconnectIntervalMs();
-        int baseMs = properties.getWsReconnectIntervalMs();
+        feeds.forEach(ScoreFeed::monitor);
+    }
 
-        if (!isBeatLeaderConnected() && !isIntentionallyClosed(blListener)) {
-            int currentMs = blReconnectMs.get();
-            if (currentMs <= 0) {
-                log.info("BeatLeader WebSocket disconnected - reconnecting");
-                connectBeatLeader();
-                blReconnectMs.set(Math.min(baseMs * 2, maxMs));
-            } else {
-                blReconnectMs.addAndGet(-baseMs);
+    private void handleBeatLeader(String message) throws Exception {
+        scoreIngestionService.handleBeatLeaderScore(objectMapper.readValue(message, BeatLeaderScoreResponse.class));
+    }
+
+    private void handleScoreSaber(String message) throws Exception {
+        if (message == null || !message.startsWith("{")) {
+            return;
+        }
+        ScoreSaberWebSocketMessage wsMessage = ScoreSaberWebSocketMessageNormalizer.normalize(message, objectMapper);
+        var scoreData = wsMessage.getScore();
+        var leaderboard = wsMessage.getLeaderboard();
+        if (scoreData == null || scoreData.getPlayer() == null || scoreData.getPlayer().getId() == null
+                || leaderboard == null || leaderboard.getId() == null) {
+            return;
+        }
+        Long userId = Long.parseLong(scoreData.getPlayer().getId());
+        String ssLeaderboardId = String.valueOf(leaderboard.getId());
+        scoreIngestionService.handleScoreSaberScore(scoreData, wsMessage.getScoreStats(), userId, ssLeaderboardId);
+    }
+
+    @FunctionalInterface
+    private interface MessageHandler {
+        void handle(String message) throws Exception;
+    }
+
+    private final class ScoreFeed {
+
+        private final String platform;
+        private final String label;
+        private final PlatformProperties.PlatformConfig config;
+        private final MessageHandler handler;
+        private final AtomicInteger reconnectMs = new AtomicInteger(properties.getWsReconnectIntervalMs());
+        private volatile Client client;
+        private volatile Instant lastDisconnectedAt;
+        private volatile Instant lastMessageReceivedAt;
+
+        private ScoreFeed(String platform, String label, PlatformProperties.PlatformConfig config,
+                MessageHandler handler) {
+            this.platform = platform;
+            this.label = label;
+            this.config = config;
+            this.handler = handler;
+        }
+
+        private boolean watchesStaleness() {
+            return "scoresaber".equals(platform);
+        }
+
+        private Map<String, Object> status() {
+            String disconnected = lastDisconnectedAt != null ? lastDisconnectedAt.toString() : "never";
+            if (!watchesStaleness()) {
+                return Map.of("connected", isConnected(), "lastDisconnectedAt", disconnected);
             }
-        } else if (isBeatLeaderConnected()) {
-            blReconnectMs.set(baseMs);
+            return Map.of("connected", isConnected(), "lastDisconnectedAt", disconnected,
+                    "lastMessageReceivedAt", lastMessageReceivedAt != null ? lastMessageReceivedAt.toString() : "never");
         }
 
-        boolean ssStale = isScoreSaberConnected() && isScoreSaberStale();
-        if (ssStale) {
-            log.warn("ScoreSaber WebSocket connected but stale (no messages received recently) - forcing reconnect");
-            closeListener(ssListener);
-            ssListener.setIntentionalClose(false);
+        private boolean isConnected() {
+            Client current = client;
+            return current != null && current.isOpen();
         }
 
-        if ((!isScoreSaberConnected() || ssStale) && !isIntentionallyClosed(ssListener)) {
-            int currentMs = ssReconnectMs.get();
-            if (currentMs <= 0) {
-                log.info("ScoreSaber WebSocket disconnected - reconnecting");
-                connectScoreSaber();
-                ssReconnectMs.set(Math.min(baseMs * 2, maxMs));
-            } else {
-                ssReconnectMs.addAndGet(-baseMs);
+        private void connect() {
+            String url = config.getWebsocketUrl();
+            if (url == null || url.isBlank()) {
+                log.warn("{} WebSocket URL not configured - skipping", label);
+                return;
             }
-        } else if (isScoreSaberConnected()) {
-            ssReconnectMs.set(baseMs);
+            try {
+                log.info("Connecting {} WebSocket to {}", label, url);
+                Client next = new Client(new URI(url));
+                client = next;
+                next.connect();
+            } catch (Exception e) {
+                log.error("Failed to connect {} WebSocket to {}: {}", label, url, e.getMessage());
+            }
         }
-    }
 
-    private boolean isScoreSaberStale() {
-        if (ssListener == null) return false;
-        Instant lastMsg = ssListener.getLastMessageReceivedAt();
-        if (lastMsg == null) return false;
-        long silenceMs = Instant.now().toEpochMilli() - lastMsg.toEpochMilli();
-        return silenceMs > properties.getSsStaleTimeoutMs();
-    }
+        private void close() {
+            Client current = client;
+            if (current != null) {
+                current.intentionalClose = true;
+                current.close();
+            }
+        }
 
-    private boolean isIntentionallyClosed(Object listener) {
-        if (listener instanceof BeatLeaderWebSocketListener bl)
-            return bl.isIntentionalClose();
-        if (listener instanceof ScoreSaberWebSocketListener ss)
-            return ss.isIntentionalClose();
-        return false;
-    }
+        private void monitor() {
+            int maxMs = properties.getWsMaxReconnectIntervalMs();
+            int baseMs = properties.getWsReconnectIntervalMs();
+            Client current = client;
+            boolean stale = watchesStaleness() && isConnected() && isStale();
+            if (stale) {
+                log.warn("{} WebSocket connected but stale (no messages received recently) - forcing reconnect",
+                        label);
+                close();
+                current.intentionalClose = false;
+            }
+            if ((!isConnected() || stale) && (current == null || !current.intentionalClose)) {
+                if (reconnectMs.get() <= 0) {
+                    log.info("{} WebSocket disconnected - reconnecting", label);
+                    connect();
+                    reconnectMs.set(Math.min(baseMs * 2, maxMs));
+                } else {
+                    reconnectMs.addAndGet(-baseMs);
+                }
+            } else if (isConnected()) {
+                reconnectMs.set(baseMs);
+            }
+        }
 
-    private void closeListener(Object listener) {
-        if (listener instanceof BeatLeaderWebSocketListener bl) {
-            bl.setIntentionalClose(true);
-            bl.close();
-        } else if (listener instanceof ScoreSaberWebSocketListener ss) {
-            ss.setIntentionalClose(true);
-            ss.close();
+        private boolean isStale() {
+            Instant lastMsg = lastMessageReceivedAt;
+            return lastMsg != null
+                    && Instant.now().toEpochMilli() - lastMsg.toEpochMilli() > properties.getSsStaleTimeoutMs();
+        }
+
+        private void gapFill(Instant since) {
+            log.info("Reconnected - triggering gap fill from {}", since);
+            gapFillExecutor.execute(() -> {
+                try {
+                    scoreIngestionService.gapFill(platform, since);
+                } catch (Exception e) {
+                    log.error("Gap fill failed: {}", e.getMessage());
+                }
+            });
+        }
+
+        private final class Client extends WebSocketClient {
+
+            private volatile boolean intentionalClose;
+            private volatile boolean opened;
+
+            private Client(URI serverUri) {
+                super(serverUri);
+                setConnectionLostTimeout(30);
+            }
+
+            @Override
+            public void onOpen(ServerHandshake handshake) {
+                log.info("{} WebSocket connected", label);
+                opened = true;
+                Instant since = lastDisconnectedAt;
+                if (since != null) {
+                    gapFill(since);
+                }
+            }
+
+            @Override
+            public void onMessage(String message) {
+                lastMessageReceivedAt = Instant.now();
+                try {
+                    handler.handle(message);
+                } catch (Exception e) {
+                    log.error("Error processing {} WebSocket message: {}", label, e.getMessage());
+                }
+            }
+
+            @Override
+            public void onClose(int code, String reason, boolean remote) {
+                log.warn("{} WebSocket closed (code={}, reason={}, remote={})", label, code, reason, remote);
+                if (opened) {
+                    lastDisconnectedAt = Instant.now();
+                }
+            }
+
+            @Override
+            public void onError(Exception ex) {
+                log.error("{} WebSocket error: {}", label, ex.getMessage());
+            }
         }
     }
 }

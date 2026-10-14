@@ -82,16 +82,6 @@ public class JwtService {
         return parseClaims(token).get("scope", String.class);
     }
 
-    public UUID extractPlayerStaffId(String token) {
-        String value = parseClaims(token).get("staffId", String.class);
-        return value != null ? UUID.fromString(value) : null;
-    }
-
-    public StaffRole extractPlayerStaffRole(String token) {
-        String value = parseClaims(token).get("role", String.class);
-        return value != null ? StaffRole.valueOf(value) : null;
-    }
-
     public long getPlayerAccessTokenTtl() {
         return playerAccessTokenTtl;
     }
@@ -101,8 +91,7 @@ public class JwtService {
     }
 
     public String extractTokenType(String token) {
-        String typ = parseClaims(token).get("typ", String.class);
-        return typ != null ? typ : TYPE_STAFF;
+        return parseClaims(token).get("typ", String.class);
     }
 
     public UUID extractStaffId(String token) {

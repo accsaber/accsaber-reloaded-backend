@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.notification.NotificationResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.notification.NotificationService;
@@ -40,7 +39,7 @@ public class NotificationController {
             @RequestParam(defaultValue = "false") boolean unreadOnly,
             @PageableDefault(size = 30) Pageable pageable,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(notificationService.findFeed(me, unreadOnly, pageable));
     }
 
@@ -48,7 +47,7 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> unreadCount(
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(Map.of("count", notificationService.unreadCount(me)));
     }
 
@@ -56,7 +55,7 @@ public class NotificationController {
     @PatchMapping("/{id}/read")
     public ResponseEntity<Void> markRead(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         notificationService.markRead(id, me);
         return ResponseEntity.noContent().build();
     }
@@ -66,22 +65,15 @@ public class NotificationController {
     @PatchMapping("/read")
     public ResponseEntity<Map<String, Integer>> markAllRead(
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(Map.of("updated", notificationService.markAllRead(me)));
     }
 
     @Operation(summary = "Clear your notifications", description = "Empties the feed. This cannot be undone.")
     @DeleteMapping
     public ResponseEntity<Void> clearAll(@AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         notificationService.clearAll(me);
         return ResponseEntity.noContent().build();
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

@@ -1,22 +1,22 @@
 package com.accsaber.backend.config.health;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.health.contributor.AbstractHealthIndicator;
-import org.springframework.boot.health.contributor.Health;
-import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-
 import java.time.Duration;
 
-@Component
-public class BeatSaverHealthIndicator extends AbstractHealthIndicator {
+import org.springframework.boot.health.contributor.AbstractHealthIndicator;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.web.reactive.function.client.WebClient;
+
+public class HttpPingHealthIndicator extends AbstractHealthIndicator {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
-    private final WebClient webClient;
 
-    public BeatSaverHealthIndicator(@Qualifier("beatSaverWebClient") WebClient webClient) {
-        super("BeatSaver health check failed");
+    private final WebClient webClient;
+    private final String path;
+
+    public HttpPingHealthIndicator(String name, WebClient webClient, String path) {
+        super(name + " health check failed");
         this.webClient = webClient;
+        this.path = path;
     }
 
     @Override
@@ -24,7 +24,7 @@ public class BeatSaverHealthIndicator extends AbstractHealthIndicator {
         long start = System.currentTimeMillis();
         try {
             webClient.get()
-                    .uri("/")
+                    .uri(path)
                     .retrieve()
                     .toBodilessEntity()
                     .block(TIMEOUT);

@@ -25,14 +25,6 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
         })
         List<UserMission> findByUser_IdAndStatus(Long userId, MissionStatus status);
 
-        @EntityGraph(attributePaths = {
-                        "template", "category", "targetMapDifficulty", "targetMapDifficulty.map",
-                        "targetPlayer", "itemReward", "itemReward.type"
-        })
-        List<UserMission> findByUser_IdAndPoolAndStatus(Long userId, MissionPool pool, MissionStatus status);
-
-        long countByUser_IdAndPoolAndStatus(Long userId, MissionPool pool, MissionStatus status);
-
         @Query("""
                         SELECT COUNT(m) FROM UserMission m
                         WHERE m.user.id = :userId
@@ -43,16 +35,6 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         """)
         long countCurrentCycle(@Param("userId") Long userId, @Param("pool") MissionPool pool,
                         @Param("now") Instant now);
-
-        @Query("""
-                        SELECT m FROM UserMission m
-                        WHERE m.user.id = :userId
-                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                          AND m.targetMapDifficulty.id = :mapDifficultyId
-                        """)
-        List<UserMission> findActiveByUserAndTargetMap(
-                        @Param("userId") Long userId,
-                        @Param("mapDifficultyId") UUID mapDifficultyId);
 
         @Query("""
                         SELECT m FROM UserMission m

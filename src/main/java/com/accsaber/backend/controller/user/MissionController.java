@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.UserMission;
@@ -36,7 +35,7 @@ public class MissionController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @RequestParam(defaultValue = "false") boolean completed,
             @RequestParam(required = false) MissionPool pool) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         List<UserMission> missions = resolveMissions(userId, completed, pool);
         return ResponseEntity.ok(missions.stream().map(MissionResponse::from).toList());
     }
@@ -48,12 +47,5 @@ public class MissionController {
         return pool == null
                 ? missionQueryService.listActive(userId)
                 : missionQueryService.listActiveByPool(userId, pool);
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

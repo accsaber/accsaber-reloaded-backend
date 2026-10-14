@@ -32,8 +32,6 @@ public interface MapDifficultyComplexityRepository extends JpaRepository<MapDiff
                         """)
         List<MapDifficultyComplexity> findActiveForUpdateIn(@Param("ids") List<UUID> mapDifficultyIds);
 
-        List<MapDifficultyComplexity> findByMapDifficultyIdOrderByCreatedAtDesc(UUID mapDifficultyId);
-
         @Query("""
                         SELECT c FROM MapDifficultyComplexity c
                         WHERE c.mapDifficulty.id IN :difficultyIds AND c.active = true

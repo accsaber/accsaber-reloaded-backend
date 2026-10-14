@@ -90,7 +90,6 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
       "targets": [
-        { "expr": "rate(accsaber_scores_submitted_total[5m]) * 60", "legendFormat": "Submitted/min" },
         { "expr": "rate(accsaber_scores_ingested_total{platform=\"beatleader\"}[5m]) * 60", "legendFormat": "BL Ingested/min" },
         { "expr": "rate(accsaber_scores_ingested_total{platform=\"scoresaber\"}[5m]) * 60", "legendFormat": "SS Ingested/min" }
       ],
@@ -122,59 +121,6 @@
         { "expr": "accsaber_executor_queue_depth{executor=\"ranking\"}", "legendFormat": "Ranking Queue" },
         { "expr": "accsaber_executor_queue_depth{executor=\"backfill\"}", "legendFormat": "Backfill Queue" }
       ]
-    },
-    {
-      "title": "Recalculation Job Duration",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
-      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
-      "targets": [
-        { "expr": "histogram_quantile(0.95, rate(accsaber_ap_recalculation_duration_seconds_bucket[5m]))", "legendFormat": "p95" },
-        { "expr": "histogram_quantile(0.99, rate(accsaber_ap_recalculation_duration_seconds_bucket[5m]))", "legendFormat": "p99" }
-      ],
-      "fieldConfig": {
-        "defaults": { "unit": "s" }
-      }
-    },
-    {
-      "title": "Async Task Failures",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 40 },
-      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
-      "targets": [
-        { "expr": "increase(accsaber_async_failures_total[1h])", "legendFormat": "Failures (1h)" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 5 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "title": "Outbound API Failures",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 40 },
-      "datasource": { "type": "prometheus", "uid": "accsaber-prometheus" },
-      "targets": [
-        { "expr": "increase(accsaber_requests_outbound_failures_total[1h])", "legendFormat": "Failures (1h)" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 20 }
-            ]
-          }
-        }
-      }
     }
   ],
   "schemaVersion": 39

@@ -39,7 +39,7 @@ public class ClanRivalService {
     private final ClanFeed feed;
 
     public Page<ClanRivalResponse> list(UUID clanId, boolean incoming, Pageable pageable) {
-        clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        clanRepository.requireActive(clanId);
         Page<ClanRival> page = incoming
                 ? rivalRepository.findDeclaredAgainst(clanId, pageable)
                 : rivalRepository.findDeclaredBy(clanId, pageable);
@@ -56,8 +56,8 @@ public class ClanRivalService {
         if (clanId.equals(rivalClanId)) {
             throw new ValidationException("clanId", "must be another clan");
         }
-        Clan clan = active(clanId);
-        Clan rival = active(rivalClanId);
+        Clan clan = clanRepository.requireActive(clanId);
+        Clan rival = clanRepository.requireActive(rivalClanId);
         if (allianceRepository.existsActiveBetween(clanId, rivalClanId)) {
             throw new ConflictException("End the alliance before calling this clan a rival");
         }
@@ -84,10 +84,5 @@ public class ClanRivalService {
                 .orElseThrow(() -> new ResourceNotFoundException("ClanRival", rivalClanId));
         row.setActive(false);
         rivalRepository.save(row);
-    }
-
-    private Clan active(UUID clanId) {
-        return clanRepository.findByIdAndActiveTrue(clanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
     }
 }

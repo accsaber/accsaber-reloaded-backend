@@ -15,6 +15,7 @@ import io.micrometer.core.instrument.Counter;
 import io.netty.channel.ChannelOption;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 @Slf4j
@@ -31,17 +32,17 @@ public class WebClientConfig {
 
     @Bean(name = "beatLeaderWebClient")
     public WebClient beatLeaderWebClient() {
-        return buildWebClient(properties.getBeatleader(), metricsService.getOutboundBeatLeader());
+        return buildPlatformClient(properties.getBeatleader(), metricsService.getOutboundBeatLeader());
     }
 
     @Bean(name = "scoreSaberWebClient")
     public WebClient scoreSaberWebClient() {
-        return buildWebClient(properties.getScoresaber(), metricsService.getOutboundScoreSaber());
+        return buildPlatformClient(properties.getScoresaber(), metricsService.getOutboundScoreSaber());
     }
 
     @Bean(name = "beatSaverWebClient")
     public WebClient beatSaverWebClient() {
-        return buildWebClient(properties.getBeatsaver(), metricsService.getOutboundBeatSaver());
+        return buildPlatformClient(properties.getBeatsaver(), metricsService.getOutboundBeatSaver());
     }
 
     @Bean(name = "gitHubWebClient")
@@ -50,84 +51,54 @@ public class WebClientConfig {
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
                 .responseTimeout(Duration.ofSeconds(30))
                 .followRedirect(true);
-
-        ExchangeStrategies strategies = ExchangeStrategies.builder()
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
-                .build();
-
-        return WebClient.builder()
-                .baseUrl("https://api.github.com")
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .exchangeStrategies(strategies)
-                .filter(logRequest())
-                .build();
+        return builder("https://api.github.com", httpClient).build();
     }
 
     @Bean(name = "criteriaCheckerWebClient")
     public WebClient criteriaCheckerWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, criteriaCheckerProperties.getTimeoutMs())
-                .responseTimeout(Duration.ofMillis(criteriaCheckerProperties.getTimeoutMs()));
-
-        ExchangeStrategies strategies = ExchangeStrategies.builder()
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
-                .build();
-
-        return WebClient.builder()
-                .baseUrl(criteriaCheckerProperties.getBaseUrl())
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .exchangeStrategies(strategies)
-                .filter(logRequest())
+        return builder(criteriaCheckerProperties.getBaseUrl(), timeouts(criteriaCheckerProperties.getTimeoutMs()))
                 .build();
     }
 
     @Bean(name = "complexityModelWebClient")
     public WebClient complexityModelWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, complexityModelProperties.getTimeoutMs())
-                .responseTimeout(Duration.ofMillis(complexityModelProperties.getTimeoutMs()));
-
-        ExchangeStrategies strategies = ExchangeStrategies.builder()
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
-                .build();
-
-        return WebClient.builder()
-                .baseUrl(complexityModelProperties.getBaseUrl())
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .exchangeStrategies(strategies)
-                .filter(logRequest())
+        return builder(complexityModelProperties.getBaseUrl(), timeouts(complexityModelProperties.getTimeoutMs()))
                 .build();
     }
 
-    private WebClient buildWebClient(PlatformProperties.PlatformConfig config, Counter outboundCounter) {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getTimeoutMs())
-                .responseTimeout(Duration.ofMillis(config.getTimeoutMs()));
-
-        ExchangeStrategies strategies = ExchangeStrategies.builder()
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
+    private WebClient buildPlatformClient(PlatformProperties.PlatformConfig config, Counter outboundCounter) {
+        return builder(config.getBaseUrl(), timeouts(config.getTimeoutMs()))
+                .filters(filters -> filters.addFirst(countOutbound(outboundCounter)))
                 .build();
+    }
 
+    private static HttpClient timeouts(int timeoutMs) {
+        return HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, timeoutMs)
+                .responseTimeout(Duration.ofMillis(timeoutMs));
+    }
+
+    private WebClient.Builder builder(String baseUrl, HttpClient httpClient) {
         return WebClient.builder()
-                .baseUrl(config.getBaseUrl())
+                .baseUrl(baseUrl)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .exchangeStrategies(strategies)
-                .filter(countOutbound(outboundCounter))
-                .filter(logRequest())
-                .build();
+                .exchangeStrategies(ExchangeStrategies.builder()
+                        .codecs(c -> c.defaultCodecs().maxInMemorySize(LARGE_BUFFER_BYTES))
+                        .build())
+                .filter(logRequest());
     }
 
     private ExchangeFilterFunction countOutbound(Counter counter) {
         return ExchangeFilterFunction.ofRequestProcessor(request -> {
             counter.increment();
-            return reactor.core.publisher.Mono.just(request);
+            return Mono.just(request);
         });
     }
 
     private ExchangeFilterFunction logRequest() {
         return ExchangeFilterFunction.ofRequestProcessor(request -> {
             log.debug("External API request: {} {}", request.method(), request.url());
-            return reactor.core.publisher.Mono.just(request);
+            return Mono.just(request);
         });
     }
 }

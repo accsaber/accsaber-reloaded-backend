@@ -58,11 +58,8 @@ public class AdminNewsController {
             @RequestParam(required = false) NewsType type,
             @PageableDefault(size = 20) Pageable pageable,
             Authentication authentication) {
-        if (mine) {
-            return ResponseEntity.ok(newsService.findStaffByAuthor(
-                    StaffPrincipals.staffIdOf(authentication), status, type, pageable));
-        }
-        return ResponseEntity.ok(newsService.findStaffAll(status, type, pageable));
+        UUID authorId = mine ? StaffPrincipals.staffIdOf(authentication) : null;
+        return ResponseEntity.ok(newsService.findStaff(authorId, status, type, pageable));
     }
 
     @Operation(summary = "Get any news post", description = "Works on drafts too.")
@@ -106,6 +103,7 @@ public class AdminNewsController {
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
+        newsService.assertCanEdit(id, StaffPrincipals.staffIdOf(authentication), StaffPrincipals.roleOf(authentication));
         String url = mediaProcessingService.storeImage(file, NEWS_IMAGE_SUBDIR, id.toString());
         return ResponseEntity.ok(newsService.setImageUrl(
                 id,
@@ -120,6 +118,7 @@ public class AdminNewsController {
     public ResponseEntity<NewsResponse> deleteImage(
             @PathVariable UUID id,
             Authentication authentication) {
+        newsService.assertCanEdit(id, StaffPrincipals.staffIdOf(authentication), StaffPrincipals.roleOf(authentication));
         mediaProcessingService.deleteIfExists(NEWS_IMAGE_SUBDIR, id.toString());
         return ResponseEntity.ok(newsService.setImageUrl(
                 id,

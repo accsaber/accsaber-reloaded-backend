@@ -1,6 +1,5 @@
 package com.accsaber.backend.repository.milestone;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,10 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 
 public interface MilestoneSetRepository extends JpaRepository<MilestoneSet, UUID> {
-
-    List<MilestoneSet> findByActiveTrue();
-
-    Page<MilestoneSet> findByActiveTrue(Pageable pageable);
 
     @Query("""
             SELECT ms FROM MilestoneSet ms

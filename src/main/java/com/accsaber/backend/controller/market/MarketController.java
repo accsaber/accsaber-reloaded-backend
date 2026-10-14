@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.market.CreateListingRequest;
 import com.accsaber.backend.model.dto.request.market.MarketFilter;
 import com.accsaber.backend.model.dto.request.market.MarketKind;
@@ -84,7 +83,7 @@ public class MarketController {
     @PostMapping("/listings")
     public ResponseEntity<MarketListingResponse> create(@Valid @RequestBody CreateListingRequest req,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.status(HttpStatus.CREATED).body(listingService.create(me, req));
     }
 
@@ -92,7 +91,7 @@ public class MarketController {
     @DeleteMapping("/listings/{id}")
     public ResponseEntity<MarketListingResponse> cancel(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(listingService.cancel(id, me));
     }
 
@@ -102,8 +101,8 @@ public class MarketController {
     public ResponseEntity<MarketListingResponse> placeBid(@PathVariable UUID id,
             @Valid @RequestBody PlaceBidRequest req,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
-        bidService.placeBid(id, me, req.getAmount());
+        Long me = PlayerUserDetails.require(principal).getUserId();
+        bidService.placeBid(id, me, req.amount());
         return ResponseEntity.ok(listingService.findDetail(id));
     }
 
@@ -111,7 +110,7 @@ public class MarketController {
     @PostMapping("/listings/{id}/buy")
     public ResponseEntity<MarketListingResponse> buyNow(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         bidService.buyNow(id, me);
         return ResponseEntity.ok(listingService.findDetail(id));
     }
@@ -123,7 +122,7 @@ public class MarketController {
             @RequestParam(required = false) List<MarketListingStatus> status,
             @PageableDefault(size = 30) Pageable pageable,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(listingService.findInvolvingUser(me, status, pageable));
     }
 
@@ -132,14 +131,7 @@ public class MarketController {
     public ResponseEntity<Page<MarketBidResponse>> myBids(
             @PageableDefault(size = 30) Pageable pageable,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(bidService.findMyBids(me, pageable));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

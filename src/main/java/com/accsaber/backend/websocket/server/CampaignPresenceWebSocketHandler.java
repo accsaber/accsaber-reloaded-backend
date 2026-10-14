@@ -3,45 +3,39 @@ package com.accsaber.backend.websocket.server;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
-public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
+public class CampaignPresenceWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
     private static final Logger log = LoggerFactory.getLogger(CampaignPresenceWebSocketHandler.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final int SEND_TIME_LIMIT = 5_000;
-    private static final int BUFFER_SIZE_LIMIT = 32 * 1024;
     private static final int MAX_MESSAGE_LENGTH = 4096;
 
-    private final Map<UUID, Set<WebSocketSession>> rooms = new ConcurrentHashMap<>();
+    @Override
+    protected UUID resolveRoomKey(WebSocketSession session) {
+        return campaignId(session);
+    }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession rawSession) {
-        WebSocketSession session = new ConcurrentWebSocketSessionDecorator(
-                rawSession, SEND_TIME_LIMIT, BUFFER_SIZE_LIMIT);
-        UUID campaignId = campaignId(session);
-        if (campaignId == null) {
-            return;
-        }
-        rooms.computeIfAbsent(campaignId, k -> ConcurrentHashMap.newKeySet()).add(session);
+    protected void onSessionJoined(UUID campaignId, WebSocketSession session) {
         sendSnapshot(session, campaignId);
         broadcastPresence(campaignId, session, "presence_join");
         log.info("Presence client joined campaign {} (user {})", campaignId, userId(session));
+    }
+
+    @Override
+    protected void onSessionLeft(UUID campaignId, WebSocketSession session) {
+        broadcastPresence(campaignId, session, "presence_leave");
     }
 
     @Override
@@ -66,47 +60,17 @@ public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
         stamp(msg, session, campaignId);
         String json = write(msg);
         if (json != null) {
-            sendToRoom(campaignId, session, json);
+            broadcast(campaignId, json, session);
         }
     }
 
     public void broadcastChat(UUID campaignId, String json) {
-        sendToRoom(campaignId, null, json);
-    }
-
-    @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        remove(session);
-    }
-
-    @Override
-    public void handleTransportError(WebSocketSession session, Throwable exception) {
-        remove(session);
-    }
-
-    private void remove(WebSocketSession session) {
-        UUID campaignId = campaignId(session);
-        if (campaignId == null) {
-            return;
-        }
-        Set<WebSocketSession> room = rooms.get(campaignId);
-        if (room == null) {
-            return;
-        }
-        room.removeIf(s -> s.getId().equals(session.getId()));
-        broadcastPresence(campaignId, session, "presence_leave");
-        if (room.isEmpty()) {
-            rooms.remove(campaignId, room);
-        }
+        broadcast(campaignId, json);
     }
 
     private void sendSnapshot(WebSocketSession session, UUID campaignId) {
-        Set<WebSocketSession> room = rooms.get(campaignId);
-        if (room == null) {
-            return;
-        }
         Map<Long, CampaignPresenceMessage.Member> byUser = new LinkedHashMap<>();
-        for (WebSocketSession peer : room) {
+        for (WebSocketSession peer : sessions(campaignId)) {
             if (peer.getId().equals(session.getId())) {
                 continue;
             }
@@ -122,8 +86,15 @@ public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
         msg.setTs(System.currentTimeMillis());
         msg.setMembers(byUser.values().stream().toList());
         String json = write(msg);
-        if (json != null) {
-            sendOne(session, json);
+        if (json == null) {
+            return;
+        }
+        try {
+            if (session.isOpen()) {
+                session.sendMessage(new TextMessage(json));
+            }
+        } catch (IOException | RuntimeException e) {
+            log.debug("Failed to send presence to session {}: {}", session.getId(), e.getMessage());
         }
     }
 
@@ -133,7 +104,7 @@ public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
         stamp(msg, actorSession, campaignId);
         String json = write(msg);
         if (json != null) {
-            sendToRoom(campaignId, actorSession, json);
+            broadcast(campaignId, json, actorSession);
         }
     }
 
@@ -144,37 +115,6 @@ public class CampaignPresenceWebSocketHandler extends TextWebSocketHandler {
         msg.setActorAvatarUrl(userAvatar(session));
         msg.setTs(System.currentTimeMillis());
         msg.setMembers(null);
-    }
-
-    private void sendToRoom(UUID campaignId, WebSocketSession exclude, String json) {
-        Set<WebSocketSession> room = rooms.get(campaignId);
-        if (room == null) {
-            return;
-        }
-        TextMessage text = new TextMessage(json);
-        for (WebSocketSession peer : room) {
-            if (exclude != null && peer.getId().equals(exclude.getId())) {
-                continue;
-            }
-            sendOne(peer, text, room);
-        }
-    }
-
-    private void sendOne(WebSocketSession session, String json) {
-        sendOne(session, new TextMessage(json), null);
-    }
-
-    private void sendOne(WebSocketSession session, TextMessage text, Set<WebSocketSession> room) {
-        try {
-            if (session.isOpen()) {
-                session.sendMessage(text);
-            }
-        } catch (IOException | RuntimeException e) {
-            if (room != null) {
-                room.remove(session);
-            }
-            log.debug("Failed to send presence to session {}: {}", session.getId(), e.getMessage());
-        }
     }
 
     private String write(CampaignPresenceMessage msg) {

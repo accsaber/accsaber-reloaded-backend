@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -29,7 +31,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -38,6 +39,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
@@ -104,6 +109,7 @@ import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.media.MediaProcessingService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.RichTextSanitizer;
 import com.accsaber.backend.service.playlist.PlaylistService;
@@ -175,12 +181,15 @@ class CampaignServiceTest {
         @Mock
         private PlaylistService playlistService;
         @Mock
-        private CdnProperties cdnProperties;
-        @Mock
         private ApplicationEventPublisher eventPublisher;
+        @Mock
+        private MediaProcessingService mediaProcessingService;
+        @Mock
+        private TransactionTemplate transactionTemplate;
 
-        @InjectMocks
         private CampaignService campaignService;
+        private CampaignNodeService nodeService;
+        private CampaignProgressService progressService;
 
         private User creator;
         private Campaign campaign;
@@ -191,6 +200,38 @@ class CampaignServiceTest {
         void setUp() {
                 lenient().when(duplicateUserService.resolvePrimaryUserId(any(Long.class)))
                                 .thenAnswer(inv -> inv.getArgument(0));
+                lenient().when(transactionTemplate.execute(any()))
+                                .thenAnswer(inv -> inv.<TransactionCallback<?>>getArgument(0).doInTransaction(null));
+                lenient().doAnswer(inv -> {
+                        inv.<Consumer<TransactionStatus>>getArgument(0).accept(null);
+                        return null;
+                }).when(transactionTemplate).executeWithoutResult(any());
+                CampaignAccess access = new CampaignAccess(campaignRepository, campaignDifficultyRepository,
+                                campaignCollaboratorRepository, duplicateUserService, mediaProcessingService,
+                                transactionTemplate);
+                CampaignMapper mapper = new CampaignMapper(campaignDifficultyRepository,
+                                campaignDifficultyPathRepository, barrierAffectedRepository, campaignTextRepository,
+                                campaignDifficultyItemRepository, campaignDifficultyModifierRepository,
+                                campaignDifficultyTargetRepository, campaignRewardTotalsRepository,
+                                campaignCompletionItemRepository, campaignTagLinkRepository, campaignVoteRepository,
+                                userCampaignRepository, userCampaignScoreRepository, mapDifficultyComplexityRepository,
+                                staffUserRepository);
+                campaignService = new CampaignService(campaignRepository, campaignDifficultyRepository,
+                                campaignDifficultyItemRepository, campaignCompletionItemRepository, campaignTagRepository,
+                                campaignTagLinkRepository, userCampaignRepository, campaignVoteRepository, userRepository,
+                                itemRepository, categoryRepository, staffUserRepository, duplicateUserService,
+                                campaignEvaluationService, campaignScoreGate, playlistService, new CdnProperties(),
+                                eventPublisher, transactionTemplate, access, mapper);
+                nodeService = new CampaignNodeService(campaignDifficultyRepository, campaignDifficultyPathRepository,
+                                barrierAffectedRepository, campaignTextRepository, campaignDifficultyItemRepository,
+                                campaignDifficultyModifierRepository, campaignDifficultyTargetRepository,
+                                userCampaignScoreRepository, modifierRepository, mapDifficultyRepository,
+                                richTextSanitizer, campaignEvaluationService, campaignScoreGate, mapImportService,
+                                playlistService, transactionTemplate, access, mapper);
+                progressService = new CampaignProgressService(campaignRepository, campaignDifficultyRepository,
+                                campaignDifficultyPathRepository, barrierAffectedRepository, userCampaignRepository,
+                                userCampaignScoreRepository, scoreRepository, scoreModifierLinkRepository,
+                                duplicateUserService, campaignEvaluationService, campaignService, access, mapper);
                 creator = User.builder().id(12345L).name("TestPlayer").active(true).build();
                 map = com.accsaber.backend.model.entity.map.Map.builder()
                                 .id(UUID.randomUUID())
@@ -238,7 +279,7 @@ class CampaignServiceTest {
                         });
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.createCampaign(request);
+                        CampaignResponse result = campaignService.createCampaign(CampaignEditor.staff(null), request);
 
                         assertThat(result.getName()).isEqualTo("New Campaign");
                         assertThat(result.getSlug()).isEqualTo("new-campaign");
@@ -255,7 +296,7 @@ class CampaignServiceTest {
                         when(userRepository.findByIdAndActiveTrue(creator.getId())).thenReturn(Optional.of(creator));
                         when(campaignRepository.existsBySlug("taken")).thenReturn(true);
 
-                        assertThatThrownBy(() -> campaignService.createCampaign(request))
+                        assertThatThrownBy(() -> campaignService.createCampaign(CampaignEditor.staff(null), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -264,7 +305,7 @@ class CampaignServiceTest {
                         CreateCampaignRequest request = new CreateCampaignRequest();
                         request.setName("Anon");
 
-                        assertThatThrownBy(() -> campaignService.createCampaign(request))
+                        assertThatThrownBy(() -> campaignService.createCampaign(CampaignEditor.staff(null), request))
                                         .isInstanceOf(ValidationException.class);
                 }
         }
@@ -279,7 +320,7 @@ class CampaignServiceTest {
                         request.setName("Renamed");
                         stubUpdate();
 
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
+                        CampaignResponse result = campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getName()).isEqualTo("Renamed");
                 }
@@ -299,7 +340,7 @@ class CampaignServiceTest {
                         when(campaignTagLinkRepository.save(any(CampaignTagLink.class)))
                                         .thenAnswer(inv -> inv.getArgument(0));
 
-                        campaignService.updateCampaign(campaign.getId(), request);
+                        campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request);
 
                         verify(campaignTagLinkRepository).save(any(CampaignTagLink.class));
                 }
@@ -310,7 +351,7 @@ class CampaignServiceTest {
                         request.setBackground(placement("140", "50", "20"));
                         stubUpdate();
 
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
+                        CampaignResponse result = campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getBackground())
                                         .isEqualTo(placement("140", "50", "20"));
@@ -323,7 +364,7 @@ class CampaignServiceTest {
                         request.setBackground(new CampaignBackgroundPlacement());
                         stubUpdate();
 
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
+                        CampaignResponse result = campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getBackground()).isNull();
                         assertThat(campaign.getBackground()).isNull();
@@ -336,7 +377,7 @@ class CampaignServiceTest {
                         request.setName("Renamed");
                         stubUpdate();
 
-                        CampaignResponse result = campaignService.updateCampaign(campaign.getId(), request);
+                        CampaignResponse result = campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getBackground())
                                         .isEqualTo(placement("140", "50", "20"));
@@ -349,7 +390,7 @@ class CampaignServiceTest {
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
 
-                        assertThatThrownBy(() -> campaignService.updateCampaign(campaign.getId(), request))
+                        assertThatThrownBy(() -> campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -360,7 +401,7 @@ class CampaignServiceTest {
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
 
-                        assertThatThrownBy(() -> campaignService.updateCampaign(campaign.getId(), request))
+                        assertThatThrownBy(() -> campaignService.updateCampaign(CampaignEditor.staff(null), campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -373,10 +414,23 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.setBackgroundUrl(campaign.getId(), null);
+                        CampaignResponse result = campaignService.replaceCampaignMedia(CampaignEditor.staff(null), campaign.getId(),
+                                        CampaignMediaKind.BACKGROUND, null);
 
                         assertThat(result.getBackgroundUrl()).isNull();
                         assertThat(result.getBackground()).isNull();
+                }
+
+                @Test
+                void uploadIsAuthorizedBeforeTheImageIsStored() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> campaignService.replaceCampaignMedia(CampaignEditor.player(888L),
+                                        campaign.getId(), CampaignMediaKind.ICON, mock(MultipartFile.class)))
+                                        .isInstanceOf(ValidationException.class);
+
+                        verify(mediaProcessingService, never()).storeImage(any(), any(), any(), any());
                 }
 
                 private void stubUpdate() {
@@ -646,7 +700,7 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.publish(campaign.getId());
+                        CampaignResponse result = campaignService.publish(CampaignEditor.staff(null), campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                         assertThat(result.getPublishedAt()).isNotNull();
@@ -656,7 +710,7 @@ class CampaignServiceTest {
                 void rejectsWhenNoNodeIsFlaggedTerminal() {
                         stubPublish(List.of(node(0, "0.90", false), node(1, "0.95", false)));
 
-                        assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
+                        assertThatThrownBy(() -> campaignService.publish(CampaignEditor.staff(null), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -667,7 +721,7 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.publish(campaign.getId());
+                        CampaignResponse result = campaignService.publish(CampaignEditor.staff(null), campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                 }
@@ -680,7 +734,7 @@ class CampaignServiceTest {
                                         .xp(0.0).active(true).build();
                         stubPublish(List.of(node(0, "0.90", false), gate));
 
-                        assertThatThrownBy(() -> campaignService.publish(campaign.getId()))
+                        assertThatThrownBy(() -> campaignService.publish(CampaignEditor.staff(null), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -697,12 +751,12 @@ class CampaignServiceTest {
 
                         stubPublish(List.of(node));
                         when(campaignDifficultyRepository
-                                        .findByCampaign_IdAndActiveTrueAndRequirementDirtyTrue(campaign.getId()))
+                                        .findDirtyByCampaign(campaign.getId()))
                                         .thenReturn(List.of(node));
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.publish(campaign.getId());
+                        CampaignResponse result = campaignService.publish(CampaignEditor.staff(null), campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.PUBLISHED);
                         assertThat(node.isRequirementDirty()).isFalse();
@@ -723,7 +777,7 @@ class CampaignServiceTest {
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
                         CampaignResponse result = campaignService
-                                        .unpublishAsEditor(CampaignEditor.player(creator.getId()), campaign.getId());
+                                        .unpublish(CampaignEditor.player(creator.getId()), campaign.getId());
 
                         assertThat(result.getStatus()).isEqualTo(CampaignStatus.DRAFT);
                 }
@@ -734,7 +788,7 @@ class CampaignServiceTest {
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
 
-                        assertThatThrownBy(() -> campaignService.unpublishAsEditor(CampaignEditor.player(999L),
+                        assertThatThrownBy(() -> campaignService.unpublish(CampaignEditor.player(999L),
                                         campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
@@ -745,7 +799,7 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(campaign));
 
                         assertThatThrownBy(() -> campaignService
-                                        .unpublishAsEditor(CampaignEditor.player(creator.getId()), campaign.getId()))
+                                        .unpublish(CampaignEditor.player(creator.getId()), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -756,7 +810,7 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(campaign));
 
                         assertThatThrownBy(() -> campaignService
-                                        .unpublishAsEditor(CampaignEditor.player(creator.getId()), campaign.getId()))
+                                        .unpublish(CampaignEditor.player(creator.getId()), campaign.getId()))
                                         .isInstanceOf(ValidationException.class);
 
                         assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.CURATED);
@@ -827,10 +881,10 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(campaign));
                         when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
                                         .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
+                        when(campaignDifficultyRepository.isPositionTaken(
                                         campaign.getId(), 0.0, 0.0)).thenReturn(true);
 
-                        assertThatThrownBy(() -> campaignService.addDifficulty(campaign.getId(), request))
+                        assertThatThrownBy(() -> nodeService.addDifficulty(CampaignEditor.staff(null), campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -848,7 +902,7 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(campaign));
                         when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
                                         .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
+                        when(campaignDifficultyRepository.isPositionTaken(
                                         campaign.getId(), (double) (2), 1.0)).thenReturn(false);
                         when(campaignDifficultyRepository.save(any(CampaignDifficulty.class))).thenAnswer(inv -> {
                                 CampaignDifficulty d = inv.getArgument(0);
@@ -856,7 +910,7 @@ class CampaignServiceTest {
                                 return d;
                         });
 
-                        CampaignDifficultyResponse result = campaignService.addDifficulty(campaign.getId(), request);
+                        CampaignDifficultyResponse result = nodeService.addDifficulty(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getPositionX()).isEqualByComparingTo((double) (2));
                         assertThat(result.getPositionY()).isEqualByComparingTo((double) (1));
@@ -874,7 +928,7 @@ class CampaignServiceTest {
                         request.setNodeBorderUrl("https://cdn.example/border.png");
                         stubAddDifficulty();
 
-                        CampaignDifficultyResponse result = campaignService.addDifficulty(campaign.getId(), request);
+                        CampaignDifficultyResponse result = nodeService.addDifficulty(CampaignEditor.staff(null), campaign.getId(), request);
 
                         assertThat(result.getNodeBorderUrl()).isEqualTo("https://cdn.example/border.png");
                         assertThat(result.getNodeBorderLayer()).isEqualTo(CampaignNodeBorderLayer.ABOVE);
@@ -887,7 +941,7 @@ class CampaignServiceTest {
                         request.setClear(Set.of(CampaignBound.VALUE_MAX));
                         stubNodeUpdate(node);
 
-                        CampaignDifficultyResponse result = campaignService.updateDifficulty(node.getId(), request);
+                        CampaignDifficultyResponse result = nodeService.updateDifficulty(CampaignEditor.staff(null), node.getId(), request);
 
                         assertThat(result.getRequirementValue()).isEqualByComparingTo(0.90);
                         assertThat(result.getRequirementValueMax()).isNull();
@@ -900,7 +954,7 @@ class CampaignServiceTest {
                         request.setClear(Set.of(CampaignBound.VALUE));
                         stubNodeUpdate(node);
 
-                        CampaignDifficultyResponse result = campaignService.updateDifficulty(node.getId(), request);
+                        CampaignDifficultyResponse result = nodeService.updateDifficulty(CampaignEditor.staff(null), node.getId(), request);
 
                         assertThat(result.getRequirementValue()).isNull();
                         assertThat(result.getRequirementValueMax()).isEqualByComparingTo(3.0);
@@ -914,7 +968,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
                                         .thenReturn(Optional.of(node));
 
-                        assertThatThrownBy(() -> campaignService.updateDifficulty(node.getId(), request))
+                        assertThatThrownBy(() -> nodeService.updateDifficulty(CampaignEditor.staff(null), node.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -927,7 +981,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyRepository.findByIdAndActiveTrue(node.getId()))
                                         .thenReturn(Optional.of(node));
 
-                        assertThatThrownBy(() -> campaignService.updateDifficulty(node.getId(), request))
+                        assertThatThrownBy(() -> nodeService.updateDifficulty(CampaignEditor.staff(null), node.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
 
@@ -968,10 +1022,10 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository.findByCampaignDifficulty_IdAndActiveTrue(node.getId()))
                                         .thenReturn(List.of());
 
-                        campaignService.updateDifficulty(node.getId(), request);
+                        nodeService.updateDifficulty(CampaignEditor.staff(null), node.getId(), request);
 
                         verify(campaignDifficultyRepository, never())
-                                        .existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(any(), any(), any());
+                                        .isPositionTaken(any(), any(), any());
                 }
 
                 private void stubAddDifficulty() {
@@ -979,7 +1033,7 @@ class CampaignServiceTest {
                                         .thenReturn(Optional.of(campaign));
                         when(mapDifficultyRepository.findByIdAndActiveTrue(mapDifficulty.getId()))
                                         .thenReturn(Optional.of(mapDifficulty));
-                        when(campaignDifficultyRepository.existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(
+                        when(campaignDifficultyRepository.isPositionTaken(
                                         campaign.getId(), (double) (2), 1.0)).thenReturn(false);
                         when(campaignDifficultyRepository.save(any(CampaignDifficulty.class))).thenAnswer(inv -> {
                                 CampaignDifficulty d = inv.getArgument(0);
@@ -1088,7 +1142,7 @@ class CampaignServiceTest {
                         when(scoreRepository.findEligibleCampaignRows(eq(creator.getId()), anyCollection(),
                                         any()))
                                         .thenReturn(List.of(score));
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                        CampaignProgressResponse result = progressService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
                         assertThat(result.getCampaign().getDifficultyCount()).isEqualTo(1);
@@ -1121,7 +1175,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyPathRepository
                                         .findByCampaignDifficulty_Campaign_IdInAndActiveTrue(anyCollection()))
                                         .thenReturn(List.of());
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                        CampaignProgressResponse result = progressService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
                         assertThat(result.getCompletedDifficulties()).isEqualTo(0);
@@ -1165,7 +1219,7 @@ class CampaignServiceTest {
                                                                         .id(UUID.randomUUID()).campaignDifficulty(b)
                                                                         .comesFromCampaignDifficulty(a).active(true)
                                                                         .build()));
-                        CampaignProgressResponse result = campaignService.getUserProgress(creator.getId(),
+                        CampaignProgressResponse result = progressService.getUserProgress(creator.getId(),
                                         campaign.getId());
 
                         assertThat(result.getDifficulties().get(0).isUnlocked()).isTrue();
@@ -1181,7 +1235,7 @@ class CampaignServiceTest {
                         UUID id = UUID.randomUUID();
                         when(campaignRepository.findByIdAndActiveTrue(id)).thenReturn(Optional.empty());
 
-                        assertThatThrownBy(() -> campaignService.deactivateCampaign(id))
+                        assertThatThrownBy(() -> campaignService.deactivateCampaign(CampaignEditor.staff(null), id))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
@@ -1203,7 +1257,7 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.updateCampaignAsEditor(
+                        CampaignResponse result = campaignService.updateCampaign(
                                         CampaignEditor.player(collaboratorId),
                                         campaign.getId(), request);
 
@@ -1223,7 +1277,7 @@ class CampaignServiceTest {
                                         .thenReturn(false);
 
                         assertThatThrownBy(
-                                        () -> campaignService.updateCampaignAsEditor(CampaignEditor.player(strangerId),
+                                        () -> campaignService.updateCampaign(CampaignEditor.player(strangerId),
                                                         campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
@@ -1241,7 +1295,7 @@ class CampaignServiceTest {
                                         campaign.getId(), collaboratorId, CampaignCollaboratorStatus.ACCEPTED))
                                         .thenReturn(true);
 
-                        assertThatThrownBy(() -> campaignService.updateCampaignAsEditor(
+                        assertThatThrownBy(() -> campaignService.updateCampaign(
                                         CampaignEditor.player(collaboratorId),
                                         campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
@@ -1258,7 +1312,7 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        CampaignResponse result = campaignService.updateCampaignAsEditor(
+                        CampaignResponse result = campaignService.updateCampaign(
                                         CampaignEditor.staff(999L), campaign.getId(), request);
 
                         assertThat(result.getName()).isEqualTo("Curated rename");
@@ -1276,7 +1330,7 @@ class CampaignServiceTest {
                         when(campaignRepository.save(any(Campaign.class))).thenAnswer(inv -> inv.getArgument(0));
                         when(campaignTagLinkRepository.findByCampaign_Id(any())).thenReturn(List.of());
 
-                        assertThatCode(() -> campaignService.updateCampaignAsEditor(
+                        assertThatCode(() -> campaignService.updateCampaign(
                                         CampaignEditor.staff(999L), campaign.getId(), request))
                                         .doesNotThrowAnyException();
                 }
@@ -1286,7 +1340,7 @@ class CampaignServiceTest {
                         UpdateCampaignRequest request = new UpdateCampaignRequest();
                         request.setIconUrl("https://somewhere-else.example/icon.png");
 
-                        assertThatThrownBy(() -> campaignService.updateCampaignAsEditor(
+                        assertThatThrownBy(() -> campaignService.updateCampaign(
                                         CampaignEditor.player(creator.getId()), campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
@@ -1329,8 +1383,8 @@ class CampaignServiceTest {
                                         any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of()));
 
-                        campaignService.listUserCampaigns(
-                                        CampaignFilter.builder().participantId(creator.getId()).build(),
+                        progressService.listUserCampaigns(creator.getId(),
+                                        CampaignFilter.builder().build(),
                                         null, false, PageRequest.of(0, 20));
 
                         verify(campaignRepository).findFiltered(anyBoolean(), any(), any(), any(), anyBoolean(), any(), any(),
@@ -1364,8 +1418,8 @@ class CampaignServiceTest {
                                         creator.getId(), List.of(campaign.getId())))
                                         .thenReturn(List.<Object[]>of(new Object[] { campaign.getId(), 12L }));
 
-                        Page<UserCampaignResponse> page = campaignService.listUserCampaigns(
-                                        CampaignFilter.builder().participantId(creator.getId()).build(),
+                        Page<UserCampaignResponse> page = progressService.listUserCampaigns(creator.getId(),
+                                        CampaignFilter.builder().build(),
                                         null, false, PageRequest.of(0, 20));
 
                         assertThat(page.getContent()).hasSize(1);
@@ -1421,7 +1475,7 @@ class CampaignServiceTest {
                         when(itemRepository.findByIdAndActiveTrue(untradeable.getId()))
                                         .thenReturn(Optional.of(untradeable));
 
-                        assertThatThrownBy(() -> campaignService.setDifficultyItemAsEditor(
+                        assertThatThrownBy(() -> campaignService.setDifficultyItem(
                                         CampaignEditor.player(creator.getId()), node.getId(), request))
                                         .isInstanceOf(ValidationException.class);
                 }
@@ -1441,7 +1495,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
                                         .thenReturn(List.of());
 
-                        campaignService.setDifficultyItemAsEditor(CampaignEditor.player(creator.getId()), node.getId(),
+                        campaignService.setDifficultyItem(CampaignEditor.player(creator.getId()), node.getId(),
                                         request);
 
                         verify(campaignDifficultyItemRepository).save(any());
@@ -1464,7 +1518,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
                                         .thenReturn(List.of());
 
-                        campaignService.setDifficultyItemAsEditor(CampaignEditor.player(creator.getId()), node.getId(),
+                        campaignService.setDifficultyItem(CampaignEditor.player(creator.getId()), node.getId(),
                                         request);
 
                         verify(campaignDifficultyItemRepository).save(any());
@@ -1482,7 +1536,7 @@ class CampaignServiceTest {
                         when(itemRepository.findByIdAndActiveTrue(expired.getId()))
                                         .thenReturn(Optional.of(expired));
 
-                        assertThatThrownBy(() -> campaignService.setDifficultyItemAsEditor(
+                        assertThatThrownBy(() -> campaignService.setDifficultyItem(
                                         CampaignEditor.player(creator.getId()), node.getId(), request))
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("Alpha Crate");
@@ -1505,7 +1559,7 @@ class CampaignServiceTest {
                         when(campaignDifficultyItemRepository.findByCampaignDifficulty_Id(node.getId()))
                                         .thenReturn(List.of());
 
-                        campaignService.setDifficultyItemAsEditor(CampaignEditor.player(creator.getId()), node.getId(),
+                        campaignService.setDifficultyItem(CampaignEditor.player(creator.getId()), node.getId(),
                                         request);
 
                         verify(campaignDifficultyItemRepository).save(any());
@@ -1522,7 +1576,7 @@ class CampaignServiceTest {
                         when(itemRepository.findByIdAndActiveTrue(expired.getId()))
                                         .thenReturn(Optional.of(expired));
 
-                        assertThatThrownBy(() -> campaignService.setCompletionItemAsEditor(
+                        assertThatThrownBy(() -> campaignService.setCompletionItem(
                                         CampaignEditor.player(creator.getId()), campaign.getId(), request))
                                         .isInstanceOf(ValidationException.class)
                                         .hasMessageContaining("Alpha Crate");
@@ -1542,7 +1596,7 @@ class CampaignServiceTest {
                                         .countByCampaign_IdAndBarrierFalseAndActiveTrue(campaign.getId()))
                                         .thenReturn(200L);
 
-                        assertThatThrownBy(() -> campaignService.addDifficultyAsEditor(
+                        assertThatThrownBy(() -> nodeService.addDifficulty(
                                         CampaignEditor.player(creator.getId()), campaign.getId(),
                                         new AddCampaignDifficultyRequest()))
                                         .isInstanceOf(ValidationException.class)
@@ -1554,7 +1608,7 @@ class CampaignServiceTest {
                         when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
                                         .thenReturn(Optional.of(campaign));
 
-                        assertThatThrownBy(() -> campaignService.addDifficultyAsEditor(
+                        assertThatThrownBy(() -> nodeService.addDifficulty(
                                         CampaignEditor.staff(999L), campaign.getId(),
                                         new AddCampaignDifficultyRequest()))
                                         .isNotInstanceOf(ValidationException.class);

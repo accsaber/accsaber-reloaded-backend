@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkRespons
 import com.accsaber.backend.model.entity.milestone.LevelThreshold;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.service.milestone.MilestoneGraphService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class MilestoneController {
 
     private final MilestoneService milestoneService;
+    private final MilestoneGraphService graphService;
     private final LevelService levelService;
     private final CategoryService categoryService;
 
@@ -90,19 +92,19 @@ public class MilestoneController {
             + "set. Use it to draw sets as trees.")
     @GetMapping("/milestones/prerequisites")
     public ResponseEntity<List<PrerequisiteLinkResponse>> listPrerequisiteLinks() {
-        return ResponseEntity.ok(milestoneService.findAllActivePrerequisiteLinks());
+        return ResponseEntity.ok(graphService.findAllActivePrerequisiteLinks());
     }
 
     @Operation(summary = "List set groups", description = "Each group lists its sets in display order.")
     @GetMapping("/milestones/set-groups")
     public ResponseEntity<List<MilestoneSetGroupResponse>> listSetGroups() {
-        return ResponseEntity.ok(milestoneService.findAllActiveGroups());
+        return ResponseEntity.ok(graphService.findAllActiveGroups());
     }
 
     @Operation(summary = "Groups a set is in", description = "A set can be in more than one group.")
     @GetMapping("/milestones/sets/{setId}/groups")
     public ResponseEntity<List<MilestoneSetLinkResponse>> getSetLinksBySet(@PathVariable UUID setId) {
-        return ResponseEntity.ok(milestoneService.findSetLinksBySet(setId));
+        return ResponseEntity.ok(graphService.findSetLinksBySet(setId));
     }
 
     @Operation(summary = "Milestone completion counts", description = "Pass userId to get that player's "

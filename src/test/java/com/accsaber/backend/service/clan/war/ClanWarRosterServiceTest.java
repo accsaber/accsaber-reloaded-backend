@@ -91,6 +91,7 @@ class ClanWarRosterServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarRosterService(warRepository, sideRepository, participantRepository, userRepository,
                 strengthService, stakeService, cosmeticService, chatChannel, scoreGate, feed, notifier,
                 clanProperties);

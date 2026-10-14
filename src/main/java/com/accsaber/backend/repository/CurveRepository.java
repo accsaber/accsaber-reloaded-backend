@@ -15,6 +15,4 @@ public interface CurveRepository extends JpaRepository<Curve, UUID> {
     List<Curve> findByActiveTrue();
 
     Optional<Curve> findByIdAndActiveTrue(UUID id);
-
-    Optional<Curve> findByNameAndActiveTrue(String name);
 }

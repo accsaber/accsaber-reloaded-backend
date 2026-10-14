@@ -1,11 +1,13 @@
 package com.accsaber.backend.model.entity.staff;
 
+import com.accsaber.backend.model.entity.DbEnum;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum StaffRole {
+public enum StaffRole implements DbEnum {
 
     MODERATOR("moderator"),
     RANKING("ranking"),
@@ -15,14 +17,9 @@ public enum StaffRole {
     CREATIVE("creative"),
     ADMIN("admin");
 
-    private final String value;
+    private final String dbValue;
 
-    public static StaffRole fromValue(String value) {
-        for (StaffRole role : values()) {
-            if (role.value.equals(value)) {
-                return role;
-            }
-        }
-        throw new IllegalArgumentException("Unknown staff role: " + value);
+    public static StaffRole fromDbValue(String value) {
+        return DbEnum.fromDbValue(values(), value, "staff role");
     }
 }

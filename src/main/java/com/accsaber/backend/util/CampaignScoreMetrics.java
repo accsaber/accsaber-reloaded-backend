@@ -2,6 +2,7 @@ package com.accsaber.backend.util;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -23,10 +24,14 @@ public final class CampaignScoreMetrics {
 
     public static Double accuracy(Score score) {
         MapDifficulty md = score.getMapDifficulty();
-        if (md == null || md.getMaxScore() == null || md.getMaxScore() == 0 || score.getScoreNoMods() == null) {
+        return md == null ? null : accuracy(score.getScoreNoMods(), md.getMaxScore());
+    }
+
+    private static Double accuracy(Integer scoreNoMods, Integer maxScore) {
+        if (maxScore == null || maxScore == 0 || scoreNoMods == null) {
             return null;
         }
-        return Rounding.round((double) (score.getScoreNoMods()) / (double) (md.getMaxScore()), 6);
+        return Rounding.round((double) (scoreNoMods) / (double) (maxScore), 6);
     }
 
     public static boolean isFullCombo(Score score) {
@@ -173,10 +178,7 @@ public final class CampaignScoreMetrics {
     }
 
     public static Double bestAccuracy(UserMapDifficultyBests bests) {
-        if (bests.maxScore() == null || bests.maxScore() == 0 || bests.bestScoreNoMods() == null) {
-            return null;
-        }
-        return Rounding.round((double) (bests.bestScoreNoMods()) / (double) (bests.maxScore()), 6);
+        return accuracy(bests.bestScoreNoMods(), bests.maxScore());
     }
 
     public static Double barrierMetric(UserMapDifficultyBests bests, BarrierConditionType type) {
@@ -219,21 +221,11 @@ public final class CampaignScoreMetrics {
     }
 
     public static Double max(List<Double> values) {
-        Double maximum = values.get(0);
-        for (Double v : values) {
-            if (v.compareTo(maximum) > 0) {
-                maximum = v;
-            }
-        }
-        return maximum;
+        return Collections.max(values);
     }
 
     public static Double average(List<Double> values) {
-        double sum = 0.0;
-        for (Double v : values) {
-            sum += v;
-        }
-        return Rounding.round(sum / values.size(), 6);
+        return Rounding.round(values.stream().reduce(0.0, Double::sum) / values.size(), 6);
     }
 
     public static Instant effectiveTime(Score score) {

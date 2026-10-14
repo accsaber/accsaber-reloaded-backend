@@ -23,7 +23,5 @@ public interface ItemTypeRepository extends JpaRepository<ItemType, UUID> {
 
     Optional<ItemType> findByIdAndActiveTrue(UUID id);
 
-    Optional<ItemType> findByKey(String key);
-
     boolean existsByKey(String key);
 }

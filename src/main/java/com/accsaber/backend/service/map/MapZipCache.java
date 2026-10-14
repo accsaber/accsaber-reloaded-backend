@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class MapZipCache {
 
+    private static final Pattern SONG_HASH = Pattern.compile("[0-9a-fA-F]{40}");
+
     private final BeatSaverClient beatSaverClient;
     private final Path directory;
 
@@ -27,7 +30,7 @@ public class MapZipCache {
     }
 
     public Optional<byte[]> get(String songHash) {
-        if (songHash == null || songHash.isBlank()) {
+        if (songHash == null || !SONG_HASH.matcher(songHash).matches()) {
             return Optional.empty();
         }
         Path file = directory.resolve(songHash.toLowerCase() + ".zip");

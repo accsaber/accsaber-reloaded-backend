@@ -24,7 +24,4 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     @EntityGraph(attributePaths = { "scoreCurve", "weightCurve" })
     List<Category> findByActiveTrueAndCountForOverallTrue();
-
-    @EntityGraph(attributePaths = { "scoreCurve", "weightCurve" })
-    List<Category> findByWeightCurve_IdAndActiveTrue(UUID weightCurveId);
 }

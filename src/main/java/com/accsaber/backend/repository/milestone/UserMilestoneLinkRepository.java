@@ -21,8 +21,6 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
 
         List<UserMilestoneLink> findByUser_IdAndMilestone_IdIn(Long userId, List<UUID> milestoneIds);
 
-        List<UserMilestoneLink> findByUser_IdAndCompletedTrue(Long userId);
-
         @Query("""
                         SELECT uml.user.id FROM UserMilestoneLink uml
                         WHERE uml.milestone.id = :milestoneId AND uml.completed = true

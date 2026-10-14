@@ -189,7 +189,7 @@ class ClanServiceTest {
 
         @Test
         void onlyTheFounderCanCustomise() {
-            when(accessService.require(clanId, PLAYER, ClanPermission.CUSTOMIZE)).thenThrow(new ForbiddenException());
+            when(accessService.require(clanId, PLAYER, ClanPermission.CUSTOMIZE)).thenThrow(new ForbiddenException("forbidden"));
 
             assertThatThrownBy(() -> clanService.update(clanId, PLAYER, new UpdateClanRequest()))
                     .isInstanceOf(ForbiddenException.class);

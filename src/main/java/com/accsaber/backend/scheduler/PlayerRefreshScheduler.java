@@ -6,7 +6,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.PlayerImportService;
 
@@ -23,14 +22,14 @@ public class PlayerRefreshScheduler {
 
     @Scheduled(cron = "${accsaber.scheduler.player-refresh-cron:0 0 4 * * *}")
     public void refreshAllPlayers() {
-        List<User> users = userRepository.findByActiveTrue();
-        log.info("Starting scheduled player refresh for {} users", users.size());
+        List<Long> userIds = userRepository.findActiveIds();
+        log.info("Starting scheduled player refresh for {} users", userIds.size());
 
         int success = 0;
         int failed = 0;
-        for (User user : users) {
+        for (Long userId : userIds) {
             try {
-                playerImportService.refreshPlayerProfile(user.getId());
+                playerImportService.refreshPlayerProfile(userId);
                 success++;
                 Thread.sleep(200);
             } catch (InterruptedException e) {
@@ -39,7 +38,7 @@ public class PlayerRefreshScheduler {
                 return;
             } catch (Exception e) {
                 failed++;
-                log.error("Failed to refresh player {}: {}", user.getId(), e.getMessage());
+                log.error("Failed to refresh player {}: {}", userId, e.getMessage());
             }
         }
         log.info("Player refresh complete: {} success, {} failed", success, failed);

@@ -1,8 +1,6 @@
 package com.accsaber.backend.service.map;
 
-import com.accsaber.backend.util.Rounding;
 
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -174,22 +172,6 @@ public class MapVotingService {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
         recomputeCriteriaStatus(difficulty);
-    }
-
-    public Double aggregateSuggestedComplexity(UUID mapDifficultyId) {
-        List<StaffMapVote> reweightVotes = voteRepository
-                .findByMapDifficultyIdAndActiveTrue(mapDifficultyId).stream()
-                .filter(v -> v.getType() == MapVoteAction.REWEIGHT && v.getSuggestedComplexity() != null)
-                .toList();
-
-        if (reweightVotes.isEmpty())
-            return null;
-
-        Double sum = reweightVotes.stream()
-                .map(StaffMapVote::getSuggestedComplexity)
-                .reduce(0.0, Double::sum);
-
-        return Rounding.round(sum / (double) (reweightVotes.size()), 6);
     }
 
     private void tryAutoQualify(MapDifficulty difficulty) {

@@ -4,14 +4,8 @@ import java.util.UUID;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
 
-@Data
-public class EquipItemRequest {
-
-    @NotNull
-    private UUID linkId;
-
-    @Size(max = 60)
-    private String variantKey;
+public record EquipItemRequest(
+        @NotNull UUID linkId,
+        @Size(max = 60) String variantKey) {
 }

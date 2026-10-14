@@ -138,8 +138,7 @@ public class ClanWarService {
     @Transactional
     public ClanWarResponse retreat(UUID warId, Long playerId) {
         User actor = accessService.player(playerId);
-        ClanWar war = warRepository.findByIdForUpdate(warId)
-                .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
+        ClanWar war = warRepository.lockOrThrow(warId);
         ClanMember membership = accessService.require(war.getAttackerClan().getId(), actor.getId(),
                 ClanPermission.DECLARE_WAR);
         ClanWarSide side = sideRepository.findByWar_IdAndClan_Id(warId, war.getAttackerClan().getId())

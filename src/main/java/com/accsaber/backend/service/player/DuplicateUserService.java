@@ -1,8 +1,10 @@
 package com.accsaber.backend.service.player;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +23,6 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.player.DuplicateCandidateResponse;
 import com.accsaber.backend.model.dto.response.player.DuplicateLinkResponse;
 import com.accsaber.backend.model.entity.score.Score;
-import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.model.entity.user.MergeScoreAction;
 import com.accsaber.backend.model.entity.user.MergeScoreAction.ActionType;
 import com.accsaber.backend.model.entity.user.User;
@@ -34,6 +35,8 @@ import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.MergeScoreActionRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.score.ScoreRecalculationService;
+import com.accsaber.backend.service.score.ScoreRecalculationService.PlayerRecalc;
 import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
@@ -65,11 +68,18 @@ public class DuplicateUserService {
     private final ApplicationEventPublisher eventPublisher;
 
     private DuplicateUserService self;
+    private ScoreRecalculationService scoreRecalculationService;
 
     @Autowired
     @Lazy
     public void setSelf(DuplicateUserService self) {
         this.self = self;
+    }
+
+    @Autowired
+    @Lazy
+    public void setScoreRecalculationService(ScoreRecalculationService scoreRecalculationService) {
+        this.scoreRecalculationService = scoreRecalculationService;
     }
 
     private final ConcurrentHashMap<Long, Long> duplicateCache = new ConcurrentHashMap<>();
@@ -399,18 +409,8 @@ public class DuplicateUserService {
                 .active(true)
                 .build();
         Score saved = scoreRepository.saveAndFlush(merged);
-        copyModifierLinks(source, saved);
+        modifierLinkRepository.copyLinks(source.getId(), saved.getId());
         return saved;
-    }
-
-    private void copyModifierLinks(Score from, Score to) {
-        List<ScoreModifierLink> original = modifierLinkRepository.findByScore_Id(from.getId());
-        if (original.isEmpty())
-            return;
-        List<ScoreModifierLink> copies = original.stream()
-                .map(l -> ScoreModifierLink.builder().score(to).modifier(l.getModifier()).build())
-                .toList();
-        modifierLinkRepository.saveAll(copies);
     }
 
     @Async("taskExecutor")
@@ -420,21 +420,12 @@ public class DuplicateUserService {
 
     @Async("taskExecutor")
     public void recalculateAfterBulkMerge(Set<Long> primaryUserIds) {
-        for (Long userId : primaryUserIds) {
-            userRepository.recalculateTotalXpForUser(userId);
+        Map<UUID, Set<Long>> usersByCategory = new HashMap<>();
+        for (var category : categoryRepository.findByActiveTrueAndCountForOverallTrue()) {
+            usersByCategory.put(category.getId(), primaryUserIds);
         }
-
-        var categories = categoryRepository.findByActiveTrueAndCountForOverallTrue();
-        for (var category : categories) {
-            for (Long userId : primaryUserIds) {
-                statisticsService.recalculate(userId, category.getId(), false, false);
-            }
-            rankingService.updateRankings(category.getId());
-        }
-        for (Long userId : primaryUserIds) {
-            overallStatisticsService.recalculate(userId, false);
-        }
-        overallStatisticsService.updateOverallRankings();
+        scoreRecalculationService.recalculatePlayers(usersByCategory, usersByCategory.keySet(), PlayerRecalc.MERGE);
+        primaryUserIds.forEach(userRepository::recalculateTotalXpForUser);
         log.info("Bulk merge recalculation complete for {} users", primaryUserIds.size());
     }
 

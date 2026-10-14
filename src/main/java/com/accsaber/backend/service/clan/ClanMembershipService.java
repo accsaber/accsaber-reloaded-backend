@@ -67,8 +67,7 @@ public class ClanMembershipService {
     private final ClanStrengthService strengthService;
 
     public Page<PlayerRef> roster(UUID clanId, Pageable pageable) {
-        Clan clan = clanRepository.findByIdAndActiveTrue(clanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        Clan clan = clanRepository.requireActive(clanId);
         Page<ClanMember> page = memberRepository.findRoster(clanId, pageable);
         Map<Long, ClanMembershipResponse> memberships = memberships(clan, page.getContent());
         return page.map(m -> PlayerRef.of(m.getUser(), memberships.get(m.getUser().getId())));

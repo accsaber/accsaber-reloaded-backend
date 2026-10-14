@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class CampaignVoteDirectionConverter implements AttributeConverter<CampaignVoteDirection, String> {
+public class CampaignVoteDirectionConverter extends DbEnumConverter<CampaignVoteDirection> {
 
-    @Override
-    public String convertToDatabaseColumn(CampaignVoteDirection direction) {
-        if (direction == null)
-            return null;
-        return direction.getDbValue();
-    }
-
-    @Override
-    public CampaignVoteDirection convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return CampaignVoteDirection.fromDbValue(value);
+    public CampaignVoteDirectionConverter() {
+        super(CampaignVoteDirection::getDbValue, CampaignVoteDirection::fromDbValue);
     }
 }

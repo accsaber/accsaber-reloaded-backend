@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.user.ProfileUpdateRequest;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.player.ProfileCustomizationService;
@@ -34,19 +33,7 @@ public class ProfileCustomizationController {
     public ResponseEntity<Void> updateProfile(
             @RequestBody ProfileUpdateRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long userId = requirePrincipal(principal).getUserId();
-        if (request.getName() != null) {
-            profileService.updateName(userId, request.getName());
-        }
-        if (request.getBio() != null) {
-            profileService.updateBio(userId, request.getBio());
-        }
-        if (request.getPinnedScores() != null) {
-            profileService.updatePinnedScores(userId, request.getPinnedScores());
-        }
-        if (request.getPinnedMilestones() != null) {
-            profileService.updatePinnedMilestones(userId, request.getPinnedMilestones());
-        }
+        profileService.updateProfile(PlayerUserDetails.require(principal).getUserId(), request);
         return ResponseEntity.noContent().build();
     }
 
@@ -56,14 +43,7 @@ public class ProfileCustomizationController {
     public ResponseEntity<String> uploadAvatar(
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(profileService.updateAvatar(userId, file));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

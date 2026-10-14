@@ -1,28 +1,28 @@
 package com.accsaber.backend.service.oauth;
 
-import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.config.OauthProperties;
 import com.accsaber.backend.exception.UnauthorizedException;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 @Component
 public class StateReplayGuard {
 
-    private final ConcurrentHashMap<String, Instant> seen = new ConcurrentHashMap<>();
+    private final Cache<String, Boolean> seen;
 
-    public void consume(String jti, Instant expiresAt) {
-        Instant existing = seen.putIfAbsent(jti, expiresAt);
-        if (existing != null) {
-            throw new UnauthorizedException("OAuth state has already been used");
-        }
+    public StateReplayGuard(OauthProperties oauthProperties) {
+        this.seen = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(oauthProperties.getStateTtlSeconds()))
+                .build();
     }
 
-    @Scheduled(fixedDelay = 60_000L)
-    public void purgeExpired() {
-        Instant now = Instant.now();
-        seen.entrySet().removeIf(e -> e.getValue().isBefore(now));
+    public void consume(String jti) {
+        if (seen.asMap().putIfAbsent(jti, Boolean.TRUE) != null) {
+            throw new UnauthorizedException("OAuth state has already been used");
+        }
     }
 }

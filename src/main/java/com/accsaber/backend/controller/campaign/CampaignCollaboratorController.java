@@ -60,7 +60,7 @@ public class CampaignCollaboratorController {
             @Valid @RequestBody InviteCampaignCollaboratorRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                collaboratorService.invite(principal.getUserId(), campaignId, request.getUserId()));
+                collaboratorService.invite(principal.getUserId(), campaignId, request.userId()));
     }
 
     @Operation(summary = "Answer an invite", description = "accept=true to join, accept=false to decline.")

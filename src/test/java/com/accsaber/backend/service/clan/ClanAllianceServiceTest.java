@@ -93,6 +93,7 @@ class ClanAllianceServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         lenient().when(accessService.player(1L)).thenReturn(owlsFounder);
         lenient().when(accessService.player(2L)).thenReturn(lapizFounder);
         lenient().when(accessService.player(3L)).thenReturn(outsider);

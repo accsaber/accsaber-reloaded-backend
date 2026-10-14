@@ -119,13 +119,13 @@ public class MissionSkillService {
 
     public int representativeUserStreak(Long userId, UUID categoryId, MissionBand band) {
         List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategory(
-                userId, categoryId, PageRequest.of(0, STREAK_SAMPLE_SIZE));
+                userId, categoryId, null, null, PageRequest.of(0, STREAK_SAMPLE_SIZE));
         return representativeStreakFromTop(top, band);
     }
 
     public RepresentativeStreak representativeUserStreakForComplexityBand(Long userId, UUID categoryId,
             MissionBand band, double complexityMin, double complexityMaxExclusive) {
-        List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategoryAndComplexityRange(
+        List<Integer> top = scoreRepository.findTopStreak115ValuesByUserAndCategory(
                 userId, categoryId, complexityMin, complexityMaxExclusive,
                 PageRequest.of(0, STREAK_SAMPLE_SIZE));
         if (top.isEmpty())

@@ -9,8 +9,6 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.socket.WebSocketHandler;
-import org.springframework.web.socket.server.HandshakeInterceptor;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.security.PlayerTokenResolver;
@@ -20,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class ClanChatHandshakeInterceptor implements HandshakeInterceptor {
+public class ClanChatHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
     static final String ATTR_CLAN_ID = "clanId";
     static final String ATTR_USER_ID = "userId";
@@ -31,15 +29,14 @@ public class ClanChatHandshakeInterceptor implements HandshakeInterceptor {
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        MultiValueMap<String, String> params = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+        MultiValueMap<String, String> params = queryParams(request.getURI());
         UUID clanId = Slugs.uuidOrNull(params.getFirst("clanId"));
         if (clanId == null) {
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
-        PlayerTokenResolver.Resolution resolution = playerTokenResolver.resolve(params.getFirst("token"));
+        PlayerTokenResolver.Resolution resolution = authenticate(playerTokenResolver, params, response);
         if (!resolution.accepted()) {
-            response.setStatusCode(resolution.rejection());
             return false;
         }
         Long userId = resolution.user().getId();
@@ -50,10 +47,5 @@ public class ClanChatHandshakeInterceptor implements HandshakeInterceptor {
         attributes.put(ATTR_CLAN_ID, clanId);
         attributes.put(ATTR_USER_ID, userId);
         return true;
-    }
-
-    @Override
-    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-            WebSocketHandler wsHandler, Exception exception) {
     }
 }

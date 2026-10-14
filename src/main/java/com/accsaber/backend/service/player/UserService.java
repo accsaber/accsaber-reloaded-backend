@@ -30,6 +30,7 @@ import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanRefCache;
+import com.accsaber.backend.service.infra.AfterCommit;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
@@ -166,7 +167,7 @@ public class UserService {
         user.setCountry(country);
         user.setCountryOverride(true);
         userRepository.save(user);
-        recalculateRankingsForUser(userId);
+        AfterCommit.run(() -> self.recalculateRankingsForUser(userId));
         return user;
     }
 
@@ -219,9 +220,10 @@ public class UserService {
     }
 
     @Async("rankingExecutor")
+    @Transactional
     public void recalculateRankingsForUser(Long userId) {
         log.info("Recalculating rankings for user {}", userId);
-        self.shiftRanksAndRecalcStats(userId);
+        refreshRankings(userId);
         log.info("Ranking recalculation complete for user {}", userId);
     }
 
@@ -261,7 +263,10 @@ public class UserService {
         log.info("Shifted score ranks for {} difficulties for user {}", scores.size(), userId);
 
         recalculateMapStatsForScores(scores, userId);
+        return refreshRankings(userId);
+    }
 
+    private List<UUID> refreshRankings(Long userId) {
         List<UUID> categoryIds = statisticsRepository.findByUser_IdAndActiveTrue(userId).stream()
                 .map(s -> s.getCategory().getId())
                 .toList();

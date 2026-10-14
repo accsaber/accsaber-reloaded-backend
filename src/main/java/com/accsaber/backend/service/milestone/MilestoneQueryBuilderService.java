@@ -117,7 +117,7 @@ public class MilestoneQueryBuilderService {
     public boolean requiresIndividualEvaluation(MilestoneQuerySpec spec) {
         return spec.having() != null
                 || spec.divisor() != null
-                || isCountryScoped(spec)
+                || MilestoneSqlCompiler.isCountryScoped(spec)
                 || (spec.select().offset() != null && spec.select().offset() != 0)
                 || (spec.groupBy() != null && !spec.groupBy().isEmpty())
                 || (spec.orderBy() != null && !spec.orderBy().isEmpty());
@@ -252,10 +252,6 @@ public class MilestoneQueryBuilderService {
             return number.doubleValue();
         }
         return Double.parseDouble(value.toString());
-    }
-
-    private boolean isCountryScoped(MilestoneQuerySpec spec) {
-        return spec.scope() != null && "COUNTRY".equalsIgnoreCase(spec.scope());
     }
 
     private record BatchKey(String from, UUID categoryId, String signature) {
@@ -411,7 +407,7 @@ public class MilestoneQueryBuilderService {
         if (!SCOPES.contains(spec.scope().toUpperCase())) {
             throw new ValidationException("Unsupported scope: " + spec.scope() + ". Allowed: " + SCOPES);
         }
-        if (isCountryScoped(spec) && source.countryTemplate() == null) {
+        if (MilestoneSqlCompiler.isCountryScoped(spec) && source.countryTemplate() == null) {
             throw new ValidationException("COUNTRY scope is not supported for table '" + spec.from() + "'");
         }
     }

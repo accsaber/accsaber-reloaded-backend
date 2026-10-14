@@ -16,8 +16,6 @@ import com.accsaber.backend.model.entity.milestone.MilestoneStatus;
 
 public interface MilestoneRepository extends JpaRepository<Milestone, UUID> {
 
-        List<Milestone> findByActiveTrue();
-
         Optional<Milestone> findByIdAndActiveTrue(UUID id);
 
         @Query("""
@@ -39,8 +37,6 @@ public interface MilestoneRepository extends JpaRepository<Milestone, UUID> {
         List<Milestone> findByMilestoneSet_IdAndActiveTrueAndStatus(UUID setId, MilestoneStatus status);
 
         List<Milestone> findByActiveTrueAndStatus(MilestoneStatus status);
-
-        List<Milestone> findByCategory_IdAndActiveTrue(UUID categoryId);
 
         @Query("""
                         SELECT m FROM Milestone m

@@ -68,6 +68,7 @@ class ClanJoinRequestServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         lenient().when(accessService.player(1L)).thenReturn(officer);
         lenient().when(accessService.player(2L)).thenReturn(player);
         lenient().when(clanRepository.findByIdAndActiveTrue(CLAN_ID)).thenReturn(Optional.of(clan));
@@ -95,7 +96,7 @@ class ClanJoinRequestServiceTest {
 
         @Test
         void invitingNeedsOfficerRank() {
-            when(accessService.require(CLAN_ID, 1L, ClanPermission.INVITE)).thenThrow(new ForbiddenException());
+            when(accessService.require(CLAN_ID, 1L, ClanPermission.INVITE)).thenThrow(new ForbiddenException("forbidden"));
 
             assertThatThrownBy(() -> service.create(CLAN_ID, 1L, 2L)).isInstanceOf(ForbiddenException.class);
         }

@@ -107,6 +107,7 @@ class ClanWarCoalitionServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarCoalitionService(aidRepository, warRepository, sideRepository, allianceRepository,
                 memberRepository, roster, accessService, standingService, cosmeticService, stakeService,
                 rosterService, warService, warResponses, chatChannel, feed, notifier);

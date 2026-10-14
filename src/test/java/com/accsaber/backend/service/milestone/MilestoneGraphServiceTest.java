@@ -23,60 +23,38 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.FilterSpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
-import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
+import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
+import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyMilestoneLink;
 import com.accsaber.backend.model.entity.milestone.Milestone;
+import com.accsaber.backend.model.entity.milestone.MilestonePrerequisiteLink;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.milestone.MilestoneTier;
-import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyMilestoneLinkRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.milestone.MilestoneCompletionStatsRepository;
-import com.accsaber.backend.repository.milestone.MilestoneItemRepository;
+import com.accsaber.backend.repository.milestone.MilestonePrerequisiteLinkRepository;
 import com.accsaber.backend.repository.milestone.MilestoneRepository;
-import com.accsaber.backend.repository.milestone.MilestoneSetItemRepository;
-import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
-import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
-import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.player.DuplicateUserService;
 
 @ExtendWith(MockitoExtension.class)
-class MilestoneServiceMapLinkTest {
+class MilestoneGraphServiceTest {
 
         @Mock
         private MilestoneRepository milestoneRepository;
-        @Mock
-        private MilestoneSetRepository milestoneSetRepository;
-        @Mock
-        private UserMilestoneLinkRepository userMilestoneLinkRepository;
-        @Mock
-        private MilestoneCompletionStatsRepository completionStatsRepository;
-        @Mock
-        private CategoryRepository categoryRepository;
-        @Mock
-        private UserRepository userRepository;
         @Mock
         private MapDifficultyRepository mapDifficultyRepository;
         @Mock
         private MapDifficultyMilestoneLinkRepository mapDifficultyMilestoneLinkRepository;
         @Mock
-        private MilestoneEvaluationService milestoneEvaluationService;
-        @Mock
-        private MilestoneQueryBuilderService queryBuilderService;
-        @Mock
-        private DuplicateUserService duplicateUserService;
-        @Mock
-        private MilestoneItemRepository milestoneItemRepository;
-        @Mock
-        private MilestoneSetItemRepository milestoneSetItemRepository;
+        private MilestonePrerequisiteLinkRepository prerequisiteLinkRepository;
 
         @InjectMocks
-        private MilestoneService service;
+        private MilestoneGraphService service;
 
         private MilestoneSet set;
         private MilestoneQuerySpec querySpec;
@@ -96,44 +74,29 @@ class MilestoneServiceMapLinkTest {
                                 List.of(new FilterSpec("active", "=", true)));
         }
 
-        private CreateMilestoneRequest buildRequest(List<UUID> mapDifficultyIds) {
-                CreateMilestoneRequest request = new CreateMilestoneRequest();
-                request.setSetId(set.getId());
-                request.setTitle("Map Milestone");
-                request.setDescription("Tied to specific maps");
-                request.setType("milestone");
-                request.setTier(MilestoneTier.gold);
-                request.setXp((double) (250));
-                request.setQuerySpec(querySpec);
-                request.setTargetValue((double) (95));
-                request.setComparison("GTE");
-                request.setMapDifficultyIds(mapDifficultyIds);
-                return request;
+        private Milestone milestone(String title, MilestoneTier tier) {
+                return Milestone.builder()
+                                .id(UUID.randomUUID())
+                                .milestoneSet(set)
+                                .title(title)
+                                .type("milestone")
+                                .tier(tier)
+                                .xp((double) (100))
+                                .querySpec(querySpec)
+                                .targetValue((double) (95))
+                                .comparison("GTE")
+                                .build();
         }
 
         @Nested
-        class CreateMilestoneWithMapLinks {
+        class CreateMapDifficultyLinks {
 
                 @Test
                 void withMapDifficultyIds_linkContainsCorrectReferences() {
                         UUID mdId = UUID.randomUUID();
                         MapDifficulty md = MapDifficulty.builder().id(mdId).build();
+                        Milestone saved = milestone("Map Milestone", MilestoneTier.gold);
 
-                        Milestone saved = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(set)
-                                        .title("Map Milestone")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.gold)
-                                        .xp((double) (250))
-                                        .querySpec(querySpec)
-                                        .targetValue((double) (95))
-                                        .comparison("GTE")
-                                        .build();
-
-                        when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                                        .thenReturn(Optional.of(set));
-                        when(milestoneRepository.save(any())).thenReturn(saved);
                         when(mapDifficultyRepository.findByIdAndActiveTrue(mdId)).thenReturn(Optional.of(md));
 
                         ArgumentCaptor<MapDifficultyMilestoneLink> captor = ArgumentCaptor
@@ -141,7 +104,7 @@ class MilestoneServiceMapLinkTest {
                         when(mapDifficultyMilestoneLinkRepository.save(captor.capture()))
                                         .thenAnswer(inv -> inv.getArgument(0));
 
-                        service.createMilestone(buildRequest(List.of(mdId)));
+                        service.createMapDifficultyLinks(saved, List.of(mdId));
 
                         MapDifficultyMilestoneLink link = captor.getValue();
                         assertThat(link.getMilestone()).isEqualTo(saved);
@@ -151,26 +114,67 @@ class MilestoneServiceMapLinkTest {
                 @ParameterizedTest(name = "mapDifficultyIds = {0}")
                 @NullAndEmptySource
                 void missingMapDifficultyIds_skipsLinkCreation(List<UUID> mapDifficultyIds) {
-                        Milestone saved = Milestone.builder()
-                                        .id(UUID.randomUUID())
-                                        .milestoneSet(set)
-                                        .title("No Maps")
-                                        .type("milestone")
-                                        .tier(MilestoneTier.bronze)
-                                        .xp((double) (100))
-                                        .querySpec(querySpec)
-                                        .targetValue(1.0)
-                                        .comparison("GTE")
-                                        .build();
-
-                        when(milestoneSetRepository.findByIdAndActiveTrue(set.getId()))
-                                        .thenReturn(Optional.of(set));
-                        when(milestoneRepository.save(any())).thenReturn(saved);
-
-                        service.createMilestone(buildRequest(mapDifficultyIds));
+                        service.createMapDifficultyLinks(milestone("No Maps", MilestoneTier.bronze), mapDifficultyIds);
 
                         verify(mapDifficultyMilestoneLinkRepository, never()).save(any());
                         verify(mapDifficultyRepository, never()).findByIdAndActiveTrue(any());
+                }
+        }
+
+        @Nested
+        class PrerequisiteLinks {
+
+                private Milestone milestone;
+                private Milestone prerequisite;
+
+                @BeforeEach
+                void setUpPrerequisite() {
+                        milestone = milestone("AP Hero", MilestoneTier.gold);
+                        prerequisite = milestone("Prerequisite", MilestoneTier.silver);
+                }
+
+                @Test
+                void createLink_success() {
+                        CreatePrerequisiteLinkRequest request = new CreatePrerequisiteLinkRequest();
+                        request.setMilestoneId(milestone.getId());
+                        request.setPrerequisiteMilestoneId(prerequisite.getId());
+                        request.setBlocker(true);
+
+                        when(milestoneRepository.findByIdAndActiveTrue(milestone.getId()))
+                                        .thenReturn(Optional.of(milestone));
+                        when(milestoneRepository.findByIdAndActiveTrue(prerequisite.getId()))
+                                        .thenReturn(Optional.of(prerequisite));
+                        when(prerequisiteLinkRepository.existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(
+                                        milestone.getId(), prerequisite.getId())).thenReturn(false);
+                        when(prerequisiteLinkRepository.save(any())).thenAnswer(i -> {
+                                MilestonePrerequisiteLink link = i.getArgument(0);
+                                link.setId(UUID.randomUUID());
+                                return link;
+                        });
+
+                        PrerequisiteLinkResponse response = service.createPrerequisiteLink(request);
+
+                        assertThat(response.getMilestoneId()).isEqualTo(milestone.getId());
+                        assertThat(response.getPrerequisiteMilestoneId()).isEqualTo(prerequisite.getId());
+                        assertThat(response.getPrerequisiteTitle()).isEqualTo("Prerequisite");
+                        assertThat(response.isBlocker()).isTrue();
+                }
+
+                @Test
+                void createLink_duplicateThrowsConflict() {
+                        CreatePrerequisiteLinkRequest request = new CreatePrerequisiteLinkRequest();
+                        request.setMilestoneId(milestone.getId());
+                        request.setPrerequisiteMilestoneId(prerequisite.getId());
+
+                        when(milestoneRepository.findByIdAndActiveTrue(milestone.getId()))
+                                        .thenReturn(Optional.of(milestone));
+                        when(milestoneRepository.findByIdAndActiveTrue(prerequisite.getId()))
+                                        .thenReturn(Optional.of(prerequisite));
+                        when(prerequisiteLinkRepository.existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(
+                                        milestone.getId(), prerequisite.getId())).thenReturn(true);
+
+                        assertThatThrownBy(() -> service.createPrerequisiteLink(request))
+                                        .isInstanceOf(ConflictException.class);
                 }
         }
 

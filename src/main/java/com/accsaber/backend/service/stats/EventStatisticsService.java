@@ -41,8 +41,6 @@ public class EventStatisticsService {
             + "   (COALESCE(t.unlocks_at, e.starts_at) - e.starts_at)) / 604800)::int + 1),"
             + " GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (e.ends_at - e.starts_at)) / 604800)::int))";
 
-    private static final String PARTICIPANT_COUNTRY = " AND LOWER(u.country) = LOWER(:country)";
-
     private static final String PER_PLAYER = "WITH per_player AS ("
             + " SELECT m.template_id, m.user_id,"
             + " COUNT(*) FILTER (WHERE m.status = 'completed') AS completions,"
@@ -74,10 +72,9 @@ public class EventStatisticsService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event", eventId));
 
-        String normalizedCountry = StatsQueryRunner.normalizeCountry(country);
-        Object[] profile = loadProfileTotals(eventId, normalizedCountry);
-        List<EventWeekStatsResponse> weeks = loadWeeks(eventId, normalizedCountry);
-        List<MissionCalibrationResponse> missions = loadMissions(eventId, week, normalizedCountry);
+        Object[] profile = loadProfileTotals(eventId, country);
+        List<EventWeekStatsResponse> weeks = loadWeeks(eventId, country);
+        List<MissionCalibrationResponse> missions = loadMissions(eventId, week, country);
 
         long participants = num(profile[0]);
         long finishers = num(profile[1]);
@@ -125,7 +122,7 @@ public class EventStatisticsService {
                 + " COALESCE(SUM(p.bonus_xp) FILTER (WHERE p.bonus_awarded_at IS NOT NULL), 0) AS bonus_xp"
                 + " FROM user_event_profiles p"
                 + " JOIN users u ON u.id = p.user_id AND u.active = true AND u.banned = false"
-                + " WHERE p.event_id = :eventId" + countryFilter(country, params);
+                + " WHERE p.event_id = :eventId" + StatsQueryRunner.countryClause("u.country", country, params);
         return queryRunner.list(sql, params, row -> row).stream().findFirst()
                 .orElse(new Object[] { 0L, 0L, null, 0L });
     }
@@ -134,7 +131,7 @@ public class EventStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("eventId", eventId);
         Map<Integer, long[]> participantsByWeek = loadParticipantsByWeek(eventId, country);
-        String sql = PER_PLAYER + countryFilter(country, params) + PER_PLAYER_TAIL
+        String sql = PER_PLAYER + StatsQueryRunner.countryClause("u.country", country, params) + PER_PLAYER_TAIL
                 + " SELECT " + TEMPLATE_WEEK + " AS week," + PLAYER_AGGREGATES
                 + " FROM mission_templates t"
                 + " JOIN events e ON e.id = t.event_id"
@@ -168,7 +165,7 @@ public class EventStatisticsService {
                 + " SUM(COUNT(*)) OVER (ORDER BY p.unlocked_week DESC) AS reached"
                 + " FROM user_event_profiles p"
                 + " JOIN users u ON u.id = p.user_id AND u.active = true AND u.banned = false"
-                + " WHERE p.event_id = :eventId" + countryFilter(country, params)
+                + " WHERE p.event_id = :eventId" + StatsQueryRunner.countryClause("u.country", country, params)
                 + " GROUP BY p.unlocked_week";
 
         Map<Integer, long[]> byWeek = new LinkedHashMap<>();
@@ -180,7 +177,7 @@ public class EventStatisticsService {
     private List<MissionCalibrationResponse> loadMissions(UUID eventId, Integer week, String country) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("eventId", eventId);
-        String sql = PER_PLAYER + countryFilter(country, params) + PER_PLAYER_TAIL
+        String sql = PER_PLAYER + StatsQueryRunner.countryClause("u.country", country, params) + PER_PLAYER_TAIL
                 + " SELECT t.id, t.code, t.name, t.type, t.pool, t.repeatable, "
                 + TEMPLATE_WEEK + " AS week,"
                 + PLAYER_AGGREGATES + ","
@@ -226,20 +223,11 @@ public class EventStatisticsService {
         });
     }
 
-    private String countryFilter(String country, Map<String, Object> params) {
-        if (country == null) {
-            return "";
-        }
-        params.put("country", country);
-        return PARTICIPANT_COUNTRY;
-    }
-
     @Cacheable(value = "statistics", key = "'evt:missionboard:' + #eventId + ':' + #templateId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
     public Page<EventMissionLeaderboardResponse> getMissionLeaderboard(UUID eventId, UUID templateId, String country,
             Pageable pageable) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("eventId", eventId);
-        String normalizedCountry = StatsQueryRunner.normalizeCountry(country);
 
         String sql = "SELECT RANK() OVER (ORDER BY COUNT(*) FILTER (WHERE m.status = 'completed') DESC) AS rank,"
                 + " u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,"
@@ -255,7 +243,7 @@ public class EventStatisticsService {
             sql += " AND t.id = :templateId";
             params.put("templateId", templateId);
         }
-        sql += countryFilter(normalizedCountry, params);
+        sql += StatsQueryRunner.countryClause("u.country", country, params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country"
                 + " HAVING COUNT(*) FILTER (WHERE m.status = 'completed') > 0"
                 + " ORDER BY completions DESC, last_completed ASC, u.name ASC";
@@ -278,10 +266,9 @@ public class EventStatisticsService {
     @Cacheable(value = "statistics", key = "'evt:participation:' + #eventIds + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
     public Page<EventParticipationResponse> getParticipation(List<UUID> eventIds, String country, Pageable pageable) {
         Map<String, Object> params = new LinkedHashMap<>();
-        String normalizedCountry = StatsQueryRunner.normalizeCountry(country);
         String profileJoin = " LEFT JOIN user_event_profiles p ON p.event_id = e.id"
                 + " LEFT JOIN users u ON u.id = p.user_id AND u.active = true AND u.banned = false"
-                + countryFilter(normalizedCountry, params);
+                + StatsQueryRunner.countryClause("u.country", country, params);
         String sql = "SELECT e.id, e.title, e.slug, e.icon_url, e.starts_at, e.ends_at,"
                 + " COUNT(u.id) AS participants,"
                 + " COUNT(*) FILTER (WHERE u.id IS NOT NULL AND p.completed_at IS NOT NULL) AS finishers,"

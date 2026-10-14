@@ -23,33 +23,21 @@ public class XpRankingScheduler {
     @Scheduled(fixedRate = 300_000)
     public void refreshXpRankings() {
         log.debug("Refreshing XP rankings");
-        try {
-            userRepository.assignXpRankings();
-            userRepository.assignXpCountryRankings();
-        } catch (Exception e) {
-            log.error("Failed to refresh XP rankings: {}", e.getMessage(), e);
-        }
+        userRepository.assignXpRankings();
+        userRepository.assignXpCountryRankings();
     }
 
     @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void snapshotXpRankings() {
         log.debug("Snapshotting XP rankings");
-        try {
-            xpRankingHistoryRepository.snapshotChangedRankings();
-        } catch (Exception e) {
-            log.error("Failed to snapshot XP rankings: {}", e.getMessage(), e);
-        }
+        xpRankingHistoryRepository.snapshotChangedRankings();
     }
 
     @Scheduled(cron = "0 5 0 * * *")
     @Transactional
     public void snapshotCategoryRankings() {
         log.debug("Snapshotting category rankings");
-        try {
-            categoryRankingHistoryRepository.snapshotChangedRankings();
-        } catch (Exception e) {
-            log.error("Failed to snapshot category rankings: {}", e.getMessage(), e);
-        }
+        categoryRankingHistoryRepository.snapshotChangedRankings();
     }
 }

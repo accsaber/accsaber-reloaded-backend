@@ -1,6 +1,13 @@
 package com.accsaber.backend.model.entity.map;
 
-public enum MapDifficultyStatus {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum MapDifficultyStatus implements DbEnum {
     QUEUE("queue"),
     QUALIFIED("qualified"),
     RANKED("ranked"),
@@ -8,19 +15,7 @@ public enum MapDifficultyStatus {
 
     private final String dbValue;
 
-    MapDifficultyStatus(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static MapDifficultyStatus fromDbValue(String value) {
-        for (MapDifficultyStatus s : values()) {
-            if (s.dbValue.equals(value))
-                return s;
-        }
-        throw new IllegalArgumentException("Unknown map difficulty status: " + value);
+        return DbEnum.fromDbValue(values(), value, "map difficulty status");
     }
 }

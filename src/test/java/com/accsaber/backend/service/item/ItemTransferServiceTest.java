@@ -26,10 +26,12 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.ItemType;
+import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
+import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,8 @@ class ItemTransferServiceTest {
     private UserRepository userRepository;
     @Mock
     private ItemService itemService;
+    @Mock
+    private UserItemTradeItemRepository tradeItemRepository;
 
     @InjectMocks
     private ItemTransferService transferService;
@@ -167,6 +171,24 @@ class ItemTransferServiceTest {
         assertThat(escrowLink.getQuantity()).isEqualTo(10L);
         assertThat(escrowLink.isEscrowed()).isFalse();
         verify(userItemLinkRepository).delete(remainder);
+    }
+
+    @Test
+    void releasingEscrowLeavesAStackThatIsOfferedInAPendingTradeAlone() {
+        Item item = stackable();
+        UserItemLink escrowLink = link(SELLER_ID, item, 3L);
+        escrowLink.setEscrowed(true);
+        UserItemLink offered = link(SELLER_ID, item, 7L);
+        when(userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(SELLER_ID, item.getId()))
+                .thenReturn(List.of(offered));
+        when(tradeItemRepository.findLinkIdsInTradesWithStatus(List.of(offered.getId()), TradeStatus.pending))
+                .thenReturn(List.of(offered.getId()));
+
+        transferService.releaseEscrow(escrowLink);
+
+        assertThat(escrowLink.getQuantity()).isEqualTo(3L);
+        assertThat(offered.getQuantity()).isEqualTo(7L);
+        verify(userItemLinkRepository, never()).delete(any());
     }
 
     private static Item stackable() {

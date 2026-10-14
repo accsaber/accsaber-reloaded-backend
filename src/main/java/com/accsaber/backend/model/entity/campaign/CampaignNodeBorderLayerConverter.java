@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class CampaignNodeBorderLayerConverter implements AttributeConverter<CampaignNodeBorderLayer, String> {
+public class CampaignNodeBorderLayerConverter extends DbEnumConverter<CampaignNodeBorderLayer> {
 
-    @Override
-    public String convertToDatabaseColumn(CampaignNodeBorderLayer layer) {
-        if (layer == null)
-            return null;
-        return layer.name();
-    }
-
-    @Override
-    public CampaignNodeBorderLayer convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return CampaignNodeBorderLayer.valueOf(value);
+    public CampaignNodeBorderLayerConverter() {
+        super(Enum::name, CampaignNodeBorderLayer::valueOf);
     }
 }

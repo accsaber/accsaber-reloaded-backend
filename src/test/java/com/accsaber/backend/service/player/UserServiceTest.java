@@ -3,6 +3,7 @@ package com.accsaber.backend.service.player;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,11 +27,14 @@ import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.milestone.LevelService;
+import com.accsaber.backend.service.stats.OverallStatisticsService;
+import com.accsaber.backend.service.stats.RankingService;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -69,6 +73,15 @@ class UserServiceTest {
 
     @Mock
     private com.accsaber.backend.service.supporter.SupporterService supporterService;
+
+    @Mock
+    private UserCategoryStatisticsRepository statisticsRepository;
+
+    @Mock
+    private RankingService rankingService;
+
+    @Mock
+    private OverallStatisticsService overallStatisticsService;
 
     @InjectMocks
     private UserService userService;
@@ -196,6 +209,21 @@ class UserServiceTest {
 
             verify(userNameHistoryRepository, never()).save(any());
             assertThat(user.getName()).isEqualTo("CurrentName");
+        }
+    }
+
+    @Nested
+    class RecalculateRankingsForUser {
+
+        @Test
+        void refreshesRankingsWithoutShiftingScoreRanks() {
+            when(statisticsRepository.findByUser_IdAndActiveTrue(STEAM_ID)).thenReturn(java.util.List.of());
+
+            userService.recalculateRankingsForUser(STEAM_ID);
+
+            verify(scoreRepository, never()).shiftScoreRanksUp(any(), anyInt());
+            verify(overallStatisticsService).updateOverallRankings();
+            verify(userRepository).assignXpCountryRankings();
         }
     }
 }

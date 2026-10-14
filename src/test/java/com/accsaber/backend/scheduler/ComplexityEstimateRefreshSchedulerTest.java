@@ -60,7 +60,7 @@ class ComplexityEstimateRefreshSchedulerTest {
         when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.empty());
 
-        scheduler.check();
+        scheduler.refreshWhenTheModelChanged();
 
         verify(adminJobService).run(argThat(request -> request.getType() == JobType.REFRESH_COMPLEXITY_ESTIMATES));
     }
@@ -72,7 +72,7 @@ class ComplexityEstimateRefreshSchedulerTest {
         when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.of(estimateMadeWith("old")));
 
-        scheduler.check();
+        scheduler.refreshWhenTheModelChanged();
 
         verify(adminJobService).run(any());
     }
@@ -84,7 +84,7 @@ class ComplexityEstimateRefreshSchedulerTest {
         when(estimateRepository.findFirstByOrderByUpdatedAtDesc())
                 .thenReturn(Optional.of(estimateMadeWith("same")));
 
-        scheduler.check();
+        scheduler.refreshWhenTheModelChanged();
 
         verify(adminJobService, never()).run(any());
     }
@@ -92,11 +92,11 @@ class ComplexityEstimateRefreshSchedulerTest {
     @Test
     void staysQuietWhileARefreshIsRunningOrTheSidecarIsDown() {
         when(jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)).thenReturn(true);
-        scheduler.check();
+        scheduler.refreshWhenTheModelChanged();
 
         when(jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)).thenReturn(false);
         when(modelClient.health()).thenReturn(Optional.empty());
-        scheduler.check();
+        scheduler.refreshWhenTheModelChanged();
 
         verify(adminJobService, never()).run(any());
     }

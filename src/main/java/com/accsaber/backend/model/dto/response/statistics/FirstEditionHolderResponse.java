@@ -2,9 +2,9 @@ package com.accsaber.backend.model.dto.response.statistics;
 
 import java.util.UUID;
 
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
-
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
+
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -17,10 +17,6 @@ public class FirstEditionHolderResponse {
     private ItemResponse item;
     private UUID linkId;
     private Long serialNumber;
-    private String userId;
-    private String userName;
-    private String avatarUrl;
-    private String cdnAvatarUrl;
-    private PublicClanResponse clan;
-    private String country;
+    @JsonUnwrapped
+    private UserIdentity user;
 }

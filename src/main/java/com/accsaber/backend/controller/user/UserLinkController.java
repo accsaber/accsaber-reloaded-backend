@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.player.ProfileUrlResolver;
 import com.accsaber.backend.service.player.UserService;
 import com.accsaber.backend.service.stats.StatisticsService;
-import com.accsaber.backend.util.ProfileUrlResolver;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

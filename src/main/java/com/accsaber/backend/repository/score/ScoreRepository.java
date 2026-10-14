@@ -14,7 +14,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.dto.projection.SimulationScoreRow;
-import com.accsaber.backend.model.dto.projection.UserMapDifficultyBests;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
@@ -46,7 +45,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("since") Instant since,
                         @Param("playFrom") Instant playFrom,
                         @Param("playTo") Instant playTo,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
@@ -67,7 +66,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("since") Instant since,
                         @Param("playFrom") Instant playFrom,
                         @Param("playTo") Instant playTo,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
@@ -101,14 +100,10 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("difficulty") Difficulty difficulty,
                         @Param("characteristic") String characteristic);
 
-        List<Score> findByUser_IdAndMapDifficulty_IdInAndActiveTrue(Long userId, List<UUID> mapDifficultyIds);
-
         @Query("SELECT s FROM Score s JOIN FETCH s.user WHERE s.id = :id")
         Optional<Score> findByIdWithUser(@Param("id") UUID id);
 
         List<Score> findByUser_IdAndActiveTrue(Long userId);
-
-        List<Score> findByMapDifficulty_IdAndActiveTrue(UUID mapDifficultyId);
 
         @Query("""
                         SELECT s FROM Score s
@@ -148,28 +143,10 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         List<Score> findByMapDifficultyIdAndActiveTrueWithCategory(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        JOIN FETCH s.mapDifficulty d
-                        JOIN FETCH d.category c
-                        LEFT JOIN FETCH c.scoreCurve
-                        WHERE d.id = :mapDifficultyId AND s.active = true
-                        """)
-        List<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCategory(
-                        @Param("mapDifficultyId") UUID mapDifficultyId);
-
-        @Query("""
                         SELECT s.id FROM Score s
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
                         """)
         List<UUID> findActiveIdsByMapDifficultyId(@Param("mapDifficultyId") UUID mapDifficultyId);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.active = true
-                        """)
-        Page<Score> findActiveByUser(@Param("userId") Long userId, Pageable pageable);
 
         @Query("""
                         SELECT s.mapDifficulty.id, s.mapDifficulty.map.songHash,
@@ -187,84 +164,20 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query(value = """
                         SELECT s FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        """)
-        Page<Score> findByMapDifficulty_IdAndActiveTrue(@Param("mapDifficultyId") UUID mapDifficultyId,
-                        Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
                         JOIN FETCH s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
                         AND u.active = true AND u.banned = false
+                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
+                        AND (CAST(:search AS string) IS NULL OR u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')))
                         """, countQuery = """
                         SELECT COUNT(s) FROM Score s
                         JOIN s.user u
                         WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
                         AND u.active = true AND u.banned = false
+                        AND (CAST(:country AS string) IS NULL OR u.country = CAST(:country AS string))
+                        AND (CAST(:search AS string) IS NULL OR u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')))
                         """)
-        Page<Score> findByMapDifficultyIdAndActiveTrueWithUser(
-                        @Param("mapDifficultyId") UUID mapDifficultyId, Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.country = :country
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.country = :country
-                        """)
-        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
-                        @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("country") String country,
-                        Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndSearch(
-                        @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("search") String search,
-                        Pageable pageable);
-
-        @Query(value = """
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.country = :country
-                        AND u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND u.country = :country
-                        AND u.id IN (SELECT sn.userId FROM UserSearchName sn WHERE sn.searchName LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findByMapDifficultyIdAndActiveTrueWithUserAndCountryAndSearch(
+        Page<Score> findLeaderboardByMapDifficulty(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("country") String country,
                         @Param("search") String search,
@@ -289,7 +202,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         Page<Score> findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("userIds") Collection<Long> userIds,
                         @Param("country") String country,
                         @Param("search") String search,
                         Pageable pageable);
@@ -359,67 +272,22 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s.streak115 FROM Score s
-                        WHERE s.user.id = :userId
-                          AND s.mapDifficulty.category.id = :categoryId
-                          AND s.active = true
-                          AND s.streak115 IS NOT NULL
-                        ORDER BY s.streak115 DESC
-                        """)
-        List<Integer> findTopStreak115ValuesByUserAndCategory(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") java.util.UUID categoryId,
-                        org.springframework.data.domain.Pageable pageable);
-
-        @Query("""
-                        SELECT new com.accsaber.backend.model.dto.projection.UserMapDifficultyBests(
-                            s.mapDifficulty.id,
-                            MAX(s.mapDifficulty.maxScore),
-                            MAX(s.score),
-                            MAX(s.scoreNoMods),
-                            MAX(s.ap),
-                            MAX(s.streak115),
-                            MIN(CASE WHEN s.active = true THEN least(s.rank, s.rankWhenSet) END),
-                            MAX(CASE WHEN s.misses = 0 AND s.badCuts = 0 THEN 1 ELSE 0 END),
-                            MAX(CASE WHEN NOT EXISTS (
-                                SELECT l.id FROM ScoreModifierLink l
-                                WHERE l.score = s AND l.modifier.code = 'NF'
-                            ) THEN 1 ELSE 0 END),
-                            MAX(s.maxCombo),
-                            MIN(s.bombHits),
-                            MIN(s.badCuts + s.misses),
-                            MIN(s.pauses)
-                        )
-                        FROM Score s
-                        WHERE s.user.id = :userId
-                          AND s.mapDifficulty.id IN :mapDifficultyIds
-                          AND s.partial = false
-                          AND (s.mapDifficulty.maxScore IS NULL OR s.scoreNoMods <= s.mapDifficulty.maxScore)
-                          AND COALESCE(s.timeSet, s.createdAt) >= :since
-                        GROUP BY s.mapDifficulty.id
-                        """)
-        List<UserMapDifficultyBests> findBestsByUserAndMapDifficulties(
-                        @Param("userId") Long userId,
-                        @Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds,
-                        @Param("since") Instant since);
-
-        @Query("""
-                        SELECT s.streak115 FROM Score s
-                        JOIN com.accsaber.backend.model.entity.map.MapDifficultyComplexity c
+                        LEFT JOIN com.accsaber.backend.model.entity.map.MapDifficultyComplexity c
                           ON c.mapDifficulty = s.mapDifficulty AND c.active = true
                         WHERE s.user.id = :userId
                           AND s.mapDifficulty.category.id = :categoryId
                           AND s.active = true
                           AND s.streak115 IS NOT NULL
-                          AND c.complexity >= :minComplexity
-                          AND c.complexity < :maxComplexityExclusive
+                          AND (:minComplexity IS NULL OR c.complexity >= :minComplexity)
+                          AND (:maxComplexityExclusive IS NULL OR c.complexity < :maxComplexityExclusive)
                         ORDER BY s.streak115 DESC
                         """)
-        List<Integer> findTopStreak115ValuesByUserAndCategoryAndComplexityRange(
+        List<Integer> findTopStreak115ValuesByUserAndCategory(
                         @Param("userId") Long userId,
-                        @Param("categoryId") java.util.UUID categoryId,
+                        @Param("categoryId") UUID categoryId,
                         @Param("minComplexity") Double minComplexity,
                         @Param("maxComplexityExclusive") Double maxComplexityExclusive,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s.ap / (c.complexity - :shift) FROM Score s
@@ -435,11 +303,11 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         List<Double> findTopApPerComplexityByUserAndCategoryAndComplexityRange(
                         @Param("userId") Long userId,
-                        @Param("categoryId") java.util.UUID categoryId,
+                        @Param("categoryId") UUID categoryId,
                         @Param("minComplexity") Double minComplexity,
                         @Param("maxComplexityExclusive") Double maxComplexityExclusive,
                         @Param("shift") Double shift,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s, ucs.skillLevel FROM Score s
@@ -461,7 +329,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("minScore") Integer minScore,
                         @Param("categoryId") UUID categoryId,
                         @Param("targetAp") Double targetAp,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s.ap, ucs.skillLevel FROM Score s
@@ -491,7 +359,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         List<Integer> findTopStreak115ValuesByMapDifficulty(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
-                        org.springframework.data.domain.Pageable pageable);
+                        Pageable pageable);
 
         @Query("""
                         SELECT s FROM Score s
@@ -519,16 +387,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                           AND u.playerInactive = false
                         GROUP BY s.user.id
                         HAVING COUNT(s) >= :minScores
-                        """)
-        List<Long> findActivePlayerIdsWithAtLeastActiveScores(@Param("minScores") long minScores);
-
-        @Query("""
-                        SELECT s.user.id FROM Score s
-                        JOIN s.user u
-                        WHERE s.active = true AND u.active = true AND u.banned = false
-                          AND u.playerInactive = false
-                        GROUP BY s.user.id
-                        HAVING COUNT(s) >= :minScores
                            AND MAX(COALESCE(s.timeSet, s.createdAt)) >= :playedSince
                         """)
         List<Long> findRecentlyActivePlayerIds(@Param("minScores") long minScores,
@@ -536,87 +394,16 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        """)
-        Page<Score> findActiveByUserAndCategory(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.active = true
-                        AND (search_normalize(s.mapDifficulty.map.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
-                        OR search_normalize(s.mapDifficulty.map.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findActiveByUserAndSongSearch(
-                        @Param("userId") Long userId,
-                        @Param("search") String search,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        AND (search_normalize(s.mapDifficulty.map.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
-                        OR search_normalize(s.mapDifficulty.map.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findActiveByUserAndCategoryAndSongSearch(
-                        @Param("userId") Long userId,
-                        @Param("categoryId") UUID categoryId,
-                        @Param("search") String search,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
                         JOIN FETCH s.user u
                         WHERE s.user.id IN :userIds
                         AND s.active = true
+                        AND (:categoryId IS NULL OR s.mapDifficulty.category.id = :categoryId)
+                        AND (CAST(:search AS string) IS NULL
+                        OR search_normalize(s.mapDifficulty.map.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
+                        OR search_normalize(s.mapDifficulty.map.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
                         """)
         Page<Score> findActiveByUsers(
-                        @Param("userIds") java.util.Collection<Long> userIds,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.user.id IN :userIds
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        """)
-        Page<Score> findActiveByUsersAndCategory(
-                        @Param("userIds") java.util.Collection<Long> userIds,
-                        @Param("categoryId") UUID categoryId,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.user.id IN :userIds
-                        AND s.active = true
-                        AND (search_normalize(s.mapDifficulty.map.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
-                        OR search_normalize(s.mapDifficulty.map.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findActiveByUsersAndSongSearch(
-                        @Param("userIds") java.util.Collection<Long> userIds,
-                        @Param("search") String search,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.user.id IN :userIds
-                        AND s.mapDifficulty.category.id = :categoryId
-                        AND s.active = true
-                        AND (search_normalize(s.mapDifficulty.map.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
-                        OR search_normalize(s.mapDifficulty.map.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%'))
-                        """)
-        Page<Score> findActiveByUsersAndCategoryAndSongSearch(
-                        @Param("userIds") java.util.Collection<Long> userIds,
+                        @Param("userIds") Collection<Long> userIds,
                         @Param("categoryId") UUID categoryId,
                         @Param("search") String search,
                         Pageable pageable);
@@ -629,40 +416,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         List<Score> findActiveByUserAndMapDifficultyIdIn(
                         @Param("userId") Long userId,
-                        @Param("mapDifficultyIds") java.util.Collection<UUID> mapDifficultyIds);
-
-        @Query("SELECT COALESCE(SUM(s.score), 0) FROM Score s WHERE s.user.id = :userId AND s.active = true")
-        long sumActiveScoreByUser(@Param("userId") Long userId);
-
-        @Query("""
-                        SELECT COALESCE(SUM(s.score), 0) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        AND s.mapDifficulty.category.id = :categoryId
-                        """)
-        long sumActiveScoreByUserAndCategory(@Param("userId") Long userId, @Param("categoryId") UUID categoryId);
-
-        @Query("""
-                        SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        AND s.mapDifficulty.category.id = :categoryId
-                        """)
-        long countDistinctMapDifficultiesByUserAndCategory(
-                        @Param("userId") Long userId, @Param("categoryId") UUID categoryId);
-
-        @Query("""
-                        SELECT COUNT(DISTINCT s.mapDifficulty.id) FROM Score s
-                        WHERE s.user.id = :userId AND s.active = true
-                        """)
-        long countDistinctMapDifficultiesByUser(@Param("userId") Long userId);
-
-        @Query("""
-                        SELECT DISTINCT s.user.id FROM Score s
-                        WHERE s.mapDifficulty.id = :mapDifficultyId AND s.active = true
-                        """)
-        List<Long> findDistinctUserIdsByMapDifficultyIdAndActiveTrue(
-                        @Param("mapDifficultyId") UUID mapDifficultyId);
-
-        List<Score> findByMapDifficulty_Id(UUID mapDifficultyId);
+                        @Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds);
 
         @Query("""
                         SELECT s FROM Score s
@@ -705,7 +459,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("SELECT COALESCE(SUM(s.xpGained), 0) FROM Score s WHERE s.user.id = :userId AND s.createdAt >= :since")
         double sumXpGainedByUserIdSince(@Param("userId") Long userId,
-                        @Param("since") java.time.Instant since);
+                        @Param("since") Instant since);
 
         @Query("SELECT DISTINCT s.mapDifficulty.id FROM Score s")
         List<UUID> findDistinctMapDifficultyIds();
@@ -717,10 +471,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         List<UUID> findDistinctMapDifficultyIdsByUser(@Param("userId") Long userId);
 
         Optional<Score> findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(Long userId);
-
-        @Query("SELECT DISTINCT s.user FROM Score s WHERE s.timeSet >= :since AND s.active = true")
-        List<com.accsaber.backend.model.entity.user.User> findDistinctUsersWithScoresSince(
-                        @Param("since") Instant since);
 
         @Modifying
         @Query(value = """
@@ -981,7 +731,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         """)
         boolean existsRivalScoreBelow(
                         @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("rivalIds") java.util.Collection<Long> rivalIds,
+                        @Param("rivalIds") Collection<Long> rivalIds,
                         @Param("score") Integer score);
 
         interface LastPlayedView {

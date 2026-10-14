@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.DisintegrateRequest;
 import com.accsaber.backend.model.dto.request.item.EquipItemRequest;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
@@ -189,7 +188,7 @@ public class ItemController {
     public ResponseEntity<Void> equip(
             @Valid @RequestBody EquipItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.equip(requirePrincipal(principal).getUserId(), request.getLinkId(), request.getVariantKey());
+        itemService.equip(PlayerUserDetails.require(principal).getUserId(), request.linkId(), request.variantKey());
         return ResponseEntity.noContent().build();
     }
 
@@ -198,7 +197,7 @@ public class ItemController {
     public ResponseEntity<Void> unequip(
             @PathVariable String typeKey,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.unequip(requirePrincipal(principal).getUserId(), typeKey);
+        itemService.unequip(PlayerUserDetails.require(principal).getUserId(), typeKey);
         return ResponseEntity.noContent().build();
     }
 
@@ -208,7 +207,7 @@ public class ItemController {
     public ResponseEntity<byte[]> downloadItemFile(
             @PathVariable UUID linkId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        var file = itemFileService.download(requirePrincipal(principal).getUserId(), linkId);
+        var file = itemFileService.download(PlayerUserDetails.require(principal).getUserId(), linkId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -221,7 +220,7 @@ public class ItemController {
     public ResponseEntity<DisintegrationResponse> disintegrate(
             @Valid @RequestBody DisintegrateRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(itemService.disintegrate(me, request.getEntries()));
     }
 
@@ -230,17 +229,7 @@ public class ItemController {
     @GetMapping("/users/me/essence")
     public ResponseEntity<EssenceBalanceResponse> getEssenceBalance(
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
-        return ResponseEntity.ok(EssenceBalanceResponse.builder()
-                .balance(itemService.getEssenceBalance(me))
-                .reserved(itemService.getReservedEssence(me))
-                .build());
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
+        Long me = PlayerUserDetails.require(principal).getUserId();
+        return ResponseEntity.ok(itemService.getEssence(me));
     }
 }

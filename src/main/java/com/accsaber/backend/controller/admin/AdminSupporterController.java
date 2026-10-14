@@ -1,7 +1,5 @@
 package com.accsaber.backend.controller.admin;
 
-import java.util.Map;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -18,8 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.model.dto.request.supporter.ClaimSupporterEventRequest;
 import com.accsaber.backend.model.dto.request.supporter.ManualSupporterGrantRequest;
 import com.accsaber.backend.model.dto.response.supporter.KofiEventResponse;
-import com.accsaber.backend.model.entity.supporter.KofiEvent;
-import com.accsaber.backend.model.entity.supporter.KofiEventType;
+import com.accsaber.backend.model.dto.response.supporter.ManualSupporterGrantResponse;
 import com.accsaber.backend.service.supporter.SupporterService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,22 +35,9 @@ public class AdminSupporterController {
 
     @Operation(summary = "Give someone supporter")
     @PostMapping("/grant")
-    public ResponseEntity<Map<String, Object>> grant(@Valid @RequestBody ManualSupporterGrantRequest request) {
-        KofiEventType type = parseType(request.getType());
-        KofiEvent event = supporterService.grantManually(
-                request.getUserId(),
-                request.getAmountCents(),
-                request.getTierName(),
-                type,
-                request.getFromName(),
-                request.getEmail(),
-                request.getNote());
-        return ResponseEntity.ok(Map.of(
-                "kofiTransactionId", event.getKofiTransactionId(),
-                "userId", String.valueOf(request.getUserId()),
-                "tier", event.getTierName(),
-                "amountCents", event.getAmountCents(),
-                "type", event.getType().name()));
+    public ResponseEntity<ManualSupporterGrantResponse> grant(
+            @Valid @RequestBody ManualSupporterGrantRequest request) {
+        return ResponseEntity.ok(supporterService.grantManually(request));
     }
 
     @Operation(summary = "List Ko-fi events", description = "Newest first. status is all, unclaimed or claimed. "
@@ -71,16 +55,7 @@ public class AdminSupporterController {
     @Operation(summary = "Claim a Ko-fi event for someone")
     @PostMapping("/claim")
     public ResponseEntity<Void> claim(@Valid @RequestBody ClaimSupporterEventRequest request) {
-        supporterService.claimByAdmin(request.getKofiTransactionId(), request.getUserId());
+        supporterService.claimByAdmin(request.kofiTransactionId(), request.userId());
         return ResponseEntity.noContent().build();
-    }
-
-    private KofiEventType parseType(String raw) {
-        if (raw == null || raw.isBlank()) return KofiEventType.donation;
-        try {
-            return KofiEventType.valueOf(raw.trim().toLowerCase());
-        } catch (IllegalArgumentException e) {
-            return KofiEventType.fromKofiPayload(raw);
-        }
     }
 }

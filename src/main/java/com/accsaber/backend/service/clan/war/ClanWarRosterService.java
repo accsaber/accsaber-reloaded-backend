@@ -17,7 +17,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
@@ -96,8 +95,7 @@ public class ClanWarRosterService {
 
     @Transactional
     public ClanWarParticipantResponse choose(UUID warId, Long playerId, Long targetUserId) {
-        ClanWar war = warRepository.findByIdForUpdate(warId)
-                .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
+        ClanWar war = warRepository.lockOrThrow(warId);
         if (war.getStatus() == ClanWarStatus.ended) {
             throw new ConflictException("This war is already over");
         }

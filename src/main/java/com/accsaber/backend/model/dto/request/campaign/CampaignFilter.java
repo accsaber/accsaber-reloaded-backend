@@ -17,6 +17,5 @@ public record CampaignFilter(
         String search,
         Boolean official,
         Boolean loved,
-        Long participantId,
         Collection<UserCampaignStatus> progressStatus) {
 }

@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 
 import jakarta.persistence.LockModeType;
@@ -47,6 +48,10 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             WHERE w.id = :id
             """)
     Optional<ClanWar> findByIdForUpdate(@Param("id") UUID id);
+
+    default ClanWar lockOrThrow(UUID id) {
+        return findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("ClanWar", id));
+    }
 
     @Query(value = """
             SELECT w FROM ClanWar w

@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.map;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class BatchStatusConverter implements AttributeConverter<BatchStatus, String> {
+public class BatchStatusConverter extends DbEnumConverter<BatchStatus> {
 
-    @Override
-    public String convertToDatabaseColumn(BatchStatus status) {
-        if (status == null)
-            return null;
-        return status.getDbValue();
-    }
-
-    @Override
-    public BatchStatus convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return BatchStatus.fromDbValue(value);
+    public BatchStatusConverter() {
+        super(BatchStatus::getDbValue, BatchStatus::fromDbValue);
     }
 }

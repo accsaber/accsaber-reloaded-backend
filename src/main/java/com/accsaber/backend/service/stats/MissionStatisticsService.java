@@ -265,19 +265,15 @@ public class MissionStatisticsService {
 
     @Cacheable(value = "statistics", key = "'msn:mostxp:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
     public Page<MissionCompletorResponse> getMostMissionXp(String country, Pageable pageable) {
-        String normalizedCountry = StatsQueryRunner.normalizeCountry(country);
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = "SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,"
                 + " (SELECT COUNT(*) FROM user_missions m"
                 + " WHERE m.user_id = u.id AND m.status = 'completed') AS completed,"
                 + " u.mission_xp AS xp_earned"
                 + " FROM users u"
-                + " WHERE u.active = true AND u.banned = false AND u.mission_xp > 0";
-        if (normalizedCountry != null) {
-            sql += " AND LOWER(u.country) = LOWER(:country)";
-            params.put("country", normalizedCountry);
-        }
-        sql += " ORDER BY xp_earned DESC, u.name ASC";
+                + " WHERE u.active = true AND u.banned = false AND u.mission_xp > 0"
+                + StatsQueryRunner.countryClause("u.country", country, params)
+                + " ORDER BY xp_earned DESC, u.name ASC";
         return queryRunner.paged(sql, params, pageable, MissionStatisticsService::mapCompletor);
     }
 

@@ -87,7 +87,7 @@ public class NoteAccuracyComplexityRater {
         Map<String, Object> refreshed = JSON.convertValue(inputs, MAP);
         refreshed.put("duration", duration(difficulty));
         putBoard(refreshed, board(difficulty.getId()));
-        return price(refreshed, properties.toSpec(), difficulty.getCategory().getCode());
+        return price(refreshed, properties, difficulty.getCategory().getCode());
     }
 
     private static Integer duration(MapDifficulty difficulty) {
@@ -129,7 +129,7 @@ public class NoteAccuracyComplexityRater {
         inputs.put("topDownShare", Rounding.round(notes.getTopDownShare(), 6));
         inputs.put("midDiagDoubleShare", Rounding.round(notes.getMidDiagDoubleShare(), 6));
         putBoard(inputs, board);
-        return price(inputs, properties.toSpec(), categoryCode).orElseThrow();
+        return price(inputs, properties, categoryCode).orElseThrow();
     }
 
     public static Optional<Rating> price(JsonNode inputs, ComplexityRaterSpec spec, String categoryCode,

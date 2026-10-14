@@ -19,8 +19,6 @@ public interface SupporterAccountRepository extends JpaRepository<SupporterAccou
     @Query("SELECT a FROM SupporterAccount a WHERE a.currentTier IS NOT NULL AND a.lastDebitAt <= :cutoff")
     List<SupporterAccount> findActiveTiersDueForDebit(@Param("cutoff") Instant cutoff);
 
-    List<SupporterAccount> findByCurrentTierIsNotNull();
-
     @Query("SELECT a FROM SupporterAccount a JOIN FETCH a.currentTier "
             + "WHERE a.userId IN :userIds AND a.currentTier IS NOT NULL")
     List<SupporterAccount> findActiveByUserIds(@Param("userIds") Collection<Long> userIds);

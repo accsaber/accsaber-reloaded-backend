@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ public class TextModerationService {
 
     private static final Logger log = LoggerFactory.getLogger(TextModerationService.class);
     private static final int MIN_TERM_LENGTH = 3;
+    private static final Pattern REPEATED_RUN = Pattern.compile("(.)\\1{2,}");
 
     private static final Map<Character, Character> SUBSTITUTIONS = Map.ofEntries(
             Map.entry('0', 'o'), Map.entry('1', 'i'), Map.entry('3', 'e'), Map.entry('4', 'a'),
@@ -85,7 +87,7 @@ public class TextModerationService {
     }
 
     private static String collapse(String token) {
-        return token.replaceAll("(.)\\1{2,}", "$1");
+        return REPEATED_RUN.matcher(token).replaceAll("$1");
     }
 
     private static String normalize(String text) {

@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.item.CreateTradeRequest;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
 import com.accsaber.backend.model.entity.item.TradeStatus;
@@ -44,7 +43,7 @@ public class ItemTradeController {
     @PostMapping
     public ResponseEntity<TradeResponse> create(@Valid @RequestBody CreateTradeRequest req,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         var trade = tradeService.create(me, req.getToUserId(),
                 req.getOfferedItems(), req.getRequestedItems(),
                 req.getOfferedEssence(), req.getRequestedEssence(), req.getMessage());
@@ -55,7 +54,7 @@ public class ItemTradeController {
     @PostMapping("/{id}/accept")
     public ResponseEntity<TradeResponse> accept(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(ItemMapper.toTradeResponse(tradeService.accept(id, me)));
     }
 
@@ -63,7 +62,7 @@ public class ItemTradeController {
     @PostMapping("/{id}/decline")
     public ResponseEntity<TradeResponse> decline(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(ItemMapper.toTradeResponse(tradeService.decline(id, me)));
     }
 
@@ -71,7 +70,7 @@ public class ItemTradeController {
     @PostMapping("/{id}/cancel")
     public ResponseEntity<TradeResponse> cancel(@PathVariable UUID id,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(ItemMapper.toTradeResponse(tradeService.cancel(id, me)));
     }
 
@@ -83,15 +82,8 @@ public class ItemTradeController {
             @RequestParam(required = false) List<TradeStatus> status,
             @PageableDefault(size = 30, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(tradeService.listForUser(me, direction, status, pageable)
                 .map(ItemMapper::toTradeResponse));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

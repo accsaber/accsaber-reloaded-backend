@@ -36,6 +36,7 @@ import com.accsaber.backend.service.map.NoteAccuracyComplexityRater.Rating;
 import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.infra.AfterCommit;
+import com.accsaber.backend.util.Texts;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +63,7 @@ public class MapImportService {
     public MapDifficultyResponse importByLeaderboardIds(ImportMapFromLeaderboardIdsRequest importRequest,
             UUID staffId, MapDifficultyStatus status) {
         String blId = importRequest.getBlLeaderboardId();
-        String ssId = blankToNull(importRequest.getSsLeaderboardId());
+        String ssId = Texts.blankToNull(importRequest.getSsLeaderboardId());
 
         if (blId == null || blId.isBlank()) {
             throw new ValidationException("BeatLeader leaderboard ID is required");
@@ -317,7 +318,7 @@ public class MapImportService {
         }
 
         String newBlId = request.getBlLeaderboardId();
-        String newSsId = blankToNull(request.getSsLeaderboardId());
+        String newSsId = Texts.blankToNull(request.getSsLeaderboardId());
 
         mapDifficultyRepository.findByBlLeaderboardId(newBlId)
                 .filter(existing -> !existing.getId().equals(difficultyId))
@@ -419,10 +420,6 @@ public class MapImportService {
         scheduleMapCoverMirror(difficulty.getMap().getId());
 
         return mapService.getDifficultyResponse(difficultyId);
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
     }
 
     private void scheduleMapCoverMirror(UUID mapId) {

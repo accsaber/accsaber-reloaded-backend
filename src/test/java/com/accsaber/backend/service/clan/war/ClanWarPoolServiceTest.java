@@ -91,6 +91,7 @@ class ClanWarPoolServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         clanProperties.getWar().setMaxUnderdogShare(0.7);
         service = new ClanWarPoolService(warRepository, sideRepository, poolRepository, categoryRepository,
                 mapDifficultyRepository, accessService, cosmeticService, mapService, scoreRepository, feed, clanProperties);

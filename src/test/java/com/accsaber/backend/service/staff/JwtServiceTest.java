@@ -17,6 +17,8 @@ import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 class JwtServiceTest {
 
@@ -39,6 +41,24 @@ class JwtServiceTest {
         assertThat(token).isNotBlank();
         assertThat(jwtService.extractStaffId(token)).isEqualTo(staffUser.getId());
         assertThat(jwtService.extractRole(token)).isEqualTo(StaffRole.ADMIN);
+    }
+
+    @Test
+    void extractTokenType_staffTokenCarriesStaffType() {
+        String token = jwtService.generateAccessToken(buildStaffUser(StaffRole.ADMIN));
+
+        assertThat(jwtService.extractTokenType(token)).isEqualTo(JwtService.TYPE_STAFF);
+    }
+
+    @Test
+    void extractTokenType_tokenWithoutTypIsNotTreatedAsStaff() {
+        String token = Jwts.builder()
+                .subject("discord")
+                .claim("purpose", "oauth-state")
+                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(TEST_SECRET)))
+                .compact();
+
+        assertThat(jwtService.extractTokenType(token)).isNull();
     }
 
     @Test

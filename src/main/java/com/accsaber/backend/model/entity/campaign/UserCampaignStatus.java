@@ -2,7 +2,14 @@ package com.accsaber.backend.model.entity.campaign;
 
 import java.util.List;
 
-public enum UserCampaignStatus {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum UserCampaignStatus implements DbEnum {
     IN_PROGRESS("in_progress"),
     COMPLETED("completed"),
     ABANDONED("abandoned");
@@ -11,19 +18,7 @@ public enum UserCampaignStatus {
 
     private final String dbValue;
 
-    UserCampaignStatus(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static UserCampaignStatus fromDbValue(String value) {
-        for (UserCampaignStatus s : values()) {
-            if (s.dbValue.equals(value))
-                return s;
-        }
-        throw new IllegalArgumentException("Unknown user campaign status: " + value);
+        return DbEnum.fromDbValue(values(), value, "user campaign status");
     }
 }

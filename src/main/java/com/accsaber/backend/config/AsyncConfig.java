@@ -1,12 +1,14 @@
 package com.accsaber.backend.config;
 
 import org.slf4j.MDC;
+import org.springframework.boot.task.ThreadPoolTaskSchedulerBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -20,50 +22,22 @@ public class AsyncConfig {
 
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("accsaber-async-");
-        executor.setTaskDecorator(mdcTaskDecorator());
-        executor.initialize();
-        return executor;
+        return pool(4, 8, 100, "accsaber-async-");
     }
 
     @Bean(name = "rankingExecutor")
     public Executor rankingExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("accsaber-ranking-");
-        executor.setTaskDecorator(mdcTaskDecorator());
-        executor.initialize();
-        return executor;
+        return pool(2, 4, 50, "accsaber-ranking-");
     }
 
     @Bean(name = "backfillExecutor")
     public Executor backfillExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(Integer.MAX_VALUE);
-        executor.setThreadNamePrefix("accsaber-backfill-");
-        executor.setTaskDecorator(mdcTaskDecorator());
-        executor.initialize();
-        return executor;
+        return pool(10, 10, Integer.MAX_VALUE, "accsaber-backfill-");
     }
 
     @Bean(name = "cdnBackfillExecutor")
     public Executor cdnBackfillExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(6);
-        executor.setMaxPoolSize(6);
-        executor.setQueueCapacity(Integer.MAX_VALUE);
-        executor.setThreadNamePrefix("accsaber-cdn-backfill-");
-        executor.setTaskDecorator(mdcTaskDecorator());
-        executor.initialize();
-        return executor;
+        return pool(6, 6, Integer.MAX_VALUE, "accsaber-cdn-backfill-");
     }
 
     @Bean(name = "ingestionScheduler")
@@ -73,6 +47,22 @@ public class AsyncConfig {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    @Bean(name = "taskScheduler")
+    public ThreadPoolTaskScheduler taskScheduler(ThreadPoolTaskSchedulerBuilder builder) {
+        return builder.build();
+    }
+
+    private ThreadPoolTaskExecutor pool(int core, int max, int queue, String prefix) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(core);
+        executor.setMaxPoolSize(max);
+        executor.setQueueCapacity(queue);
+        executor.setThreadNamePrefix(prefix);
+        executor.setTaskDecorator(mdcTaskDecorator());
+        executor.initialize();
+        return executor;
     }
 
     private TaskDecorator mdcTaskDecorator() {

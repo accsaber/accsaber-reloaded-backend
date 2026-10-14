@@ -28,6 +28,4 @@ public interface CampaignTagLinkRepository extends JpaRepository<CampaignTagLink
                         WHERE ctl.campaign.id IN :campaignIds
                         """)
         List<CampaignTagLink> findByCampaign_IdIn(@Param("campaignIds") Collection<UUID> campaignIds);
-
-        void deleteByCampaign_IdAndCampaignTag_Id(UUID campaignId, UUID campaignTagId);
 }

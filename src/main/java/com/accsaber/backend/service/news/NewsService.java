@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +19,6 @@ import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
 import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
 import com.accsaber.backend.model.dto.response.news.NewsResponse;
 import com.accsaber.backend.model.dto.response.news.PublicNewsResponse;
-import com.accsaber.backend.model.entity.Curve;
-import com.accsaber.backend.model.entity.campaign.Campaign;
-import com.accsaber.backend.model.entity.map.Batch;
-import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.news.News;
 import com.accsaber.backend.model.entity.news.NewsStatus;
 import com.accsaber.backend.model.entity.news.NewsType;
@@ -66,15 +63,9 @@ public class NewsService {
         return toPublicResponse(news);
     }
 
-    public Page<NewsResponse> findStaffAll(NewsStatus status, NewsType type, Pageable pageable) {
+    public Page<NewsResponse> findStaff(UUID authorId, NewsStatus status, NewsType type, Pageable pageable) {
         return newsRepository
-                .search(status, null, type != null ? type.filterCode() : 0, null, pageable)
-                .map(NewsService::toResponse);
-    }
-
-    public Page<NewsResponse> findStaffByAuthor(UUID staffUserId, NewsStatus status, NewsType type, Pageable pageable) {
-        return newsRepository
-                .search(status, staffUserId, type != null ? type.filterCode() : 0, null, pageable)
+                .search(status, authorId, type != null ? type.filterCode() : 0, null, pageable)
                 .map(NewsService::toResponse);
     }
 
@@ -100,10 +91,10 @@ public class NewsService {
                 .status(status)
                 .pinned(Boolean.TRUE.equals(request.getPinned()))
                 .publishedAt(status == NewsStatus.PUBLISHED ? Instant.now() : null)
-                .batch(resolveBatch(request.getBatchId()))
-                .campaign(resolveCampaign(request.getCampaignId()))
-                .milestoneSet(resolveMilestoneSet(request.getMilestoneSetId()))
-                .curve(resolveCurve(request.getCurveId()))
+                .batch(resolve(batchRepository, request.getBatchId(), "Batch"))
+                .campaign(resolve(campaignRepository, request.getCampaignId(), "Campaign"))
+                .milestoneSet(resolve(milestoneSetRepository, request.getMilestoneSetId(), "MilestoneSet"))
+                .curve(resolve(curveRepository, request.getCurveId(), "Curve"))
                 .build();
 
         return toResponse(newsRepository.save(news));
@@ -136,19 +127,23 @@ public class NewsService {
             applyStatusChange(news, request.getStatus());
         }
         if (request.getBatchId() != null) {
-            news.setBatch(resolveBatch(request.getBatchId()));
+            news.setBatch(resolve(batchRepository, request.getBatchId(), "Batch"));
         }
         if (request.getCampaignId() != null) {
-            news.setCampaign(resolveCampaign(request.getCampaignId()));
+            news.setCampaign(resolve(campaignRepository, request.getCampaignId(), "Campaign"));
         }
         if (request.getMilestoneSetId() != null) {
-            news.setMilestoneSet(resolveMilestoneSet(request.getMilestoneSetId()));
+            news.setMilestoneSet(resolve(milestoneSetRepository, request.getMilestoneSetId(), "MilestoneSet"));
         }
         if (request.getCurveId() != null) {
-            news.setCurve(resolveCurve(request.getCurveId()));
+            news.setCurve(resolve(curveRepository, request.getCurveId(), "Curve"));
         }
 
         return toResponse(newsRepository.save(news));
+    }
+
+    public void assertCanEdit(UUID id, UUID staffUserId, StaffRole role) {
+        ensureCanEdit(loadActive(id), staffUserId, role);
     }
 
     @Transactional
@@ -214,32 +209,11 @@ public class NewsService {
         return slug;
     }
 
-    private Batch resolveBatch(UUID batchId) {
-        if (batchId == null)
+    private static <T> T resolve(JpaRepository<T, UUID> repository, UUID id, String resource) {
+        if (id == null)
             return null;
-        return batchRepository.findById(batchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
-    }
-
-    private Campaign resolveCampaign(UUID campaignId) {
-        if (campaignId == null)
-            return null;
-        return campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
-    }
-
-    private MilestoneSet resolveMilestoneSet(UUID milestoneSetId) {
-        if (milestoneSetId == null)
-            return null;
-        return milestoneSetRepository.findById(milestoneSetId)
-                .orElseThrow(() -> new ResourceNotFoundException("MilestoneSet", milestoneSetId));
-    }
-
-    private Curve resolveCurve(UUID curveId) {
-        if (curveId == null)
-            return null;
-        return curveRepository.findById(curveId)
-                .orElseThrow(() -> new ResourceNotFoundException("Curve", curveId));
+        return repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(resource, id));
     }
 
     private static Pageable applyPublicSort(Pageable pageable) {

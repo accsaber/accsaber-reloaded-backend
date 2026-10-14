@@ -19,6 +19,7 @@ import com.accsaber.backend.model.dto.request.campaign.CreateCampaignTagRequest;
 import com.accsaber.backend.model.dto.response.campaign.CampaignResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.security.StaffPrincipals;
+import com.accsaber.backend.service.campaign.CampaignEditor;
 import com.accsaber.backend.service.campaign.CampaignService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,8 +38,9 @@ public class AdminCampaignController {
 
     @Operation(summary = "New campaign")
     @PostMapping
-    public ResponseEntity<CampaignResponse> createCampaign(@Valid @RequestBody CreateCampaignRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createCampaign(request));
+    public ResponseEntity<CampaignResponse> createCampaign(@Valid @RequestBody CreateCampaignRequest request,
+            Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createCampaign(CampaignEditor.staff(StaffPrincipals.viewerIdOf(authentication)), request));
     }
 
     @Operation(summary = "Reopen a campaign for editing")

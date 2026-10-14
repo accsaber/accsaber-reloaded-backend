@@ -63,7 +63,7 @@ public class ClanMemberController {
             @PathVariable Long userId,
             @Valid @RequestBody UpdateClanMemberRequest request) {
         return ResponseEntity.ok(membershipService.changeRole(clanId, principal.getUserId(), userId,
-                request.getRole()));
+                request.role()));
     }
 
     @Operation(summary = "Leave or kick someone",
@@ -90,7 +90,7 @@ public class ClanMemberController {
             @PathVariable UUID clanId,
             @Valid @RequestBody TransferClanFounderRequest request) {
         return ResponseEntity.ok(membershipService.transferFounder(clanId, principal.getUserId(),
-                Long.valueOf(request.getUserId())));
+                Long.valueOf(request.userId())));
     }
 
     @Operation(summary = "Join or invite",
@@ -101,7 +101,7 @@ public class ClanMemberController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @Valid @RequestBody CreateClanJoinRequest request) {
-        Long invitedUserId = request.getUserId() != null ? Long.valueOf(request.getUserId()) : null;
+        Long invitedUserId = request.userId() != null ? Long.valueOf(request.userId()) : null;
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(joinRequestService.create(clanId, principal.getUserId(), invitedUserId));
     }
@@ -136,6 +136,6 @@ public class ClanMemberController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID requestId,
             @Valid @RequestBody ResolveClanJoinRequest request) {
-        return ResponseEntity.ok(joinRequestService.resolve(requestId, principal.getUserId(), request.getStatus()));
+        return ResponseEntity.ok(joinRequestService.resolve(requestId, principal.getUserId(), request.status()));
     }
 }

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -28,6 +29,7 @@ class ScoreFeedWebSocketHandlerTest {
                 WebSocketSession session = mock(WebSocketSession.class);
                 when(session.getId()).thenReturn(id);
                 when(session.isOpen()).thenReturn(open);
+                when(session.getAttributes()).thenReturn(new HashMap<>());
                 return session;
         }
 

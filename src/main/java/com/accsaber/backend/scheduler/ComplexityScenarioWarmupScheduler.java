@@ -6,9 +6,7 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.service.map.ComplexityScenarioService;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ComplexityScenarioWarmupScheduler {
@@ -17,10 +15,6 @@ public class ComplexityScenarioWarmupScheduler {
 
     @Scheduled(fixedDelayString = "${accsaber.complexity.scenario-refresh-ms:600000}", initialDelay = 60_000)
     public void rebuildScenarioStates() {
-        try {
-            scenarioService.rebuild();
-        } catch (Exception e) {
-            log.error("Complexity scenario rebuild failed: {}", e.getMessage(), e);
-        }
+        scenarioService.rebuild();
     }
 }

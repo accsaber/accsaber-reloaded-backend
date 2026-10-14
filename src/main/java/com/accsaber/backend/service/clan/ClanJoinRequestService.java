@@ -48,8 +48,7 @@ public class ClanJoinRequestService {
     @Transactional
     public ClanJoinRequestResponse create(UUID clanId, Long playerId, Long invitedUserId) {
         User actor = accessService.player(playerId);
-        Clan clan = clanRepository.findByIdAndActiveTrue(clanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        Clan clan = clanRepository.requireActive(clanId);
         boolean invite = invitedUserId != null && !invitedUserId.equals(actor.getId());
         User subject = invite ? inviteSubject(clan, actor, invitedUserId) : requestSubject(clan, actor);
         if (joinRequestRepository.existsByClan_IdAndUser_IdAndStatus(clanId, subject.getId(), ClanJoinStatus.pending)) {

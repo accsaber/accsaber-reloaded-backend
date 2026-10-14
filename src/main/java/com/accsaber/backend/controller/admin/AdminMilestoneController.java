@@ -41,6 +41,7 @@ import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkRespons
 import com.accsaber.backend.model.entity.milestone.MilestoneStatus;
 import com.accsaber.backend.service.milestone.MilestoneLayoutService;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService;
+import com.accsaber.backend.service.milestone.MilestoneGraphService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,6 +57,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminMilestoneController {
 
     private final MilestoneService milestoneService;
+    private final MilestoneGraphService graphService;
     private final MilestoneQueryBuilderService queryBuilderService;
     private final MilestoneLayoutService layoutService;
 
@@ -114,7 +116,7 @@ public class AdminMilestoneController {
     @PostMapping("/activate")
     public ResponseEntity<List<MilestoneResponse>> activateMilestones(
             @Valid @RequestBody ActivateMilestonesRequest request) {
-        List<MilestoneResponse> responses = milestoneService.activateMilestones(request.getMilestoneIds());
+        List<MilestoneResponse> responses = milestoneService.activateMilestones(request.milestoneIds());
         milestoneService.backfillAllMilestones();
         return ResponseEntity.ok(responses);
     }
@@ -123,7 +125,7 @@ public class AdminMilestoneController {
     @PostMapping("/{id}/map-links")
     public ResponseEntity<Void> addMapDifficultyLinks(@PathVariable UUID id,
             @Valid @RequestBody AddMapDifficultyLinksRequest request) {
-        milestoneService.addMapDifficultyLinks(id, request.getMapDifficultyIds());
+        graphService.addMapDifficultyLinks(id, request.mapDifficultyIds());
         return ResponseEntity.accepted().build();
     }
 
@@ -131,7 +133,7 @@ public class AdminMilestoneController {
     @DeleteMapping("/{id}/map-links")
     public ResponseEntity<Void> removeMapDifficultyLinks(@PathVariable UUID id,
             @Valid @RequestBody AddMapDifficultyLinksRequest request) {
-        milestoneService.removeMapDifficultyLinks(id, request.getMapDifficultyIds());
+        graphService.removeMapDifficultyLinks(id, request.mapDifficultyIds());
         return ResponseEntity.noContent().build();
     }
 
@@ -175,7 +177,7 @@ public class AdminMilestoneController {
     public ResponseEntity<PrerequisiteLinkResponse> createPrerequisiteLink(
             @Valid @RequestBody CreatePrerequisiteLinkRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(milestoneService.createPrerequisiteLink(request));
+                .body(graphService.createPrerequisiteLink(request));
     }
 
     @Operation(summary = "Edit a prerequisite link")
@@ -183,27 +185,27 @@ public class AdminMilestoneController {
     public ResponseEntity<PrerequisiteLinkResponse> updatePrerequisiteLink(
             @PathVariable UUID linkId,
             @Valid @RequestBody UpdatePrerequisiteLinkRequest request) {
-        return ResponseEntity.ok(milestoneService.updatePrerequisiteLink(linkId, request));
+        return ResponseEntity.ok(graphService.updatePrerequisiteLink(linkId, request));
     }
 
     @Operation(summary = "Drop a prerequisite link")
     @DeleteMapping("/prerequisites/{linkId}")
     public ResponseEntity<Void> deactivatePrerequisiteLink(@PathVariable UUID linkId) {
-        milestoneService.deactivatePrerequisiteLink(linkId);
+        graphService.deactivatePrerequisiteLink(linkId);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "A milestone's prerequisites")
     @GetMapping("/{id}/prerequisites")
     public ResponseEntity<List<PrerequisiteLinkResponse>> getPrerequisites(@PathVariable UUID id) {
-        return ResponseEntity.ok(milestoneService.findPrerequisitesByMilestone(id));
+        return ResponseEntity.ok(graphService.findPrerequisitesByMilestone(id));
     }
 
     @Operation(summary = "New set group")
     @PostMapping("/set-groups")
     public ResponseEntity<MilestoneSetGroupResponse> createSetGroup(
             @Valid @RequestBody CreateMilestoneSetGroupRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(milestoneService.createSetGroup(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(graphService.createSetGroup(request));
     }
 
     @Operation(summary = "Edit a set group")
@@ -211,13 +213,13 @@ public class AdminMilestoneController {
     public ResponseEntity<MilestoneSetGroupResponse> updateSetGroup(
             @PathVariable UUID groupId,
             @Valid @RequestBody CreateMilestoneSetGroupRequest request) {
-        return ResponseEntity.ok(milestoneService.updateSetGroup(groupId, request));
+        return ResponseEntity.ok(graphService.updateSetGroup(groupId, request));
     }
 
     @Operation(summary = "Deactivate a set group")
     @DeleteMapping("/set-groups/{groupId}")
     public ResponseEntity<Void> deactivateSetGroup(@PathVariable UUID groupId) {
-        milestoneService.deactivateSetGroup(groupId);
+        graphService.deactivateSetGroup(groupId);
         return ResponseEntity.noContent().build();
     }
 
@@ -225,7 +227,7 @@ public class AdminMilestoneController {
     @PostMapping("/set-links")
     public ResponseEntity<MilestoneSetLinkResponse> createSetLink(
             @Valid @RequestBody CreateMilestoneSetLinkRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(milestoneService.createSetLink(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(graphService.createSetLink(request));
     }
 
     @Operation(summary = "Reorder a set link")
@@ -233,13 +235,13 @@ public class AdminMilestoneController {
     public ResponseEntity<MilestoneSetLinkResponse> updateSetLink(
             @PathVariable UUID linkId,
             @Valid @RequestBody UpdateMilestoneSetLinkRequest request) {
-        return ResponseEntity.ok(milestoneService.updateSetLink(linkId, request));
+        return ResponseEntity.ok(graphService.updateSetLink(linkId, request));
     }
 
     @Operation(summary = "Drop a set link")
     @DeleteMapping("/set-links/{linkId}")
     public ResponseEntity<Void> deactivateSetLink(@PathVariable UUID linkId) {
-        milestoneService.deactivateSetLink(linkId);
+        graphService.deactivateSetLink(linkId);
         return ResponseEntity.noContent().build();
     }
 }

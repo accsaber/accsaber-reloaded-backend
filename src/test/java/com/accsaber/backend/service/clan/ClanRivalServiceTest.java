@@ -65,6 +65,7 @@ class ClanRivalServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(clanRepository.findByIdAndActiveTrue(owls.getId())).thenReturn(Optional.of(owls));
         lenient().when(clanRepository.findByIdAndActiveTrue(lapiz.getId())).thenReturn(Optional.of(lapiz));

@@ -34,28 +34,24 @@ public class MilestoneSetRewardScheduler {
 
     @Scheduled(fixedRate = 900_000, initialDelay = 120_000)
     public void grantMissingSetRewards() {
-        try {
-            List<PendingSet> pending = pendingSets();
-            if (pending.isEmpty()) {
-                return;
-            }
-
-            int granted = 0;
-            for (PendingSet entry : pending) {
-                try {
-                    granted += milestoneEvaluationService.settleSetRewards(
-                            entry.userId(), entry.setId(), entry.earnedAt());
-                } catch (Exception e) {
-                    log.error("Failed to settle milestone set {} for user {}: {}",
-                            entry.setId(), entry.userId(), e.getMessage(), e);
-                }
-            }
-
-            log.info("Milestone set reward sweep settled {} (user, set) pairs and granted {} items",
-                    pending.size(), granted);
-        } catch (Exception e) {
-            log.error("Milestone set reward sweep failed: {}", e.getMessage(), e);
+        List<PendingSet> pending = pendingSets();
+        if (pending.isEmpty()) {
+            return;
         }
+
+        int granted = 0;
+        for (PendingSet entry : pending) {
+            try {
+                granted += milestoneEvaluationService.settleSetRewards(
+                        entry.userId(), entry.setId(), entry.earnedAt());
+            } catch (Exception e) {
+                log.error("Failed to settle milestone set {} for user {}: {}",
+                        entry.setId(), entry.userId(), e.getMessage(), e);
+            }
+        }
+
+        log.info("Milestone set reward sweep settled {} (user, set) pairs and granted {} items",
+                pending.size(), granted);
     }
 
     private List<PendingSet> pendingSets() {

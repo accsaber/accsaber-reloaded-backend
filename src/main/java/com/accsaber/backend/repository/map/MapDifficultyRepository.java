@@ -80,20 +80,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         """)
         List<MapDifficulty> findActiveMissingMetadata();
 
-        @Query("""
-                        SELECT d FROM MapDifficulty d
-                        JOIN FETCH d.category c
-                        JOIN FETCH c.scoreCurve
-                        JOIN FETCH c.weightCurve
-                        WHERE d.category.id = :categoryId AND d.status = :status AND d.active = true
-                        """)
-        List<MapDifficulty> findByCategoryIdAndStatusAndActiveTrueWithCategory(
-                        @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status);
-
         List<MapDifficulty> findByMapIdAndActiveTrue(UUID mapId);
-
-        List<MapDifficulty> findByMapIdInAndActiveTrue(List<UUID> mapIds);
 
         Optional<MapDifficulty> findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
                         UUID mapId, Difficulty difficulty, String characteristic);
@@ -133,18 +120,6 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
         List<MapDifficulty> findByStatusAndActiveTrue(MapDifficultyStatus status);
 
         @Query("""
-                        SELECT d FROM MapDifficulty d
-                        WHERE d.map.id = :mapId AND d.active = true
-                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
-                             OR d.status IN :statuses)
-                        """)
-        List<MapDifficulty> findByMapIdWithFilters(
-                        @Param("mapId") UUID mapId,
-                        @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status);
-
-        @Query("""
                         SELECT d.blLeaderboardId FROM MapDifficulty d
                         WHERE d.map.id = :mapId AND d.active = true AND d.blLeaderboardId IS NOT NULL
                         ORDER BY d.blLeaderboardId ASC
@@ -161,13 +136,6 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
         List<MapDifficulty> findByMapIdsWithFilters(
                         @Param("mapIds") List<UUID> mapIds,
                         @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status);
-
-        @Query("""
-                        SELECT COUNT(d) FROM MapDifficulty d
-                        WHERE d.category.id = :categoryId AND d.status = :status AND d.active = true
-                        """)
-        long countByCategoryIdAndStatus(@Param("categoryId") UUID categoryId,
                         @Param("status") MapDifficultyStatus status);
 
         @Query("""

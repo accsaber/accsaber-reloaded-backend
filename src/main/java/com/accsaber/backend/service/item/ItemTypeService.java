@@ -10,8 +10,6 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.repository.item.ItemTypeRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,8 +17,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ItemTypeService {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ItemTypeRepository itemTypeRepository;
 
@@ -52,7 +48,7 @@ public class ItemTypeService {
                 .key(key)
                 .name(name)
                 .description(description)
-                .valueSchema(toJsonNode(valueSchema))
+                .valueSchema(ItemMapper.toJsonNode(valueSchema))
                 .build();
         return itemTypeRepository.save(type);
     }
@@ -66,7 +62,7 @@ public class ItemTypeService {
         if (description != null)
             type.setDescription(description);
         if (valueSchema != null)
-            type.setValueSchema(toJsonNode(valueSchema));
+            type.setValueSchema(ItemMapper.toJsonNode(valueSchema));
         return itemTypeRepository.save(type);
     }
 
@@ -76,11 +72,5 @@ public class ItemTypeService {
                 .orElseThrow(() -> new ResourceNotFoundException("ItemType", id));
         type.setActive(active);
         return itemTypeRepository.save(type);
-    }
-
-    private JsonNode toJsonNode(Object value) {
-        if (value == null)
-            return null;
-        return MAPPER.valueToTree(value);
     }
 }

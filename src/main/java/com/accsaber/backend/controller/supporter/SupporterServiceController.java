@@ -33,9 +33,9 @@ public class SupporterServiceController {
     @Operation(summary = "Ko-fi role assigned signal")
     @PostMapping("/claim-by-role")
     public ResponseEntity<Map<String, Object>> claimByRole(@Valid @RequestBody ClaimByRoleSignalRequest request) {
-        Instant when = request.getAssignedAt() != null ? request.getAssignedAt() : Instant.now();
+        Instant when = request.assignedAt() != null ? request.assignedAt() : Instant.now();
         Optional<KofiEvent> claimed = supporterService.claimByRoleSignalForDiscord(
-                request.getDiscordId(), request.getTierName(), when);
+                request.discordId(), request.tierName(), when);
         return ResponseEntity.ok(Map.of(
                 "matched", claimed.isPresent(),
                 "kofiTransactionId", claimed.map(KofiEvent::getKofiTransactionId).orElse("")));
@@ -44,7 +44,7 @@ public class SupporterServiceController {
     @Operation(summary = "Claim a Ko-fi event by hand")
     @PostMapping("/assign")
     public ResponseEntity<Void> assign(@Valid @RequestBody AssignSupporterEventRequest request) {
-        supporterService.claimByAdminForDiscord(request.getKofiTransactionId(), request.getDiscordId());
+        supporterService.claimByAdminForDiscord(request.kofiTransactionId(), request.discordId());
         return ResponseEntity.noContent().build();
     }
 }

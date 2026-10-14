@@ -21,8 +21,6 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
     @Query("SELECT s FROM StaffUser s LEFT JOIN FETCH s.user WHERE s.id IN :ids")
     List<StaffUser> findAllByIdWithUser(@Param("ids") List<UUID> ids);
 
-    List<StaffUser> findByUsernameAndActiveTrue(String username);
-
     List<StaffUser> findByUsernameIgnoreCaseAndActiveTrue(String username);
 
     Optional<StaffUser> findByUsernameAndRoleAndActiveTrue(String username, StaffRole role);

@@ -1,8 +1,5 @@
 package com.accsaber.backend.controller.user;
 
-import java.util.List;
-import java.util.UUID;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -14,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.player.LeaderboardResponse;
 import com.accsaber.backend.model.dto.response.player.XpLeaderboardResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
@@ -50,16 +46,9 @@ public class LeaderboardController {
                         @RequestParam(required = false) UserRelationType relation,
                         @AuthenticationPrincipal PlayerUserDetails principal,
                         @PageableDefault(size = 20) Pageable pageable) {
-                UUID categoryId = categoryService.resolveId(category);
-                if (relation != null) {
-                        List<Long> filter = userRelationService.findRelationFilterUserIds(
-                                        requirePrincipal(principal).getUserId(),
-                                        relation);
-                        return ResponseEntity.ok(leaderboardService.getBoardFiltered(
-                                        categoryId, country, search, hmd, inactiveUsers, filter, pageable));
-                }
-                return ResponseEntity.ok(
-                                leaderboardService.getBoard(categoryId, country, search, hmd, inactiveUsers, pageable));
+                return ResponseEntity.ok(leaderboardService.getBoard(categoryService.resolveId(category), country,
+                                search, hmd, inactiveUsers, userRelationService.resolveRelationFilter(relation, principal),
+                                pageable));
         }
 
         @Operation(summary = "XP leaderboard", description = "Same filters as the other leaderboards.")
@@ -72,21 +61,7 @@ public class LeaderboardController {
                         @RequestParam(required = false) UserRelationType relation,
                         @AuthenticationPrincipal PlayerUserDetails principal,
                         @PageableDefault(size = 20) Pageable pageable) {
-                if (relation != null) {
-                        List<Long> filter = userRelationService.findRelationFilterUserIds(
-                                        requirePrincipal(principal).getUserId(),
-                                        relation);
-                        return ResponseEntity.ok(leaderboardService.getXpLeaderboardFiltered(
-                                        country, search, hmd, inactiveUsers, filter, pageable));
-                }
-                return ResponseEntity
-                                .ok(leaderboardService.getXpLeaderboard(country, search, hmd, inactiveUsers, pageable));
-        }
-
-        private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-                if (principal == null) {
-                        throw new UnauthorizedException("Player authentication required to filter by relation");
-                }
-                return principal;
+                return ResponseEntity.ok(leaderboardService.getXpLeaderboard(country, search, hmd, inactiveUsers,
+                                userRelationService.resolveRelationFilter(relation, principal), pageable));
         }
 }

@@ -2,7 +2,6 @@ package com.accsaber.backend.repository.mission;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -15,12 +14,8 @@ import com.accsaber.backend.model.entity.mission.MissionTemplate;
 
 public interface MissionTemplateRepository extends JpaRepository<MissionTemplate, UUID> {
 
-    List<MissionTemplate> findByActiveTrue();
-
     @EntityGraph(attributePaths = "xpCurve")
     List<MissionTemplate> findByPoolAndActiveTrue(MissionPool pool);
-
-    Optional<MissionTemplate> findByCode(String code);
 
     @Query("""
             SELECT t FROM MissionTemplate t
@@ -30,8 +25,6 @@ public interface MissionTemplateRepository extends JpaRepository<MissionTemplate
             ORDER BY t.unlocksAt ASC NULLS FIRST, t.createdAt ASC
             """)
     List<MissionTemplate> findActiveByEvent(@Param("eventId") UUID eventId);
-
-    long countByEvent_IdAndActiveTrue(UUID eventId);
 
     @Query("""
             SELECT t FROM MissionTemplate t

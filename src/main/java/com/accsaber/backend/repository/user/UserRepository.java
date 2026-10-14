@@ -21,6 +21,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByActiveTrue();
 
+    @Query("SELECT u.id FROM User u WHERE u.active = true")
+    List<Long> findActiveIds();
+
     List<User> findByActiveTrueOrderByTotalXpDesc();
 
     @Query("""

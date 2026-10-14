@@ -181,8 +181,7 @@ public class ClanLevelService {
     }
 
     public ClanLevelResponse level(UUID clanId) {
-        Clan clan = clanRepository.findByIdAndActiveTrue(clanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        Clan clan = clanRepository.requireActive(clanId);
         LevelResponse progress = levelOf(clan);
         return new ClanLevelResponse(progress, loadUnlockRows().unlocks(level -> level <= progress.getLevel()),
                 rosterFactor(clan, memberRepository.countByClan_IdAndLeftAtIsNull(clanId)), seasonXpBySource(clanId));

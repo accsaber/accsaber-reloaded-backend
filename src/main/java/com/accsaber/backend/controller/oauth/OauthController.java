@@ -2,14 +2,17 @@ package com.accsaber.backend.controller.oauth;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +25,6 @@ import org.springframework.web.util.UriUtils;
 
 import com.accsaber.backend.config.OauthProperties;
 import com.accsaber.backend.exception.AccSaberException;
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.RefreshTokenRequest;
 import com.accsaber.backend.model.dto.request.auth.IngameAuthRequest;
@@ -53,6 +55,8 @@ public class OauthController {
             OauthService.PROVIDER_BEATLEADER,
             OauthService.PROVIDER_STEAM);
 
+    private static final String BINDING_COOKIE = "oauth_bind";
+
     private static final Set<String> INGAME_TICKET_PROVIDERS = Set.of("steamTicket", "oculusTicket");
 
     private final OauthService oauthService;
@@ -67,25 +71,31 @@ public class OauthController {
             @PathVariable String provider,
             @RequestParam String returnTo,
             @RequestParam(required = false) String pendingLinkToken,
+            @CookieValue(name = BINDING_COOKIE, required = false) String binding,
             @AuthenticationPrincipal PlayerUserDetails principal) {
 
         requireKnownProvider(provider);
         validateReturnTo(returnTo);
         Long linkUserId = principal != null ? principal.getUserId() : null;
+        String browserBinding = binding != null ? binding : stateService.newBrowserBinding();
 
-        String state = stateService.createState(provider, returnTo, linkUserId, pendingLinkToken);
+        String state = stateService.createState(
+                new StateClaims(provider, returnTo, linkUserId, pendingLinkToken, browserBinding));
         String authorizeUrl = oauthService.buildStartUrl(provider, state);
 
-        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(authorizeUrl)).build();
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(authorizeUrl))
+                .header(HttpHeaders.SET_COOKIE, bindingCookie(browserBinding).toString())
+                .build();
     }
 
     @Operation(summary = "Discord callback")
     @GetMapping("/discord/callback")
-    public ResponseEntity<Void> discordCallback(@RequestParam String code, @RequestParam String state) {
-        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_DISCORD);
+    public ResponseEntity<Void> discordCallback(@RequestParam String code, @RequestParam String state,
+            @CookieValue(name = BINDING_COOKIE, required = false) String binding) {
+        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_DISCORD, binding);
         try {
-            DiscordCallbackOutcome outcome = oauthService.handleDiscordCallback(
-                    code, claims.linkUserId(), claims.pendingLinkToken(), claims.returnTo());
+            DiscordCallbackOutcome outcome = oauthService.handleDiscordCallback(code, claims);
             return switch (outcome) {
                 case DiscordCallbackOutcome.Session s -> redirectWithSession(claims.returnTo(), s.response());
                 case DiscordCallbackOutcome.PendingLink p -> redirectWithFragment(
@@ -98,8 +108,9 @@ public class OauthController {
 
     @Operation(summary = "BeatLeader callback")
     @GetMapping("/beatleader/callback")
-    public ResponseEntity<Void> beatLeaderCallback(@RequestParam String code, @RequestParam String state) {
-        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_BEATLEADER);
+    public ResponseEntity<Void> beatLeaderCallback(@RequestParam String code, @RequestParam String state,
+            @CookieValue(name = BINDING_COOKIE, required = false) String binding) {
+        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_BEATLEADER, binding);
         try {
             PlayerAuthResponse response = oauthService.handleBeatLeaderCallback(
                     code, claims.linkUserId(), claims.pendingLinkToken());
@@ -111,8 +122,9 @@ public class OauthController {
 
     @Operation(summary = "Steam callback")
     @GetMapping("/steam/callback")
-    public ResponseEntity<Void> steamCallback(@RequestParam("state") String state, HttpServletRequest request) {
-        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_STEAM);
+    public ResponseEntity<Void> steamCallback(@RequestParam("state") String state,
+            @CookieValue(name = BINDING_COOKIE, required = false) String binding, HttpServletRequest request) {
+        StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_STEAM, binding);
         try {
             PlayerAuthResponse response = oauthService.handleSteamCallback(
                     openidParams(request), state, claims.linkUserId(), claims.pendingLinkToken());
@@ -150,7 +162,7 @@ public class OauthController {
     @Operation(summary = "Who am I", description = "Your player, linked providers and staff roles.")
     @GetMapping("/me")
     public ResponseEntity<AuthMeResponse> me(@AuthenticationPrincipal PlayerUserDetails principal) {
-        PlayerUserDetails player = requirePrincipal(principal);
+        PlayerUserDetails player = PlayerUserDetails.require(principal);
         return ResponseEntity.ok(oauthService.getMe(player.getUserId(), player.getStaffId()));
     }
 
@@ -160,21 +172,25 @@ public class OauthController {
             @PathVariable String provider,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         requireKnownProvider(provider);
-        oauthService.removeConnection(requirePrincipal(principal).getUserId(), provider);
+        oauthService.removeConnection(PlayerUserDetails.require(principal).getUserId(), provider);
         return ResponseEntity.noContent().build();
+    }
+
+    private ResponseCookie bindingCookie(String binding) {
+        long ttl = Math.max(oauthProperties.getStateTtlSeconds(), oauthProperties.getPendingLinkTtlSeconds());
+        return ResponseCookie.from(BINDING_COOKIE, binding)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path("/v1/auth")
+                .maxAge(Duration.ofSeconds(ttl))
+                .build();
     }
 
     private void requireKnownProvider(String provider) {
         if (!KNOWN_PROVIDERS.contains(provider)) {
             throw new ValidationException("Unknown OAuth provider: " + provider);
         }
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 
     private Map<String, String> openidParams(HttpServletRequest request) {

@@ -94,6 +94,7 @@ class ClanMembershipServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
                 scoreRepository, userRepository, roster, accessService, levelService, clanService, notificationHandler,
                 chatChannel, notifier, clanProperties, seasonRepository, strengthService);
@@ -136,7 +137,7 @@ class ClanMembershipServiceTest {
             User commander = user(1L);
             member(user(2L), ClanRole.officer, Instant.now());
             when(accessService.require(CLAN_ID, 1L, ClanPermission.PROMOTE_COMMANDER))
-                    .thenThrow(new ForbiddenException());
+                    .thenThrow(new ForbiddenException("forbidden"));
 
             assertThatThrownBy(() -> service.changeRole(CLAN_ID, commander.getId(), 2L, ClanRole.commander))
                     .isInstanceOf(ForbiddenException.class);

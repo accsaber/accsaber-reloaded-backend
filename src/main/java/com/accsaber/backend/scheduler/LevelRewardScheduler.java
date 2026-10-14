@@ -44,49 +44,45 @@ public class LevelRewardScheduler {
 
     @Scheduled(fixedRate = 300_000, initialDelay = 60_000)
     public void grantMissingLevelRewards() {
-        try {
-            Map<Integer, Double> thresholds = rewardLevelThresholds();
-            if (thresholds.isEmpty()) {
-                return;
-            }
-
-            Map<Long, List<Integer>> missingByUser = findMissingRewards(thresholds);
-            if (missingByUser.isEmpty()) {
-                return;
-            }
-            if (missingByUser.size() > maxUsersPerRun) {
-                log.warn("Level reward sweep skipped: {} users are missing rewards, above the {} cap."
-                        + " Raise accsaber.level-rewards.max-users-per-run deliberately, since truncating"
-                        + " would hand out serial numbers out of achievement order",
-                        missingByUser.size(), maxUsersPerRun);
-                return;
-            }
-
-            List<PendingGrant> pending = resolveCrossings(missingByUser, thresholds);
-            pending.sort(Comparator
-                    .comparing(PendingGrant::crossedAt)
-                    .thenComparing(PendingGrant::level)
-                    .thenComparing(PendingGrant::userId));
-
-            int granted = 0;
-            for (PendingGrant grant : pending) {
-                if (granted >= maxGrantsPerRun) {
-                    break;
-                }
-                try {
-                    levelUpAwardService.grantLevelRewards(grant.userId(), grant.level());
-                    granted++;
-                } catch (Exception e) {
-                    log.error("Failed to grant level {} rewards to user {}: {}",
-                            grant.level(), grant.userId(), e.getMessage(), e);
-                }
-            }
-
-            log.info("Level reward sweep granted {} of {} pending (user, level) rewards across {} users",
-                    granted, pending.size(), missingByUser.size());
-        } catch (Exception e) {
-            log.error("Level reward sweep failed: {}", e.getMessage(), e);
+        Map<Integer, Double> thresholds = rewardLevelThresholds();
+        if (thresholds.isEmpty()) {
+            return;
         }
+
+        Map<Long, List<Integer>> missingByUser = findMissingRewards(thresholds);
+        if (missingByUser.isEmpty()) {
+            return;
+        }
+        if (missingByUser.size() > maxUsersPerRun) {
+            log.warn("Level reward sweep skipped: {} users are missing rewards, above the {} cap."
+                    + " Raise accsaber.level-rewards.max-users-per-run deliberately, since truncating"
+                    + " would hand out serial numbers out of achievement order",
+                    missingByUser.size(), maxUsersPerRun);
+            return;
+        }
+
+        List<PendingGrant> pending = resolveCrossings(missingByUser, thresholds);
+        pending.sort(Comparator
+                .comparing(PendingGrant::crossedAt)
+                .thenComparing(PendingGrant::level)
+                .thenComparing(PendingGrant::userId));
+
+        int granted = 0;
+        for (PendingGrant grant : pending) {
+            if (granted >= maxGrantsPerRun) {
+                break;
+            }
+            try {
+                levelUpAwardService.grantLevelRewards(grant.userId(), grant.level());
+                granted++;
+            } catch (Exception e) {
+                log.error("Failed to grant level {} rewards to user {}: {}",
+                        grant.level(), grant.userId(), e.getMessage(), e);
+            }
+        }
+
+        log.info("Level reward sweep granted {} of {} pending (user, level) rewards across {} users",
+                granted, pending.size(), missingByUser.size());
     }
 
     private Map<Integer, Double> rewardLevelThresholds() {

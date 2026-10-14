@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.item;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -11,8 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
+import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ public class ItemTransferService {
 
     private final UserItemLinkRepository userItemLinkRepository;
     private final UserRepository userRepository;
+    private final UserItemTradeItemRepository tradeItemRepository;
     private final ItemService itemService;
 
     public void transfer(UserItemLink source, Long newOwnerId, long qty, ItemSource sourceKind, String reason) {
@@ -123,7 +127,8 @@ public class ItemTransferService {
             return;
         }
         UserItemLink existing = findIdenticalStack(ownerId, target.getItem().getId(), target.getModifiers());
-        if (existing == null || existing.getId().equals(target.getId())) {
+        if (existing == null || existing.getId().equals(target.getId()) || !tradeItemRepository
+                .findLinkIdsInTradesWithStatus(List.of(existing.getId()), TradeStatus.pending).isEmpty()) {
             return;
         }
         target.setQuantity(target.getQuantity() + existing.getQuantity());

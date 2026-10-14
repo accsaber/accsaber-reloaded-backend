@@ -29,6 +29,4 @@ public interface CampaignCompletionItemRepository
         List<CampaignCompletionItem> findByCampaign_IdIn(@Param("campaignIds") Collection<UUID> campaignIds);
 
         void deleteByCampaign_IdAndItem_Id(UUID campaignId, UUID itemId);
-
-        void deleteByCampaign_Id(UUID campaignId);
 }

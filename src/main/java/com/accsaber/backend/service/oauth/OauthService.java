@@ -37,6 +37,7 @@ import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.oauth.BeatLeaderOauthClient.BeatLeaderIdentity;
 import com.accsaber.backend.service.oauth.DiscordOauthClient.DiscordIdentity;
 import com.accsaber.backend.service.oauth.OauthStateService.PendingLinkClaims;
+import com.accsaber.backend.service.oauth.OauthStateService.StateClaims;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.staff.JwtService;
 
@@ -86,19 +87,18 @@ public class OauthService {
     }
 
     @Transactional
-    public DiscordCallbackOutcome handleDiscordCallback(String code, Long linkUserId, String pendingLinkToken,
-            String returnTo) {
+    public DiscordCallbackOutcome handleDiscordCallback(String code, StateClaims state) {
         DiscordIdentity identity = discordClient.exchangeCode(code);
 
-        if (linkUserId != null) {
-            User user = requireUser(linkUserId);
+        if (state.linkUserId() != null) {
+            User user = requireUser(state.linkUserId());
             rejectIfBanned(user);
             OauthConnection conn = addOrRefreshConnection(user, PROVIDER_DISCORD, identity.getId(),
                     identity.displayName(), identity.avatarUrl());
             return new DiscordCallbackOutcome.Session(issueSession(conn, JwtService.SCOPE_WEB));
         }
 
-        if (pendingLinkToken != null) {
+        if (state.pendingLinkToken() != null) {
             throw new ConflictException("Discord callback cannot carry a pending-link token");
         }
 
@@ -113,8 +113,8 @@ public class OauthService {
                     oauthConnectionRepository.save(conn);
                     return (DiscordCallbackOutcome) new DiscordCallbackOutcome.Session(issueSession(conn, JwtService.SCOPE_WEB));
                 })
-                .orElseGet(() -> new DiscordCallbackOutcome.PendingLink(stateService.createPendingLinkToken(
-                        identity.getId(), identity.displayName(), identity.avatarUrl(), returnTo)));
+                .orElseGet(() -> new DiscordCallbackOutcome.PendingLink(
+                        stateService.createPendingLinkToken(identity, state)));
     }
 
     @Transactional

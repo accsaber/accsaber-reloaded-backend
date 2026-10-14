@@ -12,7 +12,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.user.OauthConnectionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
-import com.accsaber.backend.util.ProfileUrlResolver;
+import com.accsaber.backend.service.player.ProfileUrlResolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,9 +31,7 @@ public class DiscordLinkService {
 
     @Transactional(readOnly = true)
     public DiscordLinkResponse findByDiscordId(String discordId) {
-        OauthConnection connection = oauthConnectionRepository
-                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
-                .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
+        OauthConnection connection = requireLink(discordId);
         return toResponse(connection);
     }
 
@@ -48,20 +46,16 @@ public class DiscordLinkService {
 
     @Transactional
     public void unlink(String discordId) {
-        OauthConnection connection = oauthConnectionRepository
-                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
-                .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
+        OauthConnection connection = requireLink(discordId);
         oauthConnectionRepository.delete(connection);
         log.info("Unlinked Discord {}", discordId);
     }
 
     @Transactional
     public DiscordLinkResponse update(String discordId, UpdateDiscordLinkRequest request) {
-        OauthConnection connection = oauthConnectionRepository
-                .findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
-                .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
+        OauthConnection connection = requireLink(discordId);
 
-        String platformId = profileUrlResolver.resolve(request.getProfileUrl());
+        String platformId = profileUrlResolver.resolve(request.profileUrl());
         Long newUserId = duplicateUserService.resolvePrimaryUserId(Long.parseLong(platformId));
         Long oldUserId = connection.getUser().getId();
 
@@ -78,6 +72,11 @@ public class DiscordLinkService {
         log.info("Updated Discord {} link from user {} to user {}", discordId, oldUserId, newUserId);
 
         return toResponse(connection);
+    }
+
+    private OauthConnection requireLink(String discordId) {
+        return oauthConnectionRepository.findByProviderAndProviderUserIdAndActiveTrue(PROVIDER, discordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Discord link", discordId));
     }
 
     private DiscordLinkResponse toResponse(OauthConnection connection) {

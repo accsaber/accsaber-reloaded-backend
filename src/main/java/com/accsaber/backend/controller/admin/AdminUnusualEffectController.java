@@ -63,7 +63,7 @@ public class AdminUnusualEffectController {
     @PatchMapping("/{id}")
     public ResponseEntity<UnusualEffectResponse> update(@PathVariable UUID id,
             @RequestBody UpdateUnusualEffectRequest req) {
-        var effect = unusualEffectService.update(id, req.getName(), req.getDescription(), req.getEffectSpec());
+        var effect = unusualEffectService.update(id, req.name(), req.description(), req.effectSpec());
         return ResponseEntity.ok(ItemMapper.toUnusualEffectResponse(effect));
     }
 

@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -185,8 +186,8 @@ class ClanMissionAssignmentServiceTest {
         when(missionAssignmentService.contextFor(1L)).thenReturn(context(1L, true));
         when(missionAssignmentService.contextFor(2L)).thenReturn(context(2L, true));
         when(missionAssignmentService.contextFor(3L)).thenReturn(context(3L, false));
-        when(builderService.pickAndBuild(any(), eq(List.of(perMember)), eq(WEEK_END), eq(MissionPool.clan), any(),
-                any(), any(), any())).thenAnswer(inv -> UserMission.builder().template(perMember).pool(MissionPool.clan)
+        when(builderService.pickAndBuild(argThat(draw -> WEEK_END.equals(draw.expiresAt())
+                && draw.pool() == MissionPool.clan), eq(List.of(perMember)), any())).thenAnswer(inv -> UserMission.builder().template(perMember).pool(MissionPool.clan)
                         .itemReward(perMember.getAwardsItem()).build());
 
         assertThat(service.fill(clan.getId())).isEqualTo(1);
@@ -241,8 +242,8 @@ class ClanMissionAssignmentServiceTest {
         when(userMissionRepository.findPerMemberParentsMissing(eq(clan.getId()), eq(7L), any()))
                 .thenReturn(List.of(parent));
         when(missionAssignmentService.contextFor(7L)).thenReturn(context(7L, true));
-        when(builderService.pickAndBuild(any(), eq(List.of(perMember)), eq(WEEK_END), eq(MissionPool.clan), any(),
-                any(), any(), any())).thenReturn(UserMission.builder().template(perMember).pool(MissionPool.clan)
+        when(builderService.pickAndBuild(argThat(draw -> WEEK_END.equals(draw.expiresAt())
+                && draw.pool() == MissionPool.clan), eq(List.of(perMember)), any())).thenReturn(UserMission.builder().template(perMember).pool(MissionPool.clan)
                         .build());
         doAnswer(inv -> {
             inv.<Runnable>getArgument(0).run();

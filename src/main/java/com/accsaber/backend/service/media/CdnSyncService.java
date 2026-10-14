@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.media;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -9,7 +10,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.player.UserService;
 import com.accsaber.backend.service.player.UserSettingsService;
+import com.accsaber.backend.util.Texts;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class CdnSyncService {
     private static final String MAP_COVER_SUBDIR = "covers";
     private static final String USER_AVATAR_SUBDIR = "avatars";
     private static final String BL_AVATAR_SENTINEL = "steamavatar.png";
+    private static final int SETTINGS_BATCH = 10_000;
 
     private final MediaProcessingService mediaProcessingService;
     private final MapRepository mapRepository;
@@ -51,11 +53,8 @@ public class CdnSyncService {
     private final BeatLeaderClient beatLeaderClient;
     private final ScoreSaberClient scoreSaberClient;
     private final CdnProperties cdn;
-
-    @Autowired
     @Qualifier("cdnBackfillExecutor")
-    private Executor cdnBackfillExecutor;
-
+    private final Executor cdnBackfillExecutor;
 
     public void mirrorMapCover(UUID mapId) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
@@ -63,8 +62,8 @@ public class CdnSyncService {
         BeatLeaderLeaderboardResponse.Song song = fetchSongFromBeatLeader(map);
         if (song == null) return;
 
-        String beatSaverUrl = blankToNull(song.getCoverImage());
-        String mirrorSource = blankToNull(song.getFullCoverImage());
+        String beatSaverUrl = Texts.blankToNull(song.getCoverImage());
+        String mirrorSource = Texts.blankToNull(song.getFullCoverImage());
         if (mirrorSource == null) mirrorSource = beatSaverUrl;
         if (beatSaverUrl == null) beatSaverUrl = mirrorSource;
         if (mirrorSource == null) {
@@ -105,24 +104,19 @@ public class CdnSyncService {
         return lb.get().getSong();
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
-    }
-
-
     public void mirrorUserAvatarIfChanged(Long userId, String upstreamUrl) {
-        mirrorUserAvatar(userId, upstreamUrl, false);
-    }
-
-    public void mirrorUserAvatar(Long userId, String upstreamUrl, boolean force) {
         if (upstreamUrl == null || upstreamUrl.isBlank()) return;
         boolean syncEnabled = userSettingsService.get(userId, UserSettingKey.SYNC_AVATAR, Boolean.class);
         if (!syncEnabled) return;
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null) return;
-        if (!force && Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
+        if (Objects.equals(upstreamUrl, user.getLastSyncedAvatarUrl())) {
             return;
         }
+        mirrorUserAvatar(userId, upstreamUrl);
+    }
+
+    private void mirrorUserAvatar(Long userId, String upstreamUrl) {
         if (upstreamUrl.endsWith(BL_AVATAR_SENTINEL)) {
             userService.markAvatarSyncAttempted(userId, upstreamUrl);
             return;
@@ -158,8 +152,6 @@ public class CdnSyncService {
                 .orElse(null);
     }
 
-    // --- Backfill loops ---
-
     @Async("cdnBackfillExecutor")
     public CompletableFuture<Void> backfillAllMapCovers(boolean force) {
         List<Map> maps = mapRepository.findByActiveTrue();
@@ -169,7 +161,7 @@ public class CdnSyncService {
         runParallel(maps, map -> {
             boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
                     MAP_COVER_SUBDIR, map.getId().toString(), MediaFormat.WEBP);
-            if (!force && fileGood && isCdnUrl(map.getCdnCoverUrl())) {
+            if (!force && fileGood && cdn.isCdnUrl(map.getCdnCoverUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
@@ -184,17 +176,17 @@ public class CdnSyncService {
     public CompletableFuture<Void> backfillAllUserAvatars(boolean force) {
         List<User> users = userRepository.findByActiveTrue();
         log.info("CDN backfill: starting avatar backfill for {} users (force={})", users.size(), force);
+        java.util.Map<Long, Boolean> syncEnabled = loadSyncAvatar(users);
         AtomicInteger done = new AtomicInteger();
         AtomicInteger skipped = new AtomicInteger();
         runParallel(users, user -> {
-            boolean syncEnabled = userSettingsService.get(user.getId(), UserSettingKey.SYNC_AVATAR, Boolean.class);
-            if (!syncEnabled) {
+            if (!syncEnabled.get(user.getId())) {
                 skipped.incrementAndGet();
                 return;
             }
             boolean fileGood = mediaProcessingService.fileExistsAndNonEmpty(
                     USER_AVATAR_SUBDIR, String.valueOf(user.getId()));
-            if (!force && fileGood && isCdnUrl(user.getCdnAvatarUrl())) {
+            if (!force && fileGood && cdn.isCdnUrl(user.getCdnAvatarUrl())) {
                 skipped.incrementAndGet();
                 return;
             }
@@ -203,14 +195,22 @@ public class CdnSyncService {
                 skipped.incrementAndGet();
                 return;
             }
-            mirrorUserAvatar(user.getId(), upstream, true);
+            mirrorUserAvatar(user.getId(), upstream);
             done.incrementAndGet();
         });
         log.info("CDN backfill: avatars done ({} processed, {} skipped)", done.get(), skipped.get());
         return CompletableFuture.completedFuture(null);
     }
 
-    // --- Internals ---
+    private java.util.Map<Long, Boolean> loadSyncAvatar(List<User> users) {
+        java.util.Map<Long, Boolean> enabled = new HashMap<>();
+        List<Long> ids = users.stream().map(User::getId).toList();
+        for (int from = 0; from < ids.size(); from += SETTINGS_BATCH) {
+            enabled.putAll(userSettingsService.getMany(ids.subList(from, Math.min(from + SETTINGS_BATCH, ids.size())),
+                    UserSettingKey.SYNC_AVATAR, Boolean.class));
+        }
+        return enabled;
+    }
 
     private <T> void runParallel(List<T> items, Consumer<T> action) {
         items.stream()
@@ -224,10 +224,6 @@ public class CdnSyncService {
                 }, cdnBackfillExecutor))
                 .toList()
                 .forEach(CompletableFuture::join);
-    }
-
-    private boolean isCdnUrl(String url) {
-        return url != null && url.startsWith(cdn.getBaseUrl());
     }
 
     private void throttle() {

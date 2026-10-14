@@ -1,5 +1,7 @@
 package com.accsaber.backend.service.supporter;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
@@ -8,12 +10,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.model.dto.request.supporter.ManualSupporterGrantRequest;
+import com.accsaber.backend.model.dto.response.supporter.ManualSupporterGrantResponse;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.supporter.KofiClaimSource;
@@ -53,15 +59,34 @@ public class SupporterService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Value("${accsaber.kofi.verification-token:}")
+    private String kofiVerificationToken;
+
     @Transactional
-    public KofiEvent recordEvent(String rawJsonPayload) {
-        JsonNode payload;
-        try {
-            payload = objectMapper.readTree(rawJsonPayload);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Malformed Ko-fi webhook payload", e);
+    public Optional<KofiEvent> receiveWebhook(String data) {
+        if (kofiVerificationToken == null || kofiVerificationToken.isBlank()) {
+            log.error("Ko-fi webhook received but accsaber.kofi.verification-token is not configured");
+            throw new UnauthorizedException("Webhook verification not configured");
         }
 
+        JsonNode payload;
+        try {
+            payload = objectMapper.readTree(data);
+        } catch (Exception e) {
+            log.warn("Ko-fi webhook payload not valid JSON: {}", e.getMessage());
+            return Optional.empty();
+        }
+
+        String suppliedToken = textOrNull(payload, "verification_token");
+        if (suppliedToken == null || !MessageDigest.isEqual(
+                kofiVerificationToken.getBytes(StandardCharsets.UTF_8),
+                suppliedToken.getBytes(StandardCharsets.UTF_8))) {
+            throw new UnauthorizedException("Invalid Ko-fi verification token");
+        }
+        return Optional.of(recordEvent(payload));
+    }
+
+    private KofiEvent recordEvent(JsonNode payload) {
         String txnId = textOrNull(payload, "kofi_transaction_id");
         if (txnId == null || txnId.isBlank()) {
             throw new IllegalArgumentException("kofi_transaction_id missing");
@@ -164,8 +189,13 @@ public class SupporterService {
     }
 
     @Transactional
-    public KofiEvent grantManually(Long userId, int amountCents, String tierName,
-            KofiEventType type, String fromName, String email, String note) {
+    public ManualSupporterGrantResponse grantManually(ManualSupporterGrantRequest request) {
+        Long userId = request.getUserId();
+        int amountCents = request.getAmountCents();
+        String tierName = request.getTierName();
+        KofiEventType type = parseManualType(request.getType());
+        String fromName = request.getFromName();
+        String note = request.getNote();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         if (resolveTierByName(tierName).isEmpty()) {
@@ -186,7 +216,7 @@ public class SupporterService {
         KofiEvent event = KofiEvent.builder()
                 .kofiTransactionId(txnId)
                 .type(type != null ? type : KofiEventType.donation)
-                .email(email)
+                .email(request.getEmail())
                 .fromName(fromName)
                 .amountCents(amountCents)
                 .currency("USD")
@@ -203,7 +233,17 @@ public class SupporterService {
         applyEntitlement(userId, amountCents, tierName);
         log.info("Manual supporter grant: user {} tier {} amount {}c (txn {})",
                 userId, tierName, amountCents, txnId);
-        return saved;
+        return new ManualSupporterGrantResponse(saved.getKofiTransactionId(), String.valueOf(userId),
+                saved.getTierName(), saved.getAmountCents(), saved.getType().name());
+    }
+
+    private static KofiEventType parseManualType(String raw) {
+        if (raw == null || raw.isBlank()) return KofiEventType.donation;
+        try {
+            return KofiEventType.valueOf(raw.trim().toLowerCase());
+        } catch (IllegalArgumentException e) {
+            return KofiEventType.fromKofiPayload(raw);
+        }
     }
 
     @Transactional(readOnly = true)

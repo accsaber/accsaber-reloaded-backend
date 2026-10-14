@@ -74,7 +74,7 @@ public class AdminClanController {
     @PutMapping("/levels/{level}/capacities/{capacity}")
     public ResponseEntity<List<ClanLevelStepResponse>> setCapacity(@PathVariable int level,
             @PathVariable ClanCapacity capacity, @Valid @RequestBody ClanCapacityRequest request) {
-        return ResponseEntity.ok(levelService.setCapacity(level, capacity, request.getAmount()));
+        return ResponseEntity.ok(levelService.setCapacity(level, capacity, request.amount()));
     }
 
     @Operation(summary = "Remove a capacity step")
@@ -88,7 +88,7 @@ public class AdminClanController {
     @PutMapping("/war-modes/{axis}/{mode}")
     public ResponseEntity<List<ClanLevelStepResponse>> setWarMode(@PathVariable ClanWarModeAxis axis,
             @PathVariable String mode, @Valid @RequestBody ClanWarModeRequest request) {
-        return ResponseEntity.ok(levelService.setWarMode(axis, mode, request.getLevel()));
+        return ResponseEntity.ok(levelService.setWarMode(axis, mode, request.level()));
     }
 
     @Operation(summary = "Lock it away again")

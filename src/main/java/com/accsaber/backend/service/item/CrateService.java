@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
+import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
 import com.accsaber.backend.model.entity.item.CrateModifier;
@@ -80,7 +81,7 @@ public class CrateService {
     }
 
     @Transactional
-    public CrateContent upsertContent(UUID crateItemId, UUID rewardItemId, int dropWeight) {
+    public CrateContentResponse upsertContent(UUID crateItemId, UUID rewardItemId, int dropWeight) {
         if (dropWeight < 1) {
             throw new ValidationException("dropWeight", "must be at least 1");
         }
@@ -118,7 +119,9 @@ public class CrateService {
         } else {
             content.setDropWeight(dropWeight);
         }
-        return crateContentRepository.save(content);
+        CrateContent saved = crateContentRepository.save(content);
+        return ItemMapper.toCrateContentResponse(saved,
+                crateContentRepository.sumDropWeightByCrateItemId(crateItemId));
     }
 
     @Transactional

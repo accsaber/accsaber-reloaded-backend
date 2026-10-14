@@ -32,6 +32,7 @@ import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.service.mission.MissionAssignmentContext;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.mission.MissionBuilderService;
+import com.accsaber.backend.service.mission.MissionDraw;
 import com.accsaber.backend.service.mission.MissionPoolCache;
 import com.accsaber.backend.service.mission.MissionRolloverService;
 import com.accsaber.backend.service.mission.MissionRowFactory;
@@ -189,8 +190,9 @@ public class ClanMissionAssignmentService {
         if (context.activeCategories().isEmpty()) {
             return null;
         }
-        UserMission row = builderService.pickAndBuild(context, List.of(template), expiresAt, MissionPool.clan, rng,
-                new HashSet<>(), cache, null);
+        UserMission row = builderService.pickAndBuild(
+                new MissionDraw(context, expiresAt, MissionPool.clan, rng, cache, null), List.of(template),
+                new HashSet<>());
         if (row != null) {
             row.setItemReward(null);
         }

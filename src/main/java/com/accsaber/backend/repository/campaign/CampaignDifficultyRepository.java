@@ -15,9 +15,11 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
 
         List<CampaignDifficulty> findByCampaign_IdAndActiveTrue(UUID campaignId);
 
-        List<CampaignDifficulty> findByCampaign_IdAndActiveTrueAndRequirementDirtyTrue(UUID campaignId);
-
-        List<CampaignDifficulty> findByCampaign_IdInAndActiveTrue(Collection<UUID> campaignIds);
+        @Query("""
+                        SELECT cd FROM CampaignDifficulty cd
+                        WHERE cd.campaign.id = :campaignId AND cd.active = true AND cd.requirementDirty = true
+                        """)
+        List<CampaignDifficulty> findDirtyByCampaign(@Param("campaignId") UUID campaignId);
 
         List<CampaignDifficulty> findByCampaign_IdAndBarrierTrueAndActiveTrue(UUID campaignId);
 
@@ -29,11 +31,21 @@ public interface CampaignDifficultyRepository extends JpaRepository<CampaignDiff
 
         Optional<CampaignDifficulty> findByIdAndActiveTrue(UUID id);
 
-        List<CampaignDifficulty> findByCampaign_IdInAndMapDifficulty_IdAndBarrierFalseAndActiveTrue(
-                        Collection<UUID> campaignIds, UUID mapDifficultyId);
+        @Query("""
+                        SELECT cd FROM CampaignDifficulty cd
+                        WHERE cd.campaign.id IN :campaignIds AND cd.mapDifficulty.id = :mapDifficultyId
+                          AND cd.barrier = false AND cd.active = true
+                        """)
+        List<CampaignDifficulty> findActiveNodesOnMap(@Param("campaignIds") Collection<UUID> campaignIds,
+                        @Param("mapDifficultyId") UUID mapDifficultyId);
 
-        boolean existsByCampaign_IdAndPositionXAndPositionYAndActiveTrue(UUID campaignId, Double positionX,
-                        Double positionY);
+        @Query("""
+                        SELECT COUNT(cd) > 0 FROM CampaignDifficulty cd
+                        WHERE cd.campaign.id = :campaignId AND cd.positionX = :positionX AND cd.positionY = :positionY
+                          AND cd.active = true
+                        """)
+        boolean isPositionTaken(@Param("campaignId") UUID campaignId, @Param("positionX") Double positionX,
+                        @Param("positionY") Double positionY);
 
         @Query("""
                         SELECT cd.campaign.id, COUNT(cd) FROM CampaignDifficulty cd

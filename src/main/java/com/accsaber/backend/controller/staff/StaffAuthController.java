@@ -1,8 +1,7 @@
 package com.accsaber.backend.controller.staff;
 
-import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.model.dto.request.RefreshTokenRequest;
 import com.accsaber.backend.model.dto.request.staff.LoginRequest;
-import com.accsaber.backend.model.dto.request.staff.RefreshTokenRequest;
 import com.accsaber.backend.model.dto.request.staff.StaffAccessRequest;
 import com.accsaber.backend.model.dto.response.staff.AuthResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
@@ -37,10 +36,7 @@ public class StaffAuthController {
     public ResponseEntity<Void> requestAccess(
             @Valid @RequestBody StaffAccessRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        staffUserService.requestAccess(request, principal.getUserId());
+        staffUserService.requestAccess(request, PlayerUserDetails.require(principal).getUserId());
         return ResponseEntity.accepted().build();
     }
 

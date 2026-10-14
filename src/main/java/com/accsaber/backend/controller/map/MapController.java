@@ -21,7 +21,6 @@ import com.accsaber.backend.model.dto.response.map.PublicMapResponse;
 import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.ScoresAroundResponse;
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.UserRelationType;
@@ -133,9 +132,8 @@ public class MapController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
         UUID difficultyId = mapService.findDifficultyIdByLeaderboardId(leaderboardId);
-        java.util.Collection<Long> filter = resolveRelationFilter(relation, principal);
-        return ResponseEntity.ok(
-                scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, filter, pageable));
+        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search,
+                userRelationService.resolveRelationFilter(relation, principal), pageable));
     }
 
     @Operation(summary = "Difficulty leaderboard", description = "Relation filter needs a player "
@@ -148,19 +146,8 @@ public class MapController {
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
-        java.util.Collection<Long> filter = resolveRelationFilter(relation, principal);
-        return ResponseEntity.ok(
-                scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search, filter, pageable));
-    }
-
-    private java.util.Collection<Long> resolveRelationFilter(UserRelationType relation, PlayerUserDetails principal) {
-        if (relation == null) {
-            return null;
-        }
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required to filter by relation");
-        }
-        return userRelationService.findRelationFilterUserIds(principal.getUserId(), relation);
+        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search,
+                userRelationService.resolveRelationFilter(relation, principal), pageable));
     }
 
     @Operation(summary = "Scores around a player", description = "Four above and five below by default. Looked up by "

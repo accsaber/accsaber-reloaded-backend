@@ -134,20 +134,6 @@ public class MissionAssignmentService {
     }
 
     @Transactional
-    public void assignDailyIfMissing(Long userId) {
-        if (hasCurrentCycle(userId, MissionPool.daily))
-            return;
-        assignForUser(userId, MissionPool.daily, loadPoolCache(), false);
-    }
-
-    @Transactional
-    public void assignWeeklyIfMissing(Long userId) {
-        if (hasCurrentCycle(userId, MissionPool.weekly))
-            return;
-        assignForUser(userId, MissionPool.weekly, loadPoolCache(), false);
-    }
-
-    @Transactional
     public List<UserMission> regenerateForUser(Long userId, MissionPool pool) {
         assertRollable(pool);
         MissionPoolCache cache = loadPoolCache();
@@ -277,8 +263,8 @@ public class MissionAssignmentService {
         List<UserMission> assigned = new ArrayList<>();
         Set<UUID> usedCategoryIds = new HashSet<>();
 
-        UserMission first = builderService.pickAndBuild(ctx, guaranteed, expiresAt, MissionPool.daily, rng,
-                usedCategoryIds, cache, null);
+        MissionDraw draw = new MissionDraw(ctx, expiresAt, MissionPool.daily, rng, cache, null);
+        UserMission first = builderService.pickAndBuild(draw, guaranteed, usedCategoryIds);
         if (first != null) {
             assigned.add(userMissionRepository.save(first));
             if (first.getCategory() != null)
@@ -286,8 +272,7 @@ public class MissionAssignmentService {
         }
 
         for (int i = assigned.size(); i < DAILY_MISSION_COUNT; i++) {
-            UserMission next = builderService.pickAndBuild(ctx, normal, expiresAt, MissionPool.daily, rng,
-                    usedCategoryIds, cache, null);
+            UserMission next = builderService.pickAndBuild(draw, normal, usedCategoryIds);
             if (next == null)
                 break;
             assigned.add(userMissionRepository.save(next));
@@ -310,8 +295,9 @@ public class MissionAssignmentService {
 
         for (int i = 0; i < categories.size(); i++) {
             MissionBand forced = i == extremeSlot ? MissionBand.extreme : null;
-            UserMission mission = builderService.pickAndBuildForCategory(ctx, cache.weekly(), categories.get(i),
-                    expiresAt, MissionPool.weekly, rng, cache, forced, usedTemplateIds);
+            UserMission mission = builderService.pickAndBuildForCategory(
+                    new MissionDraw(ctx, expiresAt, MissionPool.weekly, rng, cache, forced), cache.weekly(),
+                    categories.get(i), usedTemplateIds);
             if (mission != null) {
                 assigned.add(userMissionRepository.save(mission));
                 usedTemplateIds.add(mission.getTemplate().getId());

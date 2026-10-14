@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.UserRelationRequest;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
@@ -49,7 +48,7 @@ public class UserRelationController {
             @RequestParam(required = false) UserRelationType type,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20) Pageable pageable) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(relationService.findByUser(userId, type, true, pageable));
     }
 
@@ -63,7 +62,7 @@ public class UserRelationController {
             @RequestParam(defaultValue = "false") boolean includePrincipal,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(scoreService.findByUserRelations(userId, type,
                 categoryService.resolveId(categoryId), search, includePrincipal, pageable));
     }
@@ -73,7 +72,7 @@ public class UserRelationController {
     public ResponseEntity<UserRelationResponse> createRelation(
             @Valid @RequestBody UserRelationRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         UserRelationResponse response = relationService.create(userId, request.getTargetUserId(), request.getType());
         return ResponseEntity.status(201).body(response);
     }
@@ -83,7 +82,7 @@ public class UserRelationController {
     public ResponseEntity<Void> deleteRelation(
             @PathVariable UUID relationId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long userId = requirePrincipal(principal).getUserId();
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         relationService.delete(userId, relationId);
         return ResponseEntity.noContent().build();
     }
@@ -103,12 +102,5 @@ public class UserRelationController {
             return ResponseEntity.ok(relationService.findByTarget(userId, type, viewerId, pageable));
         }
         return ResponseEntity.ok(relationService.findByUser(userId, type, false, viewerId, pageable));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

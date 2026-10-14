@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.market;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -132,6 +134,32 @@ class MarketSettlementServiceTest {
         verify(itemTransferService).releaseEscrow(listing.getUserItemLink());
         assertThat(listing.getCurrentBidder()).isNull();
         assertThat(listing.getStatus()).isEqualTo(MarketListingStatus.cancelled);
+    }
+
+    @Test
+    void aListingWhoseItemLeftEscrowIsCancelledAndTheBidderRefunded() {
+        MarketListing listing = listing(user(WINNER_ID), 250L);
+        listing.getUserItemLink().setEscrowed(false);
+        listing.getUserItemLink().setUser(user(WINNER_ID));
+        stubClaim(listing);
+
+        assertThat(settlementService.settleNextDue()).isTrue();
+
+        verify(essenceLedgerService).release(WINNER_ID, 250L);
+        verify(essenceLedgerService, never()).settleReserved(anyLong(), anyLong(), anyLong(), any(), any(), any());
+        verify(itemTransferService, never()).transferEscrowed(any(), anyLong(), any(), any());
+        verify(itemTransferService, never()).releaseEscrow(any());
+        assertThat(listing.getStatus()).isEqualTo(MarketListingStatus.cancelled);
+    }
+
+    @Test
+    void aBuyoutOfAListingWhoseItemLeftEscrowIsRefused() {
+        MarketListing listing = listing(null, null);
+        listing.getUserItemLink().setEscrowed(false);
+
+        assertThatThrownBy(() -> settlementService.award(listing, user(WINNER_ID), 500L))
+                .isInstanceOf(ConflictException.class);
+        verify(essenceLedgerService, never()).settleReserved(anyLong(), anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test

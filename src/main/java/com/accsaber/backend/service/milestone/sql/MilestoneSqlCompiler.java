@@ -250,7 +250,7 @@ public class MilestoneSqlCompiler {
         return function == null ? null : function.toUpperCase();
     }
 
-    private boolean isCountryScoped(MilestoneQuerySpec spec) {
+    public static boolean isCountryScoped(MilestoneQuerySpec spec) {
         return spec.scope() != null && "COUNTRY".equalsIgnoreCase(spec.scope());
     }
 

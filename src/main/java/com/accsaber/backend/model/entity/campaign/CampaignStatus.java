@@ -1,6 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-public enum CampaignStatus {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum CampaignStatus implements DbEnum {
     DRAFT("draft"),
     PUBLISHED("published"),
     EDITING("editing"),
@@ -8,19 +15,7 @@ public enum CampaignStatus {
 
     private final String dbValue;
 
-    CampaignStatus(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static CampaignStatus fromDbValue(String value) {
-        for (CampaignStatus s : values()) {
-            if (s.dbValue.equals(value))
-                return s;
-        }
-        throw new IllegalArgumentException("Unknown campaign status: " + value);
+        return DbEnum.fromDbValue(values(), value, "campaign status");
     }
 }

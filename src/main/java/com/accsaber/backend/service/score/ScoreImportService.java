@@ -2,6 +2,8 @@ package com.accsaber.backend.service.score;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -10,14 +12,21 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.client.BeatLeaderClient;
 import com.accsaber.backend.client.ScoreSaberClient;
@@ -28,7 +37,6 @@ import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreRespons
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreStats;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
-import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
@@ -37,7 +45,9 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.score.ScoreModifierLink;
+import com.accsaber.backend.model.event.LegacyCampaignBackfillEvent;
 import com.accsaber.backend.repository.ModifierRepository;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
@@ -51,11 +61,9 @@ import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
-import com.accsaber.backend.service.skill.SkillService;
+import com.accsaber.backend.service.score.ScoreRecalculationService.PlayerRecalc;
 import com.accsaber.backend.service.songsuggest.SongSuggestService;
-import com.accsaber.backend.service.stats.OverallStatisticsService;
-import com.accsaber.backend.service.stats.RankingService;
-import com.accsaber.backend.service.stats.StatisticsService;
+import com.accsaber.backend.util.HmdMapper;
 import com.accsaber.backend.util.PlatformScoreMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -77,19 +85,19 @@ public class ScoreImportService {
     private final ModifierRepository modifierRepository;
     private final UserRepository userRepository;
     private final ModifierCacheService modifierCacheService;
-    private final StatisticsService statisticsService;
-    private final OverallStatisticsService overallStatisticsService;
-    private final RankingService rankingService;
     private final MilestoneEvaluationService milestoneEvaluationService;
     private final CampaignEvaluationService campaignEvaluationService;
     private final UserCampaignRepository userCampaignRepository;
     private final CampaignRepository campaignRepository;
-    private final com.accsaber.backend.repository.campaign.CampaignDifficultyRepository campaignDifficultyRepository;
+    private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final MapDifficultyStatisticsService mapDifficultyStatisticsService;
     private final ScoreRankingService scoreRankingService;
     private final DuplicateUserService duplicateUserService;
-    private final SkillService skillService;
     private final SongSuggestService songSuggestService;
+    private final ScoreRecalculationService scoreRecalculationService;
+
+    private final PlatformScores<BeatLeaderScoreResponse> beatLeader = new BeatLeaderScores();
+    private final PlatformScores<ScoreSaberScoreResponse> scoreSaber = new ScoreSaberScores();
 
     @Autowired
     @Qualifier("backfillExecutor")
@@ -98,6 +106,7 @@ public class ScoreImportService {
     private static final int MAX_CONCURRENT_DIFFICULTIES = 3;
     private static final int MAX_CONCURRENT_SCORE_FETCHES_PER_USER = 20;
     private static final int MAX_CONCURRENT_USERS = 2;
+    private static final int PAGE_SIZE = 100;
 
     @Value("${accsaber.backfill.gap-fill-page-delay-ms:125}")
     private long gapFillPageDelayMs;
@@ -105,12 +114,22 @@ public class ScoreImportService {
     @Value("${accsaber.backfill.scoresaber-enabled:true}")
     private boolean scoreSaberBackfillEnabled = true;
 
+    private enum Cut {
+        KEEP, SKIP, STOP
+    }
+
+    private record ScorePage<S>(List<S> scores, boolean last) {
+    }
+
+    private record ImportTarget(MapDifficulty difficulty, Double complexity, Map<String, UUID> modifiers) {
+    }
+
     public void backfillDifficulty(MapDifficulty difficulty) {
         Set<Long> affectedUserIds = importDifficulty(difficulty);
         if (affectedUserIds == null) {
             return;
         }
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds, true);
+        recalculateAfterImport(Map.of(difficulty, affectedUserIds), true);
     }
 
     private Set<Long> importDifficulty(MapDifficulty difficulty) {
@@ -120,21 +139,19 @@ public class ScoreImportService {
             return null;
         }
 
-        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        ImportTarget target = new ImportTarget(difficulty, complexity, modifierCacheService.getModifierCodeToId());
         Set<Long> affectedUserIds = new HashSet<>();
         int blImported = 0;
         int ssImported = 0;
 
         if (difficulty.getBlLeaderboardId() != null) {
-            Set<Long> blUsers = backfillFromBeatLeader(difficulty, difficulty.getBlLeaderboardId(), complexity,
-                    modifiers);
+            Set<Long> blUsers = backfillFrom(beatLeader, difficulty.getBlLeaderboardId(), target);
             blImported = blUsers.size();
             affectedUserIds.addAll(blUsers);
         }
 
         if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
-            Set<Long> ssUsers = backfillFromScoreSaber(difficulty, difficulty.getSsLeaderboardId(), complexity,
-                    modifiers);
+            Set<Long> ssUsers = backfillFrom(scoreSaber, difficulty.getSsLeaderboardId(), target);
             ssImported = ssUsers.size();
             affectedUserIds.addAll(ssUsers);
         }
@@ -176,47 +193,39 @@ public class ScoreImportService {
             log.warn("No active complexity for difficulty {} - skipping alias backfill", mapDifficultyId);
             return;
         }
-        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        ImportTarget target = new ImportTarget(difficulty, complexity, modifierCacheService.getModifierCodeToId());
         Set<Long> affectedUserIds = platform == LeaderboardPlatform.BEATLEADER
-                ? backfillFromBeatLeader(difficulty, leaderboardId, complexity, modifiers)
-                : backfillFromScoreSaber(difficulty, leaderboardId, complexity, modifiers);
+                ? backfillFrom(beatLeader, leaderboardId, target)
+                : backfillFrom(scoreSaber, leaderboardId, target);
         log.info("Alias backfill imported {} scores from {} leaderboard {} into difficulty {}",
                 affectedUserIds.size(), platform, leaderboardId, mapDifficultyId);
-        batchRecalculateAfterBackfill(difficulty, affectedUserIds, false);
+        recalculateAfterImport(Map.of(difficulty, affectedUserIds), false);
     }
 
     @Async("taskExecutor")
     public CompletableFuture<Void> backfillDifficultiesAsync(List<UUID> mapDifficultyIds) {
         log.info("Starting parallel backfill for {} difficulties", mapDifficultyIds.size());
         long start = System.currentTimeMillis();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
-        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
+        Map<MapDifficulty, Set<Long>> imported = new ConcurrentHashMap<>();
 
-        List<Thread> threads = mapDifficultyIds.stream()
-                .map(id -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(id)
-                                .orElse(null);
-                        if (difficulty == null) {
-                            log.warn("Cannot backfill: difficulty {} not found or inactive", id);
-                            return;
-                        }
-                        Set<Long> users = importDifficulty(difficulty);
-                        if (users != null) {
-                            imported.put(difficulty, users);
-                        }
-                    } catch (Exception e) {
-                        log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
+        forEachBounded(mapDifficultyIds, MAX_CONCURRENT_DIFFICULTIES, id -> {
+            try {
+                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithCategory(id)
+                        .orElse(null);
+                if (difficulty == null) {
+                    log.warn("Cannot backfill: difficulty {} not found or inactive", id);
+                    return;
+                }
+                Set<Long> users = importDifficulty(difficulty);
+                if (users != null) {
+                    imported.put(difficulty, users);
+                }
+            } catch (Exception e) {
+                log.error("Error backfilling difficulty {}: {}", id, e.getMessage());
+            }
+        });
 
-        joinAll(threads);
-
-        coalescedRecalcAfterBatchBackfill(imported, true);
+        recalculateAfterImport(imported, true);
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill complete for {} difficulties in {}s", mapDifficultyIds.size(), elapsed / 1000);
@@ -231,44 +240,26 @@ public class ScoreImportService {
                 .findByStatusAndActiveTrueWithCategory(MapDifficultyStatus.RANKED);
         log.info("Starting parallel backfill for {} ranked difficulties", ranked.size());
         long start = System.currentTimeMillis();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
-        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
+        Map<MapDifficulty, Set<Long>> imported = new ConcurrentHashMap<>();
 
-        List<Thread> threads = ranked.stream()
-                .map(difficulty -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        Set<Long> users = importDifficulty(difficulty);
-                        if (users != null) {
-                            imported.put(difficulty, users);
-                        }
-                    } catch (Exception e) {
-                        log.error("Error backfilling difficulty {}: {}", difficulty.getId(), e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
+        forEachBounded(ranked, MAX_CONCURRENT_DIFFICULTIES, difficulty -> {
+            try {
+                Set<Long> users = importDifficulty(difficulty);
+                if (users != null) {
+                    imported.put(difficulty, users);
+                }
+            } catch (Exception e) {
+                log.error("Error backfilling difficulty {}: {}", difficulty.getId(), e.getMessage());
+            }
+        });
 
-        joinAll(threads);
-
-        coalescedRecalcAfterBatchBackfill(imported, true);
+        recalculateAfterImport(imported, true);
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel backfill of all {} ranked difficulties complete in {}s", ranked.size(), elapsed / 1000);
         log.info("Running post-backfill rank repair");
         scoreRankingService.reassignAllRanks();
         return CompletableFuture.completedFuture(null);
-    }
-
-    private static void joinAll(List<Thread> threads) {
-        threads.forEach(t -> {
-            try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
     }
 
     public void backfillUser(Long userId) {
@@ -291,41 +282,27 @@ public class ScoreImportService {
         long start = System.currentTimeMillis();
 
         Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
-        Set<MapDifficulty> affectedDifficulties = java.util.concurrent.ConcurrentHashMap.newKeySet();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_SCORE_FETCHES_PER_USER);
+        Map<MapDifficulty, Set<Long>> affected = new ConcurrentHashMap<>();
 
-        List<Thread> threads = ranked.stream()
-                .map(difficulty -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        boolean changed = difficulty.getBlLeaderboardId() != null
-                                && reconcileUserScoreFromBeatLeader(resolvedUserId, difficulty, modifiers);
-                        if (!changed && scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
-                            changed = reconcileUserScoreFromScoreSaber(resolvedUserId, difficulty, modifiers);
-                        }
-                        if (changed) {
-                            affectedDifficulties.add(difficulty);
-                        }
-                    } catch (Exception e) {
-                        log.error("User backfill failed for user {} difficulty {}: {}",
-                                resolvedUserId, difficulty.getId(), e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
-
-        threads.forEach(t -> {
+        forEachBounded(ranked, MAX_CONCURRENT_SCORE_FETCHES_PER_USER, difficulty -> {
             try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                boolean changed = difficulty.getBlLeaderboardId() != null
+                        && reconcileUserScore(beatLeader, resolvedUserId, difficulty, modifiers);
+                if (!changed && scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
+                    changed = reconcileUserScore(scoreSaber, resolvedUserId, difficulty, modifiers);
+                }
+                if (changed) {
+                    affected.put(difficulty, Set.of(resolvedUserId));
+                }
+            } catch (Exception e) {
+                log.error("User backfill failed for user {} difficulty {}: {}",
+                        resolvedUserId, difficulty.getId(), e.getMessage());
             }
         });
 
         log.info("User backfill fetch done for {}: {} affected difficulties. Running recalc...",
-                resolvedUserId, affectedDifficulties.size());
-        batchRecalculateAfterUserBackfill(resolvedUserId, affectedDifficulties);
+                resolvedUserId, affected.size());
+        recalculateAfterImport(affected, false);
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("User backfill complete for {} in {}s", resolvedUserId, elapsed / 1000);
@@ -341,37 +318,23 @@ public class ScoreImportService {
     public CompletableFuture<Void> backfillUsersAsync(List<Long> userIds) {
         log.info("Starting parallel user backfill for {} users", userIds.size());
         long start = System.currentTimeMillis();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_USERS);
 
-        List<Thread> threads = userIds.stream()
-                .map(userId -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        backfillUser(userId);
-                    } catch (Exception e) {
-                        log.error("Error backfilling user {}: {}", userId, e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
-
-        threads.forEach(t -> {
+        forEachBounded(userIds, MAX_CONCURRENT_USERS, userId -> {
             try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                backfillUser(userId);
+            } catch (Exception e) {
+                log.error("Error backfilling user {}: {}", userId, e.getMessage());
             }
         });
+
         long elapsed = System.currentTimeMillis() - start;
         log.info("Parallel user backfill complete for {} users in {}s", userIds.size(), elapsed / 1000);
         return CompletableFuture.completedFuture(null);
     }
 
     @Async("taskExecutor")
-    @org.springframework.transaction.event.TransactionalEventListener(phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
-    public void onLegacyCampaignStarted(
-            com.accsaber.backend.model.event.LegacyCampaignBackfillEvent event) {
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onLegacyCampaignStarted(LegacyCampaignBackfillEvent event) {
         backfillAndSettleLegacyCampaign(event.userId(), event.campaignId());
     }
 
@@ -422,25 +385,12 @@ public class ScoreImportService {
 
     private void runLegacyRecheck(UUID campaignId, List<Long> userIds) {
         long start = System.currentTimeMillis();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_USERS);
-        List<Thread> threads = userIds.stream()
-                .map(userId -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        backfillAndSettleLegacyCampaign(userId, campaignId);
-                    } catch (Exception e) {
-                        log.error("Legacy campaign re-check failed for user {} campaign {}: {}",
-                                userId, campaignId, e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
-        threads.forEach(t -> {
+        forEachBounded(userIds, MAX_CONCURRENT_USERS, userId -> {
             try {
-                t.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                backfillAndSettleLegacyCampaign(userId, campaignId);
+            } catch (Exception e) {
+                log.error("Legacy campaign re-check failed for user {} campaign {}: {}",
+                        userId, campaignId, e.getMessage());
             }
         });
         long elapsed = System.currentTimeMillis() - start;
@@ -464,8 +414,8 @@ public class ScoreImportService {
                 continue;
             }
             try {
-                boolean bl = recordCampaignScoreFromBeatLeader(resolved, md, modifiers);
-                boolean ss = recordCampaignScoreFromScoreSaber(resolved, md, modifiers);
+                boolean bl = recordCampaignScore(beatLeader, resolved, md, modifiers);
+                boolean ss = recordCampaignScore(scoreSaber, resolved, md, modifiers);
                 if (bl || ss) {
                     recorded++;
                 }
@@ -479,172 +429,97 @@ public class ScoreImportService {
         campaignEvaluationService.importLegacyScores(resolved, campaignId);
     }
 
-    private Optional<BeatLeaderScoreResponse> fetchBeatLeaderScore(Long userId, MapDifficulty difficulty) {
-        return beatLeaderClient.getPlayerScoreOnLeaderboard(
-                String.valueOf(userId),
-                difficulty.getMap() != null ? difficulty.getMap().getSongHash() : null,
-                difficulty.getDifficulty() != null ? difficulty.getDifficulty().getDbValue() : null,
-                difficulty.getCharacteristic());
-    }
-
-    private boolean recordCampaignScoreFromBeatLeader(Long userId, MapDifficulty md, Map<String, UUID> modifiers) {
-        if (md.getBlLeaderboardId() == null || md.getBlLeaderboardId().isBlank()) {
-            return false;
-        }
-        Optional<BeatLeaderScoreResponse> opt = fetchBeatLeaderScore(userId, md);
-        if (opt.isEmpty() || opt.get().getBaseScore() == null) {
-            return false;
-        }
-        scoreService.recordCampaignBackfillScore(
-                PlatformScoreMapper.fromBeatLeader(opt.get(), md.getId(), userId, modifiers));
-        return true;
-    }
-
-    private boolean recordCampaignScoreFromScoreSaber(Long userId, MapDifficulty md, Map<String, UUID> modifiers) {
-        if (md.getSsLeaderboardId() == null || md.getSsLeaderboardId().isBlank()) {
-            return false;
-        }
-        Optional<ScoreSaberScoreResponse> opt = scoreSaberClient
-                .getPlayerScoreOnLeaderboard(String.valueOf(userId), md.getSsLeaderboardId());
-        if (opt.isEmpty() || opt.get().getUnmodifiedScore() == null) {
-            return false;
-        }
-        ScoreSaberScoreStats stats = fetchScoreSaberStats(opt.get());
-        scoreService.recordCampaignBackfillScore(
-                PlatformScoreMapper.fromScoreSaber(opt.get(), stats, md.getId(), userId, modifiers));
-        return true;
-    }
-
-    private boolean reconcileUserScoreFromBeatLeader(Long userId, MapDifficulty difficulty,
+    private <S> boolean recordCampaignScore(PlatformScores<S> platform, Long userId, MapDifficulty md,
             Map<String, UUID> modifiers) {
-        Optional<BeatLeaderScoreResponse> blOpt = fetchBeatLeaderScore(userId, difficulty);
-        if (blOpt.isEmpty())
+        String leaderboardId = platform.leaderboardId(md);
+        if (leaderboardId == null || leaderboardId.isBlank()) {
             return false;
-        BeatLeaderScoreResponse blScore = blOpt.get();
-        if (blScore.getBaseScore() == null)
+        }
+        S score = platform.fetchPlayerScore(userId, md).orElse(null);
+        if (score == null || platform.baseScore(score) == null) {
             return false;
-        if (PlatformScoreMapper.hasBannedModifier(blScore.getModifiers()))
+        }
+        scoreService.recordCampaignBackfillScore(platform.toRequest(score, md, userId, modifiers));
+        return true;
+    }
+
+    private <S> boolean reconcileUserScore(PlatformScores<S> platform, Long userId, MapDifficulty difficulty,
+            Map<String, UUID> modifiers) {
+        S score = platform.fetchPlayerScore(userId, difficulty).orElse(null);
+        if (score == null || platform.baseScore(score) == null || platform.banned(score)) {
             return false;
+        }
 
         Optional<Score> existing = scoreRepository
                 .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
-        if (existing.isPresent() && existing.get().getScoreNoMods() > blScore.getBaseScore()) {
+        if (existing.isPresent() && existing.get().getScoreNoMods() > platform.baseScore(score)) {
             return false;
         }
 
         Double complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
         if (complexity == null) {
-            log.warn("No active complexity for difficulty {} - skipping user backfill entry", difficulty.getId());
+            log.warn("No active complexity for difficulty {} - skipping {} user backfill entry",
+                    difficulty.getId(), platform.label());
             return false;
         }
 
-        if (blScore.getPlayer() == null || blScore.getPlayer().getId() == null) {
-            blScore.setPlayer(stubPlayer(userId));
+        if (!platform.hasPlayerId(score)) {
+            platform.stubPlayer(score, userId);
         }
 
-        Long affected = importBeatLeaderScore(blScore, difficulty, complexity, modifiers, true);
-        return affected != null;
+        return importScore(platform, score, new ImportTarget(difficulty, complexity, modifiers), false) != null;
     }
 
-    private boolean reconcileUserScoreFromScoreSaber(Long userId, MapDifficulty difficulty,
-            Map<String, UUID> modifiers) {
-        Optional<ScoreSaberScoreResponse> ssOpt = scoreSaberClient.getPlayerScoreOnLeaderboard(
-                String.valueOf(userId), difficulty.getSsLeaderboardId());
-        if (ssOpt.isEmpty())
-            return false;
-        ScoreSaberScoreResponse ssScore = ssOpt.get();
-        if (ssScore.getUnmodifiedScore() == null)
-            return false;
-        if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods()))
-            return false;
-
-        Optional<Score> existing = scoreRepository
-                .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
-        if (existing.isPresent() && existing.get().getScoreNoMods() > ssScore.getUnmodifiedScore()) {
-            return false;
-        }
-
-        Double complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
-        if (complexity == null) {
-            log.warn("No active complexity for difficulty {} - skipping SS user backfill entry", difficulty.getId());
-            return false;
-        }
-
-        if (ssScore.getPlayer() == null || ssScore.getPlayer().getId() == null) {
-            ssScore.setPlayer(stubScoreSaberPlayer(userId));
-        }
-
-        Long affected = importScoreSaberScore(ssScore, difficulty, complexity, modifiers, true);
-        return affected != null;
-    }
-
-    private static BeatLeaderScoreResponse.Player stubPlayer(Long userId) {
-        BeatLeaderScoreResponse.Player p = new BeatLeaderScoreResponse.Player();
-        p.setId(String.valueOf(userId));
-        return p;
-    }
-
-    private static ScoreSaberScoreResponse.Player stubScoreSaberPlayer(Long userId) {
-        ScoreSaberScoreResponse.Player p = new ScoreSaberScoreResponse.Player();
-        p.setId(String.valueOf(userId));
-        return p;
-    }
-
-    private void batchRecalculateAfterUserBackfill(Long userId, Set<MapDifficulty> affectedDifficulties) {
-        if (affectedDifficulties.isEmpty()) {
-            log.info("No new/changed scores for user {} - skipping user backfill recalc", userId);
+    private void recalculateAfterImport(Map<MapDifficulty, Set<Long>> imported, boolean syncRankWhenSet) {
+        Map<MapDifficulty, Set<Long>> changed = imported.entrySet().stream()
+                .filter(e -> !e.getValue().isEmpty())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (changed.isEmpty()) {
+            log.info("No new scores imported - skipping recalc");
             return;
         }
 
-        Set<UUID> affectedCategoryIds = affectedDifficulties.stream()
-                .map(d -> d.getCategory().getId())
-                .collect(java.util.stream.Collectors.toSet());
-        boolean touchesOverall = affectedDifficulties.stream()
-                .anyMatch(d -> d.getCategory().isCountForOverall());
+        Map<UUID, Set<Long>> usersByCategory = new HashMap<>();
+        Set<UUID> overallCategoryIds = new HashSet<>();
+        Set<Long> allAffectedUsers = new HashSet<>();
+        changed.forEach((difficulty, users) -> {
+            UUID categoryId = difficulty.getCategory().getId();
+            usersByCategory.computeIfAbsent(categoryId, k -> new HashSet<>()).addAll(users);
+            allAffectedUsers.addAll(users);
+            if (difficulty.getCategory().isCountForOverall()) {
+                overallCategoryIds.add(categoryId);
+            }
+        });
 
-        for (MapDifficulty difficulty : affectedDifficulties) {
+        log.info("Post-import recalc: {} difficulties, {} unique users, {} categories",
+                changed.size(), allAffectedUsers.size(), usersByCategory.size());
+
+        fanOut(changed.keySet(), difficulty -> {
             try {
-                scoreRankingService.reassignRanks(difficulty.getId());
+                if (syncRankWhenSet) {
+                    scoreRankingService.reassignRanksForBackfill(difficulty.getId());
+                } else {
+                    scoreRankingService.reassignRanks(difficulty.getId());
+                }
                 mapDifficultyStatisticsService.recalculate(difficulty, null);
-            } catch (Exception e) {
-                log.error("Difficulty recalc failed for difficulty {} during user {} backfill: {}",
-                        difficulty.getId(), userId, e.getMessage());
+            } catch (Exception ex) {
+                log.error("Per-difficulty recalc failed for {}: {}", difficulty.getId(), ex.getMessage());
             }
-        }
+            return null;
+        });
 
-        for (UUID categoryId : affectedCategoryIds) {
+        scoreRecalculationService.recalculatePlayers(usersByCategory, overallCategoryIds, PlayerRecalc.SCORE_IMPORT);
+
+        fanOut(allAffectedUsers, userId -> {
             try {
-                statisticsService.recalculate(userId, categoryId, false);
-                rankingService.updateRankings(categoryId);
-                skillService.upsertSkill(userId, categoryId);
-            } catch (Exception e) {
-                log.error("Category recalc failed for category {} during user {} backfill: {}",
-                        categoryId, userId, e.getMessage());
+                campaignEvaluationService.evaluateParticipatingForUser(userId);
+            } catch (Exception ex) {
+                log.error("Campaign evaluation failed for user {} after import: {}", userId, ex.getMessage());
             }
-        }
+            return null;
+        });
 
-        if (touchesOverall) {
-            try {
-                overallStatisticsService.updateOverallRankings();
-            } catch (Exception e) {
-                log.error("Overall ranking recalc failed during user {} backfill: {}", userId, e.getMessage());
-            }
-        }
-
-        try {
-            milestoneEvaluationService.evaluateAllForUser(userId);
-        } catch (Exception e) {
-            log.error("Milestone evaluation failed during user {} backfill: {}", userId, e.getMessage());
-        }
-
-        try {
-            campaignEvaluationService.evaluateParticipatingForUser(userId);
-        } catch (Exception e) {
-            log.error("Campaign evaluation failed during user {} backfill: {}", userId, e.getMessage());
-        }
-
-        log.info("User backfill recalc complete for user {} ({} difficulties, {} categories)",
-                userId, affectedDifficulties.size(), affectedCategoryIds.size());
+        log.info("Post-import recalc complete: {} users", allAffectedUsers.size());
     }
 
     @Async("taskExecutor")
@@ -654,32 +529,24 @@ public class ScoreImportService {
         log.info("Starting parallel gap-fill for {} ranked difficulties since {}", ranked.size(), since);
 
         long start = System.currentTimeMillis();
-        Semaphore semaphore = new Semaphore(MAX_CONCURRENT_DIFFICULTIES);
-        java.util.Map<MapDifficulty, Set<Long>> imported = new java.util.concurrent.ConcurrentHashMap<>();
+        Map<MapDifficulty, Set<Long>> imported = new ConcurrentHashMap<>();
 
-        List<Thread> threads = ranked.stream()
-                .map(difficulty -> Thread.startVirtualThread(() -> {
-                    semaphore.acquireUninterruptibly();
-                    try {
-                        Set<Long> users = startupGapFillImport(difficulty, since);
-                        if (users != null) {
-                            imported.put(difficulty, users);
-                        }
-                    } catch (Exception e) {
-                        log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }))
-                .toList();
+        forEachBounded(ranked, MAX_CONCURRENT_DIFFICULTIES, difficulty -> {
+            try {
+                Set<Long> users = startupGapFillImport(difficulty, since);
+                if (users != null) {
+                    imported.put(difficulty, users);
+                }
+            } catch (Exception e) {
+                log.error("Error gap-filling difficulty {}: {}", difficulty.getId(), e.getMessage());
+            }
+        });
 
-        joinAll(threads);
-
-        coalescedRecalcAfterBatchBackfill(imported, false);
+        recalculateAfterImport(imported, false);
 
         Set<Long> settledUsers = imported.values().stream()
                 .flatMap(Set::stream)
-                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+                .collect(Collectors.toCollection(HashSet::new));
         recoverCampaignsForParticipants(settledUsers);
 
         long elapsed = System.currentTimeMillis() - start;
@@ -697,17 +564,15 @@ public class ScoreImportService {
             return;
         }
         log.info("Re-settling campaigns for {} participants not covered by gap-fill imports", pending.size());
-        List<CompletableFuture<Void>> futures = pending.stream()
-                .map(userId -> CompletableFuture.runAsync(() -> {
-                    try {
-                        campaignEvaluationService.evaluateParticipatingForUser(userId);
-                    } catch (Exception e) {
-                        log.error("Campaign re-settle failed for user {} during gap-fill recovery: {}",
-                                userId, e.getMessage());
-                    }
-                }, backfillExecutor))
-                .toList();
-        futures.forEach(CompletableFuture::join);
+        fanOut(pending, userId -> {
+            try {
+                campaignEvaluationService.evaluateParticipatingForUser(userId);
+            } catch (Exception e) {
+                log.error("Campaign re-settle failed for user {} during gap-fill recovery: {}",
+                        userId, e.getMessage());
+            }
+            return null;
+        });
     }
 
     private Set<Long> startupGapFillImport(MapDifficulty difficulty, Instant since) {
@@ -717,445 +582,153 @@ public class ScoreImportService {
             return null;
         }
 
-        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        ImportTarget target = new ImportTarget(difficulty, complexity, modifierCacheService.getModifierCodeToId());
         Set<Long> affectedUserIds = new HashSet<>();
 
         if (difficulty.getBlLeaderboardId() != null) {
-            affectedUserIds.addAll(gapFillFromBeatLeader(difficulty, complexity, modifiers, since));
+            affectedUserIds.addAll(gapFillFrom(beatLeader, target, since));
         }
 
         if (scoreSaberBackfillEnabled && difficulty.getSsLeaderboardId() != null) {
-            affectedUserIds.addAll(gapFillFromScoreSaber(difficulty, complexity, modifiers, since));
+            affectedUserIds.addAll(gapFillFrom(scoreSaber, target, since));
         }
 
         return affectedUserIds;
     }
 
-    private Set<Long> gapFillFromScoreSaber(MapDifficulty difficulty, Double complexity,
-            Map<String, UUID> modifiers, Instant since) {
-        Set<Long> affected = new HashSet<>();
-        int page = 1;
-        int pageSize = 100;
-        long sinceEpoch = since.getEpochSecond();
-
-        while (true) {
-            ScoreSaberScoresPage scoresPage;
-            try {
-                scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(
-                        difficulty.getSsLeaderboardId(), page);
-            } catch (Exception e) {
-                log.error("SS gap-fill failed on page {} for difficulty {}: {}",
-                        page, difficulty.getId(), e.getMessage());
-                break;
-            }
-
-            if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
-                break;
-
-            List<ScoreSaberScoreResponse> recent = new ArrayList<>();
-            boolean reachedThreshold = false;
-            for (ScoreSaberScoreResponse score : scoresPage.getData()) {
-                if (score.getCreatedAt() == null)
-                    continue;
-                long ts;
-                try {
-                    ts = Instant.parse(score.getCreatedAt()).getEpochSecond();
-                } catch (Exception e) {
-                    log.warn("Could not parse SS createdAt '{}', skipping", score.getCreatedAt());
-                    continue;
-                }
-                if (ts <= sinceEpoch) {
-                    reachedThreshold = true;
-                    break;
-                }
-                recent.add(score);
-            }
-
-            recent.stream()
-                    .map(s -> CompletableFuture.supplyAsync(
-                            () -> importScoreSaberScore(s, difficulty, complexity, modifiers, true),
-                            backfillExecutor))
-                    .toList()
-                    .stream()
-                    .map(CompletableFuture::join)
-                    .filter(Objects::nonNull)
-                    .forEach(affected::add);
-
-            if (reachedThreshold || scoresPage.getData().size() < pageSize)
-                break;
-            page++;
-
-            try {
-                Thread.sleep(gapFillPageDelayMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-        return affected;
-    }
-
-    private Set<Long> gapFillFromBeatLeader(MapDifficulty difficulty, Double complexity,
-            Map<String, UUID> modifiers, Instant since) {
-        Set<Long> affected = new HashSet<>();
-        int page = 1;
-        int pageSize = 100;
-        long sinceEpoch = since.getEpochSecond();
-
-        while (true) {
-            List<BeatLeaderScoreResponse> scores = beatLeaderClient.getLeaderboardScoresSortedByDate(
-                    difficulty.getBlLeaderboardId(), page, pageSize);
-
-            if (scores.isEmpty())
-                break;
-
-            List<BeatLeaderScoreResponse> recent = new ArrayList<>();
-            boolean reachedThreshold = false;
-            for (BeatLeaderScoreResponse score : scores) {
-                if (score.getTimepost() != null && score.getTimepost() <= sinceEpoch) {
-                    reachedThreshold = true;
-                    break;
-                }
-                recent.add(score);
-            }
-
-            recent.stream()
-                    .map(s -> CompletableFuture.supplyAsync(
-                            () -> importBeatLeaderScore(s, difficulty, complexity, modifiers, true),
-                            backfillExecutor))
-                    .toList()
-                    .stream()
-                    .map(CompletableFuture::join)
-                    .filter(Objects::nonNull)
-                    .forEach(affected::add);
-
-            if (reachedThreshold || scores.size() < pageSize)
-                break;
-            page++;
-
-            try {
-                Thread.sleep(gapFillPageDelayMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-        return affected;
-    }
-
-    public void gapFillDifficulty(MapDifficulty difficulty, Instant since) {
-        gapFillDifficulty(difficulty, since, null, false);
-    }
-
     public void gapFillDifficulty(MapDifficulty difficulty, Instant since, LeaderboardPlatform platform,
             boolean enrichOnly) {
-        Map<String, UUID> modifiers = modifierCacheService.getModifierCodeToId();
+        ImportTarget target = new ImportTarget(difficulty, null, modifierCacheService.getModifierCodeToId());
         long sinceEpoch = since.getEpochSecond();
 
         if (platform != LeaderboardPlatform.SCORESABER && difficulty.getBlLeaderboardId() != null) {
-            List<BeatLeaderScoreResponse> blScores = beatLeaderClient.getRecentScores(
-                    difficulty.getBlLeaderboardId(), sinceEpoch);
-            for (BeatLeaderScoreResponse blScore : blScores) {
-                importBeatLeaderScore(blScore, difficulty, modifiers, enrichOnly);
+            for (BeatLeaderScoreResponse blScore : beatLeaderClient.getRecentScores(
+                    difficulty.getBlLeaderboardId(), sinceEpoch)) {
+                importScore(beatLeader, blScore, target, enrichOnly);
             }
         }
 
         if (platform != LeaderboardPlatform.BEATLEADER && scoreSaberBackfillEnabled
                 && difficulty.getSsLeaderboardId() != null) {
-            int page = 1;
-            outer: while (true) {
-                ScoreSaberScoresPage scoresPage;
-                try {
-                    scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(
-                            difficulty.getSsLeaderboardId(), page);
-                } catch (Exception e) {
-                    log.error("SS gap-fill failed on page {} for difficulty {}: {}",
-                            page, difficulty.getId(), e.getMessage());
+            importPages(page -> scoreSaber.recentPage(difficulty, page),
+                    score -> scoreSaber.cutoff(score, sinceEpoch),
+                    batch -> batch.stream().map(score -> importScore(scoreSaber, score, target, enrichOnly)).toList(),
+                    0);
+        }
+    }
+
+    private <S> Set<Long> backfillFrom(PlatformScores<S> platform, String leaderboardId, ImportTarget target) {
+        return importPages(platform.rankedPages(target.difficulty(), leaderboardId),
+                score -> Cut.KEEP,
+                batch -> fanOut(batch, score -> importScore(platform, score, target, false)),
+                0);
+    }
+
+    private <S> Set<Long> gapFillFrom(PlatformScores<S> platform, ImportTarget target, Instant since) {
+        long sinceEpoch = since.getEpochSecond();
+        return importPages(page -> platform.recentPage(target.difficulty(), page),
+                score -> platform.cutoff(score, sinceEpoch),
+                batch -> fanOut(batch, score -> importScore(platform, score, target, false)),
+                gapFillPageDelayMs);
+    }
+
+    private <S> Set<Long> importPages(IntFunction<ScorePage<S>> fetch, Function<S, Cut> cutoff,
+            Function<List<S>, List<Long>> importBatch, long pageDelayMs) {
+        Set<Long> affected = new HashSet<>();
+        for (int page = 1;; page++) {
+            ScorePage<S> fetched = fetch.apply(page);
+            if (fetched == null || fetched.scores().isEmpty()) {
+                return affected;
+            }
+            List<S> batch = new ArrayList<>();
+            boolean reachedCutoff = false;
+            for (S score : fetched.scores()) {
+                Cut cut = cutoff.apply(score);
+                if (cut == Cut.STOP) {
+                    reachedCutoff = true;
                     break;
                 }
-                if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
-                    break;
-                for (ScoreSaberScoreResponse ssScore : scoresPage.getData()) {
-                    if (ssScore.getCreatedAt() == null)
-                        continue;
-                    long ts;
-                    try {
-                        ts = Instant.parse(ssScore.getCreatedAt()).getEpochSecond();
-                    } catch (Exception e) {
-                        log.warn("Could not parse SS createdAt '{}', skipping", ssScore.getCreatedAt());
-                        continue;
-                    }
-                    if (ts <= sinceEpoch) {
-                        break outer;
-                    }
-                    importScoreSaberScore(ssScore, difficulty, modifiers, enrichOnly);
+                if (cut == Cut.KEEP) {
+                    batch.add(score);
                 }
-                if (scoresPage.getData().size() < 100)
-                    break;
-                page++;
+            }
+            importBatch.apply(batch).stream().filter(Objects::nonNull).forEach(affected::add);
+            if (reachedCutoff || fetched.last() || !pauseBetweenPages(pageDelayMs)) {
+                return affected;
             }
         }
     }
 
-    private void coalescedRecalcAfterBatchBackfill(java.util.Map<MapDifficulty, Set<Long>> imported,
-            boolean syncRankWhenSet) {
-        if (imported.isEmpty()) {
-            log.info("No new scores imported across batch - skipping coalesced recalc");
-            return;
+    private static boolean pauseBetweenPages(long delayMs) {
+        if (delayMs <= 0) {
+            return true;
         }
-
-        java.util.Map<UUID, Set<Long>> usersByCategory = new java.util.HashMap<>();
-        Set<Long> allAffectedUsers = new HashSet<>();
-        java.util.Map<Long, Boolean> userTouchesOverall = new java.util.HashMap<>();
-        boolean anyOverall = false;
-
-        for (java.util.Map.Entry<MapDifficulty, Set<Long>> e : imported.entrySet()) {
-            MapDifficulty difficulty = e.getKey();
-            Set<Long> users = e.getValue();
-            if (users.isEmpty())
-                continue;
-            UUID categoryId = difficulty.getCategory().getId();
-            usersByCategory.computeIfAbsent(categoryId, k -> new HashSet<>()).addAll(users);
-            allAffectedUsers.addAll(users);
-            if (difficulty.getCategory().isCountForOverall()) {
-                anyOverall = true;
-                for (Long u : users)
-                    userTouchesOverall.put(u, Boolean.TRUE);
-            }
-        }
-
-        log.info("Coalesced recalc: {} difficulties, {} unique users, {} categories",
-                imported.size(), allAffectedUsers.size(), usersByCategory.size());
-
-        List<CompletableFuture<Void>> diffFutures = imported.keySet().stream()
-                .filter(d -> !imported.get(d).isEmpty())
-                .map(difficulty -> CompletableFuture.runAsync(() -> {
-                    try {
-                        if (syncRankWhenSet) {
-                            scoreRankingService.reassignRanksForBackfill(difficulty.getId());
-                        } else {
-                            scoreRankingService.reassignRanks(difficulty.getId());
-                        }
-                        mapDifficultyStatisticsService.recalculate(difficulty, null);
-                    } catch (Exception ex) {
-                        log.error("Per-difficulty recalc failed for {}: {}",
-                                difficulty.getId(), ex.getMessage());
-                    }
-                }, backfillExecutor))
-                .toList();
-        diffFutures.forEach(CompletableFuture::join);
-
-        List<CompletableFuture<Void>> statsFutures = new ArrayList<>();
-        for (java.util.Map.Entry<UUID, Set<Long>> e : usersByCategory.entrySet()) {
-            UUID categoryId = e.getKey();
-            for (Long userId : e.getValue()) {
-                statsFutures.add(CompletableFuture.runAsync(() -> {
-                    try {
-                        statisticsService.recalculate(userId, categoryId, false, false);
-                    } catch (Exception ex) {
-                        log.error("Stats recalc failed for user {} category {}: {}",
-                                userId, categoryId, ex.getMessage());
-                    }
-                }, backfillExecutor));
-            }
-        }
-        statsFutures.forEach(CompletableFuture::join);
-
-        List<CompletableFuture<Void>> userFutures = allAffectedUsers.stream()
-                .map(userId -> CompletableFuture.runAsync(() -> {
-                    try {
-                        if (Boolean.TRUE.equals(userTouchesOverall.get(userId))) {
-                            overallStatisticsService.recalculate(userId, false);
-                        }
-                        milestoneEvaluationService.evaluateAllForUser(userId);
-                        campaignEvaluationService.evaluateParticipatingForUser(userId);
-                    } catch (Exception ex) {
-                        log.error("Per-user post-backfill work failed for user {}: {}",
-                                userId, ex.getMessage());
-                    }
-                }, backfillExecutor))
-                .toList();
-        userFutures.forEach(CompletableFuture::join);
-
-        for (UUID categoryId : usersByCategory.keySet()) {
-            try {
-                rankingService.updateRankings(categoryId);
-            } catch (Exception ex) {
-                log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
-            }
-        }
-
-        if (anyOverall) {
-            try {
-                overallStatisticsService.updateOverallRankings();
-            } catch (Exception ex) {
-                log.error("Overall ranking update failed: {}", ex.getMessage());
-            }
-        }
-
-        log.info("Coalesced recalc complete: {} (user,category) pairs, {} users",
-                statsFutures.size(), allAffectedUsers.size());
-    }
-
-    private void batchRecalculateAfterBackfill(MapDifficulty difficulty, Set<Long> affectedUserIds,
-            boolean syncRankWhenSet) {
-        if (affectedUserIds.isEmpty()) {
-            log.info("No new scores imported for difficulty {} - skipping batch recalc", difficulty.getId());
-            return;
-        }
-
-        UUID categoryId = difficulty.getCategory().getId();
-        log.info("Batch recalc for difficulty {}: {} affected users, category {}",
-                difficulty.getId(), affectedUserIds.size(), categoryId);
-
-        List<CompletableFuture<Void>> futures = affectedUserIds.stream()
-                .map(userId -> CompletableFuture.runAsync(() -> {
-                    try {
-                        statisticsService.recalculate(userId, categoryId, false);
-                        milestoneEvaluationService.evaluateAllForUser(userId);
-                        campaignEvaluationService.evaluateParticipatingForUser(userId);
-                    } catch (Exception e) {
-                        log.error("Batch recalc failed for user {} on difficulty {}: {}", userId, difficulty.getId(),
-                                e.getMessage());
-                    }
-                }, backfillExecutor))
-                .toList();
-
-        futures.forEach(CompletableFuture::join);
-
-        if (syncRankWhenSet) {
-            scoreRankingService.reassignRanksForBackfill(difficulty.getId());
-        } else {
-            scoreRankingService.reassignRanks(difficulty.getId());
-        }
-        mapDifficultyStatisticsService.recalculate(difficulty, null);
-        rankingService.updateRankings(categoryId);
-        if (difficulty.getCategory().isCountForOverall()) {
-            overallStatisticsService.updateOverallRankings();
-        }
-        log.info("Batch recalc complete for difficulty {}", difficulty.getId());
-    }
-
-    private Set<Long> backfillFromBeatLeader(MapDifficulty difficulty, String blLeaderboardId, Double complexity,
-            Map<String, UUID> modifiers) {
-        Set<Long> affected = new HashSet<>();
-        int page = 1;
-        int pageSize = 100;
-
-        while (true) {
-            List<BeatLeaderScoreResponse> scores;
-            try {
-                scores = beatLeaderClient.getLeaderboardScores(
-                        blLeaderboardId, page, pageSize);
-            } catch (Exception e) {
-                log.error("BL backfill failed on page {} for difficulty {}: {}",
-                        page, difficulty.getId(), e.getMessage());
-                throw new RuntimeException("BL backfill aborted on page " + page, e);
-            }
-
-            if (scores.isEmpty())
-                break;
-
-            scores.stream()
-                    .map(blScore -> CompletableFuture.supplyAsync(
-                            () -> importBeatLeaderScore(blScore, difficulty, complexity, modifiers, true),
-                            backfillExecutor))
-                    .toList()
-                    .stream()
-                    .map(CompletableFuture::join)
-                    .filter(Objects::nonNull)
-                    .forEach(affected::add);
-
-            if (scores.size() < pageSize)
-                break;
-            page++;
-        }
-        return affected;
-    }
-
-    private Set<Long> backfillFromScoreSaber(MapDifficulty difficulty, String ssLeaderboardId, Double complexity,
-            Map<String, UUID> modifiers) {
-        Set<Long> affected = new HashSet<>();
-        int page = 1;
-        int totalPages = Integer.MAX_VALUE;
-
-        while (page <= totalPages) {
-            ScoreSaberScoresPage scoresPage;
-            try {
-                scoresPage = scoreSaberClient.getLeaderboardScores(
-                        ssLeaderboardId, page);
-            } catch (Exception e) {
-                log.error("SS backfill failed on page {} for difficulty {}: {}",
-                        page, difficulty.getId(), e.getMessage());
-                throw new RuntimeException("SS backfill aborted on page " + page, e);
-            }
-
-            if (scoresPage == null || scoresPage.getData() == null || scoresPage.getData().isEmpty())
-                break;
-
-            if (totalPages == Integer.MAX_VALUE && scoresPage.getMetadata() != null
-                    && scoresPage.getMetadata().getTotalPages() != null) {
-                totalPages = scoresPage.getMetadata().getTotalPages();
-            }
-
-            scoresPage.getData().stream()
-                    .map(ssScore -> CompletableFuture.supplyAsync(
-                            () -> importScoreSaberScore(ssScore, difficulty, complexity, modifiers, true),
-                            backfillExecutor))
-                    .toList()
-                    .stream()
-                    .map(CompletableFuture::join)
-                    .filter(Objects::nonNull)
-                    .forEach(affected::add);
-
-            page++;
-        }
-        return affected;
-    }
-
-    private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
-            Map<String, UUID> modifiers, boolean enrichOnly) {
-        return importBeatLeaderScore(blScore, difficulty, null, modifiers, false, enrichOnly);
-    }
-
-    private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
-            Double complexity, Map<String, UUID> modifiers, boolean forBackfill) {
-        return importBeatLeaderScore(blScore, difficulty, complexity, modifiers, forBackfill, false);
-    }
-
-    private Long importBeatLeaderScore(BeatLeaderScoreResponse blScore, MapDifficulty difficulty,
-            Double complexity, Map<String, UUID> modifiers, boolean forBackfill, boolean enrichOnly) {
         try {
-            if (PlatformScoreMapper.hasBannedModifier(blScore.getModifiers()))
+            Thread.sleep(delayMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private <T, R> List<R> fanOut(Collection<T> items, Function<T, R> task) {
+        return items.stream()
+                .map(item -> CompletableFuture.supplyAsync(() -> task.apply(item), backfillExecutor))
+                .toList()
+                .stream()
+                .map(CompletableFuture::join)
+                .toList();
+    }
+
+    private static <T> void forEachBounded(Collection<T> items, int maxConcurrent, Consumer<T> task) {
+        Semaphore semaphore = new Semaphore(maxConcurrent);
+        List<Thread> threads = items.stream()
+                .map(item -> Thread.startVirtualThread(() -> {
+                    semaphore.acquireUninterruptibly();
+                    try {
+                        task.accept(item);
+                    } finally {
+                        semaphore.release();
+                    }
+                }))
+                .toList();
+        threads.forEach(t -> {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    private <S> Long importScore(PlatformScores<S> platform, S score, ImportTarget target, boolean enrichOnly) {
+        MapDifficulty difficulty = target.difficulty();
+        try {
+            if (platform.banned(score) || !platform.hasPlayerId(score))
                 return null;
-            Long userId = duplicateUserService.resolvePrimaryUserId(
-                    Long.parseLong(blScore.getPlayer().getId()));
+            Long userId = duplicateUserService.resolvePrimaryUserId(platform.playerId(score));
             Optional<Score> existingScore = scoreRepository
                     .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
             if (existingScore.isPresent()
-                    && Objects.equals(existingScore.get().getScoreNoMods(), blScore.getBaseScore())) {
-                if (existingScore.get().getBlScoreId() != null) {
-                    reconcileModifierLinks(existingScore.get(), blScore.getModifiers());
-                    return null;
-                }
-                enrichWithBeatLeaderData(existingScore.get(), blScore);
+                    && Objects.equals(existingScore.get().getScoreNoMods(), platform.baseScore(score))) {
+                platform.mergeIntoExisting(existingScore.get(), score, target, userId);
                 return null;
             }
             if (enrichOnly) {
                 return null;
             }
             playerImportService.ensurePlayerExists(userId);
-            SubmitScoreRequest request = PlatformScoreMapper.fromBeatLeader(blScore, difficulty.getId(), userId,
-                    modifiers);
-            if (forBackfill) {
-                scoreService.submitForBackfill(request, difficulty, complexity);
+            SubmitScoreRequest request = platform.toRequest(score, difficulty, userId, target.modifiers());
+            if (target.complexity() != null) {
+                scoreService.submitForBackfill(request, difficulty, target.complexity());
             } else {
                 scoreService.submit(request);
             }
             return userId;
         } catch (Exception e) {
-            log.error("Failed to import BL score {} for difficulty {}: {}",
-                    blScore.getId(), difficulty.getId(), e.getMessage());
+            log.error("Failed to import {} score {} for difficulty {}: {}",
+                    platform.label(), platform.scoreId(score), difficulty.getId(), e.getMessage());
             return null;
         }
     }
@@ -1178,7 +751,7 @@ public class ScoreImportService {
         if (score.getMisses() == null && blScore.getMissedNotes() != null) {
             score.setMisses(blScore.getMissedNotes());
         }
-        String blHmd = com.accsaber.backend.util.HmdMapper.fromBeatLeaderId(blScore.getHmd());
+        String blHmd = HmdMapper.fromBeatLeaderId(blScore.getHmd());
         if (blHmd != null) {
             score.setHmd(blHmd);
         }
@@ -1195,7 +768,7 @@ public class ScoreImportService {
             return;
         Set<UUID> existingModifierIds = scoreModifierLinkRepository.findByScore_Id(score.getId()).stream()
                 .map(l -> l.getModifier().getId())
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         Map<String, UUID> codeToId = modifierCacheService.getModifierCodeToId();
         List<ScoreModifierLink> toAdd = new ArrayList<>();
         for (String code : modifiersStr.split(",")) {
@@ -1205,60 +778,14 @@ public class ScoreImportService {
             UUID modifierId = codeToId.get(trimmed);
             if (modifierId == null || existingModifierIds.contains(modifierId))
                 continue;
-            Modifier modifier = modifierRepository.findById(modifierId).orElse(null);
-            if (modifier == null)
-                continue;
-            toAdd.add(ScoreModifierLink.builder().score(score).modifier(modifier).build());
+            toAdd.add(ScoreModifierLink.builder()
+                    .score(score)
+                    .modifier(modifierRepository.getReferenceById(modifierId))
+                    .build());
         }
         if (!toAdd.isEmpty()) {
             scoreModifierLinkRepository.saveAll(toAdd);
             log.debug("Added {} missing modifier links to score {}", toAdd.size(), score.getId());
-        }
-    }
-
-    private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
-            Map<String, UUID> modifiers, boolean enrichOnly) {
-        return importScoreSaberScore(ssScore, difficulty, null, modifiers, false, enrichOnly);
-    }
-
-    private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
-            Double complexity, Map<String, UUID> modifiers, boolean forBackfill) {
-        return importScoreSaberScore(ssScore, difficulty, complexity, modifiers, forBackfill, false);
-    }
-
-    private Long importScoreSaberScore(ScoreSaberScoreResponse ssScore, MapDifficulty difficulty,
-            Double complexity, Map<String, UUID> modifiers, boolean forBackfill, boolean enrichOnly) {
-        try {
-            if (PlatformScoreMapper.hasBannedModifier(ssScore.getMods()))
-                return null;
-            if (ssScore.getPlayer() == null || ssScore.getPlayer().getId() == null)
-                return null;
-            Long userId = duplicateUserService.resolvePrimaryUserId(
-                    Long.parseLong(ssScore.getPlayer().getId()));
-            Optional<Score> existingScore = scoreRepository
-                    .findByUser_IdAndMapDifficulty_IdAndActiveTrue(userId, difficulty.getId());
-            if (existingScore.isPresent()
-                    && Objects.equals(existingScore.get().getScoreNoMods(), ssScore.getUnmodifiedScore())) {
-                enrichExistingScoreSaberScore(existingScore.get(), ssScore, difficulty, userId, modifiers);
-                return null;
-            }
-            if (enrichOnly) {
-                return null;
-            }
-            playerImportService.ensurePlayerExists(userId);
-            ScoreSaberScoreStats stats = fetchScoreSaberStats(ssScore);
-            SubmitScoreRequest request = PlatformScoreMapper.fromScoreSaber(ssScore, stats, difficulty.getId(), userId,
-                    modifiers);
-            if (forBackfill) {
-                scoreService.submitForBackfill(request, difficulty, complexity);
-            } else {
-                scoreService.submit(request);
-            }
-            return userId;
-        } catch (Exception e) {
-            log.error("Failed to import SS score {} for difficulty {}: {}",
-                    ssScore.getId(), difficulty.getId(), e.getMessage());
-            return null;
         }
     }
 
@@ -1284,5 +811,253 @@ public class ScoreImportService {
             milestoneEvaluationService.evaluateAfterScore(userId, score);
         }
         log.debug("Enriched existing score {} with ScoreSaber data", score.getId());
+    }
+
+    private interface PlatformScores<S> {
+
+        String label();
+
+        String leaderboardId(MapDifficulty difficulty);
+
+        Optional<S> fetchPlayerScore(Long userId, MapDifficulty difficulty);
+
+        IntFunction<ScorePage<S>> rankedPages(MapDifficulty difficulty, String leaderboardId);
+
+        ScorePage<S> recentPage(MapDifficulty difficulty, int page);
+
+        Cut cutoff(S score, long sinceEpoch);
+
+        Integer baseScore(S score);
+
+        boolean banned(S score);
+
+        boolean hasPlayerId(S score);
+
+        Long playerId(S score);
+
+        void stubPlayer(S score, Long userId);
+
+        Long scoreId(S score);
+
+        SubmitScoreRequest toRequest(S score, MapDifficulty difficulty, Long userId, Map<String, UUID> modifiers);
+
+        void mergeIntoExisting(Score existing, S score, ImportTarget target, Long userId);
+    }
+
+    private final class BeatLeaderScores implements PlatformScores<BeatLeaderScoreResponse> {
+
+        @Override
+        public String label() {
+            return "BL";
+        }
+
+        @Override
+        public String leaderboardId(MapDifficulty difficulty) {
+            return difficulty.getBlLeaderboardId();
+        }
+
+        @Override
+        public Optional<BeatLeaderScoreResponse> fetchPlayerScore(Long userId, MapDifficulty difficulty) {
+            return beatLeaderClient.getPlayerScoreOnLeaderboard(
+                    String.valueOf(userId),
+                    difficulty.getMap() != null ? difficulty.getMap().getSongHash() : null,
+                    difficulty.getDifficulty() != null ? difficulty.getDifficulty().getDbValue() : null,
+                    difficulty.getCharacteristic());
+        }
+
+        @Override
+        public IntFunction<ScorePage<BeatLeaderScoreResponse>> rankedPages(MapDifficulty difficulty,
+                String leaderboardId) {
+            return page -> {
+                List<BeatLeaderScoreResponse> scores;
+                try {
+                    scores = beatLeaderClient.getLeaderboardScores(leaderboardId, page, PAGE_SIZE);
+                } catch (Exception e) {
+                    log.error("BL backfill failed on page {} for difficulty {}: {}",
+                            page, difficulty.getId(), e.getMessage());
+                    throw new RuntimeException("BL backfill aborted on page " + page, e);
+                }
+                return new ScorePage<>(scores, scores.size() < PAGE_SIZE);
+            };
+        }
+
+        @Override
+        public ScorePage<BeatLeaderScoreResponse> recentPage(MapDifficulty difficulty, int page) {
+            List<BeatLeaderScoreResponse> scores = beatLeaderClient.getLeaderboardScoresSortedByDate(
+                    difficulty.getBlLeaderboardId(), page, PAGE_SIZE);
+            return new ScorePage<>(scores, scores.size() < PAGE_SIZE);
+        }
+
+        @Override
+        public Cut cutoff(BeatLeaderScoreResponse score, long sinceEpoch) {
+            return score.getTimepost() != null && score.getTimepost() <= sinceEpoch ? Cut.STOP : Cut.KEEP;
+        }
+
+        @Override
+        public Integer baseScore(BeatLeaderScoreResponse score) {
+            return score.getBaseScore();
+        }
+
+        @Override
+        public boolean banned(BeatLeaderScoreResponse score) {
+            return PlatformScoreMapper.hasBannedModifier(score.getModifiers());
+        }
+
+        @Override
+        public boolean hasPlayerId(BeatLeaderScoreResponse score) {
+            return score.getPlayer() != null && score.getPlayer().getId() != null;
+        }
+
+        @Override
+        public Long playerId(BeatLeaderScoreResponse score) {
+            return Long.parseLong(score.getPlayer().getId());
+        }
+
+        @Override
+        public void stubPlayer(BeatLeaderScoreResponse score, Long userId) {
+            BeatLeaderScoreResponse.Player player = new BeatLeaderScoreResponse.Player();
+            player.setId(String.valueOf(userId));
+            score.setPlayer(player);
+        }
+
+        @Override
+        public Long scoreId(BeatLeaderScoreResponse score) {
+            return score.getId();
+        }
+
+        @Override
+        public SubmitScoreRequest toRequest(BeatLeaderScoreResponse score, MapDifficulty difficulty, Long userId,
+                Map<String, UUID> modifiers) {
+            return PlatformScoreMapper.fromBeatLeader(score, difficulty.getId(), userId, modifiers);
+        }
+
+        @Override
+        public void mergeIntoExisting(Score existing, BeatLeaderScoreResponse score, ImportTarget target,
+                Long userId) {
+            if (existing.getBlScoreId() != null) {
+                reconcileModifierLinks(existing, score.getModifiers());
+            } else {
+                enrichWithBeatLeaderData(existing, score);
+            }
+        }
+    }
+
+    private final class ScoreSaberScores implements PlatformScores<ScoreSaberScoreResponse> {
+
+        @Override
+        public String label() {
+            return "SS";
+        }
+
+        @Override
+        public String leaderboardId(MapDifficulty difficulty) {
+            return difficulty.getSsLeaderboardId();
+        }
+
+        @Override
+        public Optional<ScoreSaberScoreResponse> fetchPlayerScore(Long userId, MapDifficulty difficulty) {
+            return scoreSaberClient.getPlayerScoreOnLeaderboard(String.valueOf(userId),
+                    difficulty.getSsLeaderboardId());
+        }
+
+        @Override
+        public IntFunction<ScorePage<ScoreSaberScoreResponse>> rankedPages(MapDifficulty difficulty,
+                String leaderboardId) {
+            int[] totalPages = { Integer.MAX_VALUE };
+            return page -> {
+                ScoreSaberScoresPage scoresPage;
+                try {
+                    scoresPage = scoreSaberClient.getLeaderboardScores(leaderboardId, page);
+                } catch (Exception e) {
+                    log.error("SS backfill failed on page {} for difficulty {}: {}",
+                            page, difficulty.getId(), e.getMessage());
+                    throw new RuntimeException("SS backfill aborted on page " + page, e);
+                }
+                if (scoresPage == null || scoresPage.getData() == null) {
+                    return null;
+                }
+                if (totalPages[0] == Integer.MAX_VALUE && scoresPage.getMetadata() != null
+                        && scoresPage.getMetadata().getTotalPages() != null) {
+                    totalPages[0] = scoresPage.getMetadata().getTotalPages();
+                }
+                return new ScorePage<>(scoresPage.getData(), page >= totalPages[0]);
+            };
+        }
+
+        @Override
+        public ScorePage<ScoreSaberScoreResponse> recentPage(MapDifficulty difficulty, int page) {
+            ScoreSaberScoresPage scoresPage;
+            try {
+                scoresPage = scoreSaberClient.getLeaderboardScoresSortedByDate(difficulty.getSsLeaderboardId(), page);
+            } catch (Exception e) {
+                log.error("SS gap-fill failed on page {} for difficulty {}: {}",
+                        page, difficulty.getId(), e.getMessage());
+                return null;
+            }
+            if (scoresPage == null || scoresPage.getData() == null) {
+                return null;
+            }
+            return new ScorePage<>(scoresPage.getData(), scoresPage.getData().size() < PAGE_SIZE);
+        }
+
+        @Override
+        public Cut cutoff(ScoreSaberScoreResponse score, long sinceEpoch) {
+            if (score.getCreatedAt() == null) {
+                return Cut.SKIP;
+            }
+            long ts;
+            try {
+                ts = Instant.parse(score.getCreatedAt()).getEpochSecond();
+            } catch (Exception e) {
+                log.warn("Could not parse SS createdAt '{}', skipping", score.getCreatedAt());
+                return Cut.SKIP;
+            }
+            return ts <= sinceEpoch ? Cut.STOP : Cut.KEEP;
+        }
+
+        @Override
+        public Integer baseScore(ScoreSaberScoreResponse score) {
+            return score.getUnmodifiedScore();
+        }
+
+        @Override
+        public boolean banned(ScoreSaberScoreResponse score) {
+            return PlatformScoreMapper.hasBannedModifier(score.getMods());
+        }
+
+        @Override
+        public boolean hasPlayerId(ScoreSaberScoreResponse score) {
+            return score.getPlayer() != null && score.getPlayer().getId() != null;
+        }
+
+        @Override
+        public Long playerId(ScoreSaberScoreResponse score) {
+            return Long.parseLong(score.getPlayer().getId());
+        }
+
+        @Override
+        public void stubPlayer(ScoreSaberScoreResponse score, Long userId) {
+            ScoreSaberScoreResponse.Player player = new ScoreSaberScoreResponse.Player();
+            player.setId(String.valueOf(userId));
+            score.setPlayer(player);
+        }
+
+        @Override
+        public Long scoreId(ScoreSaberScoreResponse score) {
+            return score.getId();
+        }
+
+        @Override
+        public SubmitScoreRequest toRequest(ScoreSaberScoreResponse score, MapDifficulty difficulty, Long userId,
+                Map<String, UUID> modifiers) {
+            return PlatformScoreMapper.fromScoreSaber(score, fetchScoreSaberStats(score), difficulty.getId(), userId,
+                    modifiers);
+        }
+
+        @Override
+        public void mergeIntoExisting(Score existing, ScoreSaberScoreResponse score, ImportTarget target,
+                Long userId) {
+            enrichExistingScoreSaberScore(existing, score, target.difficulty(), userId, target.modifiers());
+        }
     }
 }

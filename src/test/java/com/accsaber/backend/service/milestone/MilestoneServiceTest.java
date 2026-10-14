@@ -33,24 +33,18 @@ import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
-import com.accsaber.backend.model.dto.request.milestone.CreatePrerequisiteLinkRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
-import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.MilestoneCompletionStats;
-import com.accsaber.backend.model.entity.milestone.MilestonePrerequisiteLink;
 import com.accsaber.backend.model.entity.milestone.MilestoneSet;
 import com.accsaber.backend.model.entity.milestone.MilestoneStatus;
 import com.accsaber.backend.model.entity.milestone.MilestoneTier;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.CurveRepository;
-import com.accsaber.backend.repository.map.MapDifficultyMilestoneLinkRepository;
-import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.milestone.MilestoneCompletionStatsRepository;
-import com.accsaber.backend.repository.milestone.MilestonePrerequisiteLinkRepository;
 import com.accsaber.backend.repository.milestone.MilestoneItemRepository;
 import com.accsaber.backend.repository.milestone.MilestoneRepository;
 import com.accsaber.backend.repository.milestone.MilestoneSetItemRepository;
@@ -75,12 +69,6 @@ class MilestoneServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private MapDifficultyRepository mapDifficultyRepository;
-    @Mock
-    private MapDifficultyMilestoneLinkRepository mapDifficultyMilestoneLinkRepository;
-    @Mock
-    private MilestonePrerequisiteLinkRepository prerequisiteLinkRepository;
-    @Mock
     private MilestoneEvaluationService milestoneEvaluationService;
     @Mock
     private MilestoneQueryBuilderService queryBuilderService;
@@ -94,6 +82,8 @@ class MilestoneServiceTest {
     private MilestoneItemRepository milestoneItemRepository;
     @Mock
     private MilestoneSetItemRepository milestoneSetItemRepository;
+    @Mock
+    private MilestoneGraphService graphService;
 
     @InjectMocks
     private MilestoneService service;
@@ -375,71 +365,6 @@ class MilestoneServiceTest {
 
             assertThatThrownBy(() -> service.activateMilestones(List.of(missing)))
                     .isInstanceOf(ResourceNotFoundException.class);
-        }
-    }
-
-    @Nested
-    class PrerequisiteLinks {
-
-        private Milestone prerequisite;
-
-        @BeforeEach
-        void setUpPrerequisite() {
-            prerequisite = Milestone.builder()
-                    .id(UUID.randomUUID())
-                    .milestoneSet(set)
-                    .title("Prerequisite")
-                    .type("milestone")
-                    .tier(MilestoneTier.silver)
-                    .xp((double) (100))
-                    .querySpec(querySpec)
-                    .targetValue((double) (500))
-                    .comparison("GTE")
-                    .build();
-        }
-
-        @Test
-        void createLink_success() {
-            CreatePrerequisiteLinkRequest request = new CreatePrerequisiteLinkRequest();
-            request.setMilestoneId(milestone.getId());
-            request.setPrerequisiteMilestoneId(prerequisite.getId());
-            request.setBlocker(true);
-
-            when(milestoneRepository.findByIdAndActiveTrue(milestone.getId()))
-                    .thenReturn(Optional.of(milestone));
-            when(milestoneRepository.findByIdAndActiveTrue(prerequisite.getId()))
-                    .thenReturn(Optional.of(prerequisite));
-            when(prerequisiteLinkRepository.existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(
-                    milestone.getId(), prerequisite.getId())).thenReturn(false);
-            when(prerequisiteLinkRepository.save(any())).thenAnswer(i -> {
-                MilestonePrerequisiteLink link = i.getArgument(0);
-                link.setId(UUID.randomUUID());
-                return link;
-            });
-
-            PrerequisiteLinkResponse response = service.createPrerequisiteLink(request);
-
-            assertThat(response.getMilestoneId()).isEqualTo(milestone.getId());
-            assertThat(response.getPrerequisiteMilestoneId()).isEqualTo(prerequisite.getId());
-            assertThat(response.getPrerequisiteTitle()).isEqualTo("Prerequisite");
-            assertThat(response.isBlocker()).isTrue();
-        }
-
-        @Test
-        void createLink_duplicateThrowsConflict() {
-            CreatePrerequisiteLinkRequest request = new CreatePrerequisiteLinkRequest();
-            request.setMilestoneId(milestone.getId());
-            request.setPrerequisiteMilestoneId(prerequisite.getId());
-
-            when(milestoneRepository.findByIdAndActiveTrue(milestone.getId()))
-                    .thenReturn(Optional.of(milestone));
-            when(milestoneRepository.findByIdAndActiveTrue(prerequisite.getId()))
-                    .thenReturn(Optional.of(prerequisite));
-            when(prerequisiteLinkRepository.existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(
-                    milestone.getId(), prerequisite.getId())).thenReturn(true);
-
-            assertThatThrownBy(() -> service.createPrerequisiteLink(request))
-                    .isInstanceOf(ConflictException.class);
         }
     }
 

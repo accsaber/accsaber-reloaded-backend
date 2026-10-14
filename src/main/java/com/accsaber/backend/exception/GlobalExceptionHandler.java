@@ -35,18 +35,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAccSaberException(
                         AccSaberException ex, HttpServletRequest request) {
                 log.warn("AccSaber exception: {} - {}", ex.getErrorCode(), ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(ex.getStatus().value())
-                                .error(ex.getStatus().getReasonPhrase())
-                                .code(ex.getErrorCode())
-                                .message(ex.getMessage())
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(ex.getStatus()).body(response);
+                return respond(ex.getStatus(), ex.getErrorCode(), ex.getMessage(), request);
         }
 
         @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -54,17 +43,9 @@ public class GlobalExceptionHandler {
                         MethodArgumentNotValidException ex, HttpServletRequest request) {
                 log.warn("Validation exception: {}", ex.getMessage());
 
-                List<ErrorResponse.FieldError> fieldErrors = extractFieldErrors(ex.getBindingResult());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.UNPROCESSABLE_CONTENT.value())
-                                .error(HttpStatus.UNPROCESSABLE_CONTENT.getReasonPhrase())
-                                .code("VALIDATION_ERROR")
-                                .message("Validation failed")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .fieldErrors(fieldErrors)
+                ErrorResponse response = body(HttpStatus.UNPROCESSABLE_CONTENT, "VALIDATION_ERROR",
+                                "Validation failed", request)
+                                .fieldErrors(extractFieldErrors(ex.getBindingResult()))
                                 .build();
 
                 return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
@@ -74,18 +55,8 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleUnreadableBody(
                         HttpMessageNotReadableException ex, HttpServletRequest request) {
                 log.warn("Malformed request body on {}: {}", request.getRequestURI(), ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("MALFORMED_REQUEST_BODY")
-                                .message("Request body is missing or could not be parsed")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST_BODY",
+                                "Request body is missing or could not be parsed", request);
         }
 
         @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -97,71 +68,29 @@ public class GlobalExceptionHandler {
                                 ex.getName(),
                                 ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown");
 
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("TYPE_MISMATCH")
-                                .message(message)
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "TYPE_MISMATCH", message, request);
         }
 
         @ExceptionHandler(AccessDeniedException.class)
         public ResponseEntity<ErrorResponse> handleAccessDenied(
                         AccessDeniedException ex, HttpServletRequest request) {
                 log.warn("Access denied: {}", ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.FORBIDDEN.value())
-                                .error(HttpStatus.FORBIDDEN.getReasonPhrase())
-                                .code("FORBIDDEN")
-                                .message("You do not have permission to access this resource")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                return respond(HttpStatus.FORBIDDEN, "FORBIDDEN",
+                                "You do not have permission to access this resource", request);
         }
 
         @ExceptionHandler(AuthenticationException.class)
         public ResponseEntity<ErrorResponse> handleAuthenticationException(
                         AuthenticationException ex, HttpServletRequest request) {
                 log.warn("Authentication failed: {}", ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.UNAUTHORIZED.value())
-                                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                                .code("UNAUTHORIZED")
-                                .message("Authentication required")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+                return respond(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required", request);
         }
 
         @ExceptionHandler(NoResourceFoundException.class)
         public ResponseEntity<ErrorResponse> handleNoResourceFound(
                         NoResourceFoundException ex, HttpServletRequest request) {
                 log.warn("Resource not found: {}", request.getRequestURI());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.NOT_FOUND.value())
-                                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                                .code("NOT_FOUND")
-                                .message("The requested resource was not found")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+                return respond(HttpStatus.NOT_FOUND, "NOT_FOUND", "The requested resource was not found", request);
         }
 
         @ExceptionHandler(PropertyReferenceException.class)
@@ -171,126 +100,73 @@ public class GlobalExceptionHandler {
 
                 String message = String.format("Invalid sort property '%s'", ex.getPropertyName());
 
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("INVALID_PROPERTY")
-                                .message(message)
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "INVALID_PROPERTY", message, request);
         }
 
         @ExceptionHandler(InvalidDataAccessApiUsageException.class)
         public ResponseEntity<ErrorResponse> handleInvalidDataAccessApiUsage(
                         InvalidDataAccessApiUsageException ex, HttpServletRequest request) {
-                log.warn("Invalid data access usage: {}", ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("INVALID_PARAMETER")
-                                .message(ex.getMostSpecificCause().getMessage())
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                log.warn("Invalid data access usage on {}: {}", request.getRequestURI(),
+                                ex.getMostSpecificCause().getMessage());
+                return respond(HttpStatus.BAD_REQUEST, "INVALID_PARAMETER", "Invalid request parameter", request);
         }
 
         @ExceptionHandler(MaxUploadSizeExceededException.class)
         public ResponseEntity<ErrorResponse> handleMaxUploadSize(
                         MaxUploadSizeExceededException ex, HttpServletRequest request) {
                 log.warn("Upload exceeded max size on {}: {}", request.getRequestURI(), ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.CONTENT_TOO_LARGE.value())
-                                .error(HttpStatus.CONTENT_TOO_LARGE.getReasonPhrase())
-                                .code("UPLOAD_TOO_LARGE")
-                                .message("Uploaded file exceeds the maximum allowed size")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(response);
+                return respond(HttpStatus.CONTENT_TOO_LARGE, "UPLOAD_TOO_LARGE",
+                                "Uploaded file exceeds the maximum allowed size", request);
         }
 
         @ExceptionHandler(MissingServletRequestPartException.class)
         public ResponseEntity<ErrorResponse> handleMissingPart(
                         MissingServletRequestPartException ex, HttpServletRequest request) {
                 log.warn("Missing multipart part '{}' on {}", ex.getRequestPartName(), request.getRequestURI());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("MISSING_MULTIPART_PART")
-                                .message(String.format("Required multipart part '%s' is missing",
-                                                ex.getRequestPartName()))
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "MISSING_MULTIPART_PART",
+                                String.format("Required multipart part '%s' is missing", ex.getRequestPartName()),
+                                request);
         }
 
         @ExceptionHandler(MissingServletRequestParameterException.class)
         public ResponseEntity<ErrorResponse> handleMissingParameter(
                         MissingServletRequestParameterException ex, HttpServletRequest request) {
                 log.warn("Missing required parameter '{}' on {}", ex.getParameterName(), request.getRequestURI());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("MISSING_PARAMETER")
-                                .message(String.format("Required parameter '%s' is missing", ex.getParameterName()))
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "MISSING_PARAMETER",
+                                String.format("Required parameter '%s' is missing", ex.getParameterName()), request);
         }
 
         @ExceptionHandler(MultipartException.class)
         public ResponseEntity<ErrorResponse> handleMultipart(
                         MultipartException ex, HttpServletRequest request) {
                 log.warn("Malformed multipart request on {}: {}", request.getRequestURI(), ex.getMessage());
-
-                ErrorResponse response = ErrorResponse.builder()
-                                .timestamp(Instant.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .code("MALFORMED_MULTIPART")
-                                .message("Multipart request could not be parsed")
-                                .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                return respond(HttpStatus.BAD_REQUEST, "MALFORMED_MULTIPART", "Multipart request could not be parsed",
+                                request);
         }
 
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ErrorResponse> handleGenericException(
                         Exception ex, HttpServletRequest request) {
                 log.error("Unexpected error", ex);
+                return respond(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred",
+                                request);
+        }
 
-                ErrorResponse response = ErrorResponse.builder()
+        private static ResponseEntity<ErrorResponse> respond(HttpStatus status, String code, String message,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(status).body(body(status, code, message, request).build());
+        }
+
+        private static ErrorResponse.ErrorResponseBuilder body(HttpStatus status, String code, String message,
+                        HttpServletRequest request) {
+                return ErrorResponse.builder()
                                 .timestamp(Instant.now())
-                                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                                .code("INTERNAL_ERROR")
-                                .message("An unexpected error occurred")
+                                .status(status.value())
+                                .error(status.getReasonPhrase())
+                                .code(code)
+                                .message(message)
                                 .path(request.getRequestURI())
-                                .correlationId(MDC.get("correlationId"))
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+                                .correlationId(MDC.get("correlationId"));
         }
 
         private List<ErrorResponse.FieldError> extractFieldErrors(BindingResult bindingResult) {

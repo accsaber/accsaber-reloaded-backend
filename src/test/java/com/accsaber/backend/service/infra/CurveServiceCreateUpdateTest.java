@@ -2,6 +2,7 @@ package com.accsaber.backend.service.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -20,12 +21,16 @@ import com.accsaber.backend.model.dto.request.curve.UpdateCurveRequest;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.CurveType;
 import com.accsaber.backend.repository.CurveRepository;
+import com.accsaber.backend.service.milestone.LevelService;
 
 @ExtendWith(MockitoExtension.class)
 class CurveServiceCreateUpdateTest {
 
     @Mock
     private CurveRepository curveRepository;
+
+    @Mock
+    private LevelService levelService;
 
     @InjectMocks
     private CurveService curveService;
@@ -93,6 +98,7 @@ class CurveServiceCreateUpdateTest {
             assertThat(existing.getName()).isEqualTo("Updated Name");
             assertThat(existing.getFormula()).isEqualTo("EXPONENTIAL_DECAY");
             assertThat(existing.getYParameterValue()).isEqualByComparingTo(0.965);
+            verify(levelService).evictLevelCurveCache();
         }
 
         @Test

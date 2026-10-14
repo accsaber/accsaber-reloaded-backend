@@ -97,6 +97,7 @@ class ClanMissionServiceTest {
                         .type(MissionType.SCORES_N).pool(MissionPool.clan).xpMultiplier(1.5).build())
                 .build();
         when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
+        when(clanRepository.requireActive(clan.getId())).thenCallRealMethod();
         when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(mission)));
         when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);
@@ -116,6 +117,7 @@ class ClanMissionServiceTest {
                         .type(MissionType.SCORES_N).pool(MissionPool.clan).xpMultiplier(1.0).build())
                 .build();
         when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
+        when(clanRepository.requireActive(clan.getId())).thenCallRealMethod();
         when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(mission)));
         when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);

@@ -72,7 +72,7 @@ public class RankingMapDifficultyController {
                         @PathVariable UUID difficultyId,
                         @Valid @RequestBody UpdateMapCategoryRequest request,
                         Authentication authentication) {
-                return ResponseEntity.ok(mapService.updateCategory(difficultyId, request.getCategoryId(),
+                return ResponseEntity.ok(mapService.updateCategory(difficultyId, request.categoryId(),
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
@@ -155,7 +155,7 @@ public class RankingMapDifficultyController {
         public ResponseEntity<List<MapDifficultyResponse>> bulkUnrank(
                         @Valid @RequestBody BulkUnrankRequest request,
                         Authentication authentication) {
-                return ResponseEntity.ok(unrankService.unrankBatch(request.getItems(),
+                return ResponseEntity.ok(unrankService.unrankBatch(request.items(),
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 

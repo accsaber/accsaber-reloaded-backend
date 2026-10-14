@@ -79,7 +79,7 @@ class ClanCosmeticServiceTest {
 
     @Test
     void onlyTheFounderEquips() {
-        when(accessService.require(CLAN_ID, FOUNDER, ClanPermission.CUSTOMIZE)).thenThrow(new ForbiddenException());
+        when(accessService.require(CLAN_ID, FOUNDER, ClanPermission.CUSTOMIZE)).thenThrow(new ForbiddenException("forbidden"));
 
         assertThatThrownBy(() -> service.equip(CLAN_ID, FOUNDER, UUID.randomUUID(), null))
                 .isInstanceOf(ForbiddenException.class);

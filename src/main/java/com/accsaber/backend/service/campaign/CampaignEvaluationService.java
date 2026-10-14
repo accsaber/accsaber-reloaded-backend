@@ -105,7 +105,7 @@ public class CampaignEvaluationService {
             if (nodes == null) {
                 continue;
             }
-            Instant campaignSince = sinceFor(uc);
+            Instant campaignSince = CampaignUnlockRules.since(uc);
             if (scoreTime != null && scoreTime.isBefore(campaignSince)) {
                 continue;
             }
@@ -123,12 +123,12 @@ public class CampaignEvaluationService {
                         continue;
                     }
                     boolean alreadyCompleted = completionTimes.containsKey(difficulty.getId());
-                    UnlockWindow window = unlockWindow(difficulty.getId(), graph, completionTimes,
+                    CampaignUnlockRules.Window window = graph.window(difficulty.getId(), completionTimes,
                             campaignSince, agnostic);
-                    if (!alreadyCompleted && !countsFor(scoreTime, window)) {
+                    if (!alreadyCompleted && !CampaignUnlockRules.counts(scoreTime, window)) {
                         continue;
                     }
-                    if (alreadyCompleted && window != null && !countsFor(scoreTime, window)) {
+                    if (alreadyCompleted && window != null && !CampaignUnlockRules.counts(scoreTime, window)) {
                         continue;
                     }
                     recordQualifyingScore(uc, difficulty, score, graph, completionTimes.keySet(), false);
@@ -150,49 +150,6 @@ public class CampaignEvaluationService {
             sweepMilestonePayouts(uc, graph, completionTimes.keySet());
             evaluateCampaignCompletion(uc, graph, completionTimes.keySet(), false);
         }
-    }
-
-    private record UnlockWindow(Instant at, boolean exclusive) {
-    }
-
-    private static boolean countsFor(Instant scoreTime, UnlockWindow window) {
-        if (window == null || scoreTime == null) {
-            return false;
-        }
-        return window.exclusive() ? scoreTime.isAfter(window.at()) : !scoreTime.isBefore(window.at());
-    }
-
-    private static UnlockWindow unlockWindow(UUID nodeId, Graph graph, Map<UUID, Instant> completionTimes,
-            Instant campaignSince, boolean agnostic) {
-        if (agnostic) {
-            return new UnlockWindow(campaignSince, false);
-        }
-        List<UUID> ps = graph.prereqs.getOrDefault(nodeId, Collections.emptyList());
-        if (ps.isEmpty()) {
-            return new UnlockWindow(campaignSince, false);
-        }
-        CampaignPrerequisiteMode mode = graph.modes.getOrDefault(nodeId, CampaignPrerequisiteMode.OR);
-        if (mode == CampaignPrerequisiteMode.AND) {
-            Instant latest = null;
-            for (UUID p : ps) {
-                Instant t = completionTimes.get(p);
-                if (t == null) {
-                    return null;
-                }
-                if (latest == null || t.isAfter(latest)) {
-                    latest = t;
-                }
-            }
-            return new UnlockWindow(latest, true);
-        }
-        Instant earliest = null;
-        for (UUID p : ps) {
-            Instant t = completionTimes.get(p);
-            if (t != null && (earliest == null || t.isBefore(earliest))) {
-                earliest = t;
-            }
-        }
-        return earliest != null ? new UnlockWindow(earliest, true) : null;
     }
 
     private Map<UUID, Instant> loadCompletionTimes(Long userId, UUID campaignId) {
@@ -226,7 +183,7 @@ public class CampaignEvaluationService {
             Set<UUID> completedIds = loadCompletedIds(userId, campaign.getId());
             for (CampaignDifficulty node : nodes) {
                 if (completedIds.contains(node.getId())
-                        || prereqsCompleted(node.getId(), graph, completedIds)) {
+                        || graph.prereqsCompleted(node.getId(), completedIds)) {
                     return true;
                 }
             }
@@ -249,7 +206,7 @@ public class CampaignEvaluationService {
             UUID mapDifficultyId) {
         List<UUID> campaignIds = participations.stream().map(uc -> uc.getCampaign().getId()).toList();
         return campaignDifficultyRepository
-                .findByCampaign_IdInAndMapDifficulty_IdAndBarrierFalseAndActiveTrue(campaignIds, mapDifficultyId)
+                .findActiveNodesOnMap(campaignIds, mapDifficultyId)
                 .stream()
                 .collect(Collectors.groupingBy(d -> d.getCampaign().getId()));
     }
@@ -265,7 +222,7 @@ public class CampaignEvaluationService {
         Map<UUID, CampaignDifficulty> byId = graph.byId;
 
         List<UserCampaignScore> unpaid = userCampaignScoreRepository
-                .findByCampaign_IdAndActiveTrueAndRewardsPaidFalse(campaignId);
+                .findUnpaidByCampaign(campaignId);
         Map<Long, Set<UUID>> completedByUser = new HashMap<>();
         Set<Long> touchedUsers = new HashSet<>();
         for (UserCampaignScore ucs : unpaid) {
@@ -442,7 +399,7 @@ public class CampaignEvaluationService {
                 .map(d -> d.getMapDifficulty().getId())
                 .distinct()
                 .toList();
-        Instant campaignSince = sinceFor(uc);
+        Instant campaignSince = CampaignUnlockRules.since(uc);
         Map<UUID, List<Score>> rowsByMap = scoreRepository
                 .findEligibleCampaignRows(uc.getUser().getId(), mapDifficultyIds, campaignSince).stream()
                 .collect(Collectors.groupingBy(s -> s.getMapDifficulty().getId()));
@@ -465,14 +422,14 @@ public class CampaignEvaluationService {
                     continue;
                 }
                 boolean alreadyCompleted = completionTimes.containsKey(difficulty.getId());
-                UnlockWindow window = unlockWindow(difficulty.getId(), graph, completionTimes,
+                CampaignUnlockRules.Window window = graph.window(difficulty.getId(), completionTimes,
                         campaignSince, agnostic);
                 if (window == null) {
                     continue;
                 }
                 List<Score> qualifying = new ArrayList<>();
                 for (Score row : rows) {
-                    if (countsFor(CampaignScoreMetrics.effectiveTime(row), window)
+                    if (CampaignUnlockRules.counts(CampaignScoreMetrics.effectiveTime(row), window)
                             && rowMeetsRequirement(difficulty, row, modifiers,
                                     nodeTargets.getOrDefault(difficulty.getId(), NodeTargets.EMPTY))) {
                         qualifying.add(row);
@@ -591,7 +548,7 @@ public class CampaignEvaluationService {
                 if (affected.isEmpty()) {
                     continue;
                 }
-                if (!agnostic && !prereqsCompleted(barrierId, graph, completionTimes.keySet())) {
+                if (!agnostic && !graph.prereqsCompleted(barrierId, completionTimes.keySet())) {
                     continue;
                 }
                 CampaignDifficulty barrier = graph.byId.get(barrierId);
@@ -639,13 +596,13 @@ public class CampaignEvaluationService {
             if (rows == null) {
                 continue;
             }
-            UnlockWindow window = unlockWindow(nodeId, graph, completionTimes, campaignSince, agnostic);
+            CampaignUnlockRules.Window window = graph.window(nodeId, completionTimes, campaignSince, agnostic);
             if (window == null) {
                 continue;
             }
             CampaignModifierRule rule = modifierRules.get(nodeId);
             List<Score> windowed = rows.stream()
-                    .filter(r -> countsFor(CampaignScoreMetrics.effectiveTime(r), window)
+                    .filter(r -> CampaignUnlockRules.counts(CampaignScoreMetrics.effectiveTime(r), window)
                             && modifiers.satisfies(r.getId(), rule))
                     .toList();
             CampaignDifficulty node = graph.byId.get(nodeId);
@@ -691,16 +648,6 @@ public class CampaignEvaluationService {
             }
         }
         return bests.size() == affected.size() && barrierSatisfied(barrier, bests);
-    }
-
-    private static Instant sinceFor(UserCampaign uc) {
-        if (uc.getCampaign().isLegacy()) {
-            return Instant.EPOCH;
-        }
-        if (uc.getStartedAt() != null) {
-            return uc.getStartedAt();
-        }
-        return uc.getCreatedAt() != null ? uc.getCreatedAt() : Instant.EPOCH;
     }
 
     private void recordBarrierCompletion(UserCampaign uc, CampaignDifficulty barrier, Instant brokeAt) {
@@ -760,7 +707,7 @@ public class CampaignEvaluationService {
             return;
         }
         List<UserCampaignScore> unpaid = userCampaignScoreRepository
-                .findByUser_IdAndCampaign_IdAndActiveTrueAndRewardsPaidFalse(uc.getUser().getId(),
+                .findUnpaidByUserAndCampaign(uc.getUser().getId(),
                         uc.getCampaign().getId());
         if (unpaid.isEmpty()) {
             return;
@@ -849,23 +796,6 @@ public class CampaignEvaluationService {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
-    private static boolean prereqsCompleted(UUID nodeId, Graph graph, Set<UUID> completedIds) {
-        List<UUID> ps = graph.prereqs.getOrDefault(nodeId, Collections.emptyList());
-        if (ps.isEmpty()) {
-            return true;
-        }
-        CampaignPrerequisiteMode mode = graph.modes.getOrDefault(nodeId, CampaignPrerequisiteMode.OR);
-        if (mode == CampaignPrerequisiteMode.AND) {
-            return completedIds.containsAll(ps);
-        }
-        for (UUID p : ps) {
-            if (completedIds.contains(p)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean hasCompletedPath(UUID targetId, Graph graph, Set<UUID> completedIds) {
         if (!completedIds.contains(targetId)) {
             return false;
@@ -927,6 +857,17 @@ public class CampaignEvaluationService {
             Map<UUID, CampaignPrerequisiteMode> modes,
             Set<UUID> barrierIds,
             Set<UUID> terminalIds) {
+
+        CampaignUnlockRules.Window window(UUID nodeId, Map<UUID, Instant> completionTimes, Instant since,
+                boolean agnostic) {
+            return CampaignUnlockRules.window(prereqs.getOrDefault(nodeId, List.of()),
+                    modes.getOrDefault(nodeId, CampaignPrerequisiteMode.OR), completionTimes, since, agnostic);
+        }
+
+        boolean prereqsCompleted(UUID nodeId, Set<UUID> completedIds) {
+            return CampaignUnlockRules.prereqsCompleted(prereqs.getOrDefault(nodeId, List.of()),
+                    modes.getOrDefault(nodeId, CampaignPrerequisiteMode.OR), completedIds);
+        }
     }
 
     private void payDifficultyRewards(UserCampaignScore record, CampaignDifficulty difficulty) {

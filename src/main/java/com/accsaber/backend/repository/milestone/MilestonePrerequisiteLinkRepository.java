@@ -13,8 +13,6 @@ public interface MilestonePrerequisiteLinkRepository extends JpaRepository<Miles
 
         List<MilestonePrerequisiteLink> findByMilestone_IdAndActiveTrue(UUID milestoneId);
 
-        List<MilestonePrerequisiteLink> findByPrerequisiteMilestone_IdAndActiveTrue(UUID prerequisiteMilestoneId);
-
         boolean existsByMilestone_IdAndPrerequisiteMilestone_IdAndActiveTrue(UUID milestoneId,
                         UUID prerequisiteMilestoneId);
 

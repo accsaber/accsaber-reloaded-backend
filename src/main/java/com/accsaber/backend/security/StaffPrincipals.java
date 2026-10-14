@@ -35,14 +35,11 @@ public final class StaffPrincipals {
     }
 
     public static StaffRole roleOf(Authentication auth) {
-        Object p = principalOf(auth);
-        if (p instanceof StaffUserDetails s) {
-            return s.getStaffUser().getRole();
+        StaffRole role = roleOfPrincipal(principalOf(auth));
+        if (role == null) {
+            throw new UnauthorizedException("Staff role not present");
         }
-        if (p instanceof PlayerUserDetails player && player.getStaffRole() != null) {
-            return player.getStaffRole();
-        }
-        throw new UnauthorizedException("Staff role not present");
+        return role;
     }
 
     public static Long viewerIdOf(Authentication auth) {
@@ -55,10 +52,10 @@ public final class StaffPrincipals {
     }
 
     public static StaffRole roleOrNull(Authentication auth) {
-        if (auth == null) {
-            return null;
-        }
-        Object p = auth.getPrincipal();
+        return auth == null ? null : roleOfPrincipal(auth.getPrincipal());
+    }
+
+    private static StaffRole roleOfPrincipal(Object p) {
         if (p instanceof StaffUserDetails s) {
             return s.getStaffUser().getRole();
         }

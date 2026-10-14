@@ -35,11 +35,9 @@ public class SongSuggestController {
         public ResponseEntity<Resource> getLeaderboard() {
                 Path file = songSuggestService.getOutputFile();
                 if (!Files.exists(file)) {
-                        throw new ResourceNotFoundException("SongSuggestLeaderboard", "not yet generated");
+                        throw notGenerated();
                 }
-                Instant mtime = songSuggestService.getRefreshTime()
-                                .orElseThrow(() -> new ResourceNotFoundException("SongSuggestLeaderboard",
-                                                "not yet generated"));
+                Instant mtime = refreshTime();
                 return ResponseEntity.ok()
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header(HttpHeaders.LAST_MODIFIED, mtime.toString())
@@ -51,11 +49,17 @@ public class SongSuggestController {
         @Operation(summary = "Song Suggest last build")
         @GetMapping("/refresh-time")
         public ResponseEntity<SongSuggestRefreshTimeResponse> getRefreshTime() {
-                Instant mtime = songSuggestService.getRefreshTime()
-                                .orElseThrow(() -> new ResourceNotFoundException("SongSuggestLeaderboard",
-                                                "not yet generated"));
+                Instant mtime = refreshTime();
                 return ResponseEntity.ok(SongSuggestRefreshTimeResponse.builder()
                                 .refreshTime(mtime)
                                 .build());
+        }
+
+        private Instant refreshTime() {
+                return songSuggestService.getRefreshTime().orElseThrow(SongSuggestController::notGenerated);
+        }
+
+        private static ResourceNotFoundException notGenerated() {
+                return new ResourceNotFoundException("SongSuggestLeaderboard", "not yet generated");
         }
 }

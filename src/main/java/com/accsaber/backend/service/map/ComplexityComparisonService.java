@@ -151,7 +151,7 @@ public class ComplexityComparisonService {
         return Rater.builder()
                 .version(raterProperties.getVersion())
                 .worstBands(Arrays.stream(NoteAccuracyComplexityRater.WORST_BANDS).boxed().toList())
-                .rater(raterProperties.toSpec())
+                .rater(raterProperties)
                 .build();
     }
 
@@ -658,26 +658,11 @@ public class ComplexityComparisonService {
         }
         boolean ascending = parts.length > 1 && "asc".equalsIgnoreCase(parts[1].trim());
         List<T> ordered = new ArrayList<>(all);
-        ordered.sort(((Comparator<T>) (left, right) -> compare(read, left, right, paging.absolute(), ascending))
-                .thenComparing(tiebreaker));
-        return ordered;
-    }
-
-    private static <T> int compare(Function<T, Object> read, T left, T right, boolean absolute, boolean ascending) {
-        Object a = sortValue(read, left, absolute);
-        Object b = sortValue(read, right, absolute);
-        if (a == null && b == null) {
-            return 0;
-        }
-        if (a == null) {
-            return 1;
-        }
-        if (b == null) {
-            return -1;
-        }
-        int order = a instanceof String text ? text.compareToIgnoreCase(String.valueOf(b))
+        Comparator<Object> values = (a, b) -> a instanceof String text ? text.compareToIgnoreCase(String.valueOf(b))
                 : Double.compare((Double) a, (Double) b);
-        return ascending ? order : -order;
+        ordered.sort(Comparator.<T, Object>comparing(row -> sortValue(read, row, paging.absolute()),
+                Comparator.nullsLast(ascending ? values : values.reversed())).thenComparing(tiebreaker));
+        return ordered;
     }
 
     private static <T> Object sortValue(Function<T, Object> read, T row, boolean absolute) {

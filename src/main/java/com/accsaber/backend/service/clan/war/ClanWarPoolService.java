@@ -108,8 +108,7 @@ public class ClanWarPoolService {
     @Transactional
     public void submitPicks(UUID warId, Long playerId, List<UUID> picks, boolean berserker) {
         User actor = accessService.player(playerId);
-        ClanWar war = warRepository.findByIdForUpdate(warId)
-                .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
+        ClanWar war = warRepository.lockOrThrow(warId);
         Clan defender = war.getDefenderClan();
         accessService.require(defender.getId(), actor.getId(), ClanPermission.SUBMIT_PICKS);
         ClanWarSide side = sideRepository.findByWar_IdAndClan_Id(warId, defender.getId())

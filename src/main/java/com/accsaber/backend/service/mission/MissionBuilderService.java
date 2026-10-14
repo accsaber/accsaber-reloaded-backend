@@ -58,23 +58,21 @@ public class MissionBuilderService {
     private final MissionTargetService targetService;
     private final MissionSkillService skillService;
 
-    public UserMission pickAndBuild(MissionAssignmentContext ctx, List<MissionTemplate> pool,
-            Instant expiresAt, MissionPool poolType, Random rng, Set<UUID> excludeCategories,
-            MissionPoolCache cache, MissionBand forcedBand) {
+    public UserMission pickAndBuild(MissionDraw draw, List<MissionTemplate> pool, Set<UUID> excludeCategories) {
         if (pool.isEmpty()) {
-            log.warn("Mission template pool empty pool={} forcedBand={}", poolType, forcedBand);
+            log.warn("Mission template pool empty pool={} forcedBand={}", draw.pool(), draw.forcedBand());
             return null;
         }
         Set<UUID> triedTemplateIds = new HashSet<>();
         List<String> attempts = log.isDebugEnabled() ? new ArrayList<>() : null;
         while (triedTemplateIds.size() < pool.size()) {
-            MissionTemplate template = weightedPickExcluding(pool, rng, triedTemplateIds);
+            MissionTemplate template = weightedPickExcluding(pool, draw.rng(), triedTemplateIds);
             if (template == null)
                 break;
             triedTemplateIds.add(template.getId());
-            Category category = pickCategoryForType(ctx, template, rng, excludeCategories);
+            Category category = pickCategoryForType(draw.ctx(), template, draw.rng(), excludeCategories);
             LAST_FAIL_REASON.remove();
-            UserMission built = buildMission(ctx, template, category, expiresAt, poolType, rng, cache, forcedBand);
+            UserMission built = buildMission(draw, template, category);
             if (built != null)
                 return built;
             if (attempts != null) {
@@ -83,17 +81,17 @@ public class MissionBuilderService {
         }
         if (log.isDebugEnabled()) {
             log.debug("Mission slot empty user={} pool={} forcedBand={} reason=all-templates-exhausted attempts={}",
-                    ctx.userId(), poolType, forcedBand, attempts);
+                    draw.ctx().userId(), draw.pool(), draw.forcedBand(), attempts);
         }
         return null;
     }
 
-    public UserMission pickAndBuildForCategory(MissionAssignmentContext ctx, List<MissionTemplate> pool,
-            Category category, Instant expiresAt, MissionPool poolType, Random rng, MissionPoolCache cache,
-            MissionBand forcedBand, Set<UUID> excludeTemplateIds) {
+    public UserMission pickAndBuildForCategory(MissionDraw draw, List<MissionTemplate> pool, Category category,
+            Set<UUID> excludeTemplateIds) {
+        MissionBand forcedBand = draw.forcedBand();
         if (pool.isEmpty()) {
             log.warn("Mission template pool empty pool={} category={} forcedBand={}",
-                    poolType, category.getCode(), forcedBand);
+                    draw.pool(), category.getCode(), forcedBand);
             return null;
         }
         List<MissionTemplate> shuffled = pool.stream()
@@ -108,11 +106,11 @@ public class MissionBuilderService {
                 .collect(Collectors.toCollection(ArrayList::new));
         if (shuffled.isEmpty())
             shuffled = new ArrayList<>(pool);
-        Collections.shuffle(shuffled, rng);
+        Collections.shuffle(shuffled, draw.rng());
         List<String> tried = log.isDebugEnabled() ? new ArrayList<>() : null;
         for (MissionTemplate template : shuffled) {
             LAST_FAIL_REASON.remove();
-            UserMission built = buildMission(ctx, template, category, expiresAt, poolType, rng, cache, forcedBand);
+            UserMission built = buildMission(draw, template, category);
             if (built != null)
                 return built;
             if (tried != null) {
@@ -122,17 +120,21 @@ public class MissionBuilderService {
         if (log.isDebugEnabled()) {
             log.debug(
                     "Mission slot empty user={} pool={} category={} forcedBand={} reason=all-templates-exhausted attempts={}",
-                    ctx.userId(), poolType, category.getCode(), forcedBand, tried);
+                    draw.ctx().userId(), draw.pool(), category.getCode(), forcedBand, tried);
         }
         return null;
     }
 
-    private UserMission buildMission(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, Random rng, MissionPoolCache cache, MissionBand forcedBand) {
+    private UserMission buildMission(MissionDraw draw, MissionTemplate template, Category category) {
         if (category == null && !typeAllowsNullCategory(template.getType()))
             return failBuild("no-category-for-type");
-        MissionBand band = forcedBand != null ? forcedBand : pickBand(rng);
-        boolean bandForced = forcedBand != null;
+        MissionAssignmentContext ctx = draw.ctx();
+        Instant expiresAt = draw.expiresAt();
+        MissionPool pool = draw.pool();
+        Random rng = draw.rng();
+        MissionPoolCache cache = draw.cache();
+        MissionBand band = draw.forcedBand() != null ? draw.forcedBand() : pickBand(rng);
+        boolean bandForced = draw.forcedBand() != null;
         return switch (template.getType()) {
             case PLAY_N_MAPS -> buildPlayNMaps(ctx, template, category, expiresAt, pool, band, rng, cache);
             case XP_IN_WINDOW -> buildXpInWindow(ctx, template, category, expiresAt, pool, band, rng, cache);

@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
@@ -60,14 +59,7 @@ public class CrateController {
     public ResponseEntity<CrateOpenResponse> open(
             @PathVariable UUID linkId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long me = requirePrincipal(principal).getUserId();
+        Long me = PlayerUserDetails.require(principal).getUserId();
         return ResponseEntity.ok(ItemMapper.toCrateOpenResponse(crateService.openCrate(me, linkId)));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

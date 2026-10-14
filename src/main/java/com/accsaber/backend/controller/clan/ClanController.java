@@ -110,7 +110,7 @@ public class ClanController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @Valid @RequestBody UpdateClanPacifismRequest request) {
-        return ResponseEntity.ok(clanService.setPacifism(clanId, principal.getUserId(), request.getEnabled()));
+        return ResponseEntity.ok(clanService.setPacifism(clanId, principal.getUserId(), request.enabled()));
     }
 
     @Operation(summary = "Remove the clan icon", description = "Founder only.")

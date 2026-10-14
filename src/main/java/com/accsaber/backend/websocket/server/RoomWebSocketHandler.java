@@ -19,10 +19,19 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
 
     private static final String ATTR_ROOM_KEY = "roomKey";
     private static final int SEND_TIME_LIMIT = 5_000;
-    private static final int BUFFER_SIZE_LIMIT = 32 * 1024;
+    private static final int DEFAULT_BUFFER_SIZE_LIMIT = 32 * 1024;
 
     private final Logger log = LoggerFactory.getLogger(getClass());
     private final Map<K, Set<WebSocketSession>> rooms = new ConcurrentHashMap<>();
+    private final int bufferSizeLimit;
+
+    protected RoomWebSocketHandler() {
+        this(DEFAULT_BUFFER_SIZE_LIMIT);
+    }
+
+    protected RoomWebSocketHandler(int bufferSizeLimit) {
+        this.bufferSizeLimit = bufferSizeLimit;
+    }
 
     protected abstract K resolveRoomKey(WebSocketSession session);
 
@@ -35,7 +44,7 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
         }
         session.getAttributes().put(ATTR_ROOM_KEY, key);
         WebSocketSession decorated = new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT,
-                BUFFER_SIZE_LIMIT);
+                bufferSizeLimit);
         AtomicBoolean opened = new AtomicBoolean();
         rooms.compute(key, (k, room) -> {
             Set<WebSocketSession> target = room == null ? ConcurrentHashMap.newKeySet() : room;
@@ -46,12 +55,19 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
         if (opened.get()) {
             onRoomOpened(key);
         }
+        onSessionJoined(key, decorated);
     }
 
     protected void onRoomOpened(K key) {
     }
 
     protected void onRoomEmptied(K key) {
+    }
+
+    protected void onSessionJoined(K key, WebSocketSession session) {
+    }
+
+    protected void onSessionLeft(K key, WebSocketSession session) {
     }
 
     @Override
@@ -68,6 +84,11 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
     protected boolean hasSessions(K key) {
         Set<WebSocketSession> room = rooms.get(key);
         return room != null && !room.isEmpty();
+    }
+
+    protected Set<WebSocketSession> sessions(K key) {
+        Set<WebSocketSession> room = rooms.get(key);
+        return room == null ? Set.of() : room;
     }
 
     protected void closeWhere(K key, Predicate<WebSocketSession> predicate) {
@@ -88,12 +109,19 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
     }
 
     public void broadcast(K key, String json) {
+        broadcast(key, json, null);
+    }
+
+    protected void broadcast(K key, String json, WebSocketSession exclude) {
         Set<WebSocketSession> room = rooms.get(key);
         if (room == null || room.isEmpty()) {
             return;
         }
         TextMessage message = new TextMessage(json);
         for (WebSocketSession session : room) {
+            if (exclude != null && session.getId().equals(exclude.getId())) {
+                continue;
+            }
             try {
                 if (session.isOpen()) {
                     session.sendMessage(message);
@@ -111,12 +139,17 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
         if (key == null) {
             return;
         }
+        AtomicBoolean present = new AtomicBoolean();
         AtomicBoolean emptied = new AtomicBoolean();
         rooms.computeIfPresent(key, (k, room) -> {
+            present.set(true);
             room.removeIf(s -> s.getId().equals(session.getId()));
             emptied.set(room.isEmpty());
             return room.isEmpty() ? null : room;
         });
+        if (present.get()) {
+            onSessionLeft(key, session);
+        }
         if (emptied.get()) {
             onRoomEmptied(key);
         }

@@ -1,6 +1,8 @@
 package com.accsaber.backend.service.map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,23 +28,36 @@ class MapZipCacheTest {
     @TempDir
     Path directory;
 
+    private static final String HASH = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
+
     @Test
     void downloadsOnceAndServesTheDiskCopyAfterwards() {
-        when(beatSaverClient.downloadMapZip("ABC")).thenReturn(Optional.of(new byte[] { 1, 2, 3 }));
+        when(beatSaverClient.downloadMapZip(HASH)).thenReturn(Optional.of(new byte[] { 1, 2, 3 }));
         MapZipCache cache = new MapZipCache(beatSaverClient, directory.resolve("zips").toString());
 
-        assertThat(cache.get("ABC")).contains(new byte[] { 1, 2, 3 });
-        assertThat(cache.get("abc")).contains(new byte[] { 1, 2, 3 });
-        assertThat(Files.exists(directory.resolve("zips").resolve("abc.zip"))).isTrue();
-        verify(beatSaverClient, times(1)).downloadMapZip("ABC");
+        assertThat(cache.get(HASH)).contains(new byte[] { 1, 2, 3 });
+        assertThat(cache.get(HASH.toLowerCase())).contains(new byte[] { 1, 2, 3 });
+        assertThat(Files.exists(directory.resolve("zips").resolve(HASH.toLowerCase() + ".zip"))).isTrue();
+        verify(beatSaverClient, times(1)).downloadMapZip(HASH);
+    }
+
+    @Test
+    void anythingButASongHashIsRefusedBeforeTouchingTheDisk() {
+        MapZipCache cache = new MapZipCache(beatSaverClient, directory.toString());
+
+        assertThat(cache.get("../../etc/passwd")).isEmpty();
+        assertThat(cache.get("abc")).isEmpty();
+        verify(beatSaverClient, never()).downloadMapZip(any());
+        assertThat(directory.toFile().list()).isEmpty();
     }
 
     @Test
     void failedDownloadsLeaveNothingBehind() {
-        when(beatSaverClient.downloadMapZip("missing")).thenReturn(Optional.empty());
+        String missing = "0000000000000000000000000000000000000000";
+        when(beatSaverClient.downloadMapZip(missing)).thenReturn(Optional.empty());
         MapZipCache cache = new MapZipCache(beatSaverClient, directory.toString());
 
-        assertThat(cache.get("missing")).isEmpty();
+        assertThat(cache.get(missing)).isEmpty();
         assertThat(cache.get("")).isEmpty();
         assertThat(directory.toFile().list()).isEmpty();
     }

@@ -19,7 +19,6 @@ import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.UnusualEffectResponse;
-import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.service.item.CrateService;
 import com.accsaber.backend.service.item.ItemMapper;
 
@@ -59,9 +58,7 @@ public class AdminCrateController {
             @PathVariable UUID crateItemId,
             @PathVariable UUID rewardItemId,
             @Valid @RequestBody UpsertCrateContentRequest req) {
-        CrateContent saved = crateService.upsertContent(crateItemId, rewardItemId, req.getDropWeight());
-        long total = crateService.listContents(crateItemId).stream().mapToLong(CrateContent::getDropWeight).sum();
-        return ResponseEntity.ok(ItemMapper.toCrateContentResponse(saved, total));
+        return ResponseEntity.ok(crateService.upsertContent(crateItemId, rewardItemId, req.dropWeight()));
     }
 
     @Operation(summary = "Remove a crate reward")
@@ -80,7 +77,7 @@ public class AdminCrateController {
             @PathVariable UUID modifierId,
             @Valid @RequestBody UpsertCrateModifierRequest req) {
         return ResponseEntity.ok(ItemMapper.toCrateModifierResponse(
-                crateService.upsertModifier(crateItemId, modifierId, req.getDropChance())));
+                crateService.upsertModifier(crateItemId, modifierId, req.dropChance())));
     }
 
     @Operation(summary = "Detach a crate modifier")

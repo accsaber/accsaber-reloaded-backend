@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.clan.Clan;
 
 import jakarta.persistence.LockModeType;
@@ -17,6 +18,10 @@ import jakarta.persistence.LockModeType;
 public interface ClanRepository extends JpaRepository<Clan, UUID> {
 
     Optional<Clan> findByIdAndActiveTrue(UUID id);
+
+    default Clan requireActive(UUID id) {
+        return findByIdAndActiveTrue(id).orElseThrow(() -> new ResourceNotFoundException("Clan", id));
+    }
 
     Optional<Clan> findBySlugAndActiveTrue(String slug);
 

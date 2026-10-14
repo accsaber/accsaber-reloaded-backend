@@ -79,6 +79,7 @@ class ClanLevelServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         levelService = new ClanLevelService(playerLevelService, clanRepository, memberRepository, grantRepository,
                 clanItemRepository, capacityRepository, warModeRepository, levelItemRepository, itemRepository,
                 clanProperties, seasonRepository);

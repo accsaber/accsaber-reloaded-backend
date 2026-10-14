@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.TooManyRequestsException;
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.score.PluginSubmitRequest;
 import com.accsaber.backend.model.dto.request.score.SubmitScoreRequest;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
@@ -46,9 +45,7 @@ public class SubmitController {
     public ResponseEntity<ScoreResponse> submit(
             @Valid @RequestBody PluginSubmitRequest body,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
+        PlayerUserDetails.require(principal);
         if (JwtService.SCOPE_WEB.equals(principal.getTokenScope())) {
             throw new ForbiddenException(
                     "Score submission requires a game session; website tokens cannot submit scores");
@@ -81,7 +78,8 @@ public class SubmitController {
         req.setPauses(body.getPauses());
         req.setStreak115(body.getStreak115());
         req.setHmd(body.getHmd());
-        req.setTimeSet(body.getTimeSet() != null ? body.getTimeSet() : Instant.now());
+        Instant now = Instant.now();
+        req.setTimeSet(body.getTimeSet() == null || body.getTimeSet().isAfter(now) ? now : body.getTimeSet());
         req.setModifierIds(resolveModifierIds(body.getModifierCodes()));
         req.setPartial(body.isPartial());
         return req;

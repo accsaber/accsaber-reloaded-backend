@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.quest.QuestReleaseResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.quest.QuestModService;
@@ -42,10 +41,7 @@ public class QuestModController {
     public ResponseEntity<byte[]> download(
             @RequestParam(required = false) String tag,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        GeneratedMod mod = questModService.generate(principal.getUserId(), tag);
+        GeneratedMod mod = questModService.generate(PlayerUserDetails.require(principal).getUserId(), tag);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + mod.fileName() + "\"")
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")

@@ -82,8 +82,4 @@ public class XPCalculationService {
     public int getBaseXpPerScore() {
         return baseXpPerScore;
     }
-
-    public int getMaxBonusXpPerScore() {
-        return maxBonusXpPerScore;
-    }
 }

@@ -1,6 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-public enum CampaignTagKind {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum CampaignTagKind implements DbEnum {
     CATEGORY("category"),
     DIFFICULTY("difficulty"),
     THEME("theme"),
@@ -8,19 +15,7 @@ public enum CampaignTagKind {
 
     private final String dbValue;
 
-    CampaignTagKind(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static CampaignTagKind fromDbValue(String value) {
-        for (CampaignTagKind k : values()) {
-            if (k.dbValue.equals(value))
-                return k;
-        }
-        throw new IllegalArgumentException("Unknown campaign tag kind: " + value);
+        return DbEnum.fromDbValue(values(), value, "campaign tag kind");
     }
 }

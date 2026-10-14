@@ -8,9 +8,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
 import com.accsaber.backend.model.entity.notification.NotificationType;
@@ -22,7 +24,9 @@ import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.notification.NotificationService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MarketSettlementService {
@@ -43,6 +47,11 @@ public class MarketSettlementService {
         if (listing == null || listing.getStatus() != MarketListingStatus.active) {
             return true;
         }
+        if (!escrowIntact(listing)) {
+            log.warn("Market listing {} lost its escrowed item, cancelling it", listing.getId());
+            close(listing, MarketListingStatus.cancelled);
+            return true;
+        }
         if (listing.getCurrentBidder() == null) {
             close(listing, MarketListingStatus.expired);
         } else {
@@ -59,6 +68,9 @@ public class MarketSettlementService {
 
     @Transactional
     public void award(MarketListing listing, User winner, long price) {
+        if (!escrowIntact(listing)) {
+            throw new ConflictException("This listing's item is no longer available");
+        }
         essenceLedgerService.settleReserved(winner.getId(), listing.getSeller().getId(), price,
                 EssenceReason.purchase, EssenceReason.sale, listing.getId());
         itemTransferService.transferEscrowed(listing.getUserItemLink(), winner.getId(),
@@ -85,11 +97,18 @@ public class MarketSettlementService {
             listing.setCurrentBid(null);
             listing.setCurrentBidder(null);
         }
-        itemTransferService.releaseEscrow(listing.getUserItemLink());
+        if (escrowIntact(listing)) {
+            itemTransferService.releaseEscrow(listing.getUserItemLink());
+        }
         listing.setStatus(status);
         listing.setSettledAt(Instant.now());
         listingRepository.save(listing);
         publish(listing, status.name(), null);
+    }
+
+    private static boolean escrowIntact(MarketListing listing) {
+        UserItemLink link = listing.getUserItemLink();
+        return link != null && link.isEscrowed() && link.getUser().getId().equals(listing.getSeller().getId());
     }
 
     private void publish(MarketListing listing, String type, Long amount) {

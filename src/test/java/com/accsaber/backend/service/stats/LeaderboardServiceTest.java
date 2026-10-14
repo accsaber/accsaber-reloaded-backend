@@ -84,7 +84,7 @@ class LeaderboardServiceTest {
                         when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), eq(true), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-                        leaderboardService.getBoard(category.getId(), null, null, null, true, pageable);
+                        leaderboardService.getBoard(category.getId(), null, null, null, true, null, pageable);
 
                         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
                         verify(statisticsRepository).findActiveByCategoryPaged(eq(category.getId()), eq(true), any(),
@@ -98,7 +98,7 @@ class LeaderboardServiceTest {
                         when(categoryRepository.findByIdAndActiveTrue(unknownId)).thenReturn(Optional.empty());
 
                         assertThatThrownBy(
-                                        () -> leaderboardService.getBoard(unknownId, null, null, null, true,
+                                        () -> leaderboardService.getBoard(unknownId, null, null, null, true, null,
                                                         PageRequest.of(0, 20)))
                                         .isInstanceOf(ResourceNotFoundException.class);
                 }
@@ -116,7 +116,7 @@ class LeaderboardServiceTest {
                                         eq(category.getId()), eq("US"), eq(true), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-                        leaderboardService.getBoard(category.getId(), "US", null, null, true, pageable);
+                        leaderboardService.getBoard(category.getId(), "US", null, null, true, null, pageable);
 
                         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
                         verify(statisticsRepository).findActiveByCategoryAndCountryPaged(eq(category.getId()), eq("US"),
@@ -132,7 +132,7 @@ class LeaderboardServiceTest {
                         when(statisticsRepository.findActiveByCategoryPaged(eq(category.getId()), eq(true), any(), any()))
                                         .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-                        leaderboardService.getBoard(category.getId(), "  ", null, null, true, pageable);
+                        leaderboardService.getBoard(category.getId(), "  ", null, null, true, null, pageable);
 
                         verify(statisticsRepository).findActiveByCategoryPaged(eq(category.getId()), eq(true), any(),
                                         any());

@@ -1,6 +1,5 @@
 package com.accsaber.backend.service.stats;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -31,14 +30,18 @@ public class StatsQueryRunner {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    public static String countryExists(String userIdColumn, String country, Map<String, Object> params) {
+    public static String countryClause(String countryColumn, String country, Map<String, Object> params) {
         String normalized = normalizeCountry(country);
         if (normalized == null) {
             return "";
         }
         params.put("country", normalized);
-        return " AND EXISTS (SELECT 1 FROM users cu WHERE cu.id = " + userIdColumn
-                + " AND LOWER(cu.country) = LOWER(:country))";
+        return " AND LOWER(" + countryColumn + ") = LOWER(:country)";
+    }
+
+    public static String countryExists(String userIdColumn, String country, Map<String, Object> params) {
+        String clause = countryClause("cu.country", country, params);
+        return clause.isEmpty() ? "" : " AND EXISTS (SELECT 1 FROM users cu WHERE cu.id = " + userIdColumn + clause + ")";
     }
 
     public static long num(Object value) {
@@ -79,14 +82,6 @@ public class StatsQueryRunner {
         params.forEach(query::setParameter);
         List<Object[]> rows = query.getResultList();
         return rows.stream().map(mapper).toList();
-    }
-
-    public List<TimeSeriesPointResponse> timeSeries(String sql, Instant since, String country) {
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("since", since);
-        if (country != null && sql.contains(":country"))
-            query.setParameter("country", country);
-        return mapTimeSeries(query);
     }
 
     public List<TimeSeriesPointResponse> timeSeries(String sql, Map<String, Object> params) {

@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class BarrierConditionTypeConverter implements AttributeConverter<BarrierConditionType, String> {
+public class BarrierConditionTypeConverter extends DbEnumConverter<BarrierConditionType> {
 
-    @Override
-    public String convertToDatabaseColumn(BarrierConditionType type) {
-        if (type == null)
-            return null;
-        return type.name();
-    }
-
-    @Override
-    public BarrierConditionType convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return BarrierConditionType.valueOf(value);
+    public BarrierConditionTypeConverter() {
+        super(Enum::name, BarrierConditionType::valueOf);
     }
 }

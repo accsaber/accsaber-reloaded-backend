@@ -29,14 +29,6 @@ public class ComplexityEstimateRefreshScheduler {
 
     @Scheduled(fixedDelayString = "${accsaber.complexity.model-check-interval-ms:300000}", initialDelay = 120_000)
     public void refreshWhenTheModelChanged() {
-        try {
-            check();
-        } catch (Exception e) {
-            log.error("Complexity model check failed: {}", e.getMessage(), e);
-        }
-    }
-
-    void check() {
         if (jobRegistry.isRunning(JobType.REFRESH_COMPLEXITY_ESTIMATES)) {
             return;
         }

@@ -44,13 +44,8 @@ public class LeaderboardService {
     private final LevelService levelService;
     private final SupporterService supporterService;
 
-    @Cacheable(value = "leaderboards", key = "'board:' + #categoryId + ':' + #country + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()")
+    @Cacheable(value = "leaderboards", key = "'board:' + #categoryId + ':' + #country + ':' + #search + ':' + #hmd + ':' + #includeInactive + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()", condition = "#userIdFilter == null")
     public Page<LeaderboardResponse> getBoard(UUID categoryId, String country, String search, String hmd,
-            boolean includeInactive, Pageable pageable) {
-        return getBoardFiltered(categoryId, country, search, hmd, includeInactive, null, pageable);
-    }
-
-    public Page<LeaderboardResponse> getBoardFiltered(UUID categoryId, String country, String search, String hmd,
             boolean includeInactive, Collection<Long> userIdFilter, Pageable pageable) {
         verifyCategory(categoryId);
         if (userIdFilter != null && userIdFilter.isEmpty()) {
@@ -83,11 +78,6 @@ public class LeaderboardService {
     }
 
     public Page<XpLeaderboardResponse> getXpLeaderboard(String country, String search, String hmd,
-            boolean includeInactive, Pageable pageable) {
-        return getXpLeaderboardFiltered(country, search, hmd, includeInactive, null, pageable);
-    }
-
-    public Page<XpLeaderboardResponse> getXpLeaderboardFiltered(String country, String search, String hmd,
             boolean includeInactive, Collection<Long> userIdFilter, Pageable pageable) {
         if (userIdFilter != null && userIdFilter.isEmpty()) {
             return Page.empty(pageable);

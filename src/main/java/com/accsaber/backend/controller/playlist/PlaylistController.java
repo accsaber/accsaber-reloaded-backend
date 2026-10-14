@@ -5,14 +5,8 @@ import java.util.Optional;
 
 import java.util.UUID;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.entity.campaign.Campaign;
-import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.score.SnipeSort;
 import com.accsaber.backend.model.entity.score.SnipeUnplayed;
-import com.accsaber.backend.repository.campaign.CampaignRepository;
-import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,6 +22,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.playlist.PlaylistService;
+import com.accsaber.backend.service.playlist.PlaylistService.PlaylistFile;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
 import com.accsaber.backend.service.snipe.SnipeService;
@@ -43,10 +38,10 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Playlists")
 public class PlaylistController {
 
+        private static final String NO_STORE = "no-store";
+
         private final PlaylistService playlistService;
         private final CategoryService categoryService;
-        private final BatchRepository batchRepository;
-        private final CampaignRepository campaignRepository;
         private final SnipeService snipeService;
         private final ClanWarPoolService clanWarPoolService;
 
@@ -55,7 +50,8 @@ public class PlaylistController {
         @GetMapping(value = "/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getPlaylistByPath(
                         @Parameter(description = "Category code, like true_acc") @PathVariable String category) {
-                return buildPlaylistResponse(category);
+                return bplist(playlistService.generatePlaylist(category, syncUrl("/v1/playlists/{category}", category)),
+                                "accsaber-reloaded-" + category.replace("_", "-") + ".bplist", null);
         }
 
         @Operation(summary = "Unplayed ranked maps", description = "Pass overall for every category.")
@@ -63,14 +59,19 @@ public class PlaylistController {
         public ResponseEntity<Map<String, Object>> getMissingPlaylistByPath(
                         @Parameter(description = "Player user ID") @PathVariable Long userId,
                         @Parameter(description = "Category code or overall") @PathVariable String category) {
-                return buildMissingPlaylistResponse(category, userId);
+                return bplist(playlistService.generateMissingPlaylist(userId, category,
+                                syncUrl("/v1/playlists/missing/{userId}/{category}", userId, category)),
+                                "accsaber-reloaded-missing-" + userId + "-" + category.replace("_", "-") + ".bplist",
+                                "public, max-age=300");
         }
 
         @Operation(summary = "Queue and qualified maps")
         @GetMapping(value = "/unranked/{category}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getUnrankedPlaylistByPath(
                         @Parameter(description = "Category code, like true_acc") @PathVariable String category) {
-                return buildUnrankedPlaylistResponse(category);
+                return bplist(playlistService.generateUnrankedPlaylist(category,
+                                syncUrl("/v1/playlists/unranked/{category}", category)),
+                                "accsaber-reloaded-unranked-" + category.replace("_", "-") + ".bplist", null);
         }
 
         @Operation(summary = "Snipe playlist", description = "Maps where the target beats you, closest "
@@ -120,14 +121,18 @@ public class PlaylistController {
                         @Parameter(description = "Category UUID or code") @RequestParam(required = false) String categoryId,
                         @Parameter(description = "Song name search") @RequestParam(required = false) String search,
                         @PageableDefault(size = 25, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
-                return buildUserScoresPlaylistResponse(userId, categoryId, search, pageable);
+                String syncUrl = ServletUriComponentsBuilder.fromCurrentRequest().toUriString();
+                return bplist(playlistService.generateUserScoresPlaylist(
+                                userId, categoryService.resolveId(categoryId), search, pageable, syncUrl),
+                                "accsaber-scores-" + userId + ".bplist", NO_STORE);
         }
 
         @Operation(summary = "Batch playlist")
         @GetMapping(value = "/batch/{batchId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getBatchPlaylist(
                         @Parameter(description = "Batch ID") @PathVariable UUID batchId) {
-                return buildBatchPlaylistResponse(batchId);
+                return bplist(playlistService.generateBatchPlaylist(batchId,
+                                syncUrl("/v1/playlists/batch/{batchId}", batchId)), null);
         }
 
         @Operation(summary = "Clan war pool playlist", description = "Live once the pool locks.")
@@ -135,11 +140,8 @@ public class PlaylistController {
         public ResponseEntity<Map<String, Object>> getClanWarPlaylist(
                         @Parameter(description = "War ID") @PathVariable UUID warId) {
                 ClanWarPoolService.PlaylistSource source = clanWarPoolService.playlistSource(warId);
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/clan-war/{warId}")
-                                .buildAndExpand(warId)
-                                .toUriString();
-                return ResponseEntity.ok(playlistService.generateClanWarPlaylist(source, syncUrl));
+                return ResponseEntity.ok(playlistService.generateClanWarPlaylist(source,
+                                syncUrl("/v1/playlists/clan-war/{warId}", warId)));
         }
 
         @Operation(summary = "Campaign playlist", description = "The creator has to turn on playlist "
@@ -147,62 +149,8 @@ public class PlaylistController {
         @GetMapping(value = "/campaign/{campaignId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getCampaignPlaylist(
                         @Parameter(description = "Campaign ID") @PathVariable UUID campaignId) {
-                return buildCampaignPlaylistResponse(campaignId);
-        }
-
-        private ResponseEntity<Map<String, Object>> buildCampaignPlaylistResponse(UUID campaignId) {
-                Campaign campaign = campaignRepository.findByIdAndActiveTrue(campaignId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
-                if (!campaign.isPlaylistExportEnabled()) {
-                        throw new ValidationException("Playlist export is not enabled for this campaign");
-                }
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/campaign/{campaignId}")
-                                .buildAndExpand(campaignId)
-                                .toUriString();
-
-                Map<String, Object> playlist = playlistService.generateCampaignPlaylist(campaign, syncUrl);
-
-                String filename = "accsaber-campaign-" + campaign.getSlug() + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .header("Cache-Control", "no-store")
-                                .body(playlist);
-        }
-
-        private ResponseEntity<Map<String, Object>> buildUserScoresPlaylistResponse(Long userId, String categoryId,
-                        String search, Pageable pageable) {
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentRequest().toUriString();
-
-                Map<String, Object> playlist = playlistService.generateUserScoresPlaylist(
-                                userId, categoryService.resolveId(categoryId), search, pageable, syncUrl);
-
-                String filename = "accsaber-scores-" + userId + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .header("Cache-Control", "no-store")
-                                .body(playlist);
-        }
-
-        private ResponseEntity<Map<String, Object>> buildBatchPlaylistResponse(UUID batchId) {
-                Batch batch = batchRepository.findById(batchId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/batch/{batchId}")
-                                .buildAndExpand(batchId)
-                                .toUriString();
-
-                Map<String, Object> playlist = playlistService.generateBatchPlaylist(batch, syncUrl);
-
-                String filename = "accsaber-reloaded-"
-                                + batch.getName().toLowerCase().replace(" ", "-").replace("_", "-")
-                                + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .body(playlist);
+                return bplist(playlistService.generateCampaignPlaylist(campaignId,
+                                syncUrl("/v1/playlists/campaign/{campaignId}", campaignId)), NO_STORE);
         }
 
         private ResponseEntity<Map<String, Object>> buildSnipePlaylistResponse(SnipeQuery query, int size) {
@@ -227,56 +175,28 @@ public class PlaylistController {
                 String filenameSuffix = categoryParam.map(c -> "-" + c.replace("_", "-")).orElse("")
                                 + (query.isDefaultOrder() ? "" : "-" + query.orderSlug())
                                 + (query.unplayed().isDefault() ? "" : "-" + query.unplayed().getSlug());
-                String filename = "accsaber-snipe-" + query.sniperId() + "-" + query.targetId() + filenameSuffix
-                                + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .header("Cache-Control", "no-store")
-                                .body(playlist);
+                return bplist(playlist, "accsaber-snipe-" + query.sniperId() + "-" + query.targetId() + filenameSuffix
+                                + ".bplist", NO_STORE);
         }
 
-        private ResponseEntity<Map<String, Object>> buildMissingPlaylistResponse(String category, Long userId) {
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/missing/{userId}/{category}")
-                                .buildAndExpand(userId, category)
+        private static String syncUrl(String path, Object... uriVariables) {
+                return ServletUriComponentsBuilder.fromCurrentContextPath()
+                                .path(path)
+                                .buildAndExpand(uriVariables)
                                 .toUriString();
-                Map<String, Object> playlist = playlistService.generateMissingPlaylist(userId, category, syncUrl);
-
-                String filename = "accsaber-reloaded-missing-" + userId + "-"
-                                + category.replace("_", "-") + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .header("Cache-Control", "public, max-age=300")
-                                .body(playlist);
         }
 
-        private ResponseEntity<Map<String, Object>> buildPlaylistResponse(String category) {
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/{category}")
-                                .buildAndExpand(category)
-                                .toUriString();
-                Map<String, Object> playlist = playlistService.generatePlaylist(category, syncUrl);
-
-                String filename = "accsaber-reloaded-" + category.replace("_", "-") + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .body(playlist);
+        private static ResponseEntity<Map<String, Object>> bplist(PlaylistFile file, String cacheControl) {
+                return bplist(file.playlist(), file.filename(), cacheControl);
         }
 
-        private ResponseEntity<Map<String, Object>> buildUnrankedPlaylistResponse(String category) {
-                String syncUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                                .path("/v1/playlists/unranked/{category}")
-                                .buildAndExpand(category)
-                                .toUriString();
-                Map<String, Object> playlist = playlistService.generateUnrankedPlaylist(category, syncUrl);
-
-                String filename = "accsaber-reloaded-unranked-" + category.replace("_", "-") + ".bplist";
-
-                return ResponseEntity.ok()
-                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
-                                .body(playlist);
+        private static ResponseEntity<Map<String, Object>> bplist(Map<String, Object> body, String filename,
+                        String cacheControl) {
+                ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+                if (cacheControl != null) {
+                        response.header("Cache-Control", cacheControl);
+                }
+                return response.body(body);
         }
 }

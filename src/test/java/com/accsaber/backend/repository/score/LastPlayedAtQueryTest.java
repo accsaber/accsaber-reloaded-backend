@@ -123,7 +123,7 @@ class LastPlayedAtQueryTest {
     }
 
     private List<UUID> orderedBy(Sort sort) {
-        return scoreRepository.findActiveByUser(PLAYER_ID, PageRequest.of(0, 20, sort))
+        return scoreRepository.findActiveByUsers(List.of(PLAYER_ID), null, null, PageRequest.of(0, 20, sort))
                 .getContent().stream()
                 .map(s -> s.getMapDifficulty().getId())
                 .toList();

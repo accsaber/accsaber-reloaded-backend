@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
@@ -26,6 +27,7 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.RequiredArgsConstructor;
@@ -64,6 +66,16 @@ public class UserRelationService {
         withSelf.add(userId);
         withSelf.addAll(targets);
         return withSelf;
+    }
+
+    public List<Long> resolveRelationFilter(UserRelationType relation, PlayerUserDetails principal) {
+        if (relation == null) {
+            return null;
+        }
+        if (principal == null) {
+            throw new UnauthorizedException("Player authentication required to filter by relation");
+        }
+        return findRelationFilterUserIds(principal.getUserId(), relation);
     }
 
     public UserRelationCounts countsFor(Long userId, boolean isSelf) {

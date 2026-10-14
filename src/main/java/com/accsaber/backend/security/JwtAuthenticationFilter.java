@@ -2,6 +2,8 @@ package com.accsaber.backend.security;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -64,7 +66,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain chain) throws ServletException, IOException {
 
         String serviceToken = request.getHeader("X-Service-Token");
-        if (serviceToken != null && serviceToken.equals(serviceApiKey)) {
+        if (serviceToken != null && !serviceApiKey.isBlank() && MessageDigest.isEqual(
+                serviceToken.getBytes(StandardCharsets.UTF_8), serviceApiKey.getBytes(StandardCharsets.UTF_8))) {
             SecurityContextHolder.getContext().setAuthentication(new ServiceAuthentication());
             chain.doFilter(request, response);
             return;

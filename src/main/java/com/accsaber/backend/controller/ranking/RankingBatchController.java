@@ -52,10 +52,7 @@ public class RankingBatchController {
             @RequestParam(required = false) BatchStatus status,
             @RequestParam(required = false) String search,
             Pageable pageable) {
-        Page<BatchResponse> result = status != null
-                ? batchService.findByStatus(status, search, pageable)
-                : batchService.findAll(search, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(batchService.findAll(status, search, pageable));
     }
 
     @Operation(summary = "Get a batch")
@@ -119,7 +116,7 @@ public class RankingBatchController {
             @PathVariable UUID id,
             @Valid @RequestBody BatchReweightRequest request,
             Authentication authentication) {
-        return ResponseEntity.ok(reweightService.reweightBatch(id, request.getItems(),
+        return ResponseEntity.ok(reweightService.reweightBatch(id, request.items(),
                 StaffPrincipals.linkedUserIdOf(authentication),
                 StaffPrincipals.staffIdOf(authentication)));
     }

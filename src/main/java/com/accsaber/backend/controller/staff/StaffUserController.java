@@ -73,7 +73,7 @@ public class StaffUserController {
     public ResponseEntity<StaffUserResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStaffRoleRequest request) {
-        return ResponseEntity.ok(staffUserService.updateRole(id, request.getRole()));
+        return ResponseEntity.ok(staffUserService.updateRole(id, request.role()));
     }
 
     @Operation(summary = "Set staff status")
@@ -81,7 +81,7 @@ public class StaffUserController {
     public ResponseEntity<StaffUserResponse> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStaffStatusRequest request) {
-        return ResponseEntity.ok(staffUserService.updateStatus(id, request.getStatus()));
+        return ResponseEntity.ok(staffUserService.updateStatus(id, request.status()));
     }
 
     @Operation(summary = "Link a player to staff")
@@ -89,7 +89,7 @@ public class StaffUserController {
     public ResponseEntity<StaffUserResponse> linkUser(
             @PathVariable UUID id,
             @Valid @RequestBody LinkUserRequest request) {
-        return ResponseEntity.ok(staffUserService.linkUser(id, request.getUserId()));
+        return ResponseEntity.ok(staffUserService.linkUser(id, request.userId()));
     }
 
     @Operation(summary = "Reset a staff password")
@@ -97,7 +97,7 @@ public class StaffUserController {
     public ResponseEntity<Void> forceChangePassword(
             @PathVariable UUID id,
             @Valid @RequestBody ForceChangePasswordRequest request) {
-        staffUserService.forceChangePassword(id, request.getNewPassword());
+        staffUserService.forceChangePassword(id, request.newPassword());
         return ResponseEntity.noContent().build();
     }
 

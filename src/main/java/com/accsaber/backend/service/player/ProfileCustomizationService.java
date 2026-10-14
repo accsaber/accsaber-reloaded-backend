@@ -12,6 +12,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.user.PinnedMilestoneEntry;
 import com.accsaber.backend.model.dto.request.user.PinnedScoreEntry;
+import com.accsaber.backend.model.dto.request.user.ProfileUpdateRequest;
 import com.accsaber.backend.model.entity.milestone.Milestone;
 import com.accsaber.backend.model.entity.milestone.UserMilestoneLink;
 import com.accsaber.backend.model.entity.score.Score;
@@ -57,6 +58,22 @@ public class ProfileCustomizationService {
     private final RichTextSanitizer richTextSanitizer;
     private final SupporterService supporterService;
     private final CdnSyncService cdnSyncService;
+
+    @Transactional
+    public void updateProfile(Long userId, ProfileUpdateRequest request) {
+        if (request.getName() != null) {
+            updateName(userId, request.getName());
+        }
+        if (request.getBio() != null) {
+            updateBio(userId, request.getBio());
+        }
+        if (request.getPinnedScores() != null) {
+            updatePinnedScores(userId, request.getPinnedScores());
+        }
+        if (request.getPinnedMilestones() != null) {
+            updatePinnedMilestones(userId, request.getPinnedMilestones());
+        }
+    }
 
     @Transactional
     public void updateName(Long userId, String newName) {

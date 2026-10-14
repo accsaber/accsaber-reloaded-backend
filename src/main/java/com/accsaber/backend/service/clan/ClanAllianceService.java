@@ -56,7 +56,7 @@ public class ClanAllianceService {
     private final ClanNotifier notifier;
 
     public Page<ClanAllianceResponse> list(UUID clanId, Pageable pageable) {
-        clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        clanRepository.requireActive(clanId);
         return toResponses(clanId, allianceRepository.findPageByClanIdAndStatus(clanId, ClanAllianceStatus.active,
                 pageable));
     }

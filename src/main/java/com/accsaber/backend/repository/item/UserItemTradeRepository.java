@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,9 +19,12 @@ import org.springframework.stereotype.Repository;
 import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 
+import jakarta.persistence.LockModeType;
+
 @Repository
 public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UUID> {
 
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
        @Query("""
                      SELECT t FROM UserItemTrade t
                      WHERE t.status = com.accsaber.backend.model.entity.item.TradeStatus.pending
@@ -32,6 +36,10 @@ public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UU
        @Override
        @EntityGraph(attributePaths = { "fromUser", "toUser" }, type = EntityGraph.EntityGraphType.LOAD)
        Optional<UserItemTrade> findById(UUID id);
+
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
+       @Query("SELECT t FROM UserItemTrade t WHERE t.id = :id")
+       Optional<UserItemTrade> findByIdForUpdate(@Param("id") UUID id);
 
        @EntityGraph(attributePaths = { "fromUser", "toUser" }, type = EntityGraph.EntityGraphType.LOAD)
        @Query("SELECT t FROM UserItemTrade t WHERE " +

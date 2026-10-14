@@ -3,13 +3,8 @@ package com.accsaber.backend.model.dto.request.clan;
 import java.util.UUID;
 
 import jakarta.validation.constraints.NotNull;
-import lombok.Data;
 
-@Data
-public class EquipClanItemRequest {
-
-    @NotNull
-    private UUID itemId;
-
-    private String variantKey;
+public record EquipClanItemRequest(
+        @NotNull UUID itemId,
+        String variantKey) {
 }

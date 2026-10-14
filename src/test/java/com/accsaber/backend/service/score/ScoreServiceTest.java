@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -614,7 +615,8 @@ class ScoreServiceTest {
                 void hydratesEveryAttemptAggregate_notTheActiveScoreValues() {
                         Score active = activeScoreWithStreak(3);
                         active.setTimeSet(Instant.parse("2026-01-01T00:00:00Z"));
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
+                        when(scoreRepository.findActiveByUsers(eq(List.of(activeUser.getId())), isNull(), isNull(),
+                                        any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of(active)));
                         when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
                                         List.of(activeUser.getId()), List.of(rankedDifficulty.getId())))
@@ -637,7 +639,8 @@ class ScoreServiceTest {
                 @Test
                 void fallsBackToTheRowPlayCountWhenNoAttemptCarriesOne() {
                         Score active = activeScoreWithStreak(3);
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
+                        when(scoreRepository.findActiveByUsers(eq(List.of(activeUser.getId())), isNull(), isNull(),
+                                        any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of(active)));
                         when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
                                         List.of(activeUser.getId()), List.of(rankedDifficulty.getId())))
@@ -653,7 +656,8 @@ class ScoreServiceTest {
                 @Test
                 void leavesMaxStreakNullWhenNoAttemptCarriesOne() {
                         Score active = activeScoreWithStreak(3);
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
+                        when(scoreRepository.findActiveByUsers(eq(List.of(activeUser.getId())), isNull(), isNull(),
+                                        any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of(active)));
                         when(scoreRepository.findAttemptAggregatesByUsersAndDifficulties(
                                         List.of(activeUser.getId()), List.of(rankedDifficulty.getId())))
@@ -680,14 +684,16 @@ class ScoreServiceTest {
                 @MethodSource("attemptAggregateSorts")
                 void sortTranslatesToAnAggregateOverEveryAttempt(Sort.Direction direction, String key,
                                 List<String> fragments) {
-                        when(scoreRepository.findActiveByUser(eq(activeUser.getId()), any(Pageable.class)))
+                        when(scoreRepository.findActiveByUsers(eq(List.of(activeUser.getId())), isNull(), isNull(),
+                                        any(Pageable.class)))
                                         .thenReturn(new PageImpl<>(List.of()));
 
                         scoreService.findByUser(activeUser.getId(), null, null,
                                         PageRequest.of(0, 20, Sort.by(direction, key)));
 
                         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-                        verify(scoreRepository).findActiveByUser(eq(activeUser.getId()), captor.capture());
+                        verify(scoreRepository).findActiveByUsers(eq(List.of(activeUser.getId())), isNull(), isNull(),
+                                        captor.capture());
                         String sort = captor.getValue().getSort().toString();
                         assertThat(sort).contains(fragments);
                         assertThat(sort).contains("s2.user = s.user");

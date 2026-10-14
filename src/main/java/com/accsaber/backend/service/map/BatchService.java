@@ -1,6 +1,8 @@
 package com.accsaber.backend.service.map;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +34,7 @@ import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.service.playlist.PlaylistService;
+import com.accsaber.backend.service.score.CampaignScoreGate;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 
@@ -49,42 +52,13 @@ public class BatchService {
     private final MapDifficultyStatisticsService statisticsService;
     private final ScoreImportService scoreImportService;
     private final ScoreIngestionService scoreIngestionService;
-    private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
+    private final CampaignScoreGate campaignScoreGate;
     private final MapService mapService;
     private final PlaylistService playlistService;
 
-    public Page<BatchResponse> findAll(String search, Pageable pageable) {
-        Pageable effective = resolveBatchSort(pageable);
-        boolean hasSearch = search != null && !search.isBlank();
-        boolean needsCountSort = hasDifficultyCountSort(pageable);
-        Page<Batch> batches;
-        if (needsCountSort && hasSearch) {
-            batches = batchRepository.findAllWithDifficultyCountAndSearch(search.trim(), effective);
-        } else if (needsCountSort) {
-            batches = batchRepository.findAllWithDifficultyCount(effective);
-        } else if (hasSearch) {
-            batches = batchRepository.findAllWithSearch(search.trim(), effective);
-        } else {
-            batches = batchRepository.findAll(effective);
-        }
-        return toResponsesWithDifficulties(batches);
-    }
-
-    public Page<BatchResponse> findByStatus(BatchStatus status, String search, Pageable pageable) {
-        Pageable effective = resolveBatchSort(pageable);
-        boolean hasSearch = search != null && !search.isBlank();
-        boolean needsCountSort = hasDifficultyCountSort(pageable);
-        Page<Batch> batches;
-        if (needsCountSort && hasSearch) {
-            batches = batchRepository.findByStatusWithDifficultyCountAndSearch(status, search.trim(), effective);
-        } else if (needsCountSort) {
-            batches = batchRepository.findByStatusWithDifficultyCount(status, effective);
-        } else if (hasSearch) {
-            batches = batchRepository.findByStatusWithSearch(status, search.trim(), effective);
-        } else {
-            batches = batchRepository.findByStatus(status, effective);
-        }
-        return toResponsesWithDifficulties(batches);
+    public Page<BatchResponse> findAll(BatchStatus status, String search, Pageable pageable) {
+        String term = search == null || search.isBlank() ? null : search.trim();
+        return toResponsesWithDifficulties(batchRepository.findFiltered(status, term, resolveBatchSort(pageable)));
     }
 
     public BatchResponse findById(UUID id) {
@@ -94,7 +68,7 @@ public class BatchService {
     }
 
     public Page<PublicBatchResponse> findAllPublic(String search, Pageable pageable) {
-        return findByStatus(BatchStatus.RELEASED, search, pageable).map(BatchService::toPublicResponse);
+        return findAll(BatchStatus.RELEASED, search, pageable).map(BatchService::toPublicResponse);
     }
 
     public PublicBatchResponse findByIdPublic(UUID id) {
@@ -230,11 +204,6 @@ public class BatchService {
         return toResponse(batch, enrich(difficulties));
     }
 
-    private static boolean hasDifficultyCountSort(Pageable pageable) {
-        return pageable.getSort().stream()
-                .anyMatch(order -> "difficultyCount".equals(order.getProperty()));
-    }
-
     private static Pageable resolveBatchSort(Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
             return pageable;
@@ -268,8 +237,8 @@ public class BatchService {
     }
 
     private Page<BatchResponse> toResponsesWithDifficulties(Page<Batch> batches) {
-        java.util.Map<UUID, List<MapDifficulty>> byBatch = new java.util.HashMap<>();
-        List<UUID> allDifficultyIds = new java.util.ArrayList<>();
+        Map<UUID, List<MapDifficulty>> byBatch = new HashMap<>();
+        List<UUID> allDifficultyIds = new ArrayList<>();
         for (Batch b : batches.getContent()) {
             List<MapDifficulty> diffs = mapDifficultyRepository.findByBatch_IdAndActiveTrue(b.getId());
             byBatch.put(b.getId(), diffs);
@@ -314,32 +283,8 @@ public class BatchService {
                 .build();
     }
 
-    private MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
+    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats) {
-        com.accsaber.backend.model.entity.map.Map map = d.getMap();
-        return MapDifficultyResponse.builder()
-                .id(d.getId())
-                .mapId(map.getId())
-                .songName(map.getSongName())
-                .songSubName(map.getSongSubName())
-                .songAuthor(map.getSongAuthor())
-                .mapAuthor(map.getMapAuthor())
-                .coverUrl(map.getCoverUrl())
-                .cdnCoverUrl(map.getCdnCoverUrl())
-                .beatsaverCode(map.getBeatsaverCode())
-                .categoryId(d.getCategory().getId())
-                .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
-                .difficulty(d.getDifficulty())
-                .characteristic(d.getCharacteristic())
-                .status(d.getStatus())
-                .ssLeaderboardId(d.getSsLeaderboardId())
-                .blLeaderboardId(d.getBlLeaderboardId())
-                .maxScore(d.getMaxScore())
-                .complexity(complexity)
-                .rankedAt(d.getRankedAt())
-                .createdAt(d.getCreatedAt())
-                .createdBy(d.getCreatedBy())
-                .statistics(stats)
-                .build();
+        return MapService.toDifficultyResponse(d, MapService.DifficultyContext.basic(complexity, stats, null));
     }
 }

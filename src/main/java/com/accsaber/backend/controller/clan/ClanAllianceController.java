@@ -66,7 +66,7 @@ public class ClanAllianceController {
             @PathVariable UUID clanId,
             @Valid @RequestBody CreateClanAllianceRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(allianceService.propose(clanId, principal.getUserId(), request.getClanId()));
+                .body(allianceService.propose(clanId, principal.getUserId(), request.clanId()));
     }
 
     @Operation(summary = "Answer or end an alliance",
@@ -78,6 +78,6 @@ public class ClanAllianceController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID allianceId,
             @Valid @RequestBody ResolveClanAllianceRequest request) {
-        return ResponseEntity.ok(allianceService.resolve(allianceId, principal.getUserId(), request.getStatus()));
+        return ResponseEntity.ok(allianceService.resolve(allianceId, principal.getUserId(), request.status()));
     }
 }

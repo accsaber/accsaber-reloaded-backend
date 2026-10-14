@@ -1,25 +1,20 @@
 package com.accsaber.backend.model.entity.news;
 
-public enum NewsStatus {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum NewsStatus implements DbEnum {
     DRAFT("DRAFT"),
     PUBLISHED("PUBLISHED"),
     ARCHIVED("ARCHIVED");
 
     private final String dbValue;
 
-    NewsStatus(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static NewsStatus fromDbValue(String value) {
-        for (NewsStatus s : values()) {
-            if (s.dbValue.equals(value))
-                return s;
-        }
-        throw new IllegalArgumentException("Unknown news status: " + value);
+        return DbEnum.fromDbValue(values(), value, "news status");
     }
 }

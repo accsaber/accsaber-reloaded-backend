@@ -1,7 +1,6 @@
 package com.accsaber.backend.config;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
@@ -25,20 +24,16 @@ public final class PlainDoubleJackson2Module {
                 return;
             }
             double d = value;
-            if (Double.isNaN(d) || Double.isInfinite(d)) {
-                gen.writeNumber(d);
-                return;
-            }
-            if (d == Math.rint(d) && Math.abs(d) <= PlainDoubleJacksonConfig.MAX_EXACT_INTEGRAL) {
+            if (PlainDoubleJacksonConfig.isExactIntegral(d)) {
                 gen.writeNumber((long) d);
                 return;
             }
-            String rendered = Double.toString(d);
-            if (rendered.indexOf('E') < 0) {
+            String expanded = PlainDoubleJacksonConfig.expandedExponent(d);
+            if (expanded == null) {
                 gen.writeNumber(d);
-                return;
+            } else {
+                gen.writeRawValue(expanded);
             }
-            gen.writeRawValue(new BigDecimal(rendered).stripTrailingZeros().toPlainString());
         }
     }
 

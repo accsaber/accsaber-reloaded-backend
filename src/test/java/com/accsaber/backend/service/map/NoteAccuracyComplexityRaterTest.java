@@ -26,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.NoteAccuracies;
 import com.accsaber.backend.config.ComplexityRaterProperties;
-import com.accsaber.backend.config.ComplexityRaterProperties.Coefficients;
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec.Coefficients;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
@@ -110,7 +110,7 @@ class NoteAccuracyComplexityRaterTest {
         NoteAccuracyComplexityRater.Rating stored = rater.rate(response(List.of(0.99, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999)),
                 "tech_acc", NoteAccuracyComplexityRater.NO_BOARD, null);
         JsonNode inputs = new ObjectMapper().valueToTree(stored.inputs());
-        ComplexityRaterSpec spec = properties.toSpec();
+        ComplexityRaterSpec spec = properties;
         spec.setWorstShare(0.03);
 
         NoteAccuracyComplexityRater.Rating priced = NoteAccuracyComplexityRater.price(inputs, spec, "tech_acc", null).orElseThrow();

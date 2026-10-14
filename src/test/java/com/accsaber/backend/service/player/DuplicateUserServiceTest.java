@@ -27,10 +27,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.player.DuplicateLinkResponse;
-import com.accsaber.backend.model.entity.Modifier;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
-import com.accsaber.backend.model.entity.score.ScoreModifierLink;
 import com.accsaber.backend.model.entity.user.MergeScoreAction;
 import com.accsaber.backend.model.entity.user.MergeScoreAction.ActionType;
 import com.accsaber.backend.model.entity.user.User;
@@ -248,7 +246,6 @@ class DuplicateUserServiceTest {
                                         s.setId(UUID.randomUUID());
                                 return s;
                         });
-                        when(modifierLinkRepository.findByScore_Id(any())).thenReturn(List.of());
                         lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         DuplicateLinkResponse response = service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
@@ -341,16 +338,12 @@ class DuplicateUserServiceTest {
                 void copiesModifierLinks_whenReassigningScore() {
                         UUID diffId = UUID.randomUUID();
                         MapDifficulty diff = MapDifficulty.builder().id(diffId).build();
-                        Modifier nfMod = Modifier.builder().id(UUID.randomUUID()).code("NF").build();
 
                         Score secScore = Score.builder()
                                         .id(UUID.randomUUID()).user(secondaryUser).mapDifficulty(diff)
                                         .score(900000).scoreNoMods(800000).rank(5).rankWhenSet(5)
                                         .ap(400).weightedAp(400)
                                         .xpGained(50.0).active(true).build();
-
-                        ScoreModifierLink modLink = ScoreModifierLink.builder()
-                                        .id(UUID.randomUUID()).score(secScore).modifier(nfMod).build();
 
                         when(userRepository.findById(PRIMARY_ID)).thenReturn(Optional.of(primaryUser));
                         when(userRepository.findById(SECONDARY_ID)).thenReturn(Optional.of(secondaryUser));
@@ -373,19 +366,16 @@ class DuplicateUserServiceTest {
                                         s.setId(UUID.randomUUID());
                                 return s;
                         });
-                        when(modifierLinkRepository.findByScore_Id(secScore.getId()))
-                                        .thenReturn(List.of(modLink));
                         lenient().when(categoryRepository.findByActiveTrue()).thenReturn(List.of());
 
                         service.merge(PRIMARY_ID, SECONDARY_ID, STAFF_ID, "dup");
 
-                        @SuppressWarnings("unchecked")
-                        ArgumentCaptor<List<ScoreModifierLink>> modCaptor = ArgumentCaptor.forClass(List.class);
-                        verify(modifierLinkRepository).saveAll(modCaptor.capture());
-                        List<ScoreModifierLink> copiedLinks = modCaptor.getValue();
-                        assertThat(copiedLinks).hasSize(1);
-                        assertThat(copiedLinks.get(0).getModifier().getCode()).isEqualTo("NF");
-                        assertThat(copiedLinks.get(0).getScore().getUser().getId()).isEqualTo(PRIMARY_ID);
+                        ArgumentCaptor<Score> savedScores = ArgumentCaptor.forClass(Score.class);
+                        verify(scoreRepository, org.mockito.Mockito.atLeastOnce()).saveAndFlush(savedScores.capture());
+                        Score merged = savedScores.getAllValues().stream()
+                                        .filter(s -> s.getUser().getId().equals(PRIMARY_ID))
+                                        .findFirst().orElseThrow();
+                        verify(modifierLinkRepository).copyLinks(secScore.getId(), merged.getId());
                 }
 
                 @Test

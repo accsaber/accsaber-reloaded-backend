@@ -3,6 +3,7 @@ package com.accsaber.backend.controller.campaign;
 import java.util.List;
 import java.util.UUID;
 
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -14,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CampaignFilter;
@@ -49,17 +50,16 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignVoteResponse;
 import com.accsaber.backend.model.dto.response.campaign.UserCampaignResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
-import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKind;
-import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.campaign.CampaignEditor;
+import com.accsaber.backend.service.campaign.CampaignMediaKind;
+import com.accsaber.backend.service.campaign.CampaignNodeService;
+import com.accsaber.backend.service.campaign.CampaignProgressService;
 import com.accsaber.backend.service.campaign.CampaignService;
 import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.service.media.MediaFormat;
-import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -72,41 +72,25 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Campaigns")
 public class CampaignController {
 
-    private static final String CAMPAIGN_BACKGROUND_SUBDIR = "campaigns";
-    private static final String CAMPAIGN_ICON_SUBDIR = "campaign-icons";
-    private static final String CAMPAIGN_CHECKPOINT_SUBDIR = "campaign-checkpoints";
-    private static final String CAMPAIGN_NODE_BORDER_SUBDIR = "campaign-node-borders";
-
     private final CampaignService campaignService;
+    private final CampaignNodeService nodeService;
+    private final CampaignProgressService progressService;
     private final MapImportService mapImportService;
-    private final MediaProcessingService mediaProcessingService;
 
     private static CampaignEditor editorFor(Authentication authentication, PlayerUserDetails principal) {
         if (StaffPrincipals.canViewCampaignDrafts(authentication)) {
             return CampaignEditor.staff(StaffPrincipals.viewerIdOf(authentication));
         }
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return CampaignEditor.player(principal.getUserId());
+        return CampaignEditor.player(PlayerUserDetails.require(principal).getUserId());
     }
 
     @Operation(summary = "List campaigns", description = "Filter by status, tag, creator, member (creator or "
             + "accepted collaborator), official, loved and search. XP and reward totals only show up on this list.")
     @GetMapping
     public ResponseEntity<Page<CampaignResponse>> listCampaigns(
-            @RequestParam(required = false) List<CampaignStatus> status,
-            @RequestParam(required = false) List<UUID> tagIds,
-            @RequestParam(required = false) Long creatorId,
-            @RequestParam(required = false) Long memberId,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Boolean official,
-            @RequestParam(required = false) Boolean loved,
+            @ParameterObject @ModelAttribute CampaignFilter filter,
             Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        CampaignFilter filter = CampaignFilter.builder()
-                .status(status).tagIds(tagIds).creatorId(creatorId).memberId(memberId).search(search)
-                .official(official).loved(loved).build();
         return ResponseEntity.ok(campaignService.findCampaigns(filter,
                 StaffPrincipals.viewerIdOf(authentication),
                 StaffPrincipals.canViewCampaignDrafts(authentication), pageable));
@@ -169,7 +153,7 @@ public class CampaignController {
             @Valid @RequestBody CampaignVoteRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.vote(principal.getUserId(), campaignId, request.getDirection()));
+                campaignService.vote(principal.getUserId(), campaignId, request.direction()));
     }
 
     @Operation(summary = "Clear your vote")
@@ -186,21 +170,11 @@ public class CampaignController {
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me")
     public ResponseEntity<Page<UserCampaignResponse>> listMyCampaigns(
-            @RequestParam(required = false) List<CampaignStatus> status,
-            @RequestParam(required = false) List<UUID> tagIds,
-            @RequestParam(required = false) Long creatorId,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Boolean official,
-            @RequestParam(required = false) Boolean loved,
-            @RequestParam(required = false) List<UserCampaignStatus> progressStatus,
+            @ParameterObject @ModelAttribute CampaignFilter filter,
             @AuthenticationPrincipal PlayerUserDetails principal,
             Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        CampaignFilter filter = CampaignFilter.builder()
-                .status(status).tagIds(tagIds).creatorId(creatorId).search(search)
-                .official(official).loved(loved)
-                .participantId(principal.getUserId()).progressStatus(progressStatus).build();
-        return ResponseEntity.ok(campaignService.listUserCampaigns(filter,
+        return ResponseEntity.ok(progressService.listUserCampaigns(principal.getUserId(), filter,
                 StaffPrincipals.viewerIdOf(authentication),
                 StaffPrincipals.canViewCampaignDrafts(authentication), pageable));
     }
@@ -212,7 +186,7 @@ public class CampaignController {
     public ResponseEntity<CampaignProgressResponse> getMyProgress(
             @PathVariable UUID campaignId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.getUserProgress(principal.getUserId(), campaignId));
+        return ResponseEntity.ok(progressService.getUserProgress(principal.getUserId(), campaignId));
     }
 
     @Operation(summary = "Player progress by slug",
@@ -222,7 +196,7 @@ public class CampaignController {
     public ResponseEntity<CampaignProgressResponse> getUserProgressBySlug(
             @PathVariable String slug,
             @PathVariable Long userId) {
-        return ResponseEntity.ok(campaignService.getUserProgressBySlug(userId, slug));
+        return ResponseEntity.ok(progressService.getUserProgressBySlug(userId, slug));
     }
 
     @Operation(summary = "Progress in several campaigns", description = "Pass the campaign ids you want.")
@@ -231,7 +205,7 @@ public class CampaignController {
     public ResponseEntity<List<CampaignProgressResponse>> getMyProgressBulk(
             @RequestParam("ids") List<UUID> ids,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.getUserProgressBulk(principal.getUserId(), ids));
+        return ResponseEntity.ok(progressService.getUserProgressBulk(principal.getUserId(), ids));
     }
 
     @Operation(summary = "Create a campaign", description = "Starts as a draft. Only you and your collaborators see "
@@ -242,7 +216,7 @@ public class CampaignController {
             @Valid @RequestBody CreateCampaignRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(campaignService.createCampaignAsEditor(CampaignEditor.player(principal.getUserId()), request));
+                .body(campaignService.createCampaign(CampaignEditor.player(principal.getUserId()), request));
     }
 
     @Operation(summary = "Edit your campaign", description = "Name, description, difficulty and other details. "
@@ -255,7 +229,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.updateCampaignAsEditor(editorFor(authentication, principal), campaignId, request));
+                campaignService.updateCampaign(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Publish your campaign", description = "Needs at least one terminal node. It gives no XP "
@@ -266,7 +240,7 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.publishAsEditor(editorFor(authentication, principal), campaignId));
+        return ResponseEntity.ok(campaignService.publish(editorFor(authentication, principal), campaignId));
     }
 
     @Operation(summary = "Unpublish your campaign", description = "Back to draft. Players keep their progress.")
@@ -275,7 +249,7 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> unpublishMyCampaign(
             @PathVariable UUID campaignId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.unpublishAsEditor(CampaignEditor.player(principal.getUserId()), campaignId));
+        return ResponseEntity.ok(campaignService.unpublish(CampaignEditor.player(principal.getUserId()), campaignId));
     }
 
     @Operation(summary = "Delete your campaign", description = "Deactivates a draft you own.")
@@ -285,7 +259,7 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.deactivateCampaignAsEditor(editorFor(authentication, principal), campaignId);
+        campaignService.deactivateCampaign(editorFor(authentication, principal), campaignId);
         return ResponseEntity.noContent().build();
     }
 
@@ -310,7 +284,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(campaignService.addDifficultyAsEditor(editorFor(authentication, principal), campaignId, request));
+                .body(nodeService.addDifficulty(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Update a node", description = "Changing the objective on a live campaign recounts "
@@ -323,7 +297,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
+                nodeService.updateDifficulty(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
     @Operation(summary = "Swap a node's map", description = "Other campaigns using the same map are "
@@ -336,7 +310,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.updateDifficultyMapAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
+                nodeService.updateDifficultyMap(editorFor(authentication, principal), campaignDifficultyId, request));
     }
 
     @Operation(summary = "Remove a node")
@@ -347,7 +321,7 @@ public class CampaignController {
             @PathVariable UUID campaignDifficultyId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.removeDifficultyAsEditor(editorFor(authentication, principal), campaignId, campaignDifficultyId);
+        nodeService.removeDifficulty(editorFor(authentication, principal), campaignId, campaignDifficultyId);
         return ResponseEntity.noContent().build();
     }
 
@@ -359,7 +333,7 @@ public class CampaignController {
             @PathVariable UUID campaignDifficultyId,
             @Valid @RequestBody SetCampaignItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.setDifficultyItemAsEditor(
+        return ResponseEntity.ok(campaignService.setDifficultyItem(
                 CampaignEditor.player(principal.getUserId()), campaignDifficultyId, request));
     }
 
@@ -370,7 +344,7 @@ public class CampaignController {
             @PathVariable UUID campaignDifficultyId,
             @PathVariable UUID itemId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.removeDifficultyItemAsEditor(
+        return ResponseEntity.ok(campaignService.removeDifficultyItem(
                 CampaignEditor.player(principal.getUserId()), campaignDifficultyId, itemId));
     }
 
@@ -381,7 +355,7 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             @Valid @RequestBody SetCampaignItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.setCompletionItemAsEditor(
+        return ResponseEntity.ok(campaignService.setCompletionItem(
                 CampaignEditor.player(principal.getUserId()), campaignId, request));
     }
 
@@ -392,7 +366,7 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             @PathVariable UUID itemId,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(campaignService.removeCompletionItemAsEditor(
+        return ResponseEntity.ok(campaignService.removeCompletionItem(
                 CampaignEditor.player(principal.getUserId()), campaignId, itemId));
     }
 
@@ -405,11 +379,8 @@ public class CampaignController {
             @RequestPart("file") MultipartFile file,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.assertCanUploadCampaignMedia(editorFor(authentication, principal), campaignId);
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString(),
-                MediaFormat.GIF);
-        return ResponseEntity.ok(
-                campaignService.setBackgroundUrlAsEditor(editorFor(authentication, principal), campaignId, url));
+        return ResponseEntity.ok(campaignService.replaceCampaignMedia(editorFor(authentication, principal),
+                campaignId, CampaignMediaKind.BACKGROUND, file));
     }
 
     @Operation(summary = "Remove the background")
@@ -419,9 +390,8 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        CampaignResponse result = campaignService.setBackgroundUrlAsEditor(editorFor(authentication, principal), campaignId, null);
-        mediaProcessingService.deleteIfExists(CAMPAIGN_BACKGROUND_SUBDIR, campaignId.toString());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(campaignService.replaceCampaignMedia(editorFor(authentication, principal),
+                campaignId, CampaignMediaKind.BACKGROUND, null));
     }
 
     @Operation(summary = "Upload a campaign icon", description = "Use the returned URL.")
@@ -432,11 +402,8 @@ public class CampaignController {
             @RequestPart("file") MultipartFile file,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.assertCanUploadCampaignMedia(editorFor(authentication, principal), campaignId);
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_ICON_SUBDIR, campaignId.toString(),
-                MediaFormat.GIF);
-        return ResponseEntity.ok(
-                campaignService.setIconUrlAsEditor(editorFor(authentication, principal), campaignId, url));
+        return ResponseEntity.ok(campaignService.replaceCampaignMedia(editorFor(authentication, principal),
+                campaignId, CampaignMediaKind.ICON, file));
     }
 
     @Operation(summary = "Remove the campaign icon")
@@ -446,9 +413,8 @@ public class CampaignController {
             @PathVariable UUID campaignId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        CampaignResponse result = campaignService.setIconUrlAsEditor(editorFor(authentication, principal), campaignId, null);
-        mediaProcessingService.deleteIfExists(CAMPAIGN_ICON_SUBDIR, campaignId.toString());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(campaignService.replaceCampaignMedia(editorFor(authentication, principal),
+                campaignId, CampaignMediaKind.ICON, null));
     }
 
     @Operation(summary = "Upload a checkpoint avatar")
@@ -459,13 +425,8 @@ public class CampaignController {
             @RequestPart("file") MultipartFile file,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.assertCanUploadDifficultyMedia(editorFor(authentication, principal), campaignDifficultyId);
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_CHECKPOINT_SUBDIR,
-                campaignDifficultyId.toString(), MediaFormat.GIF);
-        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
-        request.setCheckpointAvatarUrl(url);
-        return ResponseEntity.ok(
-                campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
+        return ResponseEntity.ok(nodeService.replaceNodeMedia(editorFor(authentication, principal),
+                campaignDifficultyId, CampaignMediaKind.CHECKPOINT_AVATAR, file));
     }
 
     @Operation(summary = "Remove a checkpoint avatar")
@@ -475,12 +436,8 @@ public class CampaignController {
             @PathVariable UUID campaignDifficultyId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
-        request.setCheckpointAvatarUrl("");
-        CampaignDifficultyResponse result = campaignService.updateDifficultyAsEditor(
-                editorFor(authentication, principal), campaignDifficultyId, request);
-        mediaProcessingService.deleteIfExists(CAMPAIGN_CHECKPOINT_SUBDIR, campaignDifficultyId.toString());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(nodeService.replaceNodeMedia(editorFor(authentication, principal),
+                campaignDifficultyId, CampaignMediaKind.CHECKPOINT_AVATAR, null));
     }
 
     @Operation(summary = "Upload a node border", description = "The layer picks a frame over the cover or a "
@@ -492,13 +449,8 @@ public class CampaignController {
             @RequestPart("file") MultipartFile file,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.assertCanUploadDifficultyMedia(editorFor(authentication, principal), campaignDifficultyId);
-        String url = mediaProcessingService.storeImage(file, CAMPAIGN_NODE_BORDER_SUBDIR,
-                campaignDifficultyId.toString(), MediaFormat.GIF);
-        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
-        request.setNodeBorderUrl(url);
-        return ResponseEntity.ok(
-                campaignService.updateDifficultyAsEditor(editorFor(authentication, principal), campaignDifficultyId, request));
+        return ResponseEntity.ok(nodeService.replaceNodeMedia(editorFor(authentication, principal),
+                campaignDifficultyId, CampaignMediaKind.NODE_BORDER, file));
     }
 
     @Operation(summary = "Remove a node border")
@@ -508,12 +460,8 @@ public class CampaignController {
             @PathVariable UUID campaignDifficultyId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        UpdateCampaignDifficultyRequest request = new UpdateCampaignDifficultyRequest();
-        request.setNodeBorderUrl("");
-        CampaignDifficultyResponse result = campaignService.updateDifficultyAsEditor(
-                editorFor(authentication, principal), campaignDifficultyId, request);
-        mediaProcessingService.deleteIfExists(CAMPAIGN_NODE_BORDER_SUBDIR, campaignDifficultyId.toString());
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(nodeService.replaceNodeMedia(editorFor(authentication, principal),
+                campaignDifficultyId, CampaignMediaKind.NODE_BORDER, null));
     }
 
     @Operation(summary = "Add a barrier", description = "Blocks players until a condition on the nodes behind it is "
@@ -526,7 +474,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(campaignService.addBarrierAsEditor(editorFor(authentication, principal), campaignId, request));
+                .body(nodeService.addBarrier(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Update a barrier")
@@ -538,7 +486,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.updateBarrierAsEditor(editorFor(authentication, principal), barrierId, request));
+                nodeService.updateBarrier(editorFor(authentication, principal), barrierId, request));
     }
 
     @Operation(summary = "Remove a barrier")
@@ -549,7 +497,7 @@ public class CampaignController {
             @PathVariable UUID barrierId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.removeBarrierAsEditor(editorFor(authentication, principal), campaignId, barrierId);
+        nodeService.removeBarrier(editorFor(authentication, principal), campaignId, barrierId);
         return ResponseEntity.noContent().build();
     }
 
@@ -562,7 +510,7 @@ public class CampaignController {
             @Valid @RequestBody MoveCampaignElementsRequest request,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.moveElementsAsEditor(editorFor(authentication, principal), campaignId, request);
+        nodeService.moveElements(editorFor(authentication, principal), campaignId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -575,7 +523,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(campaignService.addTextAsEditor(editorFor(authentication, principal), campaignId, request));
+                .body(nodeService.addText(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Edit text")
@@ -587,7 +535,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                campaignService.updateTextAsEditor(editorFor(authentication, principal), textId, request));
+                nodeService.updateText(editorFor(authentication, principal), textId, request));
     }
 
     @Operation(summary = "Remove text")
@@ -598,7 +546,7 @@ public class CampaignController {
             @PathVariable UUID textId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        campaignService.removeTextAsEditor(editorFor(authentication, principal), campaignId, textId);
+        nodeService.removeText(editorFor(authentication, principal), campaignId, textId);
         return ResponseEntity.noContent().build();
     }
 }

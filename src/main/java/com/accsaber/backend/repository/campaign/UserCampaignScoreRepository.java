@@ -23,16 +23,23 @@ public interface UserCampaignScoreRepository extends JpaRepository<UserCampaignS
 
         List<UserCampaignScore> findByCampaign_IdAndActiveTrue(UUID campaignId);
 
-        List<UserCampaignScore> findByUser_IdAndCampaign_IdInAndActiveTrue(Long userId, Collection<UUID> campaignIds);
-
         @EntityGraph(attributePaths = { "score", "score.mapDifficulty" })
         List<UserCampaignScore> findWithScoreByUser_IdAndCampaign_IdInAndActiveTrue(Long userId,
                         Collection<UUID> campaignIds);
 
-        List<UserCampaignScore> findByCampaign_IdAndActiveTrueAndRewardsPaidFalse(UUID campaignId);
+        @Query("""
+                        SELECT ucs FROM UserCampaignScore ucs
+                        WHERE ucs.campaign.id = :campaignId AND ucs.active = true AND ucs.rewardsPaid = false
+                        """)
+        List<UserCampaignScore> findUnpaidByCampaign(@Param("campaignId") UUID campaignId);
 
-        List<UserCampaignScore> findByUser_IdAndCampaign_IdAndActiveTrueAndRewardsPaidFalse(Long userId,
-                        UUID campaignId);
+        @Query("""
+                        SELECT ucs FROM UserCampaignScore ucs
+                        WHERE ucs.user.id = :userId AND ucs.campaign.id = :campaignId
+                          AND ucs.active = true AND ucs.rewardsPaid = false
+                        """)
+        List<UserCampaignScore> findUnpaidByUserAndCampaign(@Param("userId") Long userId,
+                        @Param("campaignId") UUID campaignId);
 
         @Query("""
                         SELECT COUNT(ucs) FROM UserCampaignScore ucs

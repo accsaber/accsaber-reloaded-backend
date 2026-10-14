@@ -34,7 +34,7 @@ public class HealthController {
             + "Channel is empty on full releases.")
     @GetMapping("/ping")
     public ResponseEntity<Map<String, Object>> ping() {
-        log.info("Ping received");
+        log.debug("Ping received");
         return ResponseEntity.ok(Map.of(
                 "status", "ok",
                 "timestamp", Instant.now(),

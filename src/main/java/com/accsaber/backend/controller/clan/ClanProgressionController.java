@@ -83,8 +83,8 @@ public class ClanProgressionController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
             @Valid @RequestBody EquipClanItemRequest request) {
-        return ResponseEntity.ok(cosmeticService.equip(clanId, principal.getUserId(), request.getItemId(),
-                request.getVariantKey()));
+        return ResponseEntity.ok(cosmeticService.equip(clanId, principal.getUserId(), request.itemId(),
+                request.variantKey()));
     }
 
     @Operation(summary = "Clear a cosmetic slot", description = "Founder only.")

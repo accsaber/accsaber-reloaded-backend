@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
@@ -65,11 +64,8 @@ public class EventController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable String idOrSlug,
             @RequestParam(required = false) Integer week) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         UUID id = eventService.resolveId(idOrSlug);
-        Long userId = principal.getUserId();
         eventMissionService.ensureForUserAndEventId(userId, id);
         return ResponseEntity.ok(eventMissionService.getMissionsWithProgress(userId, id, week));
     }
@@ -81,10 +77,7 @@ public class EventController {
     public ResponseEntity<EventProgressResponse> begin(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable String idOrSlug) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return ResponseEntity.ok(eventMissionService.begin(principal.getUserId(), eventService.resolveId(idOrSlug)));
+        return ResponseEntity.ok(eventMissionService.begin(PlayerUserDetails.require(principal).getUserId(), eventService.resolveId(idOrSlug)));
     }
 
     @Operation(summary = "Get one event", description = "With its missions, by id or slug. No progress.")
@@ -99,11 +92,8 @@ public class EventController {
     public ResponseEntity<EventProgressResponse> getMyProgress(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable String idOrSlug) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
+        Long userId = PlayerUserDetails.require(principal).getUserId();
         UUID id = eventService.resolveId(idOrSlug);
-        Long userId = principal.getUserId();
         eventMissionService.ensureForUserAndEventId(userId, id);
         return ResponseEntity.ok(eventMissionService.getProgress(userId, id));
     }

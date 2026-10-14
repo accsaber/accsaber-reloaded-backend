@@ -93,7 +93,7 @@ public class AdminItemController {
     @PatchMapping("/item-types/{id}")
     public ResponseEntity<ItemTypeResponse> updateType(@PathVariable UUID id,
             @RequestBody UpdateItemTypeRequest req) {
-        var type = itemTypeService.update(id, req.getName(), req.getDescription(), req.getValueSchema());
+        var type = itemTypeService.update(id, req.name(), req.description(), req.valueSchema());
         return ResponseEntity.ok(ItemMapper.toTypeResponse(type));
     }
 
@@ -165,8 +165,8 @@ public class AdminItemController {
     @PatchMapping("/item-modifiers/{id}")
     public ResponseEntity<ItemModifierResponse> updateModifier(@PathVariable UUID id,
             @RequestBody UpdateItemModifierRequest req) {
-        var modifier = itemService.updateModifier(id, req.getGlobalDropChance(),
-                req.getSeasonStart(), req.getSeasonEnd());
+        var modifier = itemService.updateModifier(id, req.globalDropChance(),
+                req.seasonStart(), req.seasonEnd());
         return ResponseEntity.ok(ItemMapper.toModifierResponse(modifier));
     }
 

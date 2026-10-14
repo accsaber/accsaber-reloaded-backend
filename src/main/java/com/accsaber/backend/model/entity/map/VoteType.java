@@ -1,25 +1,20 @@
 package com.accsaber.backend.model.entity.map;
 
-public enum VoteType {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum VoteType implements DbEnum {
     UPVOTE("upvote"),
     DOWNVOTE("downvote"),
     NEUTRAL("neutral");
 
     private final String dbValue;
 
-    VoteType(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static VoteType fromDbValue(String value) {
-        for (VoteType v : values()) {
-            if (v.dbValue.equals(value))
-                return v;
-        }
-        throw new IllegalArgumentException("Unknown vote type: " + value);
+        return DbEnum.fromDbValue(values(), value, "vote type");
     }
 }

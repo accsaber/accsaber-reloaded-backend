@@ -23,4 +23,7 @@ public interface UserItemTradeItemRepository extends JpaRepository<UserItemTrade
     List<UUID> findLinkIdsInTradesWithStatus(
             @Param("linkIds") Collection<UUID> linkIds,
             @Param("status") TradeStatus status);
+
+    @Query("SELECT ti.userItemLink.id FROM UserItemTradeItem ti WHERE ti.trade.id = :tradeId")
+    List<UUID> findLinkIdsByTradeId(@Param("tradeId") UUID tradeId);
 }

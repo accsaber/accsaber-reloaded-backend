@@ -25,8 +25,12 @@ import org.mockito.quality.Strictness;
 
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.item.EssenceReason;
+import com.accsaber.backend.model.entity.item.Item;
+import com.accsaber.backend.model.entity.item.TradeItemSide;
 import com.accsaber.backend.model.entity.item.TradeStatus;
+import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
+import com.accsaber.backend.model.entity.item.UserItemTradeItem;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
@@ -159,8 +163,42 @@ class ItemTradeEssenceTest {
         verify(tradeRepository).expirePending(any(), any());
     }
 
+    @Test
+    void acceptingRejectsAnItemThatIsEscrowedOnTheMarket() {
+        UserItemTrade trade = trade(0L, 0L);
+        UserItemLink link = UserItemLink.builder()
+                .id(UUID.randomUUID())
+                .user(user(SENDER))
+                .item(Item.builder().name("Hat").tradeable(true).build())
+                .quantity(1L)
+                .escrowed(true)
+                .build();
+        trade.getItems().add(UserItemTradeItem.builder()
+                .trade(trade).userItemLink(link).side(TradeItemSide.offered).quantity(1L).build());
+        when(tradeItemRepository.findLinkIdsByTradeId(TRADE_ID)).thenReturn(List.of(link.getId()));
+        stubPending(trade);
+
+        assertThatThrownBy(() -> tradeService.accept(TRADE_ID, RECIPIENT))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("listed on the market");
+        verify(userItemLinkRepository).findAllByIdForUpdate(List.of(link.getId()));
+        verify(itemTransferService, never()).transfer(any(), any(), anyLong(), any(), any());
+    }
+
+    @Test
+    void aSecondAcceptOfTheSameTradeIsRejected() {
+        UserItemTrade trade = trade(100L, 0L);
+        trade.setStatus(TradeStatus.accepted);
+        stubPending(trade);
+
+        assertThatThrownBy(() -> tradeService.accept(TRADE_ID, RECIPIENT))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("not pending");
+        verify(essenceLedgerService, never()).settleReserved(anyLong(), anyLong(), anyLong(), any(), any(), any());
+    }
+
     private void stubPending(UserItemTrade trade) {
-        when(tradeRepository.findById(TRADE_ID)).thenReturn(Optional.of(trade));
+        when(tradeRepository.findByIdForUpdate(TRADE_ID)).thenReturn(Optional.of(trade));
     }
 
     private static UserItemTrade trade(long offeredEssence, long requestedEssence) {

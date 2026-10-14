@@ -290,20 +290,7 @@ public class ScoreService {
         }
 
         @Transactional
-        public void submitForBackfill(SubmitScoreRequest request) {
-                MapDifficulty difficulty = loadRankedDifficulty(request.getMapDifficultyId());
-                Double complexity = mapComplexityService.findActiveComplexity(difficulty.getId())
-                                .orElseThrow(() -> new ValidationException(
-                                                "No active complexity set for this map difficulty"));
-                doSubmitForBackfill(request, difficulty, complexity);
-        }
-
-        @Transactional
         public void submitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, Double complexity) {
-                doSubmitForBackfill(request, difficulty, complexity);
-        }
-
-        private void doSubmitForBackfill(SubmitScoreRequest request, MapDifficulty difficulty, Double complexity) {
                 acquireSubmitLock(request.getUserId(), difficulty.getId());
                 validateScoreBounds(request, difficulty, false);
                 User user = loadUserForBackfill(request.getUserId());
@@ -366,29 +353,6 @@ public class ScoreService {
         }
 
         @Transactional
-        public void recalculateScore(UUID scoreId) {
-                RecalcResult result = recalculateScoreForBatch(scoreId);
-                if (result == null)
-                        return;
-                scoreRankingService.reassignRanks(result.difficultyId());
-                statisticsService.recalculate(result.userId(), result.categoryId());
-                rankingService.updateRankingsAsync(result.categoryId(),
-                                () -> skillService.upsertSkill(result.userId(), result.categoryId()));
-        }
-
-        @Transactional
-        public RecalcResult recalculateScoreForBatch(UUID scoreId) {
-                Score score = scoreRepository.findByIdWithUser(scoreId).orElse(null);
-                if (score == null || !score.isActive())
-                        return null;
-                MapDifficulty difficulty = score.getMapDifficulty();
-                Double complexity = mapComplexityService.findActiveComplexity(difficulty.getId()).orElse(null);
-                if (complexity == null)
-                        return null;
-                return doRecalculateScoreForBatch(score, difficulty, complexity);
-        }
-
-        @Transactional
         public RecalcResult recalculateScoreForBatch(UUID scoreId, MapDifficulty difficulty, Double complexity) {
                 Score score = scoreRepository.findByIdWithUser(scoreId).orElse(null);
                 if (score == null || !score.isActive())
@@ -397,10 +361,6 @@ public class ScoreService {
                         throw new IllegalArgumentException(
                                         "Provided difficulty does not match score's map difficulty");
                 }
-                return doRecalculateScoreForBatch(score, difficulty, complexity);
-        }
-
-        private RecalcResult doRecalculateScoreForBatch(Score score, MapDifficulty difficulty, Double complexity) {
                 Double accuracy = computeAccuracy(score.getScore(), difficulty.getMaxScore());
                 APResult apResult = apCalculationService.calculateRawAP(
                                 accuracy, complexity, difficulty.getCategory().getScoreCurve());
@@ -434,7 +394,7 @@ public class ScoreService {
                 }
 
                 scoreRepository.saveAndFlush(recalculated);
-                copyModifierLinks(score, recalculated);
+                modifierLinkRepository.copyLinks(score.getId(), recalculated.getId());
                 if (oldXp.compareTo(0.0) > 0) {
                         levelUpAwardService.addXp(score.getUser().getId(), (-oldXp));
                 }
@@ -496,19 +456,12 @@ public class ScoreService {
         }
 
         private Page<Score> queryActiveByUser(Long resolvedUserId, UUID categoryId, String search, Pageable pageable) {
-                boolean hasSearch = search != null && !search.isBlank();
-                if (categoryId != null && hasSearch) {
-                        return scoreRepository.findActiveByUserAndCategoryAndSongSearch(
-                                        resolvedUserId, categoryId, search.trim(), pageable);
-                }
-                if (categoryId != null) {
-                        return scoreRepository.findActiveByUserAndCategory(resolvedUserId, categoryId, pageable);
-                }
-                if (hasSearch) {
-                        return scoreRepository.findActiveByUserAndSongSearch(
-                                        resolvedUserId, search.trim(), pageable);
-                }
-                return scoreRepository.findActiveByUser(resolvedUserId, pageable);
+                return scoreRepository.findActiveByUsers(List.of(resolvedUserId), categoryId, trimToNull(search),
+                                pageable);
+        }
+
+        private static String trimToNull(String value) {
+                return value == null || value.isBlank() ? null : value.trim();
         }
 
         public List<UserScoreSummaryResponse> findAllSummariesByUser(Long userId) {
@@ -563,19 +516,8 @@ public class ScoreService {
                 if (userIds.isEmpty()) {
                         return Page.empty(effective);
                 }
-                boolean hasSearch = search != null && !search.isBlank();
-                Page<Score> scores;
-                if (categoryId != null && hasSearch) {
-                        scores = scoreRepository.findActiveByUsersAndCategoryAndSongSearch(
-                                        userIds, categoryId, search.trim(), effective);
-                } else if (categoryId != null) {
-                        scores = scoreRepository.findActiveByUsersAndCategory(userIds, categoryId, effective);
-                } else if (hasSearch) {
-                        scores = scoreRepository.findActiveByUsersAndSongSearch(
-                                        userIds, search.trim(), effective);
-                } else {
-                        scores = scoreRepository.findActiveByUsers(userIds, effective);
-                }
+                Page<Score> scores = scoreRepository.findActiveByUsers(userIds, categoryId, trimToNull(search),
+                                effective);
 
                 List<UUID> difficultyIds = scores.getContent().stream()
                                 .map(s -> s.getMapDifficulty().getId())
@@ -614,20 +556,6 @@ public class ScoreService {
                 });
         }
 
-        public Page<ScoreResponse> findByMapDifficulty(UUID mapDifficultyId, Pageable pageable) {
-                MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(mapDifficultyId)
-                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", mapDifficultyId));
-                if (difficulty.getMaxScore() == null || difficulty.getMaxScore() <= 0) {
-                        throw new ValidationException("Map difficulty has no valid max score configured");
-                }
-                Pageable effective = resolveSort(pageable, Sort.by(Sort.Direction.ASC, "rank"));
-                Page<Score> scores = scoreRepository.findByMapDifficulty_IdAndActiveTrue(mapDifficultyId, effective);
-                java.util.Map<UUID, List<UUID>> modifierIds = loadModifierIdsBatch(
-                                scores.getContent().stream().map(Score::getId).toList());
-                return scores.map(s -> toResponse(s, computeAccuracy(s.getScore(), difficulty.getMaxScore()),
-                                modifierIds.getOrDefault(s.getId(), List.of())));
-        }
-
         public Page<ScoreResponse> findLeaderboardByMapDifficulty(UUID mapDifficultyId, String country,
                         String search, Pageable pageable) {
                 return findLeaderboardByMapDifficulty(mapDifficultyId, country, search, null, pageable);
@@ -644,27 +572,13 @@ public class ScoreService {
                 if (userIdFilter != null && userIdFilter.isEmpty()) {
                         return Page.empty(effective);
                 }
-                boolean hasCountry = country != null && !country.isBlank();
-                boolean hasSearch = search != null && !search.isBlank();
-                Page<Score> scores;
-                if (userIdFilter != null) {
-                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
-                                        mapDifficultyId, userIdFilter,
-                                        hasCountry ? country.toUpperCase() : null,
-                                        hasSearch ? search.trim() : null, effective);
-                } else if (hasCountry && hasSearch) {
-                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountryAndSearch(
-                                        mapDifficultyId, country.toUpperCase(), search.trim(), effective);
-                } else if (hasCountry) {
-                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndCountry(
-                                        mapDifficultyId, country.toUpperCase(), effective);
-                } else if (hasSearch) {
-                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserAndSearch(
-                                        mapDifficultyId, search.trim(), effective);
-                } else {
-                        scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
-                                        mapDifficultyId, effective);
-                }
+                String countryFilter = country == null || country.isBlank() ? null : country.toUpperCase();
+                Page<Score> scores = userIdFilter != null
+                                ? scoreRepository.findByMapDifficultyIdAndActiveTrueWithUserFilteredByUserIds(
+                                                mapDifficultyId, userIdFilter, countryFilter, trimToNull(search),
+                                                effective)
+                                : scoreRepository.findLeaderboardByMapDifficulty(
+                                                mapDifficultyId, countryFilter, trimToNull(search), effective);
                 java.util.List<Long> userIds = scores.getContent().stream()
                                 .map(s -> s.getUser().getId())
                                 .toList();
@@ -700,8 +614,8 @@ public class ScoreService {
                 int offset = Math.max(0, rank - above - 1);
                 int fetchSize = offset + total;
 
-                List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithUser(
-                                mapDifficultyId, PageRequest.of(0, fetchSize, Sort.by(Sort.Direction.DESC, "score")))
+                List<Score> scores = scoreRepository.findLeaderboardByMapDifficulty(mapDifficultyId, null, null,
+                                PageRequest.of(0, fetchSize, Sort.by(Sort.Direction.DESC, "score")))
                                 .getContent();
 
                 if (offset > 0 && scores.size() > offset) {
@@ -942,16 +856,6 @@ public class ScoreService {
                 modifierLinkRepository.saveAll(links);
         }
 
-        private void copyModifierLinks(Score from, Score to) {
-                List<ScoreModifierLink> original = modifierLinkRepository.findByScore_Id(from.getId());
-                if (original.isEmpty())
-                        return;
-                List<ScoreModifierLink> copies = original.stream()
-                                .map(l -> ScoreModifierLink.builder().score(to).modifier(l.getModifier()).build())
-                                .toList();
-                modifierLinkRepository.saveAll(copies);
-        }
-
         private List<UUID> loadModifierIds(UUID scoreId) {
                 return modifierLinkRepository.findByScore_Id(scoreId).stream()
                                 .map(l -> l.getModifier().getId())
@@ -1029,6 +933,12 @@ public class ScoreService {
         private static final String LAST_PLAYED_AT_SORT_EXPRESSION = "(SELECT MAX(COALESCE(s2.timeSet, s2.createdAt)) "
                         + "FROM Score s2 WHERE s2.user = s.user AND s2.mapDifficulty = s.mapDifficulty)";
 
+        private static final java.util.Map<String, String> NULLS_LAST_SORT_EXPRESSIONS = java.util.Map.of(
+                        "accuracy", ACCURACY_SORT_EXPRESSION,
+                        "complexity", COMPLEXITY_SORT_EXPRESSION,
+                        "maxstreak115", MAX_STREAK_SORT_EXPRESSION,
+                        "playcount", PLAY_COUNT_SORT_EXPRESSION);
+
         private Pageable resolveSort(Pageable pageable, Sort defaultSort) {
                 Sort resolved;
                 if (!pageable.getSort().isSorted()) {
@@ -1036,46 +946,25 @@ public class ScoreService {
                 } else {
                         resolved = Sort.unsorted();
                         for (Sort.Order order : pageable.getSort()) {
-                                if ("accuracy".equalsIgnoreCase(order.getProperty())) {
-                                        resolved = resolved
-                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                                                        "(CASE WHEN (" + ACCURACY_SORT_EXPRESSION
-                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
-                                                        .and(JpaSort.unsafe(order.getDirection(),
-                                                                        ACCURACY_SORT_EXPRESSION));
-                                } else if ("complexity".equalsIgnoreCase(order.getProperty())) {
-                                        resolved = resolved
-                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                                                        "(CASE WHEN (" + COMPLEXITY_SORT_EXPRESSION
-                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
-                                                        .and(JpaSort.unsafe(order.getDirection(),
-                                                                        COMPLEXITY_SORT_EXPRESSION));
-                                } else if ("maxStreak115".equalsIgnoreCase(order.getProperty())) {
-                                        resolved = resolved
-                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                                                        "(CASE WHEN (" + MAX_STREAK_SORT_EXPRESSION
-                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
-                                                        .and(JpaSort.unsafe(order.getDirection(),
-                                                                        MAX_STREAK_SORT_EXPRESSION));
-                                } else if ("playCount".equalsIgnoreCase(order.getProperty())) {
-                                        resolved = resolved
-                                                        .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                                                        "(CASE WHEN (" + PLAY_COUNT_SORT_EXPRESSION
-                                                                                        + ") IS NULL THEN 1 ELSE 0 END)"))
-                                                        .and(JpaSort.unsafe(order.getDirection(),
-                                                                        PLAY_COUNT_SORT_EXPRESSION));
-                                } else if ("lastPlayedAt".equalsIgnoreCase(order.getProperty())) {
-                                        resolved = resolved.and(JpaSort.unsafe(order.getDirection(),
-                                                        LAST_PLAYED_AT_SORT_EXPRESSION));
-                                } else {
-                                        resolved = resolved.and(Sort.by(
-                                                        new Sort.Order(order.getDirection(), order.getProperty(),
-                                                                        Sort.NullHandling.NULLS_LAST)));
-                                }
+                                resolved = resolved.and(resolveOrder(order));
                         }
                 }
                 resolved = resolved.and(Sort.by(Sort.Direction.ASC, "rank"));
                 return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
+        }
+
+        private static Sort resolveOrder(Sort.Order order) {
+                String property = order.getProperty().toLowerCase(java.util.Locale.ROOT);
+                String expression = NULLS_LAST_SORT_EXPRESSIONS.get(property);
+                if (expression != null) {
+                        return JpaSort.unsafe(Sort.Direction.ASC,
+                                        "(CASE WHEN (" + expression + ") IS NULL THEN 1 ELSE 0 END)")
+                                        .and(JpaSort.unsafe(order.getDirection(), expression));
+                }
+                if ("lastplayedat".equals(property)) {
+                        return JpaSort.unsafe(order.getDirection(), LAST_PLAYED_AT_SORT_EXPRESSION);
+                }
+                return Sort.by(new Sort.Order(order.getDirection(), order.getProperty(), Sort.NullHandling.NULLS_LAST));
         }
 
         public ScoreResponse mapToResponse(Score s) {

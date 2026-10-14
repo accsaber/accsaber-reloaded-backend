@@ -1,6 +1,6 @@
 package com.accsaber.backend.model.dto.response.statistics;
 
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -9,11 +9,7 @@ import lombok.Getter;
 @Builder
 public class MostCratesOpenedResponse {
 
-    private String userId;
-    private String userName;
-    private String avatarUrl;
-    private String cdnAvatarUrl;
-    private PublicClanResponse clan;
-    private String country;
+    @JsonUnwrapped
+    private UserIdentity user;
     private long crateCount;
 }

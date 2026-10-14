@@ -144,8 +144,11 @@ public class ItemTradeService {
     @Transactional
     public UserItemTrade accept(UUID tradeId, Long actingUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(actingUserId);
-        UserItemTrade trade = findById(tradeId);
-        ensurePending(trade);
+        List<UUID> linkIds = tradeItemRepository.findLinkIdsByTradeId(tradeId);
+        if (!linkIds.isEmpty()) {
+            userItemLinkRepository.findAllByIdForUpdate(linkIds);
+        }
+        UserItemTrade trade = lockPending(tradeId);
         if (!trade.getToUser().getId().equals(resolved)) {
             throw new ValidationException("tradeId", "only the recipient can accept this trade");
         }
@@ -155,6 +158,10 @@ public class ItemTradeService {
 
         for (UserItemTradeItem entry : trade.getItems()) {
             UserItemLink link = entry.getUserItemLink();
+            if (link.isEscrowed()) {
+                throw new ValidationException("tradeId",
+                        "item '" + link.getItem().getName() + "' is listed on the market and cannot be traded");
+            }
             if (!link.getItem().isTradeable() || link.getItem().isDeprecated()) {
                 throw new ValidationException("tradeId",
                         "item '" + link.getItem().getName() + "' is no longer tradeable");
@@ -199,8 +206,7 @@ public class ItemTradeService {
     @Transactional
     public UserItemTrade decline(UUID tradeId, Long actingUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(actingUserId);
-        UserItemTrade trade = findById(tradeId);
-        ensurePending(trade);
+        UserItemTrade trade = lockPending(tradeId);
         if (!trade.getToUser().getId().equals(resolved)) {
             throw new ValidationException("tradeId", "only the recipient can decline this trade");
         }
@@ -214,8 +220,7 @@ public class ItemTradeService {
     @Transactional
     public UserItemTrade cancel(UUID tradeId, Long actingUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(actingUserId);
-        UserItemTrade trade = findById(tradeId);
-        ensurePending(trade);
+        UserItemTrade trade = lockPending(tradeId);
         if (!trade.getFromUser().getId().equals(resolved)) {
             throw new ValidationException("tradeId", "only the sender can cancel this trade");
         }
@@ -246,10 +251,13 @@ public class ItemTradeService {
         }
     }
 
-    private void ensurePending(UserItemTrade trade) {
+    private UserItemTrade lockPending(UUID tradeId) {
+        UserItemTrade trade = tradeRepository.findByIdForUpdate(tradeId)
+                .orElseThrow(() -> new ResourceNotFoundException("UserItemTrade", tradeId));
         if (trade.getStatus() != TradeStatus.pending) {
             throw new ValidationException("tradeId", "trade is not pending (status: " + trade.getStatus() + ")");
         }
+        return trade;
     }
 
     private Map<UUID, Long> sanitize(String fieldName, List<CreateTradeRequest.TradeItem> raw) {

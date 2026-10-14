@@ -14,7 +14,16 @@ import tools.jackson.databind.module.SimpleModule;
 @Configuration
 public class PlainDoubleJacksonConfig {
 
-    static final double MAX_EXACT_INTEGRAL = 9007199254740992.0;
+    private static final double MAX_EXACT_INTEGRAL = 9007199254740992.0;
+
+    static boolean isExactIntegral(double d) {
+        return d == Math.rint(d) && Math.abs(d) <= MAX_EXACT_INTEGRAL;
+    }
+
+    static String expandedExponent(double d) {
+        String rendered = Double.toString(d);
+        return rendered.indexOf('E') < 0 ? null : new BigDecimal(rendered).stripTrailingZeros().toPlainString();
+    }
 
     public static final class PlainDoubleSerializer extends ValueSerializer<Double> {
 
@@ -25,20 +34,16 @@ public class PlainDoubleJacksonConfig {
                 return;
             }
             double d = value;
-            if (Double.isNaN(d) || Double.isInfinite(d)) {
-                gen.writeNumber(d);
-                return;
-            }
-            if (d == Math.rint(d) && Math.abs(d) <= MAX_EXACT_INTEGRAL) {
+            if (isExactIntegral(d)) {
                 gen.writeNumber((long) d);
                 return;
             }
-            String rendered = Double.toString(d);
-            if (rendered.indexOf('E') < 0) {
+            String expanded = expandedExponent(d);
+            if (expanded == null) {
                 gen.writeNumber(d);
-                return;
+            } else {
+                gen.writeRawValue(expanded);
             }
-            gen.writeRawValue(new BigDecimal(rendered).stripTrailingZeros().toPlainString());
         }
     }
 

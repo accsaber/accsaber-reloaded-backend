@@ -1,7 +1,9 @@
 package com.accsaber.backend.service.score;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -84,20 +86,14 @@ public class ScoreRecalculationService {
 
         UUID categoryId = difficulty.getCategory().getId();
         scoreRankingService.reassignRanks(difficulty.getId());
-        batchRecalculateStats(affected, categoryId);
         mapDifficultyStatisticsService.recalculate(difficulty, null);
-        rankingService.updateRankings(categoryId);
-        if (difficulty.getCategory().isCountForOverall()) {
-            overallStatisticsService.updateOverallRankings();
-        }
-        resweepSkills(Set.of(categoryId));
         try {
             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
         } catch (Exception e) {
             log.error("XP reweight failed for difficulty {}: {}", difficulty.getId(), e.getMessage());
         }
-        userRepository.recalculateTotalXpForAllActiveUsers();
-        evaluateMilestones(affected);
+        recalculatePlayers(Map.of(categoryId, affected),
+                difficulty.getCategory().isCountForOverall() ? Set.of(categoryId) : Set.of(), PlayerRecalc.AP_CHANGE);
         log.info("Recalculation complete for difficulty {} ({} users affected)", difficulty.getId(), affected.size());
         return CompletableFuture.completedFuture(null);
     }
@@ -108,7 +104,7 @@ public class ScoreRecalculationService {
         apCalculationService.evictAllCurveCaches();
 
         ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
-        ConcurrentHashMap<UUID, Boolean> categoryIsOverall = new ConcurrentHashMap<>();
+        Set<UUID> overallCategoryIds = ConcurrentHashMap.newKeySet();
         AtomicInteger difficultiesDone = new AtomicInteger();
 
         List<CompletableFuture<Void>> futures = difficulties.stream()
@@ -120,8 +116,9 @@ public class ScoreRecalculationService {
                             affectedByCategory.computeIfAbsent(
                                     categoryId, k -> ConcurrentHashMap.newKeySet())
                                     .addAll(affected);
-                            categoryIsOverall.putIfAbsent(categoryId,
-                                    difficulty.getCategory().isCountForOverall());
+                            if (difficulty.getCategory().isCountForOverall()) {
+                                overallCategoryIds.add(categoryId);
+                            }
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
                             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
@@ -139,7 +136,7 @@ public class ScoreRecalculationService {
 
         futures.forEach(CompletableFuture::join);
 
-        coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
+        recalculatePlayers(affectedByCategory, overallCategoryIds, PlayerRecalc.AP_CHANGE);
 
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Batch recalculation complete for {} difficulties, {} users affected",
@@ -168,7 +165,7 @@ public class ScoreRecalculationService {
         }
 
         ConcurrentHashMap<UUID, Set<Long>> affectedByCategory = new ConcurrentHashMap<>();
-        ConcurrentHashMap<UUID, Boolean> categoryIsOverall = new ConcurrentHashMap<>();
+        Set<UUID> overallCategoryIds = ConcurrentHashMap.newKeySet();
 
         List<CompletableFuture<Void>> futures = difficulties.stream()
                 .map(difficulty -> CompletableFuture.runAsync(() -> {
@@ -179,8 +176,9 @@ public class ScoreRecalculationService {
                             affectedByCategory.computeIfAbsent(
                                     categoryId, k -> ConcurrentHashMap.newKeySet())
                                     .addAll(affected);
-                            categoryIsOverall.putIfAbsent(categoryId,
-                                    difficulty.getCategory().isCountForOverall());
+                            if (difficulty.getCategory().isCountForOverall()) {
+                                overallCategoryIds.add(categoryId);
+                            }
                             scoreRankingService.reassignRanks(difficulty.getId());
                             mapDifficultyStatisticsService.recalculate(difficulty, null);
                             xpReweightService.reweightScoresForDifficulty(difficulty.getId());
@@ -193,7 +191,7 @@ public class ScoreRecalculationService {
 
         futures.forEach(CompletableFuture::join);
 
-        coalescedStatsRecalc(affectedByCategory, categoryIsOverall);
+        recalculatePlayers(affectedByCategory, overallCategoryIds, PlayerRecalc.AP_CHANGE);
 
         int totalUsers = affectedByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Raw AP recalculation complete for {} difficulties, {} users affected",
@@ -303,28 +301,61 @@ public class ScoreRecalculationService {
         return affected;
     }
 
-    private void coalescedStatsRecalc(java.util.Map<UUID, Set<Long>> affectedByCategory,
-            java.util.Map<UUID, Boolean> categoryIsOverall) {
-        if (affectedByCategory.isEmpty()) {
+    public enum PlayerRecalc {
+        AP_CHANGE(true, true, true),
+        SCORE_IMPORT(false, false, true),
+        MERGE(false, false, false);
+
+        private final boolean sweepEngagedSkills;
+        private final boolean rebuildAllXp;
+        private final boolean evaluateMilestones;
+
+        PlayerRecalc(boolean sweepEngagedSkills, boolean rebuildAllXp, boolean evaluateMilestones) {
+            this.sweepEngagedSkills = sweepEngagedSkills;
+            this.rebuildAllXp = rebuildAllXp;
+            this.evaluateMilestones = evaluateMilestones;
+        }
+    }
+
+    public void recalculatePlayers(Map<UUID, Set<Long>> usersByCategory, Set<UUID> overallCategoryIds,
+            PlayerRecalc scope) {
+        if (usersByCategory.isEmpty()) {
             return;
         }
-
         Set<Long> allUsers = new HashSet<>();
         Set<Long> overallUsers = new HashSet<>();
-        for (var e : affectedByCategory.entrySet()) {
-            allUsers.addAll(e.getValue());
-            if (Boolean.TRUE.equals(categoryIsOverall.get(e.getKey()))) {
-                overallUsers.addAll(e.getValue());
+        usersByCategory.forEach((categoryId, users) -> {
+            allUsers.addAll(users);
+            if (overallCategoryIds.contains(categoryId)) {
+                overallUsers.addAll(users);
             }
+        });
+
+        recalculateCategoryStatistics(usersByCategory);
+        recalculateOverallStatistics(overallUsers);
+        updateRankings(usersByCategory.keySet(), !overallUsers.isEmpty());
+
+        log.info("Batch recalculation: skills");
+        recomputeSkills(usersByCategory, scope.sweepEngagedSkills);
+
+        if (scope.rebuildAllXp) {
+            log.info("Batch recalculation: rebuilding XP totals");
+            userRepository.recalculateTotalXpForAllActiveUsers();
         }
 
-        int statsTotal = affectedByCategory.values().stream().mapToInt(Set::size).sum();
+        if (scope.evaluateMilestones) {
+            log.info("Batch recalculation: milestones for {} players", allUsers.size());
+            evaluateMilestones(allUsers);
+        }
+    }
+
+    private void recalculateCategoryStatistics(Map<UUID, Set<Long>> usersByCategory) {
+        int statsTotal = usersByCategory.values().stream().mapToInt(Set::size).sum();
         log.info("Batch recalculation: category statistics for {} player and category pairs", statsTotal);
         AtomicInteger statsDone = new AtomicInteger();
-        List<CompletableFuture<Void>> statsFutures = new java.util.ArrayList<>();
-        for (var e : affectedByCategory.entrySet()) {
-            UUID categoryId = e.getKey();
-            for (Long userId : e.getValue()) {
+        List<CompletableFuture<Void>> statsFutures = new ArrayList<>();
+        usersByCategory.forEach((categoryId, users) -> {
+            for (Long userId : users) {
                 statsFutures.add(CompletableFuture.runAsync(() -> {
                     try {
                         statisticsService.recalculate(userId, categoryId, false, false);
@@ -339,9 +370,11 @@ public class ScoreRecalculationService {
                     }
                 }, backfillExecutor));
             }
-        }
+        });
         statsFutures.forEach(CompletableFuture::join);
+    }
 
+    private void recalculateOverallStatistics(Set<Long> overallUsers) {
         log.info("Batch recalculation: overall statistics for {} players", overallUsers.size());
         List<CompletableFuture<Void>> overallFutures = overallUsers.stream()
                 .map(userId -> CompletableFuture.runAsync(() -> {
@@ -353,34 +386,26 @@ public class ScoreRecalculationService {
                 }, backfillExecutor))
                 .toList();
         overallFutures.forEach(CompletableFuture::join);
+    }
 
+    private void updateRankings(Set<UUID> categoryIds, boolean includeOverall) {
         log.info("Batch recalculation: category rankings");
-        for (UUID categoryId : affectedByCategory.keySet()) {
+        for (UUID categoryId : categoryIds) {
             try {
                 rankingService.updateRankings(categoryId);
             } catch (Exception ex) {
                 log.error("Category ranking update failed for {}: {}", categoryId, ex.getMessage());
             }
         }
-
-        boolean anyOverall = overallUsers.size() > 0
-                || categoryIsOverall.values().stream().anyMatch(Boolean.TRUE::equals);
-        if (anyOverall) {
-            log.info("Batch recalculation: overall rankings");
-            try {
-                overallStatisticsService.updateOverallRankings();
-            } catch (Exception ex) {
-                log.error("Overall ranking update failed: {}", ex.getMessage());
-            }
+        if (!includeOverall) {
+            return;
         }
-        log.info("Batch recalculation: skills");
-        resweepSkills(affectedByCategory.keySet());
-
-        log.info("Batch recalculation: rebuilding XP totals");
-        userRepository.recalculateTotalXpForAllActiveUsers();
-
-        log.info("Batch recalculation: milestones for {} players", allUsers.size());
-        evaluateMilestones(allUsers);
+        log.info("Batch recalculation: overall rankings");
+        try {
+            overallStatisticsService.updateOverallRankings();
+        } catch (Exception ex) {
+            log.error("Overall ranking update failed: {}", ex.getMessage());
+        }
     }
 
     private void evaluateMilestones(Set<Long> userIds) {
@@ -402,17 +427,19 @@ public class ScoreRecalculationService {
         futures.forEach(CompletableFuture::join);
     }
 
-    private void resweepSkills(Set<UUID> categoryIds) {
-        for (UUID categoryId : categoryIds) {
+    private void recomputeSkills(Map<UUID, Set<Long>> usersByCategory, boolean sweepEngaged) {
+        usersByCategory.forEach((categoryId, users) -> {
             try {
-                List<Long> engaged = userCategorySkillRepository.findActiveUserIdsByCategoryId(categoryId);
-                skillService.recomputeCategorySkills(categoryId, engaged);
-                log.info("Recomputed skills for {} engaged players in category {} after AP changes", engaged.size(),
+                List<Long> userIds = sweepEngaged
+                        ? userCategorySkillRepository.findActiveUserIdsByCategoryId(categoryId)
+                        : List.copyOf(users);
+                skillService.recomputeCategorySkills(categoryId, userIds);
+                log.info("Recomputed skills for {} players in category {} after AP changes", userIds.size(),
                         categoryId);
             } catch (Exception ex) {
                 log.error("Skill resweep failed for category {}: {}", categoryId, ex.getMessage());
             }
-        }
+        });
     }
 
     private void batchRecalculateStats(Set<Long> userIds, UUID categoryId) {

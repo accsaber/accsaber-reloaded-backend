@@ -2,6 +2,7 @@ package com.accsaber.backend.util;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -21,13 +22,7 @@ public final class PlatformScoreMapper {
     }
 
     public static boolean hasBannedModifier(String modifiersStr) {
-        if (modifiersStr == null || modifiersStr.isBlank())
-            return false;
-        for (String code : modifiersStr.split(",")) {
-            if (BANNED_MODIFIER_CODES.contains(code.trim()))
-                return true;
-        }
-        return false;
+        return modifiersStr != null && hasBannedModifier(Arrays.asList(modifiersStr.split(",")));
     }
 
     public static boolean hasBannedModifier(Collection<String> mods) {
@@ -109,17 +104,7 @@ public final class PlatformScoreMapper {
         if (modifiersStr == null || modifiersStr.isBlank()) {
             return List.of();
         }
-        List<UUID> ids = new ArrayList<>();
-        for (String code : modifiersStr.split(",")) {
-            String trimmed = code.trim();
-            if (!trimmed.isEmpty()) {
-                UUID id = modifierCodeToId.get(trimmed);
-                if (id != null) {
-                    ids.add(id);
-                }
-            }
-        }
-        return ids;
+        return resolveModifiers(Arrays.asList(modifiersStr.split(",")), modifierCodeToId);
     }
 
     private static List<UUID> resolveModifiers(Collection<String> mods, Map<String, UUID> modifierCodeToId) {

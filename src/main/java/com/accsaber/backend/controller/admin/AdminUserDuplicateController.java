@@ -52,7 +52,7 @@ public class AdminUserDuplicateController {
     public ResponseEntity<DuplicateLinkResponse> createLink(
             @Valid @RequestBody MergeUsersRequest request) {
         return ResponseEntity.status(201).body(duplicateUserService.createLink(
-                request.getPrimaryUserId(), request.getSecondaryUserId(), request.getReason()));
+                request.primaryUserId(), request.secondaryUserId(), request.reason()));
     }
 
     @Operation(summary = "Remove an unmerged link")
@@ -69,10 +69,10 @@ public class AdminUserDuplicateController {
             @Valid @RequestBody MergeUsersRequest request,
             @AuthenticationPrincipal StaffUserDetails userDetails) {
         return ResponseEntity.ok(duplicateUserService.merge(
-                request.getPrimaryUserId(),
-                request.getSecondaryUserId(),
+                request.primaryUserId(),
+                request.secondaryUserId(),
                 userDetails.getStaffUser().getId(),
-                request.getReason()));
+                request.reason()));
     }
 
     @Operation(summary = "Merge every pending link", description = "Recalculation runs once after all "

@@ -17,10 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +27,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.item.DisintegrateRequest;
 import com.accsaber.backend.model.dto.request.item.InventoryFilter;
 import com.accsaber.backend.model.dto.response.item.DisintegrationResponse;
+import com.accsaber.backend.model.dto.response.item.EssenceBalanceResponse;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.EssenceReason;
@@ -60,13 +58,13 @@ import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.UserSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.context.ApplicationEventPublisher;
 
 import com.accsaber.backend.model.event.InventoryChangedEvent;
+import com.accsaber.backend.util.SortAliases;
 
 import lombok.RequiredArgsConstructor;
 
@@ -74,8 +72,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ItemService {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final Set<String> EQUIP_NO_FALLBACK_TYPES = Set.of("badge");
 
@@ -175,7 +171,7 @@ public class ItemService {
                 f.crateItemIdsOrNull(),
                 f.deprecatedEffective(),
                 f.searchOrNull(),
-                resolveInventorySort(pageable));
+                SortAliases.translateEach(pageable, INVENTORY_SORT_EXPRESSIONS));
     }
 
     private static final String RARITY_ORDER_EXPRESSION = buildRarityOrderExpression();
@@ -201,26 +197,6 @@ public class ItemService {
             "quantity", "l.quantity",
             "item.name", "i.name",
             "item.type.key", "t.key");
-
-    private static Pageable resolveInventorySort(Pageable pageable) {
-        if (!pageable.getSort().isSorted()) {
-            return pageable;
-        }
-        Sort resolved = Sort.unsorted();
-        for (Sort.Order order : pageable.getSort()) {
-            String expression = INVENTORY_SORT_EXPRESSIONS.get(order.getProperty());
-            if (expression != null) {
-                resolved = resolved.and(unsafeNullsLast(order.getDirection(), expression));
-            }
-        }
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), resolved);
-    }
-
-    private static Sort unsafeNullsLast(Sort.Direction direction, String expression) {
-        return Sort.by(JpaSort.unsafe(direction, expression).stream()
-                .map(order -> order.with(Sort.NullHandling.NULLS_LAST))
-                .toList());
-    }
 
     public Map<String, UserItemResponse> findEquippedHydrated(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
@@ -412,7 +388,7 @@ public class ItemService {
                 .name(name)
                 .description(description)
                 .iconUrl(iconUrl)
-                .value(toJsonNode(value))
+                .value(ItemMapper.toJsonNode(value))
                 .rarity(rarity != null ? rarity : ItemRarity.common)
                 .tradeable(tradeable)
                 .visible(visible)
@@ -450,7 +426,7 @@ public class ItemService {
             item.setIconUrl(iconUrl);
         if (value != null) {
             itemValueValidator.validate(item.getType(), value);
-            item.setValue(toJsonNode(value));
+            item.setValue(ItemMapper.toJsonNode(value));
         }
         if (rarity != null)
             item.setRarity(rarity);
@@ -563,14 +539,12 @@ public class ItemService {
         return itemRepository.save(item);
     }
 
-    public long getEssenceBalance(Long userId) {
+    public EssenceBalanceResponse getEssence(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return essenceLedgerService.balance(resolved);
-    }
-
-    public long getReservedEssence(Long userId) {
-        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return essenceLedgerService.reserved(resolved);
+        return EssenceBalanceResponse.builder()
+                .balance(essenceLedgerService.balance(resolved))
+                .reserved(essenceLedgerService.reserved(resolved))
+                .build();
     }
 
     @Transactional
@@ -1105,11 +1079,5 @@ public class ItemService {
                 .ifPresent(slot -> userSettingsService.clear(userId, slot));
         UserSettingKey.forEquippedItemVariant(typeKey)
                 .ifPresent(variantSlot -> userSettingsService.clear(userId, variantSlot));
-    }
-
-    private JsonNode toJsonNode(Object value) {
-        if (value == null)
-            return null;
-        return MAPPER.valueToTree(value);
     }
 }

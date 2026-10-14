@@ -16,12 +16,4 @@ public final class Rounding {
         double factor = POW10[scale];
         return Math.copySign(Math.floor(Math.abs(value) * factor + 0.5), value) / factor;
     }
-
-    public static double round6(double value) {
-        return round(value, 6);
-    }
-
-    public static Double round6(Double value) {
-        return value == null ? null : round(value, 6);
-    }
 }

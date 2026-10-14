@@ -22,14 +22,6 @@ import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 
 public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
 
-        List<Campaign> findByActiveTrue();
-
-        @EntityGraph(attributePaths = { "creator", "campaignDifficulties" })
-        Page<Campaign> findByActiveTrue(Pageable pageable);
-
-        @EntityGraph(attributePaths = { "creator", "campaignDifficulties" })
-        Page<Campaign> findByActiveTrueAndStatusIn(Collection<CampaignStatus> statuses, Pageable pageable);
-
         Optional<Campaign> findByIdAndActiveTrue(UUID id);
 
         @Lock(LockModeType.PESSIMISTIC_WRITE)

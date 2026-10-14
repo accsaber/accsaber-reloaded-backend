@@ -3,7 +3,6 @@ package com.accsaber.backend.service.player;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -152,10 +151,6 @@ public class UserSettingsService {
         } catch (Exception ex) {
             throw new RuntimeException(ex.getMessage(), ex);
         }
-    }
-
-    public List<String> knownGroups() {
-        return java.util.Arrays.stream(UserSettingKey.values()).map(UserSettingKey::group).distinct().toList();
     }
 
     private void validate(UserSettingKey key, JsonNode value) {

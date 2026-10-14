@@ -1,18 +1,13 @@
 package com.accsaber.backend.model.entity.staff;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class StaffRoleConverter implements AttributeConverter<StaffRole, String> {
+public class StaffRoleConverter extends DbEnumConverter<StaffRole> {
 
-    @Override
-    public String convertToDatabaseColumn(StaffRole role) {
-        return role == null ? null : role.getValue();
-    }
-
-    @Override
-    public StaffRole convertToEntityAttribute(String value) {
-        return value == null ? null : StaffRole.fromValue(value);
+    public StaffRoleConverter() {
+        super(StaffRole::getDbValue, StaffRole::fromDbValue);
     }
 }

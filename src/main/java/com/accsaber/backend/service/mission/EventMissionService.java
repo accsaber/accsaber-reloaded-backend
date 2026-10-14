@@ -217,7 +217,7 @@ public class EventMissionService {
                 continue;
             }
             long completed = statuses.stream().filter(s -> s == MissionStatus.completed).count();
-            if (completed >= allowedCompletions(template)) {
+            if (completed >= template.allowedCompletions()) {
                 continue;
             }
             userMissionRepository.save(missionRowFactory.build(userId, template, event));
@@ -256,7 +256,7 @@ public class EventMissionService {
         }
         long completed = userMissionRepository.countByUser_IdAndTemplate_IdAndStatus(
                 userId, template.getId(), MissionStatus.completed);
-        if (completed >= allowedCompletions(template)) {
+        if (completed >= template.allowedCompletions()) {
             return;
         }
         userMissionRepository.save(missionRowFactory.build(userId, template, event));
@@ -447,12 +447,5 @@ public class EventMissionService {
                 : userRepository.findAllById(playerIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u));
         return new MissionResponse.TargetContext(categories, mapDifficulties, players);
-    }
-
-    private long allowedCompletions(MissionTemplate template) {
-        if (!template.isRepeatable()) {
-            return 1;
-        }
-        return template.getMaxCompletions() != null ? template.getMaxCompletions() : Long.MAX_VALUE;
     }
 }

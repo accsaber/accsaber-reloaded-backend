@@ -172,4 +172,11 @@ public class MissionTemplate {
     public boolean isPerMember() {
         return isClan() && eventTargets == null;
     }
+
+    public long allowedCompletions() {
+        if (!repeatable) {
+            return 1;
+        }
+        return maxCompletions != null ? maxCompletions : Long.MAX_VALUE;
+    }
 }

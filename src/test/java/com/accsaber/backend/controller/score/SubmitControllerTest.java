@@ -139,6 +139,33 @@ class SubmitControllerTest {
     }
 
     @Test
+    void futureTimeSetIsClampedToNow() {
+        PluginSubmitRequest r = baseRequest();
+        r.setTimeSet(Instant.now().plusSeconds(86_400));
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.of(ScoreResponse.builder().build()));
+
+        controller.submit(r, principal);
+
+        ArgumentCaptor<SubmitScoreRequest> captor = ArgumentCaptor.forClass(SubmitScoreRequest.class);
+        verify(scoreService).submitPlayer(captor.capture());
+        assertThat(captor.getValue().getTimeSet()).isBeforeOrEqualTo(Instant.now());
+    }
+
+    @Test
+    void pastTimeSetFromAnOfflineQueueIsKept() {
+        PluginSubmitRequest r = baseRequest();
+        Instant queued = Instant.now().minusSeconds(7 * 86_400);
+        r.setTimeSet(queued);
+        when(scoreService.submitPlayer(any())).thenReturn(Optional.of(ScoreResponse.builder().build()));
+
+        controller.submit(r, principal);
+
+        ArgumentCaptor<SubmitScoreRequest> captor = ArgumentCaptor.forClass(SubmitScoreRequest.class);
+        verify(scoreService).submitPlayer(captor.capture());
+        assertThat(captor.getValue().getTimeSet()).isEqualTo(queued);
+    }
+
+    @Test
     void discardedSubmission_returnsNoContent() {
         when(scoreService.submitPlayer(any())).thenReturn(Optional.empty());
 

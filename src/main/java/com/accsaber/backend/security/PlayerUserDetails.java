@@ -9,6 +9,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.user.User;
 
@@ -40,6 +41,13 @@ public class PlayerUserDetails implements UserDetails {
 
     public User getUser() {
         return user;
+    }
+
+    public static PlayerUserDetails require(PlayerUserDetails principal) {
+        if (principal == null) {
+            throw new UnauthorizedException("Player authentication required");
+        }
+        return principal;
     }
 
     public Long getUserId() {

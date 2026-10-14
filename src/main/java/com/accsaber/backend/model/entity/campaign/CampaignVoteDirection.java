@@ -1,24 +1,19 @@
 package com.accsaber.backend.model.entity.campaign;
 
-public enum CampaignVoteDirection {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum CampaignVoteDirection implements DbEnum {
     UP("up"),
     DOWN("down");
 
     private final String dbValue;
 
-    CampaignVoteDirection(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static CampaignVoteDirection fromDbValue(String value) {
-        for (CampaignVoteDirection d : values()) {
-            if (d.dbValue.equals(value))
-                return d;
-        }
-        throw new IllegalArgumentException("Unknown campaign vote direction: " + value);
+        return DbEnum.fromDbValue(values(), value, "campaign vote direction");
     }
 }

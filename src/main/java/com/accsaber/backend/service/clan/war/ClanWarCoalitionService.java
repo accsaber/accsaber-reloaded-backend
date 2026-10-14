@@ -75,7 +75,7 @@ public class ClanWarCoalitionService {
     public ClanWarAidResponse request(UUID warId, Long playerId, UUID clanId) {
         User actor = accessService.player(playerId);
         Clan helper = roster.lock(clanId);
-        ClanWar war = lockWar(warId);
+        ClanWar war = warRepository.lockOrThrow(warId);
         ClanWarTeam team = war.leadTeamOf(clanOf(actor).getId());
         if (team == null) {
             throw new ForbiddenException("Only the clans that started this war can ask for help");
@@ -92,7 +92,7 @@ public class ClanWarCoalitionService {
         User actor = accessService.player(playerId);
         Clan helper = roster.lock(clanOf(actor).getId());
         accessService.require(helper.getId(), actor.getId(), ClanPermission.COALITION);
-        ClanWar war = lockWar(warId);
+        ClanWar war = warRepository.lockOrThrow(warId);
         assertCanJoin(war, helper, team);
         ClanWarAid aid = save(war, helper, team, ClanWarAidDirection.offer, actor);
         notifier.aidOffered(aid);
@@ -105,7 +105,7 @@ public class ClanWarCoalitionService {
         ClanWarAid aid = aidRepository.findWithRefsById(aidId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWarAid", aidId));
         Clan helper = roster.lock(aid.getClan().getId());
-        ClanWar war = lockWar(aid.getWar().getId());
+        ClanWar war = warRepository.lockOrThrow(aid.getWar().getId());
         if (aid.getStatus() != ClanWarAidStatus.pending) {
             throw new ConflictException("This has already been answered");
         }
@@ -136,7 +136,7 @@ public class ClanWarCoalitionService {
         User actor = accessService.player(playerId);
         roster.lock(clanId);
         accessService.require(clanId, actor.getId(), ClanPermission.COALITION);
-        ClanWar war = lockWar(warId);
+        ClanWar war = warRepository.lockOrThrow(warId);
         leave(war, clanId, actor);
         return warResponses.of(war);
     }
@@ -146,7 +146,7 @@ public class ClanWarCoalitionService {
         Instant now = Instant.now();
         aidRepository.cancelPendingForClan(clanId, now);
         for (UUID warId : sideRepository.findOpenAllyWarIds(clanId)) {
-            leave(lockWar(warId), clanId, null);
+            leave(warRepository.lockOrThrow(warId), clanId, null);
         }
     }
 
@@ -245,11 +245,6 @@ public class ClanWarCoalitionService {
         return memberRepository.findOpenByUserId(actor.getId())
                 .map(ClanMember::getClan)
                 .orElseThrow(() -> new ForbiddenException("You are not in a clan"));
-    }
-
-    private ClanWar lockWar(UUID warId) {
-        return warRepository.findByIdForUpdate(warId)
-                .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
     }
 
     private void announce(ClanWar war, List<ClanWarSide> sides, ChatEvent event, User actor, Clan subject) {

@@ -24,4 +24,8 @@ public class CdnProperties {
     private int coverMaxDimension = 1024;
     private int uploadMaxDimension = 4096;
     private long encodeTimeoutMs = 30_000L;
+
+    public boolean isCdnUrl(String url) {
+        return url != null && baseUrl != null && !baseUrl.isBlank() && url.startsWith(baseUrl);
+    }
 }

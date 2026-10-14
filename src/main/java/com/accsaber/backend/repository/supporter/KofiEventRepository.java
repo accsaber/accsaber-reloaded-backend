@@ -19,35 +19,23 @@ public interface KofiEventRepository extends JpaRepository<KofiEvent, UUID> {
         Optional<KofiEvent> findByKofiTransactionId(String kofiTransactionId);
 
         @Query("SELECT e FROM KofiEvent e WHERE e.claimedUser IS NULL "
-                        + "AND LOWER(e.email) = LOWER(:email) "
-                        + "AND e.receivedAt >= :since "
-                        + "ORDER BY e.receivedAt DESC")
-        List<KofiEvent> findUnclaimedByEmailSince(@Param("email") String email, @Param("since") Instant since);
-
-        @Query("SELECT e FROM KofiEvent e WHERE e.claimedUser IS NULL "
                         + "AND e.tierName IS NOT NULL "
                         + "AND e.receivedAt >= :since "
                         + "ORDER BY e.receivedAt DESC")
         List<KofiEvent> findUnclaimedSince(@Param("since") Instant since);
 
-        List<KofiEvent> findByClaimedUser_IdOrderByClaimedAtDesc(Long userId);
+        String FILTERED_WHERE = """
+                        WHERE (:status = 'all'
+                             OR (:status = 'unclaimed' AND e.claimedUser IS NULL)
+                             OR (:status = 'claimed' AND e.claimedUser IS NOT NULL))
+                        AND (:userId IS NULL OR u.id = :userId)
+                        AND (CAST(:search AS string) IS NULL
+                             OR LOWER(e.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                             OR LOWER(e.fromName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+                        """;
 
-        @Query(value = "SELECT e FROM KofiEvent e LEFT JOIN FETCH e.claimedUser u "
-                        + "WHERE (:status = 'all' "
-                        + "     OR (:status = 'unclaimed' AND e.claimedUser IS NULL) "
-                        + "     OR (:status = 'claimed' AND e.claimedUser IS NOT NULL)) "
-                        + "AND (:userId IS NULL OR u.id = :userId) "
-                        + "AND (CAST(:search AS string) IS NULL "
-                        + "     OR LOWER(e.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) "
-                        + "     OR LOWER(e.fromName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))",
-                        countQuery = "SELECT count(e) FROM KofiEvent e LEFT JOIN e.claimedUser u "
-                        + "WHERE (:status = 'all' "
-                        + "     OR (:status = 'unclaimed' AND e.claimedUser IS NULL) "
-                        + "     OR (:status = 'claimed' AND e.claimedUser IS NOT NULL)) "
-                        + "AND (:userId IS NULL OR u.id = :userId) "
-                        + "AND (CAST(:search AS string) IS NULL "
-                        + "     OR LOWER(e.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) "
-                        + "     OR LOWER(e.fromName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
+        @Query(value = "SELECT e FROM KofiEvent e LEFT JOIN FETCH e.claimedUser u " + FILTERED_WHERE,
+                        countQuery = "SELECT count(e) FROM KofiEvent e LEFT JOIN e.claimedUser u " + FILTERED_WHERE)
         Page<KofiEvent> findFiltered(@Param("status") String status,
                         @Param("userId") Long userId,
                         @Param("search") String search,

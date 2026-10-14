@@ -9,8 +9,6 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.socket.WebSocketHandler;
-import org.springframework.web.socket.server.HandshakeInterceptor;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.security.PlayerTokenResolver;
@@ -23,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class CampaignPresenceHandshakeInterceptor implements HandshakeInterceptor {
+public class CampaignPresenceHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
     static final String ATTR_CAMPAIGN_ID = "campaignId";
     static final String ATTR_USER_ID = "userId";
@@ -36,8 +34,7 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        MultiValueMap<String, String> params = UriComponentsBuilder.fromUri(request.getURI())
-                .build().getQueryParams();
+        MultiValueMap<String, String> params = queryParams(request.getURI());
         UUID campaignId = Slugs.uuidOrNull(params.getFirst("campaignId"));
         if (campaignId == null) {
             log.warn("Presence handshake rejected: missing or invalid campaignId '{}'", params.getFirst("campaignId"));
@@ -45,10 +42,9 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
             return false;
         }
 
-        PlayerTokenResolver.Resolution resolution = playerTokenResolver.resolve(params.getFirst("token"));
+        PlayerTokenResolver.Resolution resolution = authenticate(playerTokenResolver, params, response);
         if (!resolution.accepted()) {
             log.warn("Presence handshake rejected: {} (campaign {})", resolution.reason(), campaignId);
-            response.setStatusCode(resolution.rejection());
             return false;
         }
         User user = resolution.user();
@@ -66,10 +62,5 @@ public class CampaignPresenceHandshakeInterceptor implements HandshakeIntercepto
                 user.getCdnAvatarUrl() != null ? user.getCdnAvatarUrl() : user.getAvatarUrl());
         log.debug("Presence handshake accepted: user {} on campaign {}", user.getId(), campaignId);
         return true;
-    }
-
-    @Override
-    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-            WebSocketHandler wsHandler, Exception exception) {
     }
 }

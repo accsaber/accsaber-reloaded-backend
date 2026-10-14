@@ -18,68 +18,44 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ModifierCacheService {
 
+    private record Snapshot(Map<String, UUID> codeToId, Set<UUID> bannedIds, Set<UUID> noFailIds) {
+
+        static Snapshot of(Map<String, UUID> codeToId) {
+            Set<UUID> banned = codeToId.entrySet().stream()
+                    .filter(e -> PlatformScoreMapper.BANNED_MODIFIER_CODES.contains(e.getKey()))
+                    .map(Map.Entry::getValue)
+                    .collect(Collectors.toUnmodifiableSet());
+            UUID noFail = codeToId.get("NF");
+            return new Snapshot(codeToId, banned, noFail == null ? Set.of() : Set.of(noFail));
+        }
+    }
+
     private final ModifierRepository modifierRepository;
-    private volatile Map<String, UUID> modifierCodeToId;
-    private volatile Set<UUID> bannedModifierIds;
-    private volatile Set<UUID> noFailIds;
+    private volatile Snapshot snapshot;
 
     public Map<String, UUID> getModifierCodeToId() {
-        if (modifierCodeToId == null) {
-            synchronized (this) {
-                if (modifierCodeToId == null) {
-                    modifierCodeToId = modifierRepository.findByActiveTrue().stream()
-                            .collect(Collectors.toMap(Modifier::getCode, Modifier::getId));
-                }
-            }
-        }
-        return modifierCodeToId;
-    }
-
-    public Set<UUID> getBannedModifierIds() {
-        if (bannedModifierIds == null) {
-            synchronized (this) {
-                if (bannedModifierIds == null) {
-                    bannedModifierIds = getModifierCodeToId().entrySet().stream()
-                            .filter(e -> PlatformScoreMapper.BANNED_MODIFIER_CODES.contains(e.getKey()))
-                            .map(Map.Entry::getValue)
-                            .collect(Collectors.toUnmodifiableSet());
-                }
-            }
-        }
-        return bannedModifierIds;
-    }
-
-    public Set<UUID> getNoFailIds() {
-        if (noFailIds == null) {
-            synchronized (this) {
-                if (noFailIds == null) {
-                    UUID id = getModifierCodeToId().get("NF");
-                    noFailIds = id == null ? Set.of() : Set.of(id);
-                }
-            }
-        }
-        return noFailIds;
+        return snapshot().codeToId();
     }
 
     public boolean containsBannedModifier(Collection<UUID> modifierIds) {
-        if (modifierIds == null || modifierIds.isEmpty()) {
-            return false;
-        }
-        Set<UUID> banned = getBannedModifierIds();
-        return modifierIds.stream().anyMatch(banned::contains);
+        return containsAny(modifierIds, snapshot().bannedIds());
     }
 
     public boolean containsNoFail(Collection<UUID> modifierIds) {
-        if (modifierIds == null || modifierIds.isEmpty()) {
-            return false;
-        }
-        Set<UUID> noFail = getNoFailIds();
-        return modifierIds.stream().anyMatch(noFail::contains);
+        return containsAny(modifierIds, snapshot().noFailIds());
     }
 
-    public void invalidate() {
-        modifierCodeToId = null;
-        bannedModifierIds = null;
-        noFailIds = null;
+    private static boolean containsAny(Collection<UUID> modifierIds, Set<UUID> targets) {
+        return modifierIds != null && modifierIds.stream().anyMatch(targets::contains);
+    }
+
+    private Snapshot snapshot() {
+        Snapshot current = snapshot;
+        if (current == null) {
+            current = Snapshot.of(modifierRepository.findByActiveTrue().stream()
+                    .collect(Collectors.toMap(Modifier::getCode, Modifier::getId)));
+            snapshot = current;
+        }
+        return current;
     }
 }

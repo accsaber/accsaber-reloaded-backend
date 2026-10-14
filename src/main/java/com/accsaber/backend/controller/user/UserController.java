@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,11 +37,9 @@ import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResp
 import com.accsaber.backend.model.dto.response.player.UserResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.UserScoreSummaryResponse;
-import com.accsaber.backend.model.entity.campaign.CampaignStatus;
-import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.service.campaign.CampaignService;
+import com.accsaber.backend.service.campaign.CampaignProgressService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.infra.CategoryService;
@@ -64,7 +64,7 @@ public class UserController {
     private final MapService mapService;
     private final MilestoneService milestoneService;
     private final LevelService levelService;
-    private final CampaignService campaignService;
+    private final CampaignProgressService campaignProgressService;
     private final CategoryService categoryService;
 
     @Operation(summary = "Player profile", description = "statistics=true adds all category stats. "
@@ -266,20 +266,10 @@ public class UserController {
     @GetMapping("/{userId}/campaigns")
     public ResponseEntity<Page<UserCampaignResponse>> listUserCampaigns(
             @PathVariable Long userId,
-            @RequestParam(required = false) List<CampaignStatus> status,
-            @RequestParam(required = false) List<UUID> tagIds,
-            @RequestParam(required = false) Long creatorId,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Boolean official,
-            @RequestParam(required = false) Boolean loved,
-            @RequestParam(required = false) List<UserCampaignStatus> progressStatus,
+            @ParameterObject @ModelAttribute CampaignFilter filter,
             Authentication authentication,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        CampaignFilter filter = CampaignFilter.builder()
-                .status(status).tagIds(tagIds).creatorId(creatorId).search(search)
-                .official(official).loved(loved)
-                .participantId(userId).progressStatus(progressStatus).build();
-        return ResponseEntity.ok(campaignService.listUserCampaigns(filter,
+        return ResponseEntity.ok(campaignProgressService.listUserCampaigns(userId, filter,
                 StaffPrincipals.viewerIdOf(authentication),
                 StaffPrincipals.canViewCampaignDrafts(authentication), pageable));
     }
@@ -290,6 +280,6 @@ public class UserController {
     public ResponseEntity<CampaignProgressResponse> getUserCampaignProgress(
             @PathVariable Long userId,
             @PathVariable UUID campaignId) {
-        return ResponseEntity.ok(campaignService.getUserProgress(userId, campaignId));
+        return ResponseEntity.ok(campaignProgressService.getUserProgress(userId, campaignId));
     }
 }

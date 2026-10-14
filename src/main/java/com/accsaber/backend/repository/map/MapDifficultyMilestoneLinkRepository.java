@@ -9,12 +9,6 @@ import com.accsaber.backend.model.entity.map.MapDifficultyMilestoneLink;
 
 public interface MapDifficultyMilestoneLinkRepository extends JpaRepository<MapDifficultyMilestoneLink, UUID> {
 
-    List<MapDifficultyMilestoneLink> findByMilestone_Id(UUID milestoneId);
-
-    List<MapDifficultyMilestoneLink> findByMapDifficulty_Id(UUID mapDifficultyId);
-
-    boolean existsByMilestone_Id(UUID milestoneId);
-
     boolean existsByMapDifficulty_IdAndMilestone_Id(UUID mapDifficultyId, UUID milestoneId);
 
     void deleteByMilestone_IdAndMapDifficulty_IdIn(UUID milestoneId, List<UUID> mapDifficultyIds);

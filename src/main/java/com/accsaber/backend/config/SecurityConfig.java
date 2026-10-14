@@ -23,10 +23,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @Configuration
 @EnableWebSecurity
@@ -34,6 +37,14 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 public class SecurityConfig {
 
     public static final String[] ADMIN_PATH_ROLES = { "ADMIN", "RANKING_HEAD", "CAMPAIGN_CURATOR", "CREATIVE" };
+
+    private static final List<IpAddressMatcher> INTERNAL_NETWORKS = List.of(
+            new IpAddressMatcher("127.0.0.0/8"),
+            new IpAddressMatcher("::1/128"),
+            new IpAddressMatcher("10.0.0.0/8"),
+            new IpAddressMatcher("172.16.0.0/12"),
+            new IpAddressMatcher("192.168.0.0/16"),
+            new IpAddressMatcher("fc00::/7"));
 
     public static final Set<String> PUBLIC_READ_PREFIXES = Set.of(
             "/v1/curves",
@@ -128,6 +139,8 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v1/health/**").permitAll()
+                .requestMatchers(SecurityConfig::isInternalScrape).permitAll()
+                .requestMatchers("/actuator/prometheus", "/actuator/prometheus/**").denyAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/robots.txt").permitAll()
                 .requestMatchers(HttpMethod.GET, "/").permitAll()
@@ -181,5 +194,13 @@ public class SecurityConfig {
             );
 
         return http.build();
+    }
+
+    static boolean isInternalScrape(HttpServletRequest request) {
+        if (!request.getRequestURI().startsWith("/actuator/prometheus")
+                || request.getHeader("CF-Connecting-IP") != null) {
+            return false;
+        }
+        return RateLimitFilter.matchesAny(INTERNAL_NETWORKS, request.getRemoteAddr());
     }
 }

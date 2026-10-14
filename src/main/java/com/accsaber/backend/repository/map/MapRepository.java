@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.map;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,7 +20,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
 
         Optional<Map> findBySongHashAndActiveTrue(String songHash);
 
-        java.util.List<Map> findByActiveTrue();
+        List<Map> findByActiveTrue();
 
         @Query("""
                         SELECT m FROM Map m
@@ -27,7 +28,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         AND m.beatsaverCode = :beatsaverCode
                         ORDER BY m.createdAt DESC
                         """)
-        java.util.List<Map> findActiveByBeatsaverCodeLatestFirst(
+        List<Map> findActiveByBeatsaverCodeLatestFirst(
                         @Param("beatsaverCode") String beatsaverCode,
                         Pageable pageable);
 
@@ -45,7 +46,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         )
                         ORDER BY m.createdAt DESC
                         """)
-        java.util.List<Map> findActiveByBeatsaverCodeMatchingDifficulty(
+        List<Map> findActiveByBeatsaverCodeMatchingDifficulty(
                         @Param("beatsaverCode") String beatsaverCode,
                         @Param("difficulty") Difficulty difficulty,
                         @Param("characteristic") String characteristic,

@@ -113,7 +113,7 @@ public class ClanWarController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
             @Valid @RequestBody UpdateClanWarRequest request) {
-        if (request.getStatus() != ClanWarStatus.ended) {
+        if (request.status() != ClanWarStatus.ended) {
             throw new ValidationException("status", "must be ended");
         }
         return ResponseEntity.ok(warService.retreat(warId, principal.getUserId()));
@@ -142,7 +142,7 @@ public class ClanWarController {
             @PathVariable UUID warId,
             @Valid @RequestBody RequestClanWarAidRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(coalitionService.request(warId, principal.getUserId(), request.getClanId()));
+                .body(coalitionService.request(warId, principal.getUserId(), request.clanId()));
     }
 
     @Operation(summary = "Offer to help in a war",
@@ -155,7 +155,7 @@ public class ClanWarController {
             @PathVariable UUID warId,
             @Valid @RequestBody OfferClanWarAidRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(coalitionService.offer(warId, principal.getUserId(), request.getTeam()));
+                .body(coalitionService.offer(warId, principal.getUserId(), request.team()));
     }
 
     @Operation(summary = "Answer a request or offer",
@@ -167,7 +167,7 @@ public class ClanWarController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID aidId,
             @Valid @RequestBody ResolveClanWarAidRequest request) {
-        return ResponseEntity.ok(coalitionService.resolve(aidId, principal.getUserId(), request.getStatus()));
+        return ResponseEntity.ok(coalitionService.resolve(aidId, principal.getUserId(), request.status()));
     }
 
     @Operation(summary = "Requests and offers",
@@ -206,7 +206,7 @@ public class ClanWarController {
             @PathVariable UUID warId,
             @Valid @RequestBody ChooseClanWarTargetRequest request) {
         return ResponseEntity.ok(rosterService.choose(warId, principal.getUserId(),
-                request.getUserId() == null ? null : Long.valueOf(request.getUserId())));
+                request.userId() == null ? null : Long.valueOf(request.userId())));
     }
 
     @Operation(summary = "War participants",

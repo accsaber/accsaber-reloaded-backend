@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.player.UserSettingsService;
 
@@ -31,7 +30,7 @@ public class UserSettingsController {
     @GetMapping("/me/settings")
     public ResponseEntity<Map<String, Object>> getMyAllSettings(
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(settingsService.getAll(requirePrincipal(principal).getUserId()));
+        return ResponseEntity.ok(settingsService.getAll(PlayerUserDetails.require(principal).getUserId()));
     }
 
     @Operation(summary = "One settings group", description = "Defaults filled in.")
@@ -39,7 +38,7 @@ public class UserSettingsController {
     public ResponseEntity<Map<String, Object>> getMyGroup(
             @PathVariable String group,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(settingsService.getGroup(requirePrincipal(principal).getUserId(), group));
+        return ResponseEntity.ok(settingsService.getGroup(PlayerUserDetails.require(principal).getUserId(), group));
     }
 
     @Operation(summary = "Change a settings group", description = "Send only the keys you want to change. "
@@ -49,7 +48,7 @@ public class UserSettingsController {
             @PathVariable String group,
             @RequestBody Map<String, Object> patch,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(settingsService.updateGroup(requirePrincipal(principal).getUserId(), group, patch));
+        return ResponseEntity.ok(settingsService.updateGroup(PlayerUserDetails.require(principal).getUserId(), group, patch));
     }
 
     @Operation(summary = "Someone's public settings", description = "Only the keys they made public.")
@@ -58,12 +57,5 @@ public class UserSettingsController {
             @PathVariable Long userId,
             @PathVariable String group) {
         return ResponseEntity.ok(settingsService.getPublicGroup(userId, group));
-    }
-
-    private PlayerUserDetails requirePrincipal(PlayerUserDetails principal) {
-        if (principal == null) {
-            throw new UnauthorizedException("Player authentication required");
-        }
-        return principal;
     }
 }

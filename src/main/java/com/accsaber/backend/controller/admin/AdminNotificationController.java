@@ -32,6 +32,6 @@ public class AdminNotificationController {
     @PostMapping("/broadcast")
     public ResponseEntity<Map<String, Integer>> broadcast(@Valid @RequestBody BroadcastRequest req) {
         return ResponseEntity.ok(Map.of("delivered",
-                notificationService.broadcast(req.getTitle(), req.getLinkTo())));
+                notificationService.broadcast(req.title(), req.linkTo())));
     }
 }

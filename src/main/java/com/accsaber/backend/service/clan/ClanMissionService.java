@@ -38,7 +38,7 @@ public class ClanMissionService {
     private final ClanProperties clanProperties;
 
     public Page<MissionResponse> list(UUID clanId, boolean current, Long viewerId, Pageable pageable) {
-        clanRepository.findByIdAndActiveTrue(clanId).orElseThrow(() -> new ResourceNotFoundException("Clan", clanId));
+        clanRepository.requireActive(clanId);
         Page<UserMission> page = userMissionRepository.findClanShared(clanId, current, Instant.now(), pageable);
         boolean seasonRunning = standingService.currentSeason().isPresent();
         Map<UUID, MissionResponse.ClanReward> rewards = page.getContent().stream()

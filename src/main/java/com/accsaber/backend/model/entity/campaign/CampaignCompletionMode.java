@@ -1,24 +1,19 @@
 package com.accsaber.backend.model.entity.campaign;
 
-public enum CampaignCompletionMode {
+import com.accsaber.backend.model.entity.DbEnum;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum CampaignCompletionMode implements DbEnum {
     TERMINAL("terminal"),
     ALL("all");
 
     private final String dbValue;
 
-    CampaignCompletionMode(String dbValue) {
-        this.dbValue = dbValue;
-    }
-
-    public String getDbValue() {
-        return dbValue;
-    }
-
     public static CampaignCompletionMode fromDbValue(String value) {
-        for (CampaignCompletionMode m : values()) {
-            if (m.dbValue.equals(value))
-                return m;
-        }
-        throw new IllegalArgumentException("Unknown campaign completion mode: " + value);
+        return DbEnum.fromDbValue(values(), value, "campaign completion mode");
     }
 }

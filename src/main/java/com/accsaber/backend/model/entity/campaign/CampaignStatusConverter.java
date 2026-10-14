@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.campaign;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class CampaignStatusConverter implements AttributeConverter<CampaignStatus, String> {
+public class CampaignStatusConverter extends DbEnumConverter<CampaignStatus> {
 
-    @Override
-    public String convertToDatabaseColumn(CampaignStatus status) {
-        if (status == null)
-            return null;
-        return status.getDbValue();
-    }
-
-    @Override
-    public CampaignStatus convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return CampaignStatus.fromDbValue(value);
+    public CampaignStatusConverter() {
+        super(CampaignStatus::getDbValue, CampaignStatus::fromDbValue);
     }
 }

@@ -1,22 +1,13 @@
 package com.accsaber.backend.model.entity.map;
 
-import jakarta.persistence.AttributeConverter;
+import com.accsaber.backend.model.entity.DbEnumConverter;
+
 import jakarta.persistence.Converter;
 
 @Converter(autoApply = true)
-public class VoteTypeConverter implements AttributeConverter<VoteType, String> {
+public class VoteTypeConverter extends DbEnumConverter<VoteType> {
 
-    @Override
-    public String convertToDatabaseColumn(VoteType voteType) {
-        if (voteType == null)
-            return null;
-        return voteType.getDbValue();
-    }
-
-    @Override
-    public VoteType convertToEntityAttribute(String value) {
-        if (value == null)
-            return null;
-        return VoteType.fromDbValue(value);
+    public VoteTypeConverter() {
+        super(VoteType::getDbValue, VoteType::fromDbValue);
     }
 }

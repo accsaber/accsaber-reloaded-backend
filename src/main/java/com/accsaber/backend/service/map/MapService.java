@@ -37,6 +37,7 @@ import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.Map;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.VoteType;
@@ -85,6 +86,17 @@ public class MapService {
 
     private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, null, 0);
 
+    record DifficultyContext(Double complexity, MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedBy,
+            StaffInfo createdBy, VoteSummary votes, MapDifficultyComplexityEstimate estimate) {
+
+        static final DifficultyContext EMPTY = basic(null, null, null);
+
+        static DifficultyContext basic(Double complexity, MapDifficultyStatisticsResponse stats,
+                StaffInfo lastUpdatedBy) {
+            return new DifficultyContext(complexity, stats, lastUpdatedBy, null, EMPTY_SUMMARY, null);
+        }
+    }
+
     public Page<PublicMapResponse> findAllPublic(UUID categoryId, MapDifficultyStatus status, String search,
             Pageable pageable) {
         return findAll(categoryId, status, search, null, pageable).map(MapService::toPublicMapResponse);
@@ -113,10 +125,10 @@ public class MapService {
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
 
         return difficulties.stream()
-                .map(d -> toPublicDifficultyResponse(toDifficultyResponse(d,
+                .map(d -> toPublicDifficultyResponse(toDifficultyResponse(d, new DifficultyContext(
                         complexities.get(d.getId()), stats.get(d.getId()),
                         staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY))))
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), null))))
                 .toList();
     }
 
@@ -155,8 +167,8 @@ public class MapService {
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, PublicMapDifficultyResponse> result = new java.util.HashMap<>();
         for (MapDifficulty d : difficulties) {
-            MapDifficultyResponse full = toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
-                    staffInfo.get(d.getLastUpdatedBy()));
+            MapDifficultyResponse full = toDifficultyResponse(d, DifficultyContext.basic(
+                    complexities.get(d.getId()), stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy())));
             result.put(d.getId(), toPublicDifficultyResponse(full));
         }
         return result;
@@ -186,7 +198,8 @@ public class MapService {
 
         return maps.map(map -> {
             List<MapDifficultyResponse> difficulties = byMap.getOrDefault(map.getId(), List.of()).stream()
-                    .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()), null))
+                    .map(d -> toDifficultyResponse(d,
+                            DifficultyContext.basic(complexities.get(d.getId()), stats.get(d.getId()), null)))
                     .toList();
             return toMapResponse(map, difficulties);
         });
@@ -283,18 +296,18 @@ public class MapService {
                         effective);
 
         if (difficulties.isEmpty())
-            return difficulties.map(d -> toDifficultyResponse(d, null, null, null));
+            return difficulties.map(d -> toDifficultyResponse(d, DifficultyContext.EMPTY));
 
         List<UUID> ids = difficulties.getContent().stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, Double> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
-        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
+        java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
-        return difficulties.map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
-                staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId())));
+        return difficulties.map(d -> toDifficultyResponse(d, new DifficultyContext(complexities.get(d.getId()),
+                stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()))));
     }
 
     public MapResponse findById(UUID mapId) {
@@ -476,7 +489,7 @@ public class MapService {
             playlistService.evictAllUnrankedPlaylists();
         }
 
-        return toDifficultyResponse(difficulty, null, null, null);
+        return toDifficultyResponse(difficulty, DifficultyContext.EMPTY);
     }
 
     @Transactional
@@ -517,7 +530,7 @@ public class MapService {
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, complexity, stats, info);
+        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
     }
 
     @Transactional
@@ -539,7 +552,7 @@ public class MapService {
                 difficulty, request.getComplexity(), request.getReason(), staffUserId);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, complexity, stats, info);
+        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
     }
 
     @Transactional
@@ -568,7 +581,7 @@ public class MapService {
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, complexity, stats, info);
+        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
     }
 
     @Transactional
@@ -588,8 +601,8 @@ public class MapService {
         StaffInfo info = resolveStaffInfo(difficulty.getLastUpdatedBy());
         Double avgComplexity = loadAvgReweightComplexity(List.of(difficultyId)).get(difficultyId);
         VoteSummary votes = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity, 0);
-        return toDifficultyResponse(difficulty, complexity, stats, info, null, votes,
-                estimateRepository.findByMapDifficultyId(difficultyId).orElse(null));
+        return toDifficultyResponse(difficulty, new DifficultyContext(complexity, stats, info, null, votes,
+                estimateRepository.findByMapDifficultyId(difficultyId).orElse(null)));
     }
 
     private void checkLeaderboardIdConflict(String blId, String ssId) {
@@ -637,12 +650,12 @@ public class MapService {
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
         java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
-        java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
+        java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
         return difficulties.stream()
-                .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId()),
-                        staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId())))
+                .map(d -> toDifficultyResponse(d, new DifficultyContext(complexities.get(d.getId()),
+                        stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()))))
                 .toList();
     }
 
@@ -771,11 +784,12 @@ public class MapService {
                 .build();
     }
 
-    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
-            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
-            StaffInfo createdByInfo, VoteSummary votes,
-            com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate estimate) {
+    static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, DifficultyContext ctx) {
         Map map = d.getMap();
+        StaffInfo createdByInfo = ctx.createdBy();
+        StaffInfo lastUpdatedByInfo = ctx.lastUpdatedBy();
+        VoteSummary votes = ctx.votes();
+        MapDifficultyComplexityEstimate estimate = ctx.estimate();
         return MapDifficultyResponse.builder()
                 .id(d.getId())
                 .mapId(map.getId())
@@ -799,7 +813,7 @@ public class MapService {
                 .metadata(d.getMetadata())
                 .nps(MapDifficultyMetrics.nps(d.getMetadata()))
                 .maxCombo(MapDifficultyMetrics.maxCombo(d.getMetadata()))
-                .complexity(complexity)
+                .complexity(ctx.complexity())
                 .complexityPinned(d.isComplexityPinned())
                 .warBanned(map.isWarBanned())
                 .scriptComplexity(estimate == null ? null : estimate.getComplexity())
@@ -825,25 +839,14 @@ public class MapService {
                 .averageVoteComplexity(
                         d.getStatus() == MapDifficultyStatus.RANKED ? votes.averageVoteComplexity() : null)
                 .commentCount(votes.commentCount())
-                .statistics(stats)
+                .statistics(ctx.stats())
                 .build();
     }
 
-    private java.util.Map<UUID, com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate> loadEstimates(
+    private java.util.Map<UUID, MapDifficultyComplexityEstimate> loadEstimates(
             List<UUID> ids) {
         return estimateRepository.findAllByDifficultyIds(ids).stream()
                 .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
-    }
-
-    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
-            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo) {
-        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, null, EMPTY_SUMMARY, null);
-    }
-
-    private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
-            MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedByInfo,
-            StaffInfo createdByInfo, VoteSummary votes) {
-        return toDifficultyResponse(d, complexity, stats, lastUpdatedByInfo, createdByInfo, votes, null);
     }
 
     public static PublicMapResponse toPublicMapResponse(MapResponse map) {
@@ -865,7 +868,7 @@ public class MapService {
     }
 
     public static PublicMapDifficultyResponse toPublicDifficultyResponse(MapDifficulty d) {
-        return toPublicDifficultyResponse(toDifficultyResponse(d, null, null, null));
+        return toPublicDifficultyResponse(toDifficultyResponse(d, DifficultyContext.EMPTY));
     }
 
     public static PublicMapDifficultyResponse toPublicDifficultyResponse(MapDifficultyResponse d) {

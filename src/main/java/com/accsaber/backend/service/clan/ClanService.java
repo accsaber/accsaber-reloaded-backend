@@ -14,10 +14,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +43,8 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.util.Slugs;
+import com.accsaber.backend.util.SortAliases;
+import com.accsaber.backend.util.Texts;
 import com.accsaber.backend.websocket.server.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
@@ -80,7 +79,8 @@ public class ClanService {
     }
 
     public Page<ClanResponse> list(String search, Pageable pageable) {
-        Page<Clan> page = clanRepository.search(blankToNull(search), withSortExpressions(pageable));
+        Page<Clan> page = clanRepository.search(search == null ? null : Texts.blankToNull(search.trim()),
+                SortAliases.translate(pageable, sortExpressions(), false));
         ListExtras extras = extrasFor(page.getContent());
         return page.map(clan -> toResponse(clan, extras));
     }
@@ -313,30 +313,13 @@ public class ClanService {
                 extras.founders().get(clan.getId()), clan.getPacifistFrom(), clan.getCreatedAt());
     }
 
-    private Pageable withSortExpressions(Pageable pageable) {
-        for (Sort.Order order : pageable.getSort()) {
-            String expression = sortExpression(order.getProperty());
-            if (expression != null) {
-                return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                        JpaSort.unsafe(order.getDirection(), expression));
-            }
-        }
-        return pageable;
-    }
-
-    private String sortExpression(String property) {
-        return switch (property) {
-            case "level" -> "c.totalXp";
-            case "members" -> "(SELECT COUNT(m) FROM ClanMember m WHERE m.clan = c AND m.leftAt IS NULL)";
-            case "standing" -> "((c.rosterStrength + c.allyStrength) * " + clanProperties.getStandingPerSkill()
-                    + " + COALESCE((SELECT ss.earned FROM ClanSeasonStanding ss WHERE ss.clan = c"
-                    + " AND ss.season.closedAt IS NULL AND ss.season.startsAt <= CURRENT_TIMESTAMP"
-                    + " AND ss.season.endsAt > CURRENT_TIMESTAMP), 0))";
-            default -> null;
-        };
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private Map<String, String> sortExpressions() {
+        return Map.of(
+                "level", "c.totalXp",
+                "members", "(SELECT COUNT(m) FROM ClanMember m WHERE m.clan = c AND m.leftAt IS NULL)",
+                "standing", "((c.rosterStrength + c.allyStrength) * " + clanProperties.getStandingPerSkill()
+                        + " + COALESCE((SELECT ss.earned FROM ClanSeasonStanding ss WHERE ss.clan = c"
+                        + " AND ss.season.closedAt IS NULL AND ss.season.startsAt <= CURRENT_TIMESTAMP"
+                        + " AND ss.season.endsAt > CURRENT_TIMESTAMP), 0))");
     }
 }

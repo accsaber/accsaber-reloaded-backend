@@ -1,4 +1,4 @@
-package com.accsaber.backend.util;
+package com.accsaber.backend.service.player;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

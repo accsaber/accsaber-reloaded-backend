@@ -8,14 +8,17 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
@@ -25,6 +28,8 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
+import com.accsaber.backend.repository.campaign.CampaignRepository;
+import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -51,6 +56,15 @@ public class PlaylistService {
     private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final ScoreService scoreService;
     private final PlaylistAssembler playlistAssembler;
+    private final BatchRepository batchRepository;
+    private final CampaignRepository campaignRepository;
+
+    @Autowired
+    @Lazy
+    private PlaylistService self;
+
+    public record PlaylistFile(Map<String, Object> playlist, String filename) {
+    }
 
     @Cacheable(value = "playlists", key = "#categoryCode")
     public Map<String, Object> generatePlaylist(String categoryCode, String syncUrl) {
@@ -104,6 +118,14 @@ public class PlaylistService {
                 unrankedDifficulties);
     }
 
+    public PlaylistFile generateBatchPlaylist(UUID batchId, String syncUrl) {
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
+        String filename = "accsaber-reloaded-" + batch.getName().toLowerCase().replace(" ", "-").replace("_", "-")
+                + ".bplist";
+        return new PlaylistFile(self.generateBatchPlaylist(batch, syncUrl), filename);
+    }
+
     @Cacheable(value = "batchPlaylists", key = "#batch.id")
     public Map<String, Object> generateBatchPlaylist(Batch batch, String syncUrl) {
         List<MapDifficulty> difficulties = mapDifficultyRepository.findByBatch_IdAndActiveTrue(batch.getId());
@@ -118,6 +140,16 @@ public class PlaylistService {
     public Map<String, Object> generateClanWarPlaylist(ClanWarPoolService.PlaylistSource source, String syncUrl) {
         return playlistAssembler.assemble(source.title(), playlistAssembler.loadCategoryImage(OVERALL_CODE), syncUrl,
                 source.difficulties());
+    }
+
+    public PlaylistFile generateCampaignPlaylist(UUID campaignId, String syncUrl) {
+        Campaign campaign = campaignRepository.findByIdAndActiveTrue(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", campaignId));
+        if (!campaign.isPlaylistExportEnabled()) {
+            throw new ValidationException("Playlist export is not enabled for this campaign");
+        }
+        return new PlaylistFile(self.generateCampaignPlaylist(campaign, syncUrl),
+                "accsaber-campaign-" + campaign.getSlug() + ".bplist");
     }
 
     @Cacheable(value = "campaignPlaylists", key = "#campaign.id")
@@ -181,11 +213,6 @@ public class PlaylistService {
         log.info("Evicted all playlist caches");
     }
 
-    @CacheEvict(value = "playlists", key = "#categoryCode")
-    public void evictPlaylist(String categoryCode) {
-        log.info("Evicted playlist cache for category: {}", categoryCode);
-    }
-
     @CacheEvict(value = "unrankedPlaylists", allEntries = true)
     public void evictAllUnrankedPlaylists() {
         log.info("Evicted all unranked playlist caches");
@@ -194,11 +221,6 @@ public class PlaylistService {
     @CacheEvict(value = "campaignPlaylists", key = "#campaignId")
     public void evictCampaignPlaylist(UUID campaignId) {
         log.info("Evicted campaign playlist cache for campaign: {}", campaignId);
-    }
-
-    @CacheEvict(value = "unrankedPlaylists", key = "#categoryCode")
-    public void evictUnrankedPlaylist(String categoryCode) {
-        log.info("Evicted unranked playlist cache for category: {}", categoryCode);
     }
 
     private Category requireCategory(String categoryCode) {

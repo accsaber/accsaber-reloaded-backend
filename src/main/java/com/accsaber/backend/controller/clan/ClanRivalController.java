@@ -55,7 +55,7 @@ public class ClanRivalController {
             @PathVariable UUID clanId,
             @Valid @RequestBody CreateClanRivalRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(rivalService.declare(clanId, principal.getUserId(), request.getClanId()));
+                .body(rivalService.declare(clanId, principal.getUserId(), request.clanId()));
     }
 
     @Operation(summary = "Drop a rivalry", description = "Commander or above.")

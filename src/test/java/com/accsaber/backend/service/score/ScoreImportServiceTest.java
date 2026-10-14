@@ -46,9 +46,6 @@ import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.PlayerImportService;
-import com.accsaber.backend.service.stats.OverallStatisticsService;
-import com.accsaber.backend.service.stats.RankingService;
-import com.accsaber.backend.service.stats.StatisticsService;
 
 @ExtendWith(MockitoExtension.class)
 class ScoreImportServiceTest {
@@ -80,12 +77,6 @@ class ScoreImportServiceTest {
         @Mock
         private UserRepository userRepository;
         @Mock
-        private StatisticsService statisticsService;
-        @Mock
-        private OverallStatisticsService overallStatisticsService;
-        @Mock
-        private RankingService rankingService;
-        @Mock
         private MilestoneEvaluationService milestoneEvaluationService;
         @Mock
         private CampaignEvaluationService campaignEvaluationService;
@@ -102,9 +93,9 @@ class ScoreImportServiceTest {
         @Mock
         private DuplicateUserService duplicateUserService;
         @Mock
-        private com.accsaber.backend.service.skill.SkillService skillService;
-        @Mock
         private com.accsaber.backend.service.songsuggest.SongSuggestService songSuggestService;
+        @Mock
+        private ScoreRecalculationService scoreRecalculationService;
 
         private ScoreImportService scoreImportService;
         private MapDifficulty difficulty;
@@ -116,11 +107,10 @@ class ScoreImportServiceTest {
                                 beatLeaderClient, scoreSaberClient, scoreService, playerImportService,
                                 mapDifficultyRepository, mapComplexityService, scoreRepository,
                                 scoreModifierLinkRepository, modifierRepository, userRepository,
-                                modifierCacheService, statisticsService, overallStatisticsService, rankingService,
-                                milestoneEvaluationService, campaignEvaluationService, userCampaignRepository,
-                                campaignRepository, campaignDifficultyRepository,
+                                modifierCacheService, milestoneEvaluationService, campaignEvaluationService,
+                                userCampaignRepository, campaignRepository, campaignDifficultyRepository,
                                 mapDifficultyStatisticsService, scoreRankingService,
-                                duplicateUserService, skillService, songSuggestService);
+                                duplicateUserService, songSuggestService, scoreRecalculationService);
 
                 ReflectionTestUtils.setField(scoreImportService, "backfillExecutor",
                                 (java.util.concurrent.Executor) Runnable::run);
@@ -198,8 +188,10 @@ class ScoreImportServiceTest {
 
                         verify(scoreService, times(1)).submitForBackfill(any(), any(), any());
                         verify(scoreRankingService, times(1)).reassignRanks(difficulty.getId());
-                        verify(statisticsService, times(1)).recalculate(STEAM_ID, categoryId, false);
-                        verify(rankingService, times(1)).updateRankings(categoryId);
+                        verify(scoreRecalculationService, times(1)).recalculatePlayers(
+                                        Map.of(categoryId, java.util.Set.of(STEAM_ID)), java.util.Set.of(),
+                                        ScoreRecalculationService.PlayerRecalc.SCORE_IMPORT);
+                        verify(campaignEvaluationService, times(1)).evaluateParticipatingForUser(STEAM_ID);
                 }
 
                 @Test
@@ -277,7 +269,7 @@ class ScoreImportServiceTest {
                                         .thenReturn(Optional.of(existing));
                         when(scoreModifierLinkRepository.findByScore_Id(existing.getId())).thenReturn(List.of());
                         Modifier ifMod = Modifier.builder().id(ifId).code("IF").build();
-                        when(modifierRepository.findById(ifId)).thenReturn(Optional.of(ifMod));
+                        when(modifierRepository.getReferenceById(ifId)).thenReturn(ifMod);
 
                         scoreImportService.backfillUser(STEAM_ID);
 

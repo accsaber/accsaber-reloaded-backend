@@ -2,6 +2,7 @@ package com.accsaber.backend.service.media;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,6 +38,8 @@ public class MediaProcessingService {
     public static final Set<String> ALLOWED_MIME = Set.of(
             "image/png", "image/jpeg", "image/jpg", "image/webp", "image/avif", "image/gif");
 
+    private static final Set<String> AVIF_BRANDS = Set.of("avif", "avis", "mif1", "msf1");
+
     private final CdnProperties cdn;
     private WebClient downloadClient;
 
@@ -65,7 +68,10 @@ public class MediaProcessingService {
                 subdir,
                 key,
                 suffixFor(file),
-                tempInput -> file.transferTo(tempInput.toFile()),
+                tempInput -> {
+                    file.transferTo(tempInput.toFile());
+                    requireImageMagic(tempInput);
+                },
                 maxDim,
                 format);
     }
@@ -172,6 +178,7 @@ public class MediaProcessingService {
             String header = Paths.get(cdn.getVipsBinary()).resolveSibling("vipsheader").toString();
             ProcessBuilder pb = new ProcessBuilder(header, "-f", "n-pages", input.toString());
             pb.environment().put("VIPS_CONCURRENCY", "1");
+            pb.environment().put("VIPS_BLOCK_UNTRUSTED", "1");
             pb.redirectErrorStream(true);
             Process proc = pb.start();
             byte[] out = proc.getInputStream().readAllBytes();
@@ -311,6 +318,7 @@ public class MediaProcessingService {
                 String.valueOf(maxDim),
                 "--size=down");
         pb.environment().put("VIPS_CONCURRENCY", "1");
+        pb.environment().put("VIPS_BLOCK_UNTRUSTED", "1");
         pb.redirectErrorStream(true);
         Process proc = null;
         try {
@@ -349,6 +357,42 @@ public class MediaProcessingService {
         if (mime == null || !ALLOWED_MIME.contains(mime.toLowerCase())) {
             throw new ValidationException("file", "unsupported media type: " + mime);
         }
+    }
+
+    private static void requireImageMagic(Path input) throws IOException {
+        byte[] head;
+        try (var in = Files.newInputStream(input)) {
+            head = in.readNBytes(12);
+        }
+        if (!hasImageMagic(head)) {
+            throw new ValidationException("file", "is not a PNG, JPEG, GIF, WebP or AVIF image");
+        }
+    }
+
+    static boolean hasImageMagic(byte[] head) {
+        return startsWith(head, 0, new byte[] { (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A })
+                || startsWith(head, 0, new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF })
+                || startsWith(head, 0, ascii("GIF87a"))
+                || startsWith(head, 0, ascii("GIF89a"))
+                || (startsWith(head, 0, ascii("RIFF")) && startsWith(head, 8, ascii("WEBP")))
+                || (startsWith(head, 4, ascii("ftyp"))
+                        && AVIF_BRANDS.stream().anyMatch(brand -> startsWith(head, 8, ascii(brand))));
+    }
+
+    private static byte[] ascii(String value) {
+        return value.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    private static boolean startsWith(byte[] data, int offset, byte[] prefix) {
+        if (data.length < offset + prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[offset + i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String suffixFor(MultipartFile file) {
