@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -84,6 +85,26 @@ class MarketInvolvementQueryTest {
         assertThat(involvedIds(leader)).containsExactly(listingId);
         assertThat(involvedIds(seller)).containsExactly(listingId);
         assertThat(involvedIds(user(4L, "Stranger"))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("browse and activity count past the first page")
+    void pagesPastTheFirst() {
+        MarketListing first = entityManager.find(MarketListing.class, listingId);
+        entityManager.persist(MarketListing.builder()
+                .seller(seller)
+                .item(first.getItem())
+                .title("Second")
+                .quantity(1)
+                .buyoutPrice(5L)
+                .build());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(listingRepository.browse(MarketListingStatus.active, seller.getId(), null, null, null, null,
+                false, false, null, null, null, PageRequest.of(0, 1)).getTotalElements()).isEqualTo(2);
+        assertThat(listingRepository.findInvolvingUser(seller.getId(), List.of(MarketListingStatus.active),
+                PageRequest.of(0, 1)).getTotalElements()).isEqualTo(2);
     }
 
     private List<UUID> involvedIds(User user) {

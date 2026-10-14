@@ -23,14 +23,8 @@ import jakarta.persistence.LockModeType;
 @Repository
 public interface MarketListingRepository extends JpaRepository<MarketListing, UUID> {
 
-        @Query("""
-                        SELECT l FROM MarketListing l
-                        JOIN FETCH l.seller
-                        LEFT JOIN FETCH l.currentBidder
-                        LEFT JOIN FETCH l.userItemLink link
+        String BROWSE_FILTER = """
                         LEFT JOIN link.unusualEffect effect
-                        JOIN FETCH l.item i
-                        JOIN FETCH i.type t
                         LEFT JOIN t.parentType pt
                         WHERE l.status = :status
                         AND (:sellerId IS NULL OR l.seller.id = :sellerId)
@@ -48,7 +42,21 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         AND (CAST(:search AS string) IS NULL
                                 OR LOWER(l.title) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
                                 OR LOWER(i.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
-                        """)
+                        """;
+
+        @Query(value = """
+                        SELECT l FROM MarketListing l
+                        JOIN FETCH l.seller
+                        LEFT JOIN FETCH l.currentBidder
+                        LEFT JOIN FETCH l.userItemLink link
+                        JOIN FETCH l.item i
+                        JOIN FETCH i.type t
+                        """ + BROWSE_FILTER, countQuery = """
+                        SELECT COUNT(l) FROM MarketListing l
+                        LEFT JOIN l.userItemLink link
+                        JOIN l.item i
+                        JOIN i.type t
+                        """ + BROWSE_FILTER)
         Page<MarketListing> browse(
                         @Param("status") MarketListingStatus status,
                         @Param("sellerId") Long sellerId,
@@ -90,7 +98,7 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
 
         long countBySeller_IdAndStatus(Long sellerId, MarketListingStatus status);
 
-        @Query("""
+        @Query(value = """
                         SELECT l FROM MarketListing l
                         JOIN FETCH l.seller
                         LEFT JOIN FETCH l.currentBidder
@@ -100,6 +108,13 @@ public interface MarketListingRepository extends JpaRepository<MarketListing, UU
                         JOIN FETCH i.type
                         WHERE l.status IN :statuses
                         AND (l.seller.id = :userId OR l.currentBidder.id = :userId OR l.winner.id = :userId
+                            OR EXISTS (SELECT 1 FROM MarketBid b WHERE b.listing = l AND b.bidder.id = :userId))
+                        """, countQuery = """
+                        SELECT COUNT(l) FROM MarketListing l
+                        LEFT JOIN l.currentBidder cb
+                        LEFT JOIN l.winner w
+                        WHERE l.status IN :statuses
+                        AND (l.seller.id = :userId OR cb.id = :userId OR w.id = :userId
                             OR EXISTS (SELECT 1 FROM MarketBid b WHERE b.listing = l AND b.bidder.id = :userId))
                         """)
         Page<MarketListing> findInvolvingUser(
