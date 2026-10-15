@@ -146,7 +146,7 @@ class ClanSeasonServiceTest {
         void closingFreezesTheRankingPaysBandsInRankOrderAndStampsTheSeason() {
             when(standingService.fullLiveRanking(seasonId)).thenReturn(List.of(row(first, 500.0, 120.0),
                     row(second, 300.0, 0.0)));
-            ItemType clanBanner = ItemType.builder().key("clan_banner")
+            ItemType clanBanner = ItemType.builder().key("clan_title_effect")
                     .parentType(ItemType.builder().key("clan_cosmetic").build()).build();
             ItemType crate = ItemType.builder().key("crate").build();
             ClanSeasonReward banner = reward(1, 1, clanBanner);

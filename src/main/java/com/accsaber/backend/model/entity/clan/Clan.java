@@ -47,6 +47,9 @@ public class Clan {
     @Column(name = "icon_url")
     private String iconUrl;
 
+    @Column(name = "banner_url")
+    private String bannerUrl;
+
     @Column(name = "tag_color")
     private String tagColor;
 

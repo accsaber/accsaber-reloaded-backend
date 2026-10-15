@@ -121,7 +121,7 @@ class ClanWarSettlementServiceTest {
 
     @Test
     void aWinPaysClanXpEveryoneByContributionAndItemsToTheWinnersInOrder() {
-        ClanWarRewardItem banner = reward("clan_banner", "clan_cosmetic", null);
+        ClanWarRewardItem banner = reward("clan_title_effect", "clan_cosmetic", null);
         ClanWarRewardItem crate = reward("crate", null, null);
         ClanWarRewardItem trophy = reward("badge", null, 1);
         when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of(banner, crate, trophy));
@@ -157,7 +157,7 @@ class ClanWarSettlementServiceTest {
         Clan deserter = Clan.builder().id(UUID.randomUUID()).build();
         sides.add(ClanWarSide.builder().war(war).clan(deserter).team(ClanWarTeam.attack).stake(500)
                 .leftAt(Instant.now()).build());
-        ClanWarRewardItem banner = reward("clan_banner", "clan_cosmetic", null);
+        ClanWarRewardItem banner = reward("clan_title_effect", "clan_cosmetic", null);
         ClanWarRewardItem trophy = reward("badge", null, 2);
         when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of(banner, trophy));
         when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(

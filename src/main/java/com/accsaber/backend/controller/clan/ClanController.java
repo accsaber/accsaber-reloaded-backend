@@ -22,16 +22,15 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.model.dto.request.clan.CreateClanRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanPacifismRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanAuditEntryResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
+import com.accsaber.backend.model.entity.clan.ClanMedia;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.clan.ClanMediaService;
 import com.accsaber.backend.service.clan.ClanService;
-import com.accsaber.backend.service.media.MediaFormat;
-import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,11 +43,8 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Clans")
 public class ClanController {
 
-    public static final String CLAN_ICON_SUBDIR = "clan-icons";
-
     private final ClanService clanService;
-    private final MediaProcessingService mediaProcessingService;
-    private final CdnProperties cdn;
+    private final ClanMediaService clanMediaService;
 
     @Operation(summary = "List clans",
             description = "Search by name or tag. Sort by name, createdAt, level or members.")
@@ -86,18 +82,17 @@ public class ClanController {
         return ResponseEntity.ok(clanService.update(clanId, principal.getUserId(), request));
     }
 
-    @Operation(summary = "Upload the clan icon",
-            description = "Founder only. Send a square image. Use the returned URL. It changes on every upload.")
+    @Operation(summary = "Upload the clan icon or banner",
+            description = "Founder only. The icon is a square image, the banner the wide artwork at the top of the "
+                    + "clan page. Use the returned URL. It changes on every upload.")
     @PreAuthorize("isAuthenticated()")
-    @PostMapping(value = "/{clanId}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ClanResponse> uploadIcon(
+    @PostMapping(value = "/{clanId}/{media:icon|banner}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ClanResponse> uploadMedia(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
+            @PathVariable ClanMedia media,
             @RequestPart("file") MultipartFile file) {
-        clanService.assertCanCustomize(clanId, principal.getUserId());
-        String url = mediaProcessingService.storeImage(file, CLAN_ICON_SUBDIR, clanId.toString(), MediaFormat.GIF,
-                cdn.getAvatarMaxDimension());
-        return ResponseEntity.ok(clanService.setIcon(clanId, principal.getUserId(), url));
+        return ResponseEntity.ok(clanMediaService.upload(clanId, principal.getUserId(), media, file));
     }
 
     @Operation(summary = "Turn pacifism on or off",
@@ -113,15 +108,14 @@ public class ClanController {
         return ResponseEntity.ok(clanService.setPacifism(clanId, principal.getUserId(), request.enabled()));
     }
 
-    @Operation(summary = "Remove the clan icon", description = "Founder only.")
+    @Operation(summary = "Remove the clan icon or banner", description = "Founder only.")
     @PreAuthorize("isAuthenticated()")
-    @DeleteMapping("/{clanId}/icon")
-    public ResponseEntity<ClanResponse> removeIcon(
+    @DeleteMapping("/{clanId}/{media:icon|banner}")
+    public ResponseEntity<ClanResponse> removeMedia(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID clanId) {
-        ClanResponse clan = clanService.setIcon(clanId, principal.getUserId(), null);
-        mediaProcessingService.deleteIfExists(CLAN_ICON_SUBDIR, clanId.toString());
-        return ResponseEntity.ok(clan);
+            @PathVariable UUID clanId,
+            @PathVariable ClanMedia media) {
+        return ResponseEntity.ok(clanMediaService.remove(clanId, principal.getUserId(), media));
     }
 
     @Operation(summary = "Disband a clan",

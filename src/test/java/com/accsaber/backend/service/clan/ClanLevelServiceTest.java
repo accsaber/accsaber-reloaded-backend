@@ -263,7 +263,7 @@ class ClanLevelServiceTest {
         @Test
         void aLevelItemGoesStraightToClansAlreadyPastThatLevel() {
             Item banner = Item.builder().id(UUID.randomUUID())
-                    .type(ItemType.builder().key("clan_banner").parentType(clanCosmetic).build()).build();
+                    .type(ItemType.builder().key("clan_title_effect").parentType(clanCosmetic).build()).build();
             when(itemRepository.findById(banner.getId())).thenReturn(Optional.of(banner));
             when(levelItemRepository.findById(banner.getId())).thenReturn(Optional.empty());
 

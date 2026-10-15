@@ -137,7 +137,7 @@ class ClanCosmeticServiceTest {
 
     @Test
     void clearingAnEmptySlotWritesNoAudit() {
-        service.unequip(CLAN_ID, FOUNDER, "clan_banner");
+        service.unequip(CLAN_ID, FOUNDER, "clan_title_effect");
 
         verify(auditRepository, never()).save(any());
         verify(refCache, never()).refreshAfterCommit(any());
@@ -145,9 +145,9 @@ class ClanCosmeticServiceTest {
 
     @Test
     void clearingAFilledSlotIsAudited() {
-        when(equippedRepository.deleteSlot(CLAN_ID, "clan_banner")).thenReturn(1);
+        when(equippedRepository.deleteSlot(CLAN_ID, "clan_title_effect")).thenReturn(1);
 
-        service.unequip(CLAN_ID, FOUNDER, "clan_banner");
+        service.unequip(CLAN_ID, FOUNDER, "clan_title_effect");
 
         verify(auditRepository).save(any(ClanAuditEntry.class));
         verify(refCache).refreshAfterCommit(CLAN_ID);

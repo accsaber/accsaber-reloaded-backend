@@ -34,6 +34,7 @@ import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
 import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
+import com.accsaber.backend.model.entity.clan.ClanMedia;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.SortAliases;
@@ -150,30 +151,32 @@ public class ClanService {
     }
 
     @Transactional
-    public ClanResponse setIcon(UUID clanId, Long playerId, String iconUrl) {
+    public ClanResponse setMedia(UUID clanId, Long playerId, ClanMedia media, String url) {
         User actor = accessService.player(playerId);
         Clan clan = roster.lock(clanId);
         accessService.require(clanId, actor.getId(), ClanPermission.CUSTOMIZE);
-        clan.setIconUrl(iconUrl);
+        media.set(clan, url);
         saveUnique(clan);
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actor)
-                .action(ClanAuditAction.profile_updated).details(iconChange(iconUrl)).build());
+                .action(ClanAuditAction.profile_updated).details(mediaChange(media, url)).build());
         return toResponse(clan);
     }
 
     @Transactional
     public ClanResponse moderate(UUID clanId, ModerateClanRequest request) {
         Clan clan = roster.lock(clanId);
-        Map<String, Object> changes = applyChanges(clan, request.getChanges());
-        if (request.isRemoveIcon() && clan.getIconUrl() != null) {
-            clan.setIconUrl(null);
-            changes.putAll(iconChange(null));
+        Map<String, Object> changes = applyChanges(clan, request.changes());
+        for (ClanMedia media : request.removeMedia()) {
+            if (media.urlOf(clan) != null) {
+                media.set(clan, null);
+                changes.putAll(mediaChange(media, null));
+            }
         }
         if (changes.isEmpty()) {
             return toResponse(clan);
         }
         saveUnique(clan);
-        changes.put("reason", request.getReason());
+        changes.put("reason", request.reason());
         auditRepository.save(ClanAuditEntry.builder()
                 .clan(clan).action(ClanAuditAction.profile_updated).details(changes).build());
         return toResponse(clan);
@@ -244,8 +247,8 @@ public class ClanService {
         return changes;
     }
 
-    private static Map<String, Object> iconChange(String iconUrl) {
-        return new LinkedHashMap<>(Map.of("icon", iconUrl == null ? "removed" : "updated"));
+    private static Map<String, Object> mediaChange(ClanMedia media, String url) {
+        return new LinkedHashMap<>(Map.of(media.name(), url == null ? "removed" : "updated"));
     }
 
     private static <T> void apply(T requested, UnaryOperator<T> normalize, T current, Consumer<T> setter, String key,
@@ -307,8 +310,8 @@ public class ClanService {
     private ClanResponse toResponse(Clan clan, ListExtras extras) {
         LevelResponse level = levelService.levelOf(clan);
         double standing = standingService.baseStanding(clan) + extras.earned().getOrDefault(clan.getId(), 0.0);
-        return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.isAcceptingRequests(),
-                level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
+        return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.getBannerUrl(),
+                clan.isAcceptingRequests(), level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
                 extras.capacities().at(level.getLevel(), ClanCapacity.member_slots),
                 extras.founders().get(clan.getId()), clan.getPacifistFrom(), clan.getCreatedAt());
     }

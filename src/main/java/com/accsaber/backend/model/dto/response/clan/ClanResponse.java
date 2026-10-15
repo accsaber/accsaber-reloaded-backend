@@ -8,6 +8,7 @@ import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 public record ClanResponse(
         PublicClanResponse clan,
         String description,
+        String bannerUrl,
         boolean acceptingRequests,
         LevelResponse level,
         double standing,

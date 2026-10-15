@@ -63,7 +63,7 @@ class ClanRefCacheTest {
     @Test
     void everyMemberSharesTheirClansRefWithItsTagCardAndBorderOnly() {
         when(equippedRepository.findAllOfActiveClans())
-                .thenReturn(List.of(equipped(owls, "clan_tag_card"), equipped(owls, "clan_banner"),
+                .thenReturn(List.of(equipped(owls, "clan_tag_card"),
                         equipped(owls, "clan_border"), equipped(owls, "clan_title_effect")));
         when(memberRepository.findAllOpenInActiveClans())
                 .thenReturn(List.of(member(owls, 1L), member(owls, 2L), member(lapiz, 3L)));

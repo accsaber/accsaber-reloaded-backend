@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
@@ -250,6 +251,16 @@ class ResponseJsonShapeTest {
         assertThat(json.get("userId").isString()).isTrue();
         assertThat(json.get("userId").asString()).isEqualTo("76561198000000001");
         assertThat(json.get("targetUserId").asString()).isEqualTo("76561198000000002");
+    }
+
+    @Test
+    void clanPageCarriesItsBannerBesideTheNestedRef() {
+        var json = mapper.readTree(mapper.writeValueAsString(new ClanResponse(CLAN, "desc", "banner", true,
+                null, 1, 1, 10, PLAYER, null, Instant.EPOCH)));
+
+        assertThat(json.get("bannerUrl").asString()).isEqualTo("banner");
+        assertThat(json.get("clan").get("iconUrl").asString()).isEqualTo("icon");
+        assertThat(json.get("clan").has("bannerUrl")).isFalse();
     }
 
     @Test

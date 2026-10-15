@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.controller.clan.ClanController;
 import com.accsaber.backend.model.dto.request.clan.ClanCapacityRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanSeasonRewardRequest;
@@ -41,10 +40,10 @@ import com.accsaber.backend.security.StaffUserDetails;
 import com.accsaber.backend.service.chat.ChatService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanLevelService;
+import com.accsaber.backend.service.clan.ClanMediaService;
 import com.accsaber.backend.service.clan.ClanSeasonService;
 import com.accsaber.backend.service.clan.ClanService;
 import com.accsaber.backend.service.clan.war.ClanWarRewardService;
-import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -65,7 +64,7 @@ public class AdminClanController {
     private final ClanLevelService levelService;
     private final ClanSeasonService seasonService;
     private final ClanWarRewardService warRewardService;
-    private final MediaProcessingService mediaProcessingService;
+    private final ClanMediaService clanMediaService;
     private final ChatService chatService;
     private final ClanChatChannel clanChatChannel;
 
@@ -177,16 +176,12 @@ public class AdminClanController {
     }
 
     @Operation(summary = "Moderate a clan",
-            description = "Name, tag, description or tag colour. Send removeIcon to clear the icon. The reason goes "
-                    + "in the clan audit log.")
+            description = "Name, tag, description or tag colour. List icon or banner in removeMedia to take them "
+                    + "down. The reason goes in the clan audit log.")
     @PatchMapping("/{clanId}")
     public ResponseEntity<ClanResponse> moderate(@PathVariable UUID clanId,
             @Valid @RequestBody ModerateClanRequest request) {
-        ClanResponse clan = clanService.moderate(clanId, request);
-        if (request.isRemoveIcon()) {
-            mediaProcessingService.deleteIfExists(ClanController.CLAN_ICON_SUBDIR, clanId.toString());
-        }
-        return ResponseEntity.ok(clan);
+        return ResponseEntity.ok(clanMediaService.moderate(clanId, request));
     }
 
     @Operation(summary = "Read a clan's chat",

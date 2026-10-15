@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -46,6 +47,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanAuditAction;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
+import com.accsaber.backend.model.entity.clan.ClanMedia;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
@@ -222,14 +224,14 @@ class ClanServiceTest {
         }
 
         @Test
-        void aNewIconIsSavedAuditedAndReachesTheTagCache() {
-            clanService.setIcon(clanId, PLAYER, "https://cdn.test/clan-icons/x.png?v=1");
+        void aNewBannerIsSavedAuditedAndReachesTheTagCache() {
+            clanService.setMedia(clanId, PLAYER, ClanMedia.banner, "https://cdn.test/clan-banners/x.webp?v=1");
 
             verify(accessService).require(clanId, PLAYER, ClanPermission.CUSTOMIZE);
-            assertThat(clan.getIconUrl()).isEqualTo("https://cdn.test/clan-icons/x.png?v=1");
+            assertThat(clan.getBannerUrl()).isEqualTo("https://cdn.test/clan-banners/x.webp?v=1");
             ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
             verify(auditRepository).save(audit.capture());
-            assertThat(audit.getValue().getDetails()).containsEntry("icon", "updated");
+            assertThat(audit.getValue().getDetails()).containsEntry("banner", "updated");
             verify(refCache).refreshAfterCommit(clanId);
         }
 
@@ -387,9 +389,7 @@ class ClanServiceTest {
         void aModerationRenameSkipsTheFounderCheckAndAuditsTheReason() {
             UpdateClanRequest changes = new UpdateClanRequest();
             changes.setName("Early Birds");
-            ModerateClanRequest request = new ModerateClanRequest();
-            request.setChanges(changes);
-            request.setReason("offensive name");
+            ModerateClanRequest request = new ModerateClanRequest(changes, null, "offensive name");
 
             clanService.moderate(clanId, request);
 
@@ -402,12 +402,10 @@ class ClanServiceTest {
         }
 
         @Test
-        void staffCanTakeAnIconDownWithNoOtherChange() {
+        void staffCanTakeMediaDownAndOnlyAuditWhatWasThere() {
             clan.setIconUrl("https://cdn.test/clan-icons/x.png");
-            ModerateClanRequest request = new ModerateClanRequest();
-            request.setChanges(new UpdateClanRequest());
-            request.setRemoveIcon(true);
-            request.setReason("not safe for work");
+            ModerateClanRequest request = new ModerateClanRequest(new UpdateClanRequest(),
+                    Set.of(ClanMedia.icon, ClanMedia.banner), "not safe for work");
 
             clanService.moderate(clanId, request);
 
@@ -415,7 +413,7 @@ class ClanServiceTest {
             ArgumentCaptor<ClanAuditEntry> audit = ArgumentCaptor.forClass(ClanAuditEntry.class);
             verify(auditRepository).save(audit.capture());
             assertThat(audit.getValue().getDetails()).containsEntry("icon", "removed")
-                    .containsEntry("reason", "not safe for work");
+                    .doesNotContainKey("banner").containsEntry("reason", "not safe for work");
         }
 
         @Test

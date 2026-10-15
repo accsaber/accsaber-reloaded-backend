@@ -101,7 +101,7 @@ class ClanSchemaTest {
         List<String> children = entityManager.createNativeQuery("SELECT child.key FROM item_types child "
                 + "JOIN item_types parent ON parent.id = child.parent_type_id "
                 + "WHERE parent.key = 'clan_cosmetic' ORDER BY child.key").getResultList();
-        assertThat(children).containsExactly("clan_banner", "clan_border", "clan_tag_card", "clan_title_effect");
+        assertThat(children).containsExactly("clan_border", "clan_tag_card", "clan_title_effect");
         assertThat(((Number) single("SELECT amount FROM clan_level_capacities "
                 + "WHERE level = 0 AND capacity = 'member_slots'")).intValue()).isEqualTo(10);
         assertThat(((Number) single("SELECT COUNT(*) FROM clan_level_war_modes WHERE level = 0")).intValue())
@@ -111,13 +111,13 @@ class ClanSchemaTest {
     }
 
     @Test
-    @DisplayName("the tag card is a shape with variants, the banner and title effect reuse the profile contracts")
+    @DisplayName("the tag card is a shape with variants, the title effect reuses the title contract, banners are uploads")
     void cosmeticTypesReuseRenderContracts() {
         assertThat(single("SELECT jsonb_exists_all(value_schema -> 'properties', ARRAY['left', 'right', 'decals', 'variants']) "
                 + "FROM item_types WHERE key = 'clan_tag_card'")).isEqualTo(true);
-        assertThat(single("SELECT COUNT(*) FROM item_types WHERE key = 'clan_card'")).isEqualTo(0L);
-        assertThat(single("SELECT (SELECT value_schema FROM item_types WHERE key = 'clan_banner') = "
-                + "(SELECT value_schema FROM item_types WHERE key = 'profile_background')")).isEqualTo(true);
+        assertThat(single("SELECT COUNT(*) FROM item_types WHERE key IN ('clan_card', 'clan_banner')")).isEqualTo(0L);
+        assertThat(single("SELECT COUNT(*) FROM information_schema.columns "
+                + "WHERE table_name = 'clans' AND column_name = 'banner_url'")).isEqualTo(1L);
         assertThat(single("SELECT jsonb_exists(value_schema -> 'properties', 'text') FROM item_types "
                 + "WHERE key = 'clan_title_effect'")).isEqualTo(false);
         assertThat(single("SELECT CAST(value_schema -> 'required' AS text) FROM item_types "
@@ -194,7 +194,7 @@ class ClanSchemaTest {
                 red, itemType("clan_tag_card"), card);
 
         assertThatThrownBy(() -> sql("INSERT INTO clan_equipped_items (clan_id, item_type_id, item_id) "
-                + "VALUES (?1, ?2, ?3)", red, itemType("clan_banner"), card))
+                + "VALUES (?1, ?2, ?3)", red, itemType("clan_border"), card))
                 .isInstanceOf(PersistenceException.class);
     }
 
@@ -202,10 +202,10 @@ class ClanSchemaTest {
     @DisplayName("equipping something the clan never got is rejected")
     void unownedCosmeticCannotBeEquipped() {
         UUID red = clan("Red", "RED");
-        UUID banner = item("clan_banner", "Stolen Banner");
+        UUID border = item("clan_border", "Stolen Border");
 
         assertThatThrownBy(() -> sql("INSERT INTO clan_equipped_items (clan_id, item_type_id, item_id) "
-                + "VALUES (?1, ?2, ?3)", red, itemType("clan_banner"), banner))
+                + "VALUES (?1, ?2, ?3)", red, itemType("clan_border"), border))
                 .isInstanceOf(PersistenceException.class);
     }
 

@@ -360,14 +360,14 @@ class ClanQueryTest {
         assertThat(itemRepository.findVisiblePlayerItems()).contains(border).doesNotContain(card);
         assertThat(itemTypeRepository.findActivePlayerTypes()).extracting(ItemType::getKey)
                 .contains("profile_border")
-                .doesNotContain("clan_cosmetic", "clan_tag_card", "clan_banner", "clan_title_effect", "clan_border");
+                .doesNotContain("clan_cosmetic", "clan_tag_card", "clan_title_effect", "clan_border");
     }
 
     @Test
     @DisplayName("levelling grants the cosmetics of every level crossed, once each")
     void levelItemsGrantForTheCrossedRangeOnly() {
         Item levelOne = clanItem("clan_tag_card", "Level One Card");
-        Item levelThree = clanItem("clan_banner", "Level Three Banner");
+        Item levelThree = clanItem("clan_border", "Level Three Border");
         entityManager.persist(ClanLevelItem.builder().item(levelOne).level(1).build());
         entityManager.persist(ClanLevelItem.builder().item(levelThree).level(3).build());
         entityManager.flush();
