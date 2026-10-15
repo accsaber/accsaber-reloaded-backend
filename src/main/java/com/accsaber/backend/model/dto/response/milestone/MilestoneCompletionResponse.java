@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.accsaber.backend.model.dto.MilestoneQuerySpec;
-import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
@@ -42,11 +42,5 @@ public class MilestoneCompletionResponse {
     private UUID achievedWithScoreId;
     private Integer score;
     private Integer maxScore;
-    private String coverUrl;
-    private String cdnCoverUrl;
-    private Difficulty difficulty;
-    private String songName;
-    private String songSubName;
-    private String songAuthor;
-    private String mapAuthor;
+    private MapDifficultyRef map;
 }

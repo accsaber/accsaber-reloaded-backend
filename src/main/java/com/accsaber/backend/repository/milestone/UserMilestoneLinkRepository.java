@@ -43,6 +43,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         LEFT JOIN FETCH uml.achievedWithScore s
                         LEFT JOIN FETCH s.mapDifficulty md
                         LEFT JOIN FETCH md.map
+                        LEFT JOIN FETCH md.category
                         WHERE uml.user.id = :userId
                         AND uml.milestone.id IN :milestoneIds
                         """)
@@ -83,10 +84,8 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         """)
         double sumCompletedMilestoneXpByUserId(@Param("userId") Long userId);
         @Query(value = """
-                        SELECT new com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse(
-                                u.id, u.name, u.avatarUrl, u.cdnAvatarUrl, u.country, uml.completedAt)
-                        FROM UserMilestoneLink uml
-                        JOIN uml.user u
+                        SELECT uml FROM UserMilestoneLink uml
+                        JOIN FETCH uml.user u
                         WHERE uml.milestone.id = :milestoneId
                         AND uml.completed = true
                         AND u.active = true AND u.banned = false
@@ -98,7 +97,7 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         AND uml.completed = true
                         AND u.active = true AND u.banned = false
                         """)
-        Page<com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse> findCompletedUsersByMilestoneId(
+        Page<UserMilestoneLink> findCompletedUsersByMilestoneId(
                         @Param("milestoneId") UUID milestoneId,
                         Pageable pageable);
 }

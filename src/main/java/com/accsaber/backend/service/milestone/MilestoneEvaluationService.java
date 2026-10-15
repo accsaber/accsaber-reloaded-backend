@@ -195,12 +195,7 @@ public class MilestoneEvaluationService {
                 .toList();
 
         MilestoneCompletedResponse payload = MilestoneCompletedResponse.builder()
-                .userId(userId)
-                .userName(user.getName())
-                .userCountry(user.getCountry())
-                .userAvatarUrl(user.getAvatarUrl())
-                .userCdnAvatarUrl(user.getCdnAvatarUrl())
-                .userClan(ClanRefCache.forUser(userId))
+                .player(ClanRefCache.playerRef(user))
                 .completedAt(Instant.now())
                 .milestones(milestonePayloads.isEmpty() ? null : milestonePayloads)
                 .sets(setPayloads.isEmpty() ? null : setPayloads)

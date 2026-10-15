@@ -23,6 +23,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
 import com.accsaber.backend.model.dto.request.milestone.MilestoneSetRequest;
 import com.accsaber.backend.model.dto.request.milestone.MilestoneRewardRequest;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
@@ -267,7 +268,8 @@ public class MilestoneService {
         milestoneRepository.findByIdAndActiveTrueAndStatusActive(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", milestoneId));
         return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable)
-                .map(holder -> holder.withClan(ClanRefCache.forUser(holder.getUserId())));
+                .map(link -> new MilestoneHolderResponse(ClanRefCache.playerRef(link.getUser()),
+                        link.getCompletedAt()));
     }
 
     @Transactional
@@ -727,17 +729,7 @@ public class MilestoneService {
                         .score(score.getScore());
                 MapDifficulty md = score.getMapDifficulty();
                 if (md != null) {
-                    builder.maxScore(md.getMaxScore())
-                            .difficulty(md.getDifficulty());
-                    com.accsaber.backend.model.entity.map.Map map = md.getMap();
-                    if (map != null) {
-                        builder.coverUrl(map.getCoverUrl())
-                                .cdnCoverUrl(map.getCdnCoverUrl())
-                                .songName(map.getSongName())
-                                .songSubName(map.getSongSubName())
-                                .songAuthor(map.getSongAuthor())
-                                .mapAuthor(map.getMapAuthor());
-                    }
+                    builder.maxScore(md.getMaxScore()).map(MapDifficultyRef.of(md));
                 }
             }
         }

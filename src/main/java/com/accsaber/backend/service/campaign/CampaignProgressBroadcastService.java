@@ -9,7 +9,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
-import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
@@ -53,15 +53,8 @@ public class CampaignProgressBroadcastService {
                 campaignService.getCampaignSummary(event.campaignId()), null, event.completedAt()));
     }
 
-    private CampaignProgressBroadcast.Player player(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
-                .map(CampaignProgressBroadcastService::toPlayer)
-                .orElse(null);
-    }
-
-    private static CampaignProgressBroadcast.Player toPlayer(User user) {
-        return new CampaignProgressBroadcast.Player(String.valueOf(user.getId()), user.getName(), user.getAvatarUrl(),
-                user.getCdnAvatarUrl(), ClanRefCache.forUser(user.getId()), user.getCountry());
+    private PlayerRef player(Long userId) {
+        return userRepository.findByIdAndActiveTrue(userId).map(ClanRefCache::playerRef).orElse(null);
     }
 
     private void broadcast(CampaignProgressBroadcast payload) {

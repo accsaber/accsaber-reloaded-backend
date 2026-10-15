@@ -11,6 +11,7 @@ import com.accsaber.backend.model.entity.user.OauthConnection;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.user.OauthConnectionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.player.ProfileUrlResolver;
 
@@ -82,8 +83,7 @@ public class DiscordLinkService {
     private DiscordLinkResponse toResponse(OauthConnection connection) {
         return DiscordLinkResponse.builder()
                 .discordId(connection.getProviderUserId())
-                .userId(String.valueOf(connection.getUser().getId()))
-                .playerName(connection.getUser().getName())
+                .player(ClanRefCache.playerRef(connection.getUser()))
                 .createdAt(connection.getLinkedAt())
                 .build();
     }

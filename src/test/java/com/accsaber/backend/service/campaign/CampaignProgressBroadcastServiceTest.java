@@ -69,9 +69,10 @@ class CampaignProgressBroadcastServiceTest {
                 .contains("\"type\":\"node_completed\"")
                 .contains("\"slug\":\"endless-climb\"")
                 .contains("\"songName\":\"Reality Check\"")
-                .contains("\"userName\":\"Tikugato\"")
+                .contains("\"player\":{\"id\":\"" + USER_ID + "\",\"name\":\"Tikugato\"")
                 .contains("\"cdnAvatarUrl\":\"https://cdn.accsaber/a.webp\"")
-                .contains("\"userId\":\"" + USER_ID + "\"")
+                .doesNotContain("userName")
+                .doesNotContain("membership")
                 .contains("\"creatorId\":\"" + USER_ID + "\"")
                 .contains("2026-07-03T21:00:00Z");
     }
@@ -90,7 +91,7 @@ class CampaignProgressBroadcastServiceTest {
         assertThat(json.getValue())
                 .contains("\"type\":\"campaign_completed\"")
                 .contains("\"slug\":\"endless-climb\"")
-                .contains("\"userName\":\"Tikugato\"")
+                .contains("\"player\":{\"id\":\"" + USER_ID + "\",\"name\":\"Tikugato\"")
                 .doesNotContain("\"node\":")
                 .doesNotContain("songName");
     }

@@ -29,6 +29,8 @@ import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletedResponse;
+import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
@@ -149,16 +151,34 @@ class ResponseJsonShapeTest {
     }
 
     @Test
-    void campaignProgressSocketPlayerKeepsItsShape() throws Exception {
+    void campaignProgressSocketNestsThePlayerWithoutNulls() throws Exception {
         ObjectMapper socketMapper = PlainDoubleJackson2Module.mapper()
                 .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
-        CampaignProgressBroadcast.Player noClan = new CampaignProgressBroadcast.Player("7", "Player", null, "cdn",
-                null, "DE");
-        LegacyCampaignLeaderboardPlayer legacy = LegacyCampaignLeaderboardPlayer.builder().userId("7")
-                .userName("Player").cdnAvatarUrl("cdn").country("DE").build();
+        PlayerRef noClan = new PlayerRef("76561198000000001", "Player", null, "cdn", "DE", null, null);
+        var frame = socketMapper.readTree(socketMapper.writeValueAsString(
+                new CampaignProgressBroadcast("node_completed", noClan, null, null, T1)));
 
-        assertThat(socketMapper.readTree(socketMapper.writeValueAsString(noClan)))
-                .isEqualTo(socketMapper.readTree(socketMapper.writeValueAsString(legacy)));
+        assertThat(frame.get("player").get("id").isTextual()).isTrue();
+        assertThat(frame.get("player").get("id").asText()).isEqualTo("76561198000000001");
+        assertThat(frame.get("player").get("name").asText()).isEqualTo("Player");
+        assertThat(frame.get("player").has("clan")).isFalse();
+        assertThat(frame.get("player").has("membership")).isFalse();
+        assertThat(frame.has("userId")).isFalse();
+    }
+
+    @Test
+    void milestoneSocketNestsThePlayerAndKeepsItsNulls() throws Exception {
+        ObjectMapper socketMapper = PlainDoubleJackson2Module.mapper();
+        var frame = socketMapper.readTree(socketMapper.writeValueAsString(MilestoneCompletedResponse.builder()
+                .player(PLAYER).completedAt(T1).build()));
+
+        assertThat(frame.get("player").get("id").isTextual()).isTrue();
+        assertThat(frame.get("player").get("id").asText()).isEqualTo("76561198000000001");
+        assertThat(frame.get("player").get("clan").get("tag").asText()).isEqualTo("TAG");
+        assertThat(frame.get("player").get("membership").isNull()).isTrue();
+        assertThat(frame.has("userId")).isFalse();
+        assertThat(frame.has("userName")).isFalse();
+        assertThat(frame.has("milestones")).isFalse();
     }
 
     @Test
@@ -186,11 +206,30 @@ class ResponseJsonShapeTest {
     }
 
     @Test
-    void milestoneHolderSendsTheUserIdAsAString() {
-        MilestoneHolderResponse holder = new MilestoneHolderResponse(7L, "Player", "a", "c", "DE", T1)
-                .withClan(CLAN);
+    void milestoneHolderNestsThePlayer() {
+        JsonNode holder = json(new MilestoneHolderResponse(PLAYER, T1));
 
-        assertSameJson(holder, new LegacyMilestoneHolderResponse("7", "Player", "a", "c", CLAN, "DE", T1));
+        assertNestedPlayer(holder);
+        assertThat(holder.get("completedAt").asString()).isEqualTo("2026-01-02T03:04:05Z");
+    }
+
+    @Test
+    void discordLinkNestsThePlayer() {
+        JsonNode link = json(DiscordLinkResponse.builder().discordId("123").player(PLAYER).createdAt(T1).build());
+
+        assertNestedPlayer(link);
+        assertThat(link.get("discordId").asString()).isEqualTo("123");
+        assertThat(link.has("playerName")).isFalse();
+    }
+
+    @Test
+    void milestoneCompletionNestsTheMap() {
+        JsonNode completion = json(MilestoneCompletionResponse.builder().milestoneId(A).score(1000).maxScore(1100)
+                .map(MAP).build());
+
+        assertNestedMap(completion);
+        assertThat(completion.has("coverUrl")).isFalse();
+        assertThat(completion.get("maxScore").asInt()).isEqualTo(1100);
     }
 
     @Test
@@ -278,28 +317,5 @@ class ResponseJsonShapeTest {
         private final Instant releasedAt;
         private final Instant createdAt;
         private final Instant updatedAt;
-    }
-
-    @Getter
-    @AllArgsConstructor
-    static class LegacyMilestoneHolderResponse {
-        private final String userId;
-        private final String name;
-        private final String avatarUrl;
-        private final String cdnAvatarUrl;
-        private final PublicClanResponse clan;
-        private final String country;
-        private final Instant completedAt;
-    }
-
-    @Getter
-    @Builder
-    static class LegacyCampaignLeaderboardPlayer {
-        private String userId;
-        private String userName;
-        private String country;
-        private String avatarUrl;
-        private String cdnAvatarUrl;
-        private PublicClanResponse clan;
     }
 }

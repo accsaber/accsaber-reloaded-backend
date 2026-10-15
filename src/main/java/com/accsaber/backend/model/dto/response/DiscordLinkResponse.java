@@ -2,6 +2,8 @@ package com.accsaber.backend.model.dto.response;
 
 import java.time.Instant;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
+
 import lombok.Builder;
 import lombok.Value;
 
@@ -10,7 +12,6 @@ import lombok.Value;
 public class DiscordLinkResponse {
 
     String discordId;
-    String userId;
-    String playerName;
+    PlayerRef player;
     Instant createdAt;
 }
