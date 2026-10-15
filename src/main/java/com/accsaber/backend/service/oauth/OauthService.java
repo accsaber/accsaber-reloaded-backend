@@ -131,7 +131,7 @@ public class OauthService {
 
     @Transactional
     public PlayerAuthResponse issueGameSessionForUser(Long userId) {
-        User user = requireUser(duplicateUserService.resolvePrimaryUserId(userId));
+        User user = requireUser(userId);
         rejectIfBanned(user);
 
         OauthConnection anchor = oauthConnectionRepository.findByUserIdAndActiveTrue(user.getId()).stream()
@@ -156,7 +156,7 @@ public class OauthService {
         } catch (NumberFormatException e) {
             throw new UnauthorizedException("BeatLeader identity returned a non-numeric player id");
         }
-        User user = requireUser(duplicateUserService.resolvePrimaryUserId(beatLeaderId));
+        User user = requireLoginUser(beatLeaderId);
         return completeProviderLogin(user, PROVIDER_BEATLEADER, identity.getId(), identity.getName(),
                 identity.getAvatar(), linkUserId, pendingLinkToken, scope);
     }
@@ -165,8 +165,7 @@ public class OauthService {
     public PlayerAuthResponse handleSteamCallback(Map<String, String> openidParams, String state,
             Long linkUserId, String pendingLinkToken) {
         Long rawSteamId = steamClient.verifyAndExtractSteamId(openidParams, state);
-        Long userId = duplicateUserService.resolvePrimaryUserId(rawSteamId);
-        User user = requireUser(userId);
+        User user = requireLoginUser(rawSteamId);
 
         return completeProviderLogin(user, PROVIDER_STEAM, String.valueOf(rawSteamId), user.getName(),
                 user.getAvatarUrl(), linkUserId, pendingLinkToken, JwtService.SCOPE_WEB);
@@ -373,6 +372,12 @@ public class OauthService {
 
     private User requireUser(Long userId) {
         return userRepository.requireActive(duplicateUserService.resolvePrimaryUserId(userId));
+    }
+
+    private User requireLoginUser(Long providerUserId) {
+        return userRepository.findByIdAndActiveTrue(duplicateUserService.resolvePrimaryUserId(providerUserId))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found. You must play at least one AccSaber ranked difficulty to create your account."));
     }
 
     private StaffContext toStaffContext(StaffUser staffUser) {
