@@ -43,6 +43,8 @@ import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonRespons
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.ScoreRow;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.TotalValues;
 import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
@@ -51,6 +53,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.map.ComplexityScenarioService.Ladder;
 import com.accsaber.backend.service.map.ComplexityScenarioService.MapAggregate;
 import com.accsaber.backend.service.map.ComplexityScenarioService.Play;
@@ -222,7 +225,7 @@ public class ComplexityComparisonService {
                 .findAllByIdInAndActiveTrueWithMapAndCategory(new ArrayList<>(shown)).stream()
                 .collect(Collectors.toMap(MapDifficulty::getId, Function.identity()));
         Map<UUID, DifficultyRow> headers = headers(new ArrayList<>(byId.values()), states).stream()
-                .collect(Collectors.toMap(DifficultyRow::getMapDifficultyId, Function.identity()));
+                .collect(Collectors.toMap(row -> row.getMap().id(), Function.identity()));
         Map<UUID, Play> current = plays.get(ComplexityScenario.CURRENT);
         List<CategoryPlays> categories = categoryRepository.findByActiveTrue().stream()
                 .filter(category -> byId.values().stream().anyMatch(d -> d.getCategory() != null
@@ -244,11 +247,7 @@ public class ComplexityComparisonService {
                 })
                 .toList();
         return PlayerPlays.builder()
-                .userId(String.valueOf(userId))
-                .name(user.getName())
-                .avatarUrl(user.getAvatarUrl())
-                .cdnAvatarUrl(user.getCdnAvatarUrl())
-                .country(user.getCountry())
+                .player(ClanRefCache.playerRef(user))
                 .categories(categories)
                 .build();
     }
@@ -455,8 +454,8 @@ public class ComplexityComparisonService {
                 .map(d -> difficultyRow(d, states, estimateComplexity(byDifficulty.get(d.getId())), null))
                 .toList();
         List<DifficultyRow> ordered = sorted(all, paging, mapAccessors(scenario(states)), "complexityDelta,desc",
-                Comparator.comparing(DifficultyRow::getSongName, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(DifficultyRow::getMapDifficultyId));
+                Comparator.comparing((DifficultyRow row) -> row.getMap().songName(), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(row -> row.getMap().id()));
         return DifficultyPage.builder()
                 .summary(summary(all, summaries, states))
                 .rows(slice(ordered, paging))
@@ -511,7 +510,7 @@ public class ComplexityComparisonService {
         return RoundSummary.builder()
                 .difficulties(all.size())
                 .pinned((int) all.stream().filter(DifficultyRow::isComplexityPinned).count())
-                .missingEstimate((int) all.stream().filter(row -> !priced.contains(row.getMapDifficultyId())).count())
+                .missingEstimate((int) all.stream().filter(row -> !priced.contains(row.getMap().id())).count())
                 .staleEstimate(stale)
                 .modelHash(modelHash)
                 .scriptVersion(newest == null ? null : newest.getVersion())
@@ -562,17 +561,8 @@ public class ComplexityComparisonService {
             }
         }
         return DifficultyRow.builder()
-                .mapDifficultyId(d.getId())
-                .mapId(d.getMap().getId())
-                .songName(d.getMap().getSongName())
-                .songSubName(d.getMap().getSongSubName())
-                .songAuthor(d.getMap().getSongAuthor())
-                .mapAuthor(d.getMap().getMapAuthor())
-                .coverUrl(d.getMap().getCoverUrl())
-                .cdnCoverUrl(d.getMap().getCdnCoverUrl())
-                .difficulty(d.getDifficulty() == null ? null : d.getDifficulty().name())
+                .map(MapDifficultyRef.of(d))
                 .characteristic(d.getCharacteristic())
-                .categoryId(d.getCategory() == null ? null : d.getCategory().getId())
                 .categoryCode(d.getCategory() == null ? null : d.getCategory().getCode())
                 .status(d.getStatus())
                 .complexityPinned(d.isComplexityPinned())
@@ -611,11 +601,7 @@ public class ComplexityComparisonService {
             }
         }
         return ScoreRow.builder()
-                .userId(String.valueOf(current.userId()))
-                .name(user == null ? "" : user.getName())
-                .avatarUrl(user == null ? null : user.getAvatarUrl())
-                .cdnAvatarUrl(user == null ? null : user.getCdnAvatarUrl())
-                .country(user == null ? null : user.getCountry())
+                .player(playerRef(current.userId(), user))
                 .accuracy(current.accuracy())
                 .scenarios(scenarios)
                 .deltas(deltas)
@@ -639,14 +625,14 @@ public class ComplexityComparisonService {
             }
         }
         return PlayerRow.builder()
-                .userId(String.valueOf(userId))
-                .name(user == null ? "" : user.getName())
-                .avatarUrl(user == null ? null : user.getAvatarUrl())
-                .cdnAvatarUrl(user == null ? null : user.getCdnAvatarUrl())
-                .country(user == null ? null : user.getCountry())
+                .player(playerRef(userId, user))
                 .scenarios(scenarios)
                 .deltas(deltas)
                 .build();
+    }
+
+    private static PlayerRef playerRef(Long userId, User user) {
+        return user != null ? ClanRefCache.playerRef(user) : ClanRefCache.playerRef(userId, "", null, null, null);
     }
 
     private static <T> List<T> sorted(List<T> all, Paging paging, Map<String, Function<T, Object>> accessors,
@@ -681,8 +667,8 @@ public class ComplexityComparisonService {
 
     private static Map<String, Function<DifficultyRow, Object>> mapAccessors(ComplexityScenario scenario) {
         Map<String, Function<DifficultyRow, Object>> accessors = new HashMap<>();
-        accessors.put("song", DifficultyRow::getSongName);
-        accessors.put("mapper", DifficultyRow::getMapAuthor);
+        accessors.put("song", row -> row.getMap().songName());
+        accessors.put("mapper", row -> row.getMap().mapAuthor());
         accessors.put("scores", row -> (double) row.getScores());
         accessors.put("currentComplexity", mapValue(DifficultyRow::getScenarios, ComplexityScenario.CURRENT,
                 MapValues::getComplexity));

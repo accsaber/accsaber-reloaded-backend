@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.map;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.AutoCriteriaStatus;
 import com.accsaber.backend.model.entity.CriteriaStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -47,11 +48,8 @@ public class MapDifficultyResponse {
     String scriptVersion;
     Instant rankedAt;
     Instant createdAt;
-    UUID createdBy;
-    String createdByUsername;
-    String createdByAvatarUrl;
-    UUID lastUpdatedBy;
-    String lastUpdatedByUsername;
+    PublicStaffUserResponse createdBy;
+    PublicStaffUserResponse lastUpdatedBy;
     int rankUpvotes;
     int rankDownvotes;
     int rankNeutrals;

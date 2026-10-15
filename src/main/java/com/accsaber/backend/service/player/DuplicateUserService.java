@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.player.DuplicateCandidateResponse;
 import com.accsaber.backend.model.dto.response.player.DuplicateLinkResponse;
 import com.accsaber.backend.model.entity.score.Score;
@@ -35,12 +36,14 @@ import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.MergeScoreActionRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
 import com.accsaber.backend.service.score.ScoreRecalculationService.PlayerRecalc;
 import com.accsaber.backend.service.skill.SkillService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
 import com.accsaber.backend.service.stats.StatisticsService;
+import com.accsaber.backend.service.stats.StatsQueryRunner;
 import com.accsaber.backend.service.infra.AfterCommit;
 
 import jakarta.annotation.PostConstruct;
@@ -130,7 +133,8 @@ public class DuplicateUserService {
                                     WHERE bl_score_id IS NOT NULL AND active = true
                                     GROUP BY user_id
                                 )
-                                SELECT u1.id, u1.name, u2.id, u2.name, u1.country,
+                                SELECT u1.id, u1.name, u1.avatar_url, u1.cdn_avatar_url, u1.country,
+                                    u2.id, u2.name, u2.avatar_url, u2.cdn_avatar_url, u2.country,
                                     iq.identical_count,
                                     COALESCE(uc1.total_scores, 0) AS u1_total_scores,
                                     COALESCE(uc2.total_scores, 0) AS u2_total_scores,
@@ -152,23 +156,18 @@ public class DuplicateUserService {
                 .getResultList();
 
         return rows.stream().map(row -> {
-            Long u1Id = ((Number) row[0]).longValue();
-            String u1Name = (String) row[1];
-            Long u2Id = ((Number) row[2]).longValue();
-            String u2Name = (String) row[3];
-            int u1TotalScores = ((Number) row[6]).intValue();
-            int u2TotalScores = ((Number) row[7]).intValue();
-            long u1BlScores = ((Number) row[8]).longValue();
-            long u2BlScores = ((Number) row[9]).longValue();
+            PlayerRef u1 = StatsQueryRunner.playerRef(row, 0);
+            PlayerRef u2 = StatsQueryRunner.playerRef(row, 5);
+            int u1TotalScores = ((Number) row[11]).intValue();
+            int u2TotalScores = ((Number) row[12]).intValue();
+            long u1BlScores = ((Number) row[13]).longValue();
+            long u2BlScores = ((Number) row[14]).longValue();
 
             boolean u1IsPrimary = u1BlScores >= u2BlScores;
             return DuplicateCandidateResponse.builder()
-                    .primaryUserId(String.valueOf(u1IsPrimary ? u1Id : u2Id))
-                    .primaryUserName(u1IsPrimary ? u1Name : u2Name)
-                    .secondaryUserId(String.valueOf(u1IsPrimary ? u2Id : u1Id))
-                    .secondaryUserName(u1IsPrimary ? u2Name : u1Name)
-                    .country((String) row[4])
-                    .identicalScores(((Number) row[5]).intValue())
+                    .primary(u1IsPrimary ? u1 : u2)
+                    .secondary(u1IsPrimary ? u2 : u1)
+                    .identicalScores(((Number) row[10]).intValue())
                     .primaryTotalScores(u1IsPrimary ? u1TotalScores : u2TotalScores)
                     .secondaryTotalScores(u1IsPrimary ? u2TotalScores : u1TotalScores)
                     .build();
@@ -444,10 +443,8 @@ public class DuplicateUserService {
     private DuplicateLinkResponse toLinkResponse(UserDuplicateLink link) {
         return DuplicateLinkResponse.builder()
                 .id(link.getId())
-                .secondaryUserId(String.valueOf(link.getSecondaryUser().getId()))
-                .secondaryUserName(link.getSecondaryUser().getName())
-                .primaryUserId(String.valueOf(link.getPrimaryUser().getId()))
-                .primaryUserName(link.getPrimaryUser().getName())
+                .secondary(ClanRefCache.playerRef(link.getSecondaryUser()))
+                .primary(ClanRefCache.playerRef(link.getPrimaryUser()))
                 .merged(link.isMerged())
                 .mergedAt(link.getMergedAt())
                 .reason(link.getReason())

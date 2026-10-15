@@ -20,6 +20,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoreResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberScoresPage;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.map.LeaderboardPreviewResponse;
 import com.accsaber.backend.model.dto.response.map.LeaderboardPreviewResponse.Row;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -28,6 +29,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.score.APCalculationService;
 import com.accsaber.backend.util.PlatformScoreMapper;
 import com.accsaber.backend.util.Rounding;
@@ -81,9 +83,7 @@ public class LeaderboardPreviewService {
             rows.add(row(i + 1, ordered.get(i), users.get(ordered.get(i).userId()), difficulty, complexity));
         }
         return LeaderboardPreviewResponse.builder()
-                .mapDifficultyId(difficulty.getId())
-                .songName(difficulty.getMap().getSongName())
-                .difficulty(difficulty.getDifficulty() == null ? null : difficulty.getDifficulty().name())
+                .map(MapDifficultyRef.of(difficulty))
                 .characteristic(difficulty.getCharacteristic())
                 .categoryCode(difficulty.getCategory().getCode())
                 .status(difficulty.getStatus())
@@ -100,11 +100,9 @@ public class LeaderboardPreviewService {
                         difficulty.getCategory().getScoreCurve()).rawAP();
         return Row.builder()
                 .rank(rank)
-                .userId(String.valueOf(fetched.userId()))
-                .name(user != null ? user.getName() : fetched.name())
-                .avatarUrl(user != null ? user.getAvatarUrl() : fetched.avatarUrl())
-                .cdnAvatarUrl(user != null ? user.getCdnAvatarUrl() : null)
-                .country(user != null ? user.getCountry() : fetched.country())
+                .player(user != null ? ClanRefCache.playerRef(user)
+                        : ClanRefCache.playerRef(fetched.userId(), fetched.name(), fetched.avatarUrl(), null,
+                                fetched.country()))
                 .platform(fetched.platform())
                 .accuracy(fetched.accuracy())
                 .ap(ap)

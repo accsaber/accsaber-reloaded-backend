@@ -2,7 +2,7 @@ package com.accsaber.backend.model.dto.response.supporter;
 
 import java.time.Instant;
 
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 
 import lombok.Builder;
 import lombok.Value;
@@ -11,12 +11,7 @@ import lombok.Value;
 @Builder
 public class SupporterCreditsRowResponse {
 
-    String userId;
-    String name;
-    String avatarUrl;
-    String cdnAvatarUrl;
-    PublicClanResponse clan;
-    String country;
+    PlayerRef player;
     String currentTier;
     String currentTierDisplayName;
     Long lifetimeSupportedCents;

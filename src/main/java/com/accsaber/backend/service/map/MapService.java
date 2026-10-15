@@ -32,6 +32,7 @@ import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapResponse;
 import com.accsaber.backend.model.dto.response.map.RankedDifficultyResponse;
+import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -50,6 +51,7 @@ import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.service.playlist.PlaylistService;
+import com.accsaber.backend.service.staff.StaffMapper;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 import com.accsaber.backend.util.MapDifficultyMetrics;
 import com.accsaber.backend.util.Rounding;
@@ -76,9 +78,6 @@ public class MapService {
     private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
     private final PlaylistService playlistService;
 
-    record StaffInfo(String username, String avatarUrl) {
-    }
-
     record VoteSummary(int rankUpvotes, int rankDownvotes, int rankNeutrals, int criteriaUpvotes,
             int criteriaDownvotes,
             VoteType headCriteriaVote, int reweightUpvotes, int reweightDownvotes,
@@ -87,14 +86,14 @@ public class MapService {
 
     private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, null, 0);
 
-    record DifficultyContext(Double complexity, MapDifficultyStatisticsResponse stats, StaffInfo lastUpdatedBy,
-            StaffInfo createdBy, VoteSummary votes, MapDifficultyComplexityEstimate estimate) {
+    record DifficultyContext(Double complexity, MapDifficultyStatisticsResponse stats,
+            PublicStaffUserResponse lastUpdatedBy, PublicStaffUserResponse createdBy, VoteSummary votes,
+            MapDifficultyComplexityEstimate estimate) {
 
-        static final DifficultyContext EMPTY = basic(null, null, null);
+        static final DifficultyContext EMPTY = basic(null, null);
 
-        static DifficultyContext basic(Double complexity, MapDifficultyStatisticsResponse stats,
-                StaffInfo lastUpdatedBy) {
-            return new DifficultyContext(complexity, stats, lastUpdatedBy, null, EMPTY_SUMMARY, null);
+        static DifficultyContext basic(Double complexity, MapDifficultyStatisticsResponse stats) {
+            return new DifficultyContext(complexity, stats, null, null, EMPTY_SUMMARY, null);
         }
     }
 
@@ -122,13 +121,11 @@ public class MapService {
         List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, Double> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
 
         return difficulties.stream()
                 .map(d -> toPublicDifficultyResponse(toDifficultyResponse(d, new DifficultyContext(
-                        complexities.get(d.getId()), stats.get(d.getId()),
-                        staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
+                        complexities.get(d.getId()), stats.get(d.getId()), null, null,
                         voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), null))))
                 .toList();
     }
@@ -165,11 +162,10 @@ public class MapService {
         List<MapDifficulty> difficulties = mapDifficultyRepository.findAllByIdInAndActiveTrueWithMapAndCategory(ids);
         java.util.Map<UUID, Double> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, PublicMapDifficultyResponse> result = new java.util.HashMap<>();
         for (MapDifficulty d : difficulties) {
             MapDifficultyResponse full = toDifficultyResponse(d, DifficultyContext.basic(
-                    complexities.get(d.getId()), stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy())));
+                    complexities.get(d.getId()), stats.get(d.getId())));
             result.put(d.getId(), toPublicDifficultyResponse(full));
         }
         return result;
@@ -200,7 +196,7 @@ public class MapService {
         return maps.map(map -> {
             List<MapDifficultyResponse> difficulties = byMap.getOrDefault(map.getId(), List.of()).stream()
                     .map(d -> toDifficultyResponse(d,
-                            DifficultyContext.basic(complexities.get(d.getId()), stats.get(d.getId()), null)))
+                            DifficultyContext.basic(complexities.get(d.getId()), stats.get(d.getId()))))
                     .toList();
             return toMapResponse(map, difficulties);
         });
@@ -297,7 +293,7 @@ public class MapService {
         List<UUID> ids = difficulties.getContent().stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, Double> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties.getContent());
+        java.util.Map<UUID, PublicStaffUserResponse> staffInfo = loadStaffInfo(difficulties.getContent());
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
         java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
@@ -524,8 +520,7 @@ public class MapService {
 
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
+        return toDifficultyResponse(difficulty, staffContext(difficulty, complexity, stats));
     }
 
     @Transactional
@@ -546,8 +541,7 @@ public class MapService {
         Double complexity = complexityService.setComplexity(
                 difficulty, request.getComplexity(), request.getReason(), staffUserId);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
+        return toDifficultyResponse(difficulty, staffContext(difficulty, complexity, stats));
     }
 
     @Transactional
@@ -574,8 +568,7 @@ public class MapService {
 
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        StaffInfo info = resolveStaffInfo(staffId);
-        return toDifficultyResponse(difficulty, DifficultyContext.basic(complexity, stats, info));
+        return toDifficultyResponse(difficulty, staffContext(difficulty, complexity, stats));
     }
 
     @Transactional
@@ -592,10 +585,11 @@ public class MapService {
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
-        StaffInfo info = resolveStaffInfo(difficulty.getLastUpdatedBy());
+        java.util.Map<UUID, PublicStaffUserResponse> staff = loadStaffInfo(List.of(difficulty));
         Double avgComplexity = loadAvgReweightComplexity(List.of(difficultyId)).get(difficultyId);
         VoteSummary votes = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity, 0);
-        return toDifficultyResponse(difficulty, new DifficultyContext(complexity, stats, info, null, votes,
+        return toDifficultyResponse(difficulty, new DifficultyContext(complexity, stats,
+                staff.get(difficulty.getLastUpdatedBy()), staff.get(difficulty.getCreatedBy()), votes,
                 estimateRepository.findByMapDifficultyId(difficultyId).orElse(null)));
     }
 
@@ -642,7 +636,7 @@ public class MapService {
         List<UUID> ids = difficulties.stream().map(MapDifficulty::getId).toList();
         java.util.Map<UUID, Double> complexities = complexityService.findActiveComplexitiesForDifficulties(ids);
         java.util.Map<UUID, MapDifficultyStatisticsResponse> stats = statisticsService.findActiveForDifficulties(ids);
-        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(difficulties);
+        java.util.Map<UUID, PublicStaffUserResponse> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
         java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
 
@@ -653,7 +647,14 @@ public class MapService {
                 .toList();
     }
 
-    private java.util.Map<UUID, StaffInfo> loadStaffInfo(List<MapDifficulty> difficulties) {
+    private DifficultyContext staffContext(MapDifficulty difficulty, Double complexity,
+            MapDifficultyStatisticsResponse stats) {
+        java.util.Map<UUID, PublicStaffUserResponse> staff = loadStaffInfo(List.of(difficulty));
+        return new DifficultyContext(complexity, stats, staff.get(difficulty.getLastUpdatedBy()),
+                staff.get(difficulty.getCreatedBy()), EMPTY_SUMMARY, null);
+    }
+
+    private java.util.Map<UUID, PublicStaffUserResponse> loadStaffInfo(List<MapDifficulty> difficulties) {
         List<UUID> staffIds = difficulties.stream()
                 .flatMap(d -> java.util.stream.Stream.of(d.getLastUpdatedBy(), d.getCreatedBy()))
                 .filter(id -> id != null)
@@ -663,9 +664,7 @@ public class MapService {
             return new java.util.HashMap<>();
 
         return staffUserRepository.findAllByIdWithUser(staffIds).stream()
-                .collect(Collectors.toMap(StaffUser::getId,
-                        s -> new StaffInfo(s.getUsername(),
-                                s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
+                .collect(Collectors.toMap(StaffUser::getId, StaffMapper::toPublicResponse));
     }
 
     private java.util.Map<UUID, VoteSummary> loadVoteSummaries(List<UUID> difficultyIds) {
@@ -751,16 +750,6 @@ public class MapService {
         return result;
     }
 
-    private StaffInfo resolveStaffInfo(UUID staffId) {
-        if (staffId == null)
-            return null;
-        return staffUserRepository.findAllByIdWithUser(List.of(staffId)).stream()
-                .findFirst()
-                .map(s -> new StaffInfo(s.getUsername(),
-                        s.getUser() != null ? s.getUser().getAvatarUrl() : null))
-                .orElse(null);
-    }
-
     private MapResponse toMapResponse(Map map, List<MapDifficultyResponse> difficulties) {
         return MapResponse.builder()
                 .id(map.getId())
@@ -780,8 +769,6 @@ public class MapService {
 
     static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, DifficultyContext ctx) {
         Map map = d.getMap();
-        StaffInfo createdByInfo = ctx.createdBy();
-        StaffInfo lastUpdatedByInfo = ctx.lastUpdatedBy();
         VoteSummary votes = ctx.votes();
         MapDifficultyComplexityEstimate estimate = ctx.estimate();
         return MapDifficultyResponse.builder()
@@ -815,11 +802,8 @@ public class MapService {
                 .rankedAt(d.getRankedAt())
                 .previousVersionId(d.getPreviousVersion() != null ? d.getPreviousVersion().getId() : null)
                 .createdAt(d.getCreatedAt())
-                .createdBy(d.getCreatedBy())
-                .createdByUsername(createdByInfo != null ? createdByInfo.username() : null)
-                .createdByAvatarUrl(createdByInfo != null ? createdByInfo.avatarUrl() : null)
-                .lastUpdatedBy(d.getLastUpdatedBy())
-                .lastUpdatedByUsername(lastUpdatedByInfo != null ? lastUpdatedByInfo.username() : null)
+                .createdBy(ctx.createdBy())
+                .lastUpdatedBy(ctx.lastUpdatedBy())
                 .rankUpvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.rankUpvotes() : 0)
                 .rankDownvotes(d.getStatus() != MapDifficultyStatus.RANKED ? votes.rankDownvotes() : 0)
                 .rankNeutrals(d.getStatus() != MapDifficultyStatus.RANKED ? votes.rankNeutrals() : 0)

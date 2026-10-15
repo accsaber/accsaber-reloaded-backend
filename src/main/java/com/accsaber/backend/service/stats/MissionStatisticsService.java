@@ -3,7 +3,7 @@ package com.accsaber.backend.service.stats;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.dbl;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.num;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.rate;
-import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -279,7 +279,7 @@ public class MissionStatisticsService {
 
     private static MissionCompletorResponse mapCompletor(Object[] row) {
         return MissionCompletorResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .missionsCompleted(num(row[5]))
                 .missionXp(((Number) row[6]).doubleValue())
                 .build();

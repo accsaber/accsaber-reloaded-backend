@@ -278,6 +278,6 @@ public class BatchService {
 
     private static MapDifficultyResponse toDifficultyResponse(MapDifficulty d, Double complexity,
             MapDifficultyStatisticsResponse stats) {
-        return MapService.toDifficultyResponse(d, MapService.DifficultyContext.basic(complexity, stats, null));
+        return MapService.toDifficultyResponse(d, MapService.DifficultyContext.basic(complexity, stats));
     }
 }

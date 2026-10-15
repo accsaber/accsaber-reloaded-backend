@@ -11,10 +11,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.statistics.DistributionEntryResponse;
-import com.accsaber.backend.model.dto.response.statistics.MapIdentity;
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
-import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.service.clan.ClanRefCache;
 
@@ -61,14 +61,13 @@ public class StatsQueryRunner {
         return whole <= 0 ? null : (double) part / whole;
     }
 
-    public static UserIdentity userIdentity(Object[] row, int offset) {
-        long userId = ((Number) row[offset]).longValue();
-        return new UserIdentity(String.valueOf(userId), (String) row[offset + 1], (String) row[offset + 2],
-                (String) row[offset + 3], ClanRefCache.forUser(userId), (String) row[offset + 4]);
+    public static PlayerRef playerRef(Object[] row, int offset) {
+        return ClanRefCache.playerRef(((Number) row[offset]).longValue(), (String) row[offset + 1],
+                (String) row[offset + 2], (String) row[offset + 3], (String) row[offset + 4]);
     }
 
-    public static MapIdentity mapIdentity(Object[] row, int offset) {
-        return new MapIdentity((UUID) row[offset], (UUID) row[offset + 1], (String) row[offset + 2],
+    public static MapDifficultyRef mapRef(Object[] row, int offset) {
+        return new MapDifficultyRef((UUID) row[offset], (UUID) row[offset + 1], (String) row[offset + 2],
                 (String) row[offset + 3], (String) row[offset + 4], (String) row[offset + 5], (String) row[offset + 6],
                 (String) row[offset + 7], Difficulty.fromDbValue((String) row[offset + 8]), (UUID) row[offset + 9],
                 (String) row[offset + 10]);

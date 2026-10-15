@@ -288,12 +288,7 @@ public class SupporterService {
 
     private static SupporterCreditsRowResponse toCreditsRow(SupporterAccount account) {
         SupporterCreditsRowResponse.SupporterCreditsRowResponseBuilder b = SupporterCreditsRowResponse.builder()
-                .userId(String.valueOf(account.getUserId()))
-                .name(account.getUser().getName())
-                .avatarUrl(account.getUser().getAvatarUrl())
-                .cdnAvatarUrl(account.getUser().getCdnAvatarUrl())
-                .clan(ClanRefCache.forUser(account.getUserId()))
-                .country(account.getUser().getCountry())
+                .player(ClanRefCache.playerRef(account.getUser()))
                 .lifetimeSupportedCents(account.getLifetimeSupportedCents())
                 .tierStartedAt(account.getTierStartedAt())
                 .firstSupportedAt(account.getCreatedAt());

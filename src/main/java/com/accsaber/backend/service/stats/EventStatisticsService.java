@@ -3,7 +3,7 @@ package com.accsaber.backend.service.stats;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.dbl;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.num;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.rate;
-import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -250,7 +250,7 @@ public class EventStatisticsService {
 
         return queryRunner.paged(sql, params, pageable, row -> EventMissionLeaderboardResponse.builder()
                 .rank(num(row[0]))
-                .user(userIdentity(row, 1))
+                .player(playerRef(row, 1))
                 .completions(num(row[6]))
                 .xpEarned(num(row[7]))
                 .itemsAwarded(num(row[8]))

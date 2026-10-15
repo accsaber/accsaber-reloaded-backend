@@ -138,12 +138,12 @@ class MapVotingServiceTest {
                                         VoteType.UPVOTE, MapVoteAction.RANK, null, "Looks good", null, null,
                                         StaffRole.RANKING);
 
-                        assertThat(response.getStaffUsername()).isEqualTo("tester");
-                        assertThat(response.getStaffRole()).isEqualTo(StaffRole.RANKING_HEAD);
+                        assertThat(response.getStaff().getUsername()).isEqualTo("tester");
+                        assertThat(response.getStaff().getRole()).isEqualTo(StaffRole.RANKING_HEAD);
                         assertThat(response.getVote()).isEqualTo(VoteType.UPVOTE);
                         assertThat(response.getType()).isEqualTo(MapVoteAction.RANK);
                         assertThat(response.getReason()).isEqualTo("Looks good");
-                        assertThat(response.getStaffId()).isEqualTo(staffId);
+                        assertThat(response.getStaff().getId()).isEqualTo(staffId);
                 }
 
                 @Test

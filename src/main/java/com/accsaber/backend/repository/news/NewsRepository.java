@@ -15,17 +15,17 @@ import com.accsaber.backend.model.entity.news.NewsStatus;
 
 public interface NewsRepository extends JpaRepository<News, UUID> {
 
-    @EntityGraph(attributePaths = {"staffUser", "batch", "campaign", "milestoneSet", "curve"})
+    @EntityGraph(attributePaths = {"staffUser", "staffUser.user", "batch", "campaign", "milestoneSet", "curve"})
     Optional<News> findByIdAndActiveTrue(UUID id);
 
-    @EntityGraph(attributePaths = {"staffUser", "batch", "campaign", "milestoneSet", "curve"})
+    @EntityGraph(attributePaths = {"staffUser", "staffUser.user", "batch", "campaign", "milestoneSet", "curve"})
     Optional<News> findBySlugAndActiveTrue(String slug);
 
     boolean existsBySlug(String slug);
 
     boolean existsBySlugAndIdNot(String slug, UUID id);
 
-    @EntityGraph(attributePaths = {"staffUser"})
+    @EntityGraph(attributePaths = {"staffUser", "staffUser.user"})
     @Query("""
             SELECT n FROM News n
             WHERE n.active = true

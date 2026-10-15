@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
 import com.accsaber.backend.model.dto.response.map.VoteResponse;
 import com.accsaber.backend.model.entity.AutoCriteriaStatus;
@@ -28,6 +29,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.staff.StaffMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -291,22 +293,11 @@ public class MapVotingService {
     }
 
     private VoteResponse toResponse(StaffMapVote v, StaffUser staff, Double complexity) {
-        var map = v.getMapDifficulty().getMap();
         return VoteResponse.builder()
                 .id(v.getId())
-                .mapDifficultyId(v.getMapDifficulty().getId())
-                .difficulty(v.getMapDifficulty().getDifficulty())
+                .map(MapDifficultyRef.of(v.getMapDifficulty()))
                 .complexity(complexity)
-                .songName(map.getSongName())
-                .songSubName(map.getSongSubName())
-                .songAuthor(map.getSongAuthor())
-                .mapAuthor(map.getMapAuthor())
-                .coverUrl(map.getCoverUrl())
-                .cdnCoverUrl(map.getCdnCoverUrl())
-                .staffId(v.getStaffId())
-                .staffUsername(staff != null ? staff.getUsername() : null)
-                .staffAvatarUrl(staff != null && staff.getUser() != null ? staff.getUser().getAvatarUrl() : null)
-                .staffRole(staff != null ? staff.getRole() : null)
+                .staff(StaffMapper.toPublicResponse(staff))
                 .vote(v.getVote())
                 .type(v.getType())
                 .suggestedComplexity(v.getSuggestedComplexity())

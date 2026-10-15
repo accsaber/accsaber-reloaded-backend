@@ -13,6 +13,7 @@ import org.springframework.web.socket.WebSocketHandler;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.security.PlayerTokenResolver;
 import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.util.Slugs;
 
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CampaignPresenceHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
     static final String ATTR_CAMPAIGN_ID = "campaignId";
-    static final String ATTR_USER_NAME = "userName";
-    static final String ATTR_USER_AVATAR = "userAvatar";
+    static final String ATTR_PLAYER = "player";
 
     private final CampaignCollaboratorService collaboratorService;
 
@@ -59,9 +59,7 @@ public class CampaignPresenceHandshakeInterceptor extends PlayerHandshakeInterce
 
         attributes.put(ATTR_CAMPAIGN_ID, campaignId);
         attributes.put(ATTR_USER_ID, user.getId());
-        attributes.put(ATTR_USER_NAME, user.getName());
-        attributes.put(ATTR_USER_AVATAR,
-                user.getCdnAvatarUrl() != null ? user.getCdnAvatarUrl() : user.getAvatarUrl());
+        attributes.put(ATTR_PLAYER, ClanRefCache.playerRef(user));
         log.debug("Presence handshake accepted: user {} on campaign {}", user.getId(), campaignId);
         return true;
     }

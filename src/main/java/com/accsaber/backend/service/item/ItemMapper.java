@@ -213,8 +213,6 @@ public final class ItemMapper {
     public static TradeResponse toTradeResponse(UserItemTrade trade) {
         return TradeResponse.builder()
                 .id(trade.getId())
-                .fromUserId(trade.getFromUser().getId())
-                .toUserId(trade.getToUser().getId())
                 .fromUser(ClanRefCache.playerRef(trade.getFromUser()))
                 .toUser(ClanRefCache.playerRef(trade.getToUser()))
                 .offeredItems(tradeItemsForSide(trade, TradeItemSide.offered))

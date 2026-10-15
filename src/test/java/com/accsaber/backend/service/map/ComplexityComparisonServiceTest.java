@@ -20,7 +20,6 @@ import com.accsaber.backend.config.ComplexityRaterProperties;
 import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
-import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
@@ -103,13 +102,13 @@ class ComplexityComparisonServiceTest {
 
         var plays = service.playerPlays(7L, 1);
 
-        assertThat(plays.getUserId()).isEqualTo("7");
+        assertThat(plays.getPlayer().id()).isEqualTo("7");
         assertThat(plays.getCategories()).hasSize(1);
         var category = plays.getCategories().get(0);
         assertThat(category.getCategoryCode()).isEqualTo("tech_acc");
         assertThat(category.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getAp()).isEqualTo(1750.0);
         assertThat(category.getDeltas().get(ComplexityScenario.NEW_SCRIPT).getRank()).isEqualTo(-1);
-        assertThat(category.getPlays()).extracting(p -> p.getDifficulty().getMapDifficultyId())
+        assertThat(category.getPlays()).extracting(p -> p.getDifficulty().getMap().id())
                 .containsExactly(first.getId(), second.getId());
         var secondRow = category.getPlays().get(1);
         assertThat(secondRow.getScenarios().get(ComplexityScenario.NEW_SCRIPT).getPosition()).isEqualTo(1);
@@ -186,7 +185,7 @@ class ComplexityComparisonServiceTest {
         assertThat(page.getRows()).hasSize(2);
         assertThat(page.getTotal()).isEqualTo(4);
         assertThat(page.getTotalPages()).isEqualTo(2);
-        assertThat(page.getRows()).extracting(DifficultyRow::getMapDifficultyId)
+        assertThat(page.getRows()).extracting(row -> row.getMap().id())
                 .containsExactly(thin.getId(), first.getId());
         var summary = page.getSummary();
         assertThat(summary.getDifficulties()).isEqualTo(4);
@@ -223,7 +222,7 @@ class ComplexityComparisonServiceTest {
 
         var page = service.difficulties(filter(true), new ComplexityComparisonService.Paging(0, 50, null, false));
 
-        assertThat(page.getRows()).extracting(DifficultyRow::getMapDifficultyId).containsExactly(thin.getId());
+        assertThat(page.getRows()).extracting(row -> row.getMap().id()).containsExactly(thin.getId());
         assertThat(page.getSummary().getDifficulties()).isEqualTo(1);
         assertThat(page.getSummary().getMoving().get(ComplexityScenario.NEW_SCRIPT)).isZero();
     }

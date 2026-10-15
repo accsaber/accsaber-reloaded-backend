@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.accsaber.backend.model.entity.user.UserDuplicateLink;
@@ -17,4 +18,8 @@ public interface UserDuplicateLinkRepository extends JpaRepository<UserDuplicate
     boolean existsBySecondaryUser_Id(Long secondaryUserId);
 
     List<UserDuplicateLink> findByMergedFalse();
+
+    @Override
+    @EntityGraph(attributePaths = { "primaryUser", "secondaryUser" })
+    List<UserDuplicateLink> findAll();
 }

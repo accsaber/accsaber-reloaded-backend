@@ -2,7 +2,7 @@ package com.accsaber.backend.model.dto.response;
 
 import java.util.List;
 
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 
 import lombok.Builder;
@@ -12,13 +12,8 @@ import lombok.Value;
 @Builder
 public class AuthMeResponse {
 
-    String userId;
-    String name;
-    String avatarUrl;
-    String cdnAvatarUrl;
-    PublicClanResponse clan;
+    PlayerRef player;
     ClanRole clanRole;
-    String country;
     String supporterTier;
     boolean banned;
     List<OauthConnectionSummary> connections;

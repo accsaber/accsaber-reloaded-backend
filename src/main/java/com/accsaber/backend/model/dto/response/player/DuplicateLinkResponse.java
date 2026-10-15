@@ -3,6 +3,8 @@ package com.accsaber.backend.model.dto.response.player;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
+
 import lombok.Builder;
 import lombok.Value;
 
@@ -11,10 +13,8 @@ import lombok.Value;
 public class DuplicateLinkResponse {
 
     UUID id;
-    String secondaryUserId;
-    String secondaryUserName;
-    String primaryUserId;
-    String primaryUserName;
+    PlayerRef secondary;
+    PlayerRef primary;
     boolean merged;
     Instant mergedAt;
     String reason;

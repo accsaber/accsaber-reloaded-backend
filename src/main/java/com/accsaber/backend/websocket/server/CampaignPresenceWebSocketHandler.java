@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -69,15 +70,14 @@ public class CampaignPresenceWebSocketHandler extends RoomWebSocketHandler<UUID>
     }
 
     private void sendSnapshot(WebSocketSession session, UUID campaignId) {
-        Map<Long, CampaignPresenceMessage.Member> byUser = new LinkedHashMap<>();
+        Map<Long, PlayerRef> byUser = new LinkedHashMap<>();
         for (WebSocketSession peer : sessions(campaignId)) {
             if (peer.getId().equals(session.getId())) {
                 continue;
             }
             Long uid = userId(peer);
             if (uid != null) {
-                byUser.putIfAbsent(uid,
-                        new CampaignPresenceMessage.Member(uid, userName(peer), userAvatar(peer)));
+                byUser.putIfAbsent(uid, player(peer));
             }
         }
         CampaignPresenceMessage msg = new CampaignPresenceMessage();
@@ -110,9 +110,7 @@ public class CampaignPresenceWebSocketHandler extends RoomWebSocketHandler<UUID>
 
     private void stamp(CampaignPresenceMessage msg, WebSocketSession session, UUID campaignId) {
         msg.setCampaignId(campaignId);
-        msg.setActorUserId(userId(session));
-        msg.setActorName(userName(session));
-        msg.setActorAvatarUrl(userAvatar(session));
+        msg.setActor(player(session));
         msg.setTs(System.currentTimeMillis());
         msg.setMembers(null);
     }
@@ -134,11 +132,7 @@ public class CampaignPresenceWebSocketHandler extends RoomWebSocketHandler<UUID>
         return (Long) session.getAttributes().get(CampaignPresenceHandshakeInterceptor.ATTR_USER_ID);
     }
 
-    private static String userName(WebSocketSession session) {
-        return (String) session.getAttributes().get(CampaignPresenceHandshakeInterceptor.ATTR_USER_NAME);
-    }
-
-    private static String userAvatar(WebSocketSession session) {
-        return (String) session.getAttributes().get(CampaignPresenceHandshakeInterceptor.ATTR_USER_AVATAR);
+    private static PlayerRef player(WebSocketSession session) {
+        return (PlayerRef) session.getAttributes().get(CampaignPresenceHandshakeInterceptor.ATTR_PLAYER);
     }
 }

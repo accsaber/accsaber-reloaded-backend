@@ -1,5 +1,7 @@
 package com.accsaber.backend.model.dto.response.player;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
+
 import lombok.Builder;
 import lombok.Value;
 
@@ -7,11 +9,8 @@ import lombok.Value;
 @Builder
 public class DuplicateCandidateResponse {
 
-    String primaryUserId;
-    String primaryUserName;
-    String secondaryUserId;
-    String secondaryUserName;
-    String country;
+    PlayerRef primary;
+    PlayerRef secondary;
     int identicalScores;
     int primaryTotalScores;
     int secondaryTotalScores;

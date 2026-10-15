@@ -127,18 +127,15 @@ public class ReweightRoundService {
         Map<UUID, Double> lasts = new HashMap<>();
         for (ReweightRound round : day) {
             for (ReweightRoundMapRow row : rows.getOrDefault(round.getId(), List.of())) {
-                firsts.putIfAbsent(row.mapDifficultyId(), row);
-                lasts.put(row.mapDifficultyId(), row.to());
+                firsts.putIfAbsent(row.map().id(), row);
+                lasts.put(row.map().id(), row.to());
             }
         }
         return firsts.values().stream()
                 .map(row -> ReweightDayResponse.MapChange.builder()
-                        .mapId(row.mapId())
-                        .mapDifficultyId(row.mapDifficultyId())
-                        .songName(row.songName())
-                        .difficulty(row.difficulty())
+                        .map(row.map())
                         .from(row.from())
-                        .to(lasts.get(row.mapDifficultyId()))
+                        .to(lasts.get(row.map().id()))
                         .build())
                 .toList();
     }

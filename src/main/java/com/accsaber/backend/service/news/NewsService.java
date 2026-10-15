@@ -29,6 +29,7 @@ import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.news.NewsRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.service.staff.StaffMapper;
 import com.accsaber.backend.util.Slugs;
 import com.accsaber.backend.util.Texts;
 
@@ -225,11 +226,9 @@ public class NewsService {
     }
 
     private static NewsResponse toResponse(News news) {
-        StaffUser author = news.getStaffUser();
         return NewsResponse.builder()
                 .id(news.getId())
-                .staffUserId(author != null ? author.getId() : null)
-                .staffUsername(author != null ? author.getUsername() : null)
+                .author(StaffMapper.toPublicResponse(news.getStaffUser()))
                 .title(news.getTitle())
                 .slug(news.getSlug())
                 .description(news.getDescription())

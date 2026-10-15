@@ -11,11 +11,11 @@ import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 
-import lombok.Builder;
 import lombok.Getter;
+import lombok.experimental.SuperBuilder;
 
 @Getter
-@Builder
+@SuperBuilder
 public class CampaignResponse {
 
     private UUID id;

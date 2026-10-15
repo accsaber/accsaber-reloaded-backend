@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 
 import lombok.Builder;
@@ -20,17 +22,8 @@ public final class ComplexityComparisonResponse {
     @Value
     @Builder
     public static class DifficultyRow {
-        UUID mapDifficultyId;
-        UUID mapId;
-        String songName;
-        String songSubName;
-        String songAuthor;
-        String mapAuthor;
-        String coverUrl;
-        String cdnCoverUrl;
-        String difficulty;
+        MapDifficultyRef map;
         String characteristic;
-        UUID categoryId;
         String categoryCode;
         MapDifficultyStatus status;
         boolean complexityPinned;
@@ -94,11 +87,7 @@ public final class ComplexityComparisonResponse {
     @Value
     @Builder
     public static class ScoreRow {
-        String userId;
-        String name;
-        String avatarUrl;
-        String cdnAvatarUrl;
-        String country;
+        PlayerRef player;
         double accuracy;
         Map<ComplexityScenario, PlayValues> scenarios;
         Map<ComplexityScenario, PlayValues> deltas;
@@ -116,11 +105,7 @@ public final class ComplexityComparisonResponse {
     @Value
     @Builder
     public static class PlayerPlays {
-        String userId;
-        String name;
-        String avatarUrl;
-        String cdnAvatarUrl;
-        String country;
+        PlayerRef player;
         List<CategoryPlays> categories;
     }
 
@@ -184,11 +169,7 @@ public final class ComplexityComparisonResponse {
     @Value
     @Builder
     public static class PlayerRow {
-        String userId;
-        String name;
-        String avatarUrl;
-        String cdnAvatarUrl;
-        String country;
+        PlayerRef player;
         Map<ComplexityScenario, TotalValues> scenarios;
         Map<ComplexityScenario, TotalValues> deltas;
     }

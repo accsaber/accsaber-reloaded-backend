@@ -1,6 +1,6 @@
 package com.accsaber.backend.service.stats;
 
-import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -50,7 +50,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.mostItems(type, modifier, country, params);
         return queryRunner.paged(sql, params, pageable, row -> MostItemsResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .itemCount(((Number) row[5]).longValue())
                 .build());
     }
@@ -60,7 +60,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.mostCratesOpened(crateId, country, params);
         return queryRunner.paged(sql, params, pageable, row -> MostCratesOpenedResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .crateCount(((Number) row[5]).longValue())
                 .build());
     }
@@ -71,7 +71,7 @@ public class ItemStatisticsService {
         String sql = SiteStatisticsQueries.rarestUnboxed(country, params);
         return withItems(queryRunner.paged(sql, params, pageable, row -> RarestUnboxedResponse.builder()
                 .linkId((UUID) row[0])
-                .user(userIdentity(row, 1))
+                .player(playerRef(row, 1))
                 .itemId((UUID) row[6])
                 .serialNumber(row[11] != null ? ((Number) row[11]).longValue() : null)
                 .modifierCount(((Number) row[12]).longValue())
@@ -86,7 +86,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.mostValuableInventory(country, params);
         return queryRunner.paged(sql, params, pageable, row -> InventoryValueResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .itemsValue(((Number) row[5]).longValue())
                 .essenceBalance(((Number) row[6]).longValue())
                 .totalValue(((Number) row[7]).longValue())
@@ -98,7 +98,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.firstEditions(country, params);
         return queryRunner.paged(sql, params, pageable, row -> FirstEditionsResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .firstEditionCount(((Number) row[5]).longValue())
                 .build());
     }
@@ -111,7 +111,7 @@ public class ItemStatisticsService {
                 .itemId((UUID) row[0])
                 .linkId((UUID) row[5])
                 .serialNumber(row[6] != null ? ((Number) row[6]).longValue() : null)
-                .user(userIdentity(row, 7))
+                .player(playerRef(row, 7))
                 .build()),
                 FirstEditionHolderResponse::getItemId, (row, item) -> row.toBuilder().item(item).build());
     }
@@ -121,7 +121,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.mostCompleteCollection(country, params);
         return queryRunner.paged(sql, params, pageable, row -> CollectionCompletionResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .ownedCount(((Number) row[5]).longValue())
                 .catalogTotal(((Number) row[6]).longValue())
                 .completionPercent(row[7] != null ? ((Number) row[7]).doubleValue() : null)
@@ -148,7 +148,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.itemHolders(itemId, modifierKeys, search, sort, viewerId, params);
         return queryRunner.paged(sql, params, pageable, row -> ItemHolderResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .quantity(((Number) row[5]).longValue())
                 .lowestSerial(row[6] != null ? ((Number) row[6]).longValue() : null)
                 .acquiredAt(row[7] != null ? (Instant) row[7] : null)
@@ -163,7 +163,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.biggestTraders(country, params);
         return queryRunner.paged(sql, params, pageable, row -> BiggestTraderResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .tradeCount(((Number) row[5]).longValue())
                 .itemsTraded(((Number) row[6]).longValue())
                 .build());
@@ -174,7 +174,7 @@ public class ItemStatisticsService {
         Map<String, Object> params = new LinkedHashMap<>();
         String sql = SiteStatisticsQueries.mostEssenceEarned(country, params);
         return queryRunner.paged(sql, params, pageable, row -> EssenceEarnedResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .essenceEarned(((Number) row[5]).longValue())
                 .build());
     }

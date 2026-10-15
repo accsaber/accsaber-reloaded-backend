@@ -2,8 +2,8 @@ package com.accsaber.backend.model.dto.response.statistics;
 
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
-import com.accsaber.backend.model.entity.map.Difficulty;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -13,14 +13,7 @@ import lombok.Getter;
 public class CampaignNodeDifficultyResponse {
 
     private UUID campaignDifficultyId;
-    private UUID mapDifficultyId;
-    private String songName;
-    private String songSubName;
-    private String songAuthor;
-    private String mapAuthor;
-    private String coverUrl;
-    private String cdnCoverUrl;
-    private Difficulty difficulty;
+    private MapDifficultyRef map;
     private boolean barrier;
     private boolean terminal;
     private CampaignRequirementType requirementType;

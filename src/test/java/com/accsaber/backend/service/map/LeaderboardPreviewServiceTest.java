@@ -93,14 +93,14 @@ class LeaderboardPreviewServiceTest {
         assertThat(preview.getComplexity()).isEqualTo(6.5);
         assertThat(preview.getComplexitySource()).isEqualTo("script note-acc-2026-09-11");
         assertThat(preview.getFetched()).isEqualTo(3);
-        assertThat(preview.getRows()).extracting(LeaderboardPreviewResponse.Row::getUserId).containsExactly("7", "10",
+        assertThat(preview.getRows()).extracting(row -> row.getPlayer().id()).containsExactly("7", "10",
                 "9");
         LeaderboardPreviewResponse.Row top = preview.getRows().get(0);
         assertThat(top.getPlatform()).isEqualTo("BEATLEADER");
         assertThat(top.getAccuracy()).isEqualTo(0.99);
         assertThat(top.getAp()).isEqualTo(990.0);
-        assertThat(top.getName()).isEqualTo("Seven");
-        assertThat(preview.getRows().get(1).getName()).isEqualTo("ss-10");
+        assertThat(top.getPlayer().name()).isEqualTo("Seven");
+        assertThat(preview.getRows().get(1).getPlayer().name()).isEqualTo("ss-10");
         assertThat(preview.getRows().get(1).getRank()).isEqualTo(2);
     }
 

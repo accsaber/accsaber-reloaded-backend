@@ -2,9 +2,8 @@ package com.accsaber.backend.model.dto.response.statistics;
 
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
-
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -17,6 +16,5 @@ public class FirstEditionHolderResponse {
     private ItemResponse item;
     private UUID linkId;
     private Long serialNumber;
-    @JsonUnwrapped
-    private UserIdentity user;
+    private PlayerRef player;
 }

@@ -3,9 +3,8 @@ package com.accsaber.backend.model.dto.response.map;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
-import com.accsaber.backend.model.entity.map.Difficulty;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Builder;
@@ -28,10 +27,7 @@ public class ReweightDayResponse {
     @Value
     @Builder
     public static class MapChange {
-        UUID mapId;
-        UUID mapDifficultyId;
-        String songName;
-        Difficulty difficulty;
+        MapDifficultyRef map;
         Double from;
         Double to;
     }

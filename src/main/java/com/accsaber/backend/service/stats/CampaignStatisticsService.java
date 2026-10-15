@@ -1,9 +1,10 @@
 package com.accsaber.backend.service.stats;
 
 import static com.accsaber.backend.service.stats.StatsQueryRunner.dbl;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.mapRef;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.num;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.rate;
-import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -23,7 +24,6 @@ import com.accsaber.backend.model.dto.response.statistics.CampaignFunnelResponse
 import com.accsaber.backend.model.dto.response.statistics.CampaignNodeDifficultyResponse;
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
-import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -99,8 +99,8 @@ public class CampaignStatisticsService {
                 + " AND ucs.user_id IN (SELECT user_id FROM participants)"
                 + " GROUP BY ucs.campaign_difficulty_id, ucs.user_id"
                 + ")"
-                + " SELECT cd.id, md.id, m.song_name, m.song_subname, m.song_author, m.map_author,"
-                + " m.cover_url, m.cdn_cover_url, md.difficulty, cd.barrier, cd.terminal,"
+                + " SELECT cd.id, md.id, m.id, m.song_name, m.song_subname, m.song_author, m.map_author,"
+                + " m.cover_url, m.cdn_cover_url, md.difficulty, c.id, c.name, cd.barrier, cd.terminal,"
                 + " cd.requirement_type, cd.requirement_value, cd.xp,"
                 + " (SELECT COUNT(*) FROM participants p WHERE NOT EXISTS ("
                 + "   SELECT 1 FROM campaign_difficulty_paths pth"
@@ -117,31 +117,25 @@ public class CampaignStatisticsService {
                 + " FROM campaign_difficulties cd"
                 + " JOIN map_difficulties md ON md.id = cd.map_difficulty_id"
                 + " JOIN maps m ON m.id = md.map_id"
+                + " LEFT JOIN categories c ON c.id = md.category_id"
                 + " WHERE cd.campaign_id = :campaignId AND cd.active = true"
                 + " ORDER BY cleared ASC, cd.position_y, cd.position_x";
 
         return queryRunner.list(sql, params, row -> {
-            long unlocked = num(row[14]);
-            long cleared = num(row[15]);
+            long unlocked = num(row[17]);
+            long cleared = num(row[18]);
             return CampaignNodeDifficultyResponse.builder()
                     .campaignDifficultyId((UUID) row[0])
-                    .mapDifficultyId((UUID) row[1])
-                    .songName((String) row[2])
-                    .songSubName((String) row[3])
-                    .songAuthor((String) row[4])
-                    .mapAuthor((String) row[5])
-                    .coverUrl((String) row[6])
-                    .cdnCoverUrl((String) row[7])
-                    .difficulty(Difficulty.fromDbValue((String) row[8]))
-                    .barrier((Boolean) row[9])
-                    .terminal((Boolean) row[10])
-                    .requirementType(row[11] == null ? null : CampaignRequirementType.valueOf((String) row[11]))
-                    .requirementValue(dbl(row[12]))
-                    .xp(row[13] == null ? 0.0 : ((Number) row[13]).doubleValue())
+                    .map(mapRef(row, 1))
+                    .barrier((Boolean) row[12])
+                    .terminal((Boolean) row[13])
+                    .requirementType(row[14] == null ? null : CampaignRequirementType.valueOf((String) row[14]))
+                    .requirementValue(dbl(row[15]))
+                    .xp(row[16] == null ? 0.0 : ((Number) row[16]).doubleValue())
                     .unlocked(unlocked)
                     .cleared(cleared)
                     .clearRate(rate(cleared, unlocked))
-                    .medianDaysToClear(dbl(row[16]))
+                    .medianDaysToClear(dbl(row[19]))
                     .build();
         });
     }
@@ -193,7 +187,7 @@ public class CampaignStatisticsService {
                 + " ORDER BY completed DESC, nodes_cleared DESC, u.name ASC";
 
         return queryRunner.paged(sql, params, pageable, row -> CampaignCompletorResponse.builder()
-                .user(userIdentity(row, 0))
+                .player(playerRef(row, 0))
                 .completed(num(row[5]))
                 .inProgress(num(row[6]))
                 .nodesCleared(num(row[7]))
@@ -227,7 +221,7 @@ public class CampaignStatisticsService {
             long participants = num(row[7]);
             long completions = num(row[8]);
             return CampaignCreatorResponse.builder()
-                    .user(userIdentity(row, 0))
+                    .player(playerRef(row, 0))
                     .campaigns(num(row[5]))
                     .curatedCampaigns(num(row[6]))
                     .participants(participants)

@@ -2,8 +2,9 @@ package com.accsaber.backend.model.dto.response.supporter;
 
 import java.time.Instant;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.supporter.KofiEvent;
-import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.Builder;
 import lombok.Value;
@@ -22,10 +23,7 @@ public class KofiEventResponse {
     boolean subscription;
     boolean firstSubscription;
     Instant receivedAt;
-    String claimedUserId;
-    String claimedUserName;
-    String claimedUserAvatarUrl;
-    String claimedUserCdnAvatarUrl;
+    PlayerRef claimedUser;
     Instant claimedAt;
     String claimSource;
 
@@ -41,16 +39,10 @@ public class KofiEventResponse {
                 .subscription(event.isSubscription())
                 .firstSubscription(event.isFirstSubscription())
                 .receivedAt(event.getReceivedAt())
+                .claimedUser(ClanRefCache.playerRef(event.getClaimedUser()))
                 .claimedAt(event.getClaimedAt());
         if (event.getClaimSource() != null) {
             b.claimSource(event.getClaimSource().name());
-        }
-        User claimed = event.getClaimedUser();
-        if (claimed != null) {
-            b.claimedUserId(String.valueOf(claimed.getId()))
-                    .claimedUserName(claimed.getName())
-                    .claimedUserAvatarUrl(claimed.getAvatarUrl())
-                    .claimedUserCdnAvatarUrl(claimed.getCdnAvatarUrl());
         }
         return b.build();
     }

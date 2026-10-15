@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.model.dto.projection.ReweightRoundMapRow;
 import com.accsaber.backend.model.dto.response.CategoryResponse;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.map.ReweightDayResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -119,7 +120,7 @@ class ReweightRoundServiceTest {
         ReweightDayResponse day = roundService.findForCategory(trueAcc.getId()).getFirst();
 
         assertThat(day.getReason()).isEqualTo("fix");
-        assertThat(day.getMaps()).extracting(ReweightDayResponse.MapChange::getSongName)
+        assertThat(day.getMaps()).extracting(change -> change.getMap().songName())
                 .containsExactly("Downpour.vip", "FANCY");
         assertThat(day.getMaps().getFirst().getFrom()).isEqualTo(1.0);
         assertThat(day.getMaps().getFirst().getTo()).isEqualTo(1.3);
@@ -148,7 +149,7 @@ class ReweightRoundServiceTest {
 
     private static ReweightRoundMapRow row(ReweightRound round, UUID difficultyId, String song, double from,
             double to) {
-        return new ReweightRoundMapRow(round.getId(), UUID.randomUUID(), difficultyId, song, Difficulty.EXPERT_PLUS,
-                from, to);
+        return new ReweightRoundMapRow(round.getId(), new MapDifficultyRef(difficultyId, UUID.randomUUID(), song, null,
+                null, null, null, null, Difficulty.EXPERT_PLUS, null, null), from, to);
     }
 }

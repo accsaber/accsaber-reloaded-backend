@@ -18,6 +18,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
+
 class CampaignPresenceWebSocketHandlerTest {
 
     private static final UUID CAMPAIGN = UUID.randomUUID();
@@ -29,8 +31,8 @@ class CampaignPresenceWebSocketHandlerTest {
         Map<String, Object> attrs = new HashMap<>();
         attrs.put(CampaignPresenceHandshakeInterceptor.ATTR_CAMPAIGN_ID, CAMPAIGN);
         attrs.put(CampaignPresenceHandshakeInterceptor.ATTR_USER_ID, userId);
-        attrs.put(CampaignPresenceHandshakeInterceptor.ATTR_USER_NAME, "u" + userId);
-        attrs.put(CampaignPresenceHandshakeInterceptor.ATTR_USER_AVATAR, "avatar" + userId);
+        attrs.put(CampaignPresenceHandshakeInterceptor.ATTR_PLAYER,
+                new PlayerRef(String.valueOf(userId), "u" + userId, "avatar" + userId, null, null, null, null));
         when(s.getId()).thenReturn(id);
         when(s.getAttributes()).thenReturn(attrs);
         when(s.isOpen()).thenReturn(true);
@@ -54,7 +56,7 @@ class CampaignPresenceWebSocketHandlerTest {
         handler.handleTextMessage(b, new TextMessage("{\"type\":\"cursor\",\"x\":10,\"y\":20}"));
 
         assertThat(payloadsSentTo(a))
-                .anyMatch(p -> p.contains("\"type\":\"cursor\"") && p.contains("\"actorUserId\":\"2\""));
+                .anyMatch(p -> p.contains("\"type\":\"cursor\"") && p.contains("\"actor\":{\"id\":\"2\""));
         assertThat(payloadsSentTo(b)).isEmpty();
     }
 
@@ -68,7 +70,7 @@ class CampaignPresenceWebSocketHandlerTest {
         handler.afterConnectionEstablished(b);
 
         assertThat(payloadsSentTo(a))
-                .anyMatch(p -> p.contains("presence_join") && p.contains("\"actorUserId\":\"2\""));
+                .anyMatch(p -> p.contains("presence_join") && p.contains("\"actor\":{\"id\":\"2\""));
     }
 
     @Test
@@ -82,7 +84,7 @@ class CampaignPresenceWebSocketHandlerTest {
         handler.afterConnectionClosed(b, CloseStatus.NORMAL);
 
         assertThat(payloadsSentTo(a))
-                .anyMatch(p -> p.contains("presence_leave") && p.contains("\"actorUserId\":\"2\""));
+                .anyMatch(p -> p.contains("presence_leave") && p.contains("\"actor\":{\"id\":\"2\""));
     }
 
     @Test
@@ -94,7 +96,7 @@ class CampaignPresenceWebSocketHandlerTest {
         handler.afterConnectionEstablished(b);
 
         assertThat(payloadsSentTo(b))
-                .anyMatch(p -> p.contains("presence_state") && p.contains("\"userId\":\"1\"")
+                .anyMatch(p -> p.contains("presence_state") && p.contains("\"members\":[{\"id\":\"1\"")
                         && p.contains("\"avatarUrl\":\"avatar1\""));
     }
 }

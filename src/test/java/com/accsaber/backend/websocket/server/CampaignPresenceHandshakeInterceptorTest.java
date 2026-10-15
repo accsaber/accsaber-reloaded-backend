@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.security.PlayerTokenResolver;
 import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
@@ -71,7 +72,8 @@ class CampaignPresenceHandshakeInterceptorTest {
         assertThat(attributes)
                 .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_USER_ID, 5L)
                 .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_CAMPAIGN_ID, CAMPAIGN)
-                .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_USER_AVATAR, "https://cdn/a.webp");
+                .containsEntry(CampaignPresenceHandshakeInterceptor.ATTR_PLAYER,
+                        new PlayerRef("5", "u", null, "https://cdn/a.webp", null, null, null));
     }
 
     @Test

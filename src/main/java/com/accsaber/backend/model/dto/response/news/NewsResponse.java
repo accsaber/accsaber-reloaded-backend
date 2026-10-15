@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.news;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.news.NewsStatus;
 import com.accsaber.backend.model.entity.news.NewsType;
 
@@ -14,8 +15,7 @@ import lombok.Value;
 public class NewsResponse {
 
     UUID id;
-    UUID staffUserId;
-    String staffUsername;
+    PublicStaffUserResponse author;
     String title;
     String slug;
     String description;

@@ -18,7 +18,7 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
 
         Optional<StaffMapVote> findByMapDifficultyIdAndStaffIdAndActiveTrue(UUID mapDifficultyId, UUID staffId);
 
-        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map WHERE v.mapDifficulty.id = :mapDifficultyId AND v.active = true")
+        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map LEFT JOIN FETCH d.category WHERE v.mapDifficulty.id = :mapDifficultyId AND v.active = true")
         List<StaffMapVote> findByMapDifficultyIdAndActiveTrue(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         long countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(UUID mapDifficultyId, MapVoteAction type, VoteType vote);
@@ -53,6 +53,6 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
                         "GROUP BY v.mapDifficulty.id")
         List<Object[]> sumSuggestedComplexityByDifficultyIds(@Param("ids") List<UUID> ids);
 
-        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map WHERE v.active = true")
+        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map LEFT JOIN FETCH d.category WHERE v.active = true")
         Page<StaffMapVote> findAllActiveWithMap(Pageable pageable);
 }

@@ -159,23 +159,15 @@ public class CampaignCollaboratorService {
     }
 
     private static CampaignCollaboratorResponse toResponse(CampaignCollaborator collaborator) {
-        User user = collaborator.getUser();
         Campaign campaign = collaborator.getCampaign();
         return CampaignCollaboratorResponse.builder()
                 .id(collaborator.getId())
                 .campaignId(campaign.getId())
                 .campaignName(campaign.getName())
                 .campaignSlug(campaign.getSlug())
-                .userId(String.valueOf(user.getId()))
-                .userName(user.getName())
-                .userAvatarUrl(user.getAvatarUrl())
-                .userCdnAvatarUrl(user.getCdnAvatarUrl())
-                .userClan(ClanRefCache.forUser(user.getId()))
-                .userCountry(user.getCountry())
+                .user(ClanRefCache.playerRef(collaborator.getUser()))
                 .status(collaborator.getStatus())
-                .invitedById(collaborator.getInvitedBy() != null
-                        ? String.valueOf(collaborator.getInvitedBy().getId())
-                        : null)
+                .invitedBy(ClanRefCache.playerRef(collaborator.getInvitedBy()))
                 .createdAt(collaborator.getCreatedAt())
                 .build();
     }

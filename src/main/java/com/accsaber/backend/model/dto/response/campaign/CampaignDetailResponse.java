@@ -3,18 +3,15 @@ package com.accsaber.backend.model.dto.response.campaign;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
-import lombok.Builder;
 import lombok.Getter;
+import lombok.experimental.SuperBuilder;
 
 @Getter
-@Builder
-public class CampaignDetailResponse {
+@SuperBuilder
+@JsonIgnoreProperties("difficultyCount")
+public class CampaignDetailResponse extends CampaignResponse {
 
-    @JsonUnwrapped
-    @JsonIgnoreProperties("difficultyCount")
-    private CampaignResponse campaign;
     private String curatorNotes;
     private List<CampaignDifficultyResponse> difficulties;
     private List<CampaignBarrierResponse> barriers;

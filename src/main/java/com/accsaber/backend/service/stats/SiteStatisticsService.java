@@ -1,7 +1,7 @@
 package com.accsaber.backend.service.stats;
 
-import static com.accsaber.backend.service.stats.StatsQueryRunner.mapIdentity;
-import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.mapRef;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -73,7 +73,7 @@ public class SiteStatisticsService {
                 Map<String, Object> params = new LinkedHashMap<>();
                 String sql = SiteStatisticsQueries.highestAvgAp(categoryId, country, minScores, params);
                 return queryRunner.paged(sql, params, pageable, row -> MapAvgApResponse.builder()
-                                .map(mapIdentity(row, 0))
+                                .map(mapRef(row, 0))
                                 .averageWeightedAp((Double) row[11])
                                 .scoreCount(((Number) row[12]).longValue())
                                 .latestScoreTimeSet(row[13] != null ? (Instant) row[13] : null)
@@ -86,7 +86,7 @@ public class SiteStatisticsService {
                 Map<String, Object> params = new LinkedHashMap<>();
                 String sql = SiteStatisticsQueries.mostRetriedMaps(categoryId, country, params);
                 return queryRunner.paged(sql, params, pageable, row -> MapRetryResponse.builder()
-                                .map(mapIdentity(row, 0))
+                                .map(mapRef(row, 0))
                                 .supersededCount(((Number) row[11]).longValue())
                                 .latestScoreTimeSet(row[12] != null ? (Instant) row[12] : null)
                                 .latestScoreId(row[13] != null ? (UUID) row[13] : null)
@@ -98,7 +98,7 @@ public class SiteStatisticsService {
                 Map<String, Object> params = new LinkedHashMap<>();
                 String sql = SiteStatisticsQueries.mostImprovements(categoryId, country, params);
                 return queryRunner.paged(sql, params, pageable, row -> UserImprovementsResponse.builder()
-                                .user(userIdentity(row, 0))
+                                .player(playerRef(row, 0))
                                 .improvementCount(((Number) row[5]).longValue())
                                 .latestScoreTimeSet(row[6] != null ? ((Instant) row[6]) : null)
                                 .latestScoreId(row[7] != null ? (UUID) row[7] : null)
@@ -111,8 +111,8 @@ public class SiteStatisticsService {
                 Map<String, Object> params = new LinkedHashMap<>();
                 String sql = SiteStatisticsQueries.mostMapImprovements(categoryId, country, params);
                 return queryRunner.paged(sql, params, pageable, row -> UserMapImprovementsResponse.builder()
-                                .user(userIdentity(row, 0))
-                                .map(mapIdentity(row, 5))
+                                .player(playerRef(row, 0))
+                                .map(mapRef(row, 5))
                                 .improvementCount(((Number) row[16]).longValue())
                                 .latestScoreTimeSet(row[17] != null ? ((Instant) row[17]) : null)
                                 .latestScoreId(row[18] != null ? (UUID) row[18] : null)
@@ -124,7 +124,7 @@ public class SiteStatisticsService {
                 Map<String, Object> params = new LinkedHashMap<>();
                 String sql = SiteStatisticsQueries.milestoneCollectors(country, params);
                 return queryRunner.paged(sql, params, pageable, row -> MilestoneCollectorResponse.builder()
-                                .user(userIdentity(row, 0))
+                                .player(playerRef(row, 0))
                                 .milestoneCount(((Number) row[5]).longValue())
                                 .build());
         }

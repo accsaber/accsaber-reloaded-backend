@@ -72,8 +72,8 @@ class CampaignLeaderboardServiceTest {
         assertThat(page.getContent()).hasSize(2);
         CampaignLeaderboardEntry first = page.getContent().get(0);
         assertThat(first.getRank()).isEqualTo(1);
-        assertThat(first.getPlayer().userId()).isEqualTo("1");
-        assertThat(first.getPlayer().userName()).isEqualTo("alice");
+        assertThat(first.getPlayer().id()).isEqualTo("1");
+        assertThat(first.getPlayer().name()).isEqualTo("alice");
         assertThat(first.getPlayer().cdnAvatarUrl()).isEqualTo("cdn1");
         assertThat(first.getCompletedAt()).isEqualTo(Instant.parse("2026-01-01T10:00:00Z"));
         assertThat(page.getContent().get(1).getRank()).isEqualTo(2);
@@ -134,7 +134,7 @@ class CampaignLeaderboardServiceTest {
         CampaignNodeScoreEntry entry = service.getNodeBoard(campaignId, nodeId, paging).getContent().get(0);
 
         assertThat(entry.getRank()).isEqualTo(1);
-        assertThat(entry.getPlayer().userName()).isEqualTo("carol");
+        assertThat(entry.getPlayer().name()).isEqualTo("carol");
         assertThat(entry.getScore()).isEqualTo(990000);
         assertThat(entry.getAccuracy()).isEqualByComparingTo(0.99);
         assertThat(entry.getAp()).isEqualByComparingTo(320.0);

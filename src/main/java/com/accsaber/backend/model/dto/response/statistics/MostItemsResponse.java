@@ -1,6 +1,6 @@
 package com.accsaber.backend.model.dto.response.statistics;
 
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -9,7 +9,6 @@ import lombok.Getter;
 @Builder
 public class MostItemsResponse {
 
-    @JsonUnwrapped
-    private UserIdentity user;
+    private PlayerRef player;
     private long itemCount;
 }

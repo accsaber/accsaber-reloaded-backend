@@ -168,8 +168,8 @@ class DuplicateUserServiceTest {
 
                         DuplicateLinkResponse response = service.createLink(PRIMARY_ID, SECONDARY_ID, "test reason");
 
-                        assertThat(response.getPrimaryUserId()).isEqualTo(String.valueOf(PRIMARY_ID));
-                        assertThat(response.getSecondaryUserId()).isEqualTo(String.valueOf(SECONDARY_ID));
+                        assertThat(response.getPrimary().id()).isEqualTo(String.valueOf(PRIMARY_ID));
+                        assertThat(response.getSecondary().id()).isEqualTo(String.valueOf(SECONDARY_ID));
                         assertThat(response.getReason()).isEqualTo("test reason");
                         assertThat(service.resolvePrimaryUserId(SECONDARY_ID)).isEqualTo(PRIMARY_ID);
                 }

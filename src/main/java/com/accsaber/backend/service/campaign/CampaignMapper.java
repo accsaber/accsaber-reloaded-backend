@@ -249,9 +249,10 @@ class CampaignMapper {
             }
         }
 
-        return CampaignDetailResponse.builder()
-                .campaign(toCampaignResponse(campaign, new CampaignRow(loadTagResponses(campaignId), 0, myVote,
-                        loadCompletionItems(campaignId), new CampaignRewards(null, null), staffRefs, null, null)))
+        CampaignDetailResponse.CampaignDetailResponseBuilder<?, ?> detail = CampaignDetailResponse.builder();
+        fillCampaign(detail, campaign, new CampaignRow(loadTagResponses(campaignId), 0, myVote,
+                loadCompletionItems(campaignId), new CampaignRewards(null, null), staffRefs, null, null));
+        return detail
                 .curatorNotes(campaign.getCuratorNotes())
                 .difficulties(difficultyResponses)
                 .barriers(barrierResponses)
@@ -425,7 +426,14 @@ class CampaignMapper {
     }
 
     private static CampaignResponse toCampaignResponse(Campaign campaign, CampaignRow row) {
-        return CampaignResponse.builder()
+        CampaignResponse.CampaignResponseBuilder<?, ?> builder = CampaignResponse.builder();
+        fillCampaign(builder, campaign, row);
+        return builder.build();
+    }
+
+    private static void fillCampaign(CampaignResponse.CampaignResponseBuilder<?, ?> builder, Campaign campaign,
+            CampaignRow row) {
+        builder
                 .id(campaign.getId())
                 .creatorId(campaign.getCreator() != null ? String.valueOf(campaign.getCreator().getId()) : null)
                 .creatorName(campaign.getCreator() != null ? campaign.getCreator().getName() : null)
@@ -463,8 +471,7 @@ class CampaignMapper {
                 .lovedAt(campaign.getLovedAt())
                 .lovedBy(row.staff(campaign.getLovedBy()))
                 .publishedAt(campaign.getPublishedAt())
-                .createdAt(campaign.getCreatedAt())
-                .build();
+                .createdAt(campaign.getCreatedAt());
     }
 
     static CampaignConnectionResponse toConnection(CampaignDifficultyPath path) {

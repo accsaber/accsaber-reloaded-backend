@@ -220,13 +220,8 @@ public class OauthService {
                         .orElse(null);
 
         return AuthMeResponse.builder()
-                .userId(String.valueOf(user.getId()))
-                .clan(ClanRefCache.forUser(user.getId()))
+                .player(ClanRefCache.playerRef(user))
                 .clanRole(clanMemberRepository.findOpenByUserId(user.getId()).map(ClanMember::getRole).orElse(null))
-                .name(user.getName())
-                .avatarUrl(user.getAvatarUrl())
-                .cdnAvatarUrl(user.getCdnAvatarUrl())
-                .country(user.getCountry())
                 .supporterTier(supporterService.findCurrentTierKey(user.getId()).orElse(null))
                 .banned(user.isBanned())
                 .connections(connections)

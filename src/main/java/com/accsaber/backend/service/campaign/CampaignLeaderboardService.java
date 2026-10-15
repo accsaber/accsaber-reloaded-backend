@@ -22,7 +22,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry;
 import com.accsaber.backend.model.dto.response.campaign.CampaignNodeScoreEntry;
-import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.campaign.CampaignLeaderboardBoard;
@@ -126,9 +126,9 @@ public class CampaignLeaderboardService {
         };
     }
 
-    private static UserIdentity player(Object[] row) {
-        return new UserIdentity(String.valueOf(asLong(row[0])), asString(row[1]), asString(row[3]), asString(row[4]),
-                ClanRefCache.forUser(asLong(row[0])), asString(row[2]));
+    private static PlayerRef player(Object[] row) {
+        return ClanRefCache.playerRef(asLong(row[0]), asString(row[1]), asString(row[3]), asString(row[4]),
+                asString(row[2]));
     }
 
     private static Long asLong(Object value) {
