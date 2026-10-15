@@ -120,6 +120,11 @@ class ClanWarRosterServiceTest {
                 .standingWeight(weight).guard(100).build();
     }
 
+    private void resync() {
+        when(warRepository.findActiveIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        service.onMembershipChanged(new ClanMembershipChangedEvent(attacker.getId()));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<Long, ClanWarParticipant> saved() {
         ArgumentCaptor<Collection<ClanWarParticipant>> captor = ArgumentCaptor.forClass(Collection.class);
@@ -168,7 +173,7 @@ class ClanWarRosterServiceTest {
                 List.of(new MemberStrength(defender.getId(), 11L, 80, 0.7),
                         new MemberStrength(ally.getId(), 21L, 60, 0.3)));
 
-        service.resync(war.getId());
+        resync();
 
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).containsOnlyKeys(1L, 11L, 21L);
@@ -213,7 +218,7 @@ class ClanWarRosterServiceTest {
                     : List.of();
         });
 
-        service.resync(war.getId());
+        resync();
 
         assertThat(saved().get(11L).getLeftAt()).isNotNull();
     }
@@ -228,7 +233,7 @@ class ClanWarRosterServiceTest {
         teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
                 List.of(new MemberStrength(defender.getId(), 11L, 50, 1.0)));
 
-        service.resync(war.getId());
+        resync();
 
         assertThat(saved().get(1L).getTarget()).isNull();
     }

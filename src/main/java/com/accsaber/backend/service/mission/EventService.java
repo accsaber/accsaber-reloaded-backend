@@ -5,9 +5,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
@@ -16,6 +20,8 @@ import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.Event;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.mission.EventRepository;
+import com.accsaber.backend.service.media.MediaFormat;
+import com.accsaber.backend.service.media.MediaProcessingService;
 import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
@@ -25,8 +31,13 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class EventService {
 
+    private static final String BACKGROUND_SUBDIR = "events";
+    private static final String ICON_SUBDIR = "event-icons";
+
     private final EventRepository eventRepository;
     private final ItemRepository itemRepository;
+    private final MediaProcessingService mediaProcessingService;
+    private final TransactionTemplate transactionTemplate;
 
     public List<Event> listAdmin() {
         return eventRepository.findAllByOrderByStartsAtDesc();
@@ -128,17 +139,35 @@ public class EventService {
         return eventRepository.save(event);
     }
 
-    @Transactional
-    public Event setBackgroundUrl(UUID id, String url) {
-        Event event = findById(id);
-        event.setBackgroundUrl(url);
-        return eventRepository.save(event);
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Event uploadBackground(UUID id, MultipartFile file) {
+        findById(id);
+        String url = mediaProcessingService.storeImage(file, BACKGROUND_SUBDIR, id.toString());
+        return transactionTemplate.execute(status -> applyMedia(id, url, Event::setBackgroundUrl));
     }
 
     @Transactional
-    public Event setIconUrl(UUID id, String url) {
+    public Event removeBackground(UUID id) {
+        mediaProcessingService.deleteIfExists(BACKGROUND_SUBDIR, id.toString());
+        return applyMedia(id, null, Event::setBackgroundUrl);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Event uploadIcon(UUID id, MultipartFile file) {
+        findById(id);
+        String url = mediaProcessingService.storeImage(file, ICON_SUBDIR, id.toString(), MediaFormat.GIF);
+        return transactionTemplate.execute(status -> applyMedia(id, url, Event::setIconUrl));
+    }
+
+    @Transactional
+    public Event removeIcon(UUID id) {
+        mediaProcessingService.deleteIfExists(ICON_SUBDIR, id.toString());
+        return applyMedia(id, null, Event::setIconUrl);
+    }
+
+    private Event applyMedia(UUID id, String url, BiConsumer<Event, String> setter) {
         Event event = findById(id);
-        event.setIconUrl(url);
+        setter.accept(event, url);
         return eventRepository.save(event);
     }
 

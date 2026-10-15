@@ -104,7 +104,7 @@ public class MissionTargetService {
         return ceiling == null ? targetRawAp : Math.min(targetRawAp, ceiling);
     }
 
-    public Double topApCeiling(MissionBand band, UserCategorySkill skill, Double skillLevel) {
+    private Double topApCeiling(MissionBand band, UserCategorySkill skill, Double skillLevel) {
         if (skill == null || skill.getTopAp() <= 0)
             return null;
         double factor = switch (band) {

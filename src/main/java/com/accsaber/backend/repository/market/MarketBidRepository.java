@@ -9,11 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.market.MarketBid;
 
-@Repository
 public interface MarketBidRepository extends JpaRepository<MarketBid, UUID> {
 
     @Query("""

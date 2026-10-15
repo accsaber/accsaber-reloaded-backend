@@ -17,10 +17,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.mission.MissionTemplateRequest;
-import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionTemplateResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.UserMission;
+import com.accsaber.backend.service.mission.MissionMapper;
 import com.accsaber.backend.service.mission.SharedMissionService;
 import com.accsaber.backend.service.mission.MissionAssignmentService;
 import com.accsaber.backend.service.mission.MissionQueryService;
@@ -78,7 +79,7 @@ public class AdminMissionController {
             @RequestParam(required = false) MissionPool pool) {
         return ResponseEntity.ok(
                 assignmentService.regenerateForUser(userId, pool).stream()
-                        .map(MissionResponse::from).toList());
+                        .map(MissionMapper::from).toList());
     }
 
     @Operation(summary = "Any user's missions",
@@ -88,7 +89,7 @@ public class AdminMissionController {
             @RequestParam(defaultValue = "false") boolean completed,
             @RequestParam(required = false) MissionPool pool) {
         return ResponseEntity.ok(resolveMissions(userId, completed, pool).stream()
-                .map(MissionResponse::from).toList());
+                .map(MissionMapper::from).toList());
     }
 
     private List<UserMission> resolveMissions(Long userId, boolean completed, MissionPool pool) {

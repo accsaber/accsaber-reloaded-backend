@@ -53,7 +53,6 @@ public class SupporterPublicController {
     public ResponseEntity<Page<SupporterCreditsRowResponse>> credits(
             @RequestParam(required = false, defaultValue = "all") String status,
             @PageableDefault(size = 100, sort = "lifetimeSupportedCents", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(supporterService.findCredits(status, pageable)
-                .map(SupporterCreditsRowResponse::from));
+        return ResponseEntity.ok(supporterService.findCredits(status, pageable));
     }
 }

@@ -11,7 +11,6 @@ import lombok.Data;
 public class BeatLeaderLeaderboardResponse {
 
     private String id;
-    private Long plays;
     private Song song;
     private DifficultyDescription difficulty;
     private List<BeatLeaderScoreResponse> scores;

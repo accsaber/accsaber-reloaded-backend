@@ -71,6 +71,8 @@ class SkillServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
+        lenient().when(categoryRepository.requireActiveByCode(any())).thenCallRealMethod();
         skillProperties = new SkillProperties();
         skillService = new SkillService(userRepository, categoryRepository, statsRepository,
                 scoreRepository, skillRepository, snapshotRepository, apCalculationService,

@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
-import com.accsaber.backend.service.map.ComplexityScenario;
 
 import lombok.Builder;
 import lombok.Value;

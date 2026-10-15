@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,12 +23,13 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
         @Query("""
                         SELECT d FROM MapDifficulty d
                         JOIN FETCH d.map m
-                        WHERE d.category.id = :categoryId AND d.status = :status AND d.active = true
-                        ORDER BY d.rankedAt DESC
+                        WHERE (d.category.id = :categoryId OR (:categoryId IS NULL AND d.category.countForOverall = true))
+                        AND d.status IN :statuses AND d.active = true
                         """)
-        List<MapDifficulty> findByCategoryIdAndStatusWithMap(
+        List<MapDifficulty> findPlaylistDifficulties(
                         @Param("categoryId") UUID categoryId,
-                        @Param("status") MapDifficultyStatus status);
+                        @Param("statuses") List<MapDifficultyStatus> statuses,
+                        Sort sort);
 
         @Query("""
                         SELECT d FROM MapDifficulty d
@@ -87,6 +89,8 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
 
         List<MapDifficulty> findByBatch_IdAndActiveTrue(UUID batchId);
 
+        List<MapDifficulty> findByBatch_IdInAndActiveTrue(Collection<UUID> batchIds);
+
         @Query("SELECT d.id FROM MapDifficulty d WHERE d.complexityPinned = true AND d.active = true")
         List<UUID> findPinnedDifficultyIds();
 
@@ -137,34 +141,6 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         @Param("mapIds") List<UUID> mapIds,
                         @Param("categoryId") UUID categoryId,
                         @Param("status") MapDifficultyStatus status);
-
-        @Query("""
-                        SELECT d FROM MapDifficulty d
-                        JOIN FETCH d.map m
-                        WHERE d.category.countForOverall = true AND d.status = :status AND d.active = true
-                        ORDER BY d.rankedAt DESC
-                        """)
-        List<MapDifficulty> findByCountForOverallAndStatusWithMap(
-                        @Param("status") MapDifficultyStatus status);
-
-        @Query("""
-                        SELECT d FROM MapDifficulty d
-                        JOIN FETCH d.map m
-                        WHERE d.category.id = :categoryId AND d.status IN :statuses AND d.active = true
-                        ORDER BY d.createdAt DESC
-                        """)
-        List<MapDifficulty> findByCategoryIdAndStatusInWithMap(
-                        @Param("categoryId") UUID categoryId,
-                        @Param("statuses") List<MapDifficultyStatus> statuses);
-
-        @Query("""
-                        SELECT d FROM MapDifficulty d
-                        JOIN FETCH d.map m
-                        WHERE d.category.countForOverall = true AND d.status IN :statuses AND d.active = true
-                        ORDER BY d.createdAt DESC
-                        """)
-        List<MapDifficulty> findByCountForOverallAndStatusInWithMap(
-                        @Param("statuses") List<MapDifficultyStatus> statuses);
 
         @Query("""
                         SELECT d.id, d.map.songHash, d.map.songName, d.map.songSubName, d.difficulty, c.complexity, d.category.code, d.ssLeaderboardId, d.blLeaderboardId, d.rankedAt

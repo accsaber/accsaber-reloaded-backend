@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
@@ -40,8 +39,9 @@ import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.item.UnusualEffectRepository;
 import com.accsaber.backend.repository.item.UserCrateOpenRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.player.DuplicateUserService;
-import com.accsaber.backend.websocket.server.CrateOpenBroadcast;
+import com.accsaber.backend.model.dto.response.item.CrateOpenBroadcast;
 
 import lombok.RequiredArgsConstructor;
 
@@ -59,7 +59,8 @@ public class CrateService {
     private final ItemRepository itemRepository;
     private final ItemModifierRepository itemModifierRepository;
     private final UnusualEffectRepository unusualEffectRepository;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
+    private final ItemEquipService itemEquipService;
     private final ModifierResolver modifierResolver;
     private final DuplicateUserService duplicateUserService;
     private final ApplicationEventPublisher eventPublisher;
@@ -94,7 +95,7 @@ public class CrateService {
         if (reward.isDeprecated()) {
             throw new ValidationException("rewardItemId", "cannot add a deprecated item as a reward");
         }
-        if (ItemService.isActiveCrateSentinel(reward)) {
+        if (ItemAwardService.isActiveCrateSentinel(reward)) {
             throw new ValidationException("rewardItemId",
                     "'" + reward.getName() + "' resolves at grant time and cannot be part of a crate pool");
         }
@@ -271,9 +272,9 @@ public class CrateService {
 
         userItemLinkRepository.delete(crateLink);
         userItemLinkRepository.flush();
-        itemService.clearEquippedIfLinkGone(resolved, consumedLinkId, typeKey);
+        itemEquipService.clearEquippedIfLinkGone(resolved, consumedLinkId, typeKey);
 
-        UserItemLink rewardLink = itemService.awardFromCrate(resolved, winner.getRewardItem(),
+        UserItemLink rewardLink = itemAwardService.awardFromCrate(resolved, winner.getRewardItem(),
                 consumedLinkId, rolledModifiers, unusualEffect);
 
         UserCrateOpen open = UserCrateOpen.builder()
@@ -287,7 +288,7 @@ public class CrateService {
         UserCrateOpen saved = userCrateOpenRepository.save(open);
 
         eventPublisher.publishEvent(new CrateOpenedEvent(new CrateOpenBroadcast("crate_opened",
-                PlayerRef.of(saved.getUser()), ItemMapper.toCrateOpenResponse(saved))));
+                ClanRefCache.playerRef(saved.getUser()), ItemMapper.toCrateOpenResponse(saved))));
         return saved;
     }
 

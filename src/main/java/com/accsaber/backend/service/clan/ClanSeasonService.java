@@ -36,7 +36,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonResultRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.util.Slugs;
 
 import lombok.RequiredArgsConstructor;
@@ -55,7 +55,7 @@ public class ClanSeasonService {
     private final ClanItemRepository clanItemRepository;
     private final ClanStandingService standingService;
     private final ClanWarService warService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final ItemRepository itemRepository;
     private final ClanProperties clanProperties;
     private final ClanFeed feed;
@@ -105,7 +105,7 @@ public class ClanSeasonService {
     }
 
     public List<ClanSeasonRewardResponse> rewards(UUID seasonId) {
-        return rewardRepository.findBySeasonId(seasonId).stream().map(ClanSeasonRewardResponse::of).toList();
+        return rewardRepository.findBySeasonId(seasonId).stream().map(ClanMapper::toSeasonRewardResponse).toList();
     }
 
     @Transactional
@@ -122,7 +122,7 @@ public class ClanSeasonService {
                         .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId())))
                 .quantity(request.getQuantity() != null ? request.getQuantity() : 1)
                 .build());
-        return ClanSeasonRewardResponse.of(reward);
+        return ClanMapper.toSeasonRewardResponse(reward);
     }
 
     @Transactional
@@ -199,7 +199,7 @@ public class ClanSeasonService {
                         id -> seasonRepository.findContributors(season.getId(), id,
                                 clanProperties.getMissionContribution()));
                 for (ClanSeasonRepository.ContributorView contributor : contributors) {
-                    itemService.awardSystem(contributor.getUserId(), reward.getItem().getId(), ItemSource.clan_season,
+                    itemAwardService.awardSystem(contributor.getUserId(), reward.getItem().getId(), ItemSource.clan_season,
                             season.getId().toString(), "Clan season reward: " + season.getName(),
                             reward.getQuantity());
                 }

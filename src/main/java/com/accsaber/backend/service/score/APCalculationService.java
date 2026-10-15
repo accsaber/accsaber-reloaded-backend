@@ -27,6 +27,7 @@ public class APCalculationService {
 
     private static final Logger log = LoggerFactory.getLogger(APCalculationService.class);
     private static final int AP_SCALE = 6;
+    private static final int ACCURACY_SCALE = 10;
 
     private final CurvePointRepository curvePointRepository;
     private final Map<UUID, CurveTable> curveCache = new ConcurrentHashMap<>();
@@ -75,6 +76,10 @@ public class APCalculationService {
         double weightAt(int position) {
             return numerator / (1 + Math.exp(k * (position - x0)));
         }
+    }
+
+    public static Double computeAccuracy(Integer score, Integer maxScore) {
+        return Rounding.round((double) score / maxScore, ACCURACY_SCALE);
     }
 
     public APResult calculateRawAP(double accuracy, double complexity, Curve scoreCurve) {

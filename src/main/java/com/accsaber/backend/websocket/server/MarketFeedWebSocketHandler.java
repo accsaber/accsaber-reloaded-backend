@@ -10,6 +10,6 @@ public class MarketFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
     @Override
     protected UUID resolveRoomKey(WebSocketSession session) {
-        return PlayerHandshakeInterceptor.uuidParam(session.getUri(), "listingId");
+        return uuidParam(session, "listingId");
     }
 }

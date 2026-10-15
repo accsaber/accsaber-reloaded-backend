@@ -11,7 +11,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
@@ -28,9 +27,7 @@ class JwtServiceTest {
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService();
-        ReflectionTestUtils.setField(jwtService, "secret", TEST_SECRET);
-        ReflectionTestUtils.setField(jwtService, "accessTokenTtl", 3600L);
+        jwtService = new JwtService(TEST_SECRET, 3600L, 0L);
     }
 
     @Test
@@ -39,53 +36,50 @@ class JwtServiceTest {
         String token = jwtService.generateAccessToken(staffUser);
 
         assertThat(token).isNotBlank();
-        assertThat(jwtService.extractStaffId(token)).isEqualTo(staffUser.getId());
-        assertThat(jwtService.extractRole(token)).isEqualTo(StaffRole.ADMIN);
+        assertThat(jwtService.verify(token).staffId()).isEqualTo(staffUser.getId());
     }
 
     @Test
-    void extractTokenType_staffTokenCarriesStaffType() {
+    void verify_staffTokenCarriesStaffType() {
         String token = jwtService.generateAccessToken(buildStaffUser(StaffRole.ADMIN));
 
-        assertThat(jwtService.extractTokenType(token)).isEqualTo(JwtService.TYPE_STAFF);
+        assertThat(jwtService.verify(token).type()).isEqualTo(JwtService.TYPE_STAFF);
     }
 
     @Test
-    void extractTokenType_tokenWithoutTypIsNotTreatedAsStaff() {
+    void verify_tokenWithoutTypIsNotTreatedAsStaff() {
         String token = Jwts.builder()
                 .subject("discord")
                 .claim("purpose", "oauth-state")
                 .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(TEST_SECRET)))
                 .compact();
 
-        assertThat(jwtService.extractTokenType(token)).isNull();
+        assertThat(jwtService.verify(token).type()).isNull();
     }
 
     @Test
-    void validateToken_validToken_doesNotThrow() {
+    void verify_validToken_doesNotThrow() {
         StaffUser staffUser = buildStaffUser(StaffRole.RANKING);
         String token = jwtService.generateAccessToken(staffUser);
 
-        assertThatCode(() -> jwtService.validateToken(token)).doesNotThrowAnyException();
+        assertThatCode(() -> jwtService.verify(token)).doesNotThrowAnyException();
     }
 
     @Test
-    void validateToken_expiredToken_throwsJwtException() {
-        JwtService shortLivedService = new JwtService();
-        ReflectionTestUtils.setField(shortLivedService, "secret", TEST_SECRET);
-        ReflectionTestUtils.setField(shortLivedService, "accessTokenTtl", -1L);
+    void verify_expiredToken_throwsJwtException() {
+        JwtService shortLivedService = new JwtService(TEST_SECRET, -1L, 0L);
 
         String token = shortLivedService.generateAccessToken(buildStaffUser(StaffRole.RANKING));
 
-        assertThatThrownBy(() -> jwtService.validateToken(token))
+        assertThatThrownBy(() -> jwtService.verify(token))
                 .isInstanceOf(JwtException.class);
     }
 
     @Test
-    void validateToken_tamperedToken_throwsJwtException() {
+    void verify_tamperedToken_throwsJwtException() {
         String tampered = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlIn0.invalid-signature";
 
-        assertThatThrownBy(() -> jwtService.validateToken(tampered))
+        assertThatThrownBy(() -> jwtService.verify(tampered))
                 .isInstanceOf(JwtException.class);
     }
 

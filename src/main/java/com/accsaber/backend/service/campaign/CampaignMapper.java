@@ -250,42 +250,12 @@ class CampaignMapper {
         }
 
         return CampaignDetailResponse.builder()
-                .id(campaignId)
-                .creatorId(campaign.getCreator() != null ? String.valueOf(campaign.getCreator().getId()) : null)
-                .creatorName(campaign.getCreator() != null ? campaign.getCreator().getName() : null)
-                .creatorAlias(campaign.getCreatorAlias())
-                .name(campaign.getName())
-                .slug(campaign.getSlug())
-                .summary(campaign.getSummary())
-                .description(campaign.getDescription())
-                .status(campaign.getStatus())
-                .official(campaign.isOfficial())
-                .progressionAgnostic(campaign.isProgressionAgnostic())
-                .completionMode(campaign.getCompletionMode())
-                .legacy(campaign.isLegacy())
-                .completionXp(campaign.getCompletionXp())
+                .campaign(toCampaignResponse(campaign, new CampaignRow(loadTagResponses(campaignId), 0, myVote,
+                        loadCompletionItems(campaignId), new CampaignRewards(null, null), staffRefs, null, null)))
                 .curatorNotes(campaign.getCuratorNotes())
-                .playlistExportEnabled(campaign.isPlaylistExportEnabled())
-                .backgroundUrl(campaign.getBackgroundUrl())
-                .backgroundColor(campaign.getBackgroundColor())
-                .background(staticBackground(campaign))
-                .iconUrl(campaign.getIconUrl())
-                .totalUpvotes(campaign.getTotalUpvotes())
-                .totalDownvotes(campaign.getTotalDownvotes())
-                .voteScore(campaign.getVoteScore())
-                .myVote(myVote)
-                .curatedAt(campaign.getCuratedAt())
-                .curatedBy(staffRef(campaign.getCuratedBy(), staffRefs))
-                .loved(campaign.isLoved())
-                .lovedAt(campaign.getLovedAt())
-                .lovedBy(staffRef(campaign.getLovedBy(), staffRefs))
-                .publishedAt(campaign.getPublishedAt())
-                .createdAt(campaign.getCreatedAt())
-                .tags(loadTagResponses(campaignId))
                 .difficulties(difficultyResponses)
                 .barriers(barrierResponses)
                 .texts(loadTextResponses(campaignId))
-                .completionItems(loadCompletionItems(campaignId))
                 .build();
     }
 
@@ -443,10 +413,6 @@ class CampaignMapper {
         }
         return staffUserRepository.findAllByIdWithUser(staffIds).stream()
                 .collect(Collectors.toMap(StaffUser::getId, StaffMapper::toPublicResponse));
-    }
-
-    private static PublicStaffUserResponse staffRef(StaffUser staff, Map<UUID, PublicStaffUserResponse> refs) {
-        return staff != null ? refs.get(staff.getId()) : null;
     }
 
     private static CampaignBackgroundPlacement staticBackground(Campaign campaign) {

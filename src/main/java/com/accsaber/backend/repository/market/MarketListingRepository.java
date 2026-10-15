@@ -12,7 +12,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.market.MarketListing;
@@ -20,7 +19,6 @@ import com.accsaber.backend.model.entity.market.MarketListingStatus;
 
 import jakarta.persistence.LockModeType;
 
-@Repository
 public interface MarketListingRepository extends JpaRepository<MarketListing, UUID> {
 
         String BROWSE_FILTER = """

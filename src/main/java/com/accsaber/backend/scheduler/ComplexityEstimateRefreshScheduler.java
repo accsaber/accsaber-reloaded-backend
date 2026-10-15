@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.client.ComplexityModelClient;
 import com.accsaber.backend.client.ComplexityModelClient.Health;
+import com.accsaber.backend.model.admin.JobType;
 import com.accsaber.backend.model.dto.request.admin.RunJobRequest;
 import com.accsaber.backend.model.entity.map.MapDifficultyComplexityEstimate;
 import com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository;
 import com.accsaber.backend.service.admin.AdminJobService;
 import com.accsaber.backend.service.admin.JobRegistry;
-import com.accsaber.backend.service.admin.JobType;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

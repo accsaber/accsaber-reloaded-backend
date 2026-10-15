@@ -7,7 +7,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.CategoryResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.repository.CategoryRepository;
@@ -30,8 +29,7 @@ public class CategoryService {
 
     @Cacheable("categories")
     public CategoryResponse findById(UUID id) {
-        Category category = categoryRepository.findByIdAndActiveTrue(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", id));
+        Category category = categoryRepository.requireActive(id);
         return toResponse(category);
     }
 
@@ -42,9 +40,7 @@ public class CategoryService {
         try {
             return UUID.fromString(idOrCode);
         } catch (IllegalArgumentException e) {
-            return categoryRepository.findByCodeAndActiveTrue(idOrCode)
-                    .map(Category::getId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Category", idOrCode));
+            return categoryRepository.requireActiveByCode(idOrCode).getId();
         }
     }
 

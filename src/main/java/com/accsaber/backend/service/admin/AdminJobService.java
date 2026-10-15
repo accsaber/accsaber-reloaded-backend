@@ -10,6 +10,9 @@ import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.admin.JobField;
+import com.accsaber.backend.model.admin.JobRecord;
+import com.accsaber.backend.model.admin.JobType;
 import com.accsaber.backend.model.dto.request.admin.RunJobRequest;
 import com.accsaber.backend.model.dto.response.admin.JobTypeResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -20,9 +23,11 @@ import com.accsaber.backend.service.map.ComplexityEstimateService;
 import com.accsaber.backend.service.media.CdnSyncService;
 import com.accsaber.backend.service.milestone.MilestoneEvaluationService;
 import com.accsaber.backend.service.milestone.MilestoneService;
+import com.accsaber.backend.service.score.CampaignScoreBackfillService;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 import com.accsaber.backend.service.score.ScoreRecalculationService;
+import com.accsaber.backend.service.score.UserScoreBackfillService;
 import com.accsaber.backend.service.score.XPReweightService;
 import com.accsaber.backend.service.songsuggest.SongSuggestService;
 
@@ -36,6 +41,8 @@ public class AdminJobService {
     private final ScoreRecalculationService scoreRecalculationService;
     private final XPReweightService xpReweightService;
     private final ScoreImportService scoreImportService;
+    private final UserScoreBackfillService userScoreBackfillService;
+    private final CampaignScoreBackfillService campaignScoreBackfillService;
     private final ScoreIngestionService scoreIngestionService;
     private final CdnSyncService cdnSyncService;
     private final MilestoneService milestoneService;
@@ -108,14 +115,14 @@ public class AdminJobService {
                 scoreImportService.backfillDifficultyAsync(request.getDifficultyId());
             case BACKFILL_SCORES_DIFFICULTIES ->
                 scoreImportService.backfillDifficultiesAsync(request.getDifficultyIds());
-            case BACKFILL_SCORES_USER -> scoreImportService.backfillUserAsync(request.getUserId());
-            case BACKFILL_SCORES_USERS -> scoreImportService.backfillUsersAsync(request.getUserIds());
+            case BACKFILL_SCORES_USER -> userScoreBackfillService.backfillUserAsync(request.getUserId());
+            case BACKFILL_SCORES_USERS -> userScoreBackfillService.backfillUsersAsync(request.getUserIds());
             case BACKFILL_SCORES_GAP_FILL ->
                 scoreIngestionService.gapFillSince(request.getSince(), request.getPlatform());
             case BACKFILL_CAMPAIGN_LEGACY ->
-                scoreImportService.recheckLegacyCampaign(request.getCampaignId(), request.getUserId());
+                campaignScoreBackfillService.recheckLegacyCampaign(request.getCampaignId(), request.getUserId());
             case RESETTLE_CAMPAIGN ->
-                scoreImportService.resettleCampaign(request.getCampaignId(), request.getUserId());
+                campaignScoreBackfillService.resettleCampaign(request.getCampaignId(), request.getUserId());
 
             case BACKFILL_CDN_MAP_COVERS -> cdnSyncService.backfillAllMapCovers(request.isForce());
             case BACKFILL_CDN_AVATARS -> cdnSyncService.backfillAllUserAvatars(request.isForce());

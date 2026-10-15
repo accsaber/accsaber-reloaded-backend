@@ -10,7 +10,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
@@ -33,10 +32,15 @@ public class ChatService {
     private final ChatRateLimitService chatRateLimitService;
     private final ApplicationEventPublisher eventPublisher;
 
-    public Page<ChatMessageResponse> getMessages(ChatChannel channel, UUID channelId, Long playerId,
-            Pageable pageable) {
+    public Long requireParticipant(ChatChannel channel, UUID channelId, Long playerId) {
         Long userId = duplicateUserService.resolvePrimaryUserId(playerId);
         channel.assertParticipant(channelId, userId);
+        return userId;
+    }
+
+    public Page<ChatMessageResponse> getMessages(ChatChannel channel, UUID channelId, Long playerId,
+            Pageable pageable) {
+        requireParticipant(channel, channelId, playerId);
         return getTranscript(channel, channelId, pageable);
     }
 
@@ -47,13 +51,11 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse sendMessage(ChatChannel channel, UUID channelId, Long playerId, String content) {
-        Long userId = duplicateUserService.resolvePrimaryUserId(playerId);
-        channel.assertParticipant(channelId, userId);
+        Long userId = requireParticipant(channel, channelId, playerId);
         if (!chatRateLimitService.tryAcquire(userId)) {
             throw new TooManyRequestsException("You're sending messages too quickly. Please slow down.");
         }
-        User author = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User author = userRepository.requireActive(userId);
         return post(channel, channelId, channel.newMessage(channelId, author, content.trim()));
     }
 
@@ -61,7 +63,8 @@ public class ChatService {
     public ChatMessageResponse post(ChatChannel channel, UUID channelId, ChatMessage message) {
         ChatMessageResponse response = channel.toResponses(List.of(chatRepository.save(message))).getFirst();
         channel.prune(channelId);
-        eventPublisher.publishEvent(new ChatMessageEvent(channel, channelId, response));
+        eventPublisher.publishEvent(new ChatMessageEvent(channelId, response,
+                json -> channel.broadcast(channelId, json)));
         return response;
     }
 }

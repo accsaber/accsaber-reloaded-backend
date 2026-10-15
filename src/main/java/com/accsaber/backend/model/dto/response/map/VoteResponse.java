@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.VoteType;
+import com.accsaber.backend.model.entity.staff.StaffRole;
 
 import lombok.Builder;
 import lombok.Value;
@@ -27,6 +28,7 @@ public class VoteResponse {
     UUID staffId;
     String staffUsername;
     String staffAvatarUrl;
+    StaffRole staffRole;
     VoteType vote;
     MapVoteAction type;
     Double suggestedComplexity;

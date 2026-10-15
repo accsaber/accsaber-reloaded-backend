@@ -15,8 +15,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
-import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
+import com.accsaber.backend.model.dto.request.news.NewsRequest;
 import com.accsaber.backend.model.dto.response.news.NewsResponse;
 import com.accsaber.backend.model.dto.response.news.PublicNewsResponse;
 import com.accsaber.backend.model.entity.news.News;
@@ -31,6 +30,7 @@ import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.news.NewsRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.util.Slugs;
+import com.accsaber.backend.util.Texts;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,7 +47,7 @@ public class NewsService {
     private final CurveRepository curveRepository;
 
     public Page<PublicNewsResponse> findPublic(NewsType type, String search, Pageable pageable) {
-        String term = search == null || search.isBlank() ? null : search.trim();
+        String term = Texts.trimToNull(search);
         return newsRepository
                 .search(NewsStatus.PUBLISHED, null, type != null ? type.filterCode() : 0, term, applyPublicSort(pageable))
                 .map(NewsService::toPublicResponse);
@@ -74,7 +74,7 @@ public class NewsService {
     }
 
     @Transactional
-    public NewsResponse create(CreateNewsRequest request, UUID staffUserId) {
+    public NewsResponse create(NewsRequest request, UUID staffUserId) {
         StaffUser staffUser = staffUserRepository.findById(staffUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("StaffUser", staffUserId));
 
@@ -101,7 +101,7 @@ public class NewsService {
     }
 
     @Transactional
-    public NewsResponse update(UUID id, UpdateNewsRequest request, UUID staffUserId, StaffRole role) {
+    public NewsResponse update(UUID id, NewsRequest request, UUID staffUserId, StaffRole role) {
         News news = loadActive(id);
         ensureCanEdit(news, staffUserId, role);
 

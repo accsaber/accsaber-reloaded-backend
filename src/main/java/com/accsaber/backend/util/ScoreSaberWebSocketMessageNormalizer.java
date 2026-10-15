@@ -43,7 +43,6 @@ public final class ScoreSaberWebSocketMessageNormalizer {
         s.setId(longOrNull(n, "id"));
         s.setRank(intOrNull(n, "rank"));
         s.setUnmodifiedScore(intOrNull(n, "baseScore"));
-        s.setModifiedScore(intOrNull(n, "modifiedScore"));
         s.setMaxCombo(intOrNull(n, "maxCombo"));
         s.setBadCuts(intOrNull(n, "badCuts"));
         s.setMissedNotes(intOrNull(n, "missedNotes"));

@@ -56,7 +56,7 @@ import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanServiceTest {

@@ -30,7 +30,6 @@ public class BeatSaverMapResponse {
     public static class Version {
         private String hash;
         private String coverURL;
-        private String downloadURL;
         private List<Diff> diffs;
     }
 

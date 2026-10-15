@@ -11,11 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executor;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.entity.Curve;
@@ -63,10 +61,8 @@ public class ScoreRecalculationService {
     private final com.accsaber.backend.repository.user.UserCategorySkillRepository userCategorySkillRepository;
     private final ScoreRankingService scoreRankingService;
     private final SongSuggestService songSuggestService;
-
-    @Autowired
     @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    private final Executor backfillExecutor;
 
     @Async("taskExecutor")
     public CompletableFuture<Void> recalculateDifficultyAsync(UUID mapDifficultyId) {
@@ -198,8 +194,7 @@ public class ScoreRecalculationService {
                 difficulties.size(), totalUsers);
     }
 
-    @Transactional
-    public Set<Long> recalculateRawApForDifficulty(MapDifficulty difficulty) {
+    private Set<Long> recalculateRawApForDifficulty(MapDifficulty difficulty) {
         List<Score> scores = scoreRepository.findByMapDifficultyIdAndActiveTrueWithCategory(difficulty.getId());
         if (scores.isEmpty())
             return Set.of();
@@ -218,9 +213,9 @@ public class ScoreRecalculationService {
         Set<Long> affectedUsers = new HashSet<>();
 
         for (Score score : scores) {
-            Double accuracy = Rounding.round((double) (score.getScore()) / (double) (maxScore), 10);
+            Double accuracy = Rounding.round((double) score.getScore() / maxScore, 10);
             APResult apResult = apCalculationService.calculateRawAP(accuracy, complexity, scoreCurve);
-            if ((apResult.rawAP() != score.getAp())) {
+            if (apResult.rawAP() != score.getAp()) {
                 score.setAp(apResult.rawAP());
                 affectedUsers.add(score.getUser().getId());
             }
@@ -340,7 +335,7 @@ public class ScoreRecalculationService {
 
         if (scope.rebuildAllXp) {
             log.info("Batch recalculation: rebuilding XP totals");
-            userRepository.recalculateTotalXpForAllActiveUsers();
+            userRepository.rebuildXpTotals(null);
         }
 
         if (scope.evaluateMilestones) {

@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.config.ComplexityRaterProperties;
+import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.projection.EstimateSummaryRow;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse.DifficultyRow;

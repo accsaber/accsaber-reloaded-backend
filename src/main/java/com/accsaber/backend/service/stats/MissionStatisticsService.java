@@ -3,6 +3,7 @@ package com.accsaber.backend.service.stats;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.dbl;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.num;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.rate;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -25,7 +26,6 @@ import com.accsaber.backend.model.entity.mission.MissionBand;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionProgressAxis;
 import com.accsaber.backend.model.entity.mission.MissionType;
-import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -279,12 +279,7 @@ public class MissionStatisticsService {
 
     private static MissionCompletorResponse mapCompletor(Object[] row) {
         return MissionCompletorResponse.builder()
-                .userId(String.valueOf(((Number) row[0]).longValue()))
-                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
-                .userName((String) row[1])
-                .avatarUrl((String) row[2])
-                .cdnAvatarUrl((String) row[3])
-                .country((String) row[4])
+                .user(userIdentity(row, 0))
                 .missionsCompleted(num(row[5]))
                 .missionXp(((Number) row[6]).doubleValue())
                 .build();

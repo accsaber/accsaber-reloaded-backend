@@ -38,7 +38,6 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.map.MapDifficultyLeaderboardAliasRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -62,9 +61,7 @@ class ScoreIngestionServiceTest {
         @Mock
         private ModifierCacheService modifierCacheService;
         @Mock
-        private ScoreRepository scoreRepository;
-        @Mock
-        private ScoreImportService scoreImportService;
+        private ScoreGapFillService scoreGapFillService;
         @Mock
         private DuplicateUserService duplicateUserService;
         @Mock
@@ -115,7 +112,7 @@ class ScoreIngestionServiceTest {
 
                 ingestionService = new ScoreIngestionService(
                                 scoreService, playerImportService, mapDifficultyRepository,
-                                aliasRepository, scoreRepository, scoreImportService, modifierCacheService,
+                                aliasRepository, scoreGapFillService, modifierCacheService,
                                 properties, scheduler, metricsService, duplicateUserService,
                                 scoreSaberClient, campaignScoreGate);
                 ingestionService.init();
@@ -223,9 +220,6 @@ class ScoreIngestionServiceTest {
                         ScoreSaberScoreResponse ssScore = buildSsScore("");
                         when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))
                                         .thenReturn(Optional.of(difficulty));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
-                                        difficulty.getId()))
-                                        .thenReturn(Optional.empty());
                         when(playerImportService.ensurePlayerExists(STEAM_ID))
                                         .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
                         when(scoreService.submit(any())).thenReturn(buildScoreResponse());
@@ -242,9 +236,6 @@ class ScoreIngestionServiceTest {
                                         .thenReturn(Optional.of(difficulty));
                         when(mapDifficultyRepository.findByBlLeaderboardId("bl_123"))
                                         .thenReturn(Optional.of(difficulty));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
-                                        difficulty.getId()))
-                                        .thenReturn(Optional.empty());
                         when(playerImportService.ensurePlayerExists(STEAM_ID))
                                         .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
                         when(scoreService.submit(any())).thenReturn(buildScoreResponse());
@@ -263,12 +254,8 @@ class ScoreIngestionServiceTest {
                 void submitsBaseScore_notThePlatformModifiedScore() {
                         ScoreSaberScoreResponse ssScore = buildSsScore("NF");
                         ssScore.setUnmodifiedScore(900000);
-                        ssScore.setModifiedScore(450000);
                         when(mapDifficultyRepository.findBySsLeaderboardId("ss_456"))
                                         .thenReturn(Optional.of(difficulty));
-                        when(scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(STEAM_ID,
-                                        difficulty.getId()))
-                                        .thenReturn(Optional.empty());
                         when(playerImportService.ensurePlayerExists(STEAM_ID))
                                         .thenReturn(User.builder().id(STEAM_ID).name("Player").build());
                         when(scoreService.submit(any())).thenReturn(buildScoreResponse());
@@ -343,7 +330,6 @@ class ScoreIngestionServiceTest {
         private BeatLeaderScoreResponse buildBlScore(String leaderboardId, String modifiers) {
                 BeatLeaderScoreResponse bl = new BeatLeaderScoreResponse();
                 bl.setId(123456L);
-                bl.setModifiedScore(950000);
                 bl.setBaseScore(900000);
                 bl.setRank(5);
                 bl.setMaxCombo(500);
@@ -365,7 +351,6 @@ class ScoreIngestionServiceTest {
         private ScoreSaberScoreResponse buildSsScore(String modifier) {
                 ScoreSaberScoreResponse ss = new ScoreSaberScoreResponse();
                 ss.setId(789012L);
-                ss.setModifiedScore(940000);
                 ss.setUnmodifiedScore(890000);
                 ss.setRank(7);
                 ss.setMaxCombo(480);

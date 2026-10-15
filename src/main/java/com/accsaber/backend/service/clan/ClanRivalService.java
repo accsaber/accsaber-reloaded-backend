@@ -21,7 +21,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,7 +45,7 @@ public class ClanRivalService {
                 : rivalRepository.findDeclaredBy(clanId, pageable);
         List<Clan> others = page.getContent().stream().map(r -> incoming ? r.getClan() : r.getRivalClan()).toList();
         Map<UUID, PublicClanResponse> refs = cosmeticService.publicRefs(others);
-        return page.map(r -> ClanRivalResponse.of(r, refs.get((incoming ? r.getClan() : r.getRivalClan()).getId()),
+        return page.map(r -> ClanMapper.toRivalResponse(r, refs.get((incoming ? r.getClan() : r.getRivalClan()).getId()),
                 incoming));
     }
 
@@ -72,7 +72,7 @@ public class ClanRivalService {
         chatChannel.announce(clan, ChatNotice.ofClan(ChatEvent.rival_declared, actor, rival));
         chatChannel.announce(rival, ChatNotice.ofClan(ChatEvent.rivaled_by, actor, clan));
         feed.clans(ClanFeedType.rival_declared, clan, rival);
-        return ClanRivalResponse.of(saved, cosmeticService.publicRefs(List.of(rival)).get(rivalClanId), false);
+        return ClanMapper.toRivalResponse(saved, cosmeticService.publicRefs(List.of(rival)).get(rivalClanId), false);
     }
 
     @Transactional

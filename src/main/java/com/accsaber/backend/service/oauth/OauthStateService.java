@@ -1,11 +1,13 @@
 package com.accsaber.backend.service.oauth;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.crypto.SecretKey;
@@ -15,29 +17,40 @@ import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.config.OauthProperties;
 import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.service.oauth.DiscordOauthClient.DiscordIdentity;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 public class OauthStateService {
 
     private static final String PURPOSE_STATE = "oauth-state";
     private static final String PURPOSE_PENDING_LINK = "oauth-pending-link";
     private static final String BINDING_CLAIM = "bind";
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Set<String> KNOWN_PROVIDERS = Set.of(
+            OauthService.PROVIDER_DISCORD,
+            OauthService.PROVIDER_BEATLEADER,
+            OauthService.PROVIDER_STEAM);
 
     private final OauthProperties oauthProperties;
     private final StateReplayGuard replayGuard;
+    private final SecretKey signingKey;
+    private final JwtParser parser;
 
-    @Value("${accsaber.jwt.secret}")
-    private String secret;
+    public OauthStateService(OauthProperties oauthProperties, StateReplayGuard replayGuard,
+            @Value("${accsaber.jwt.secret}") String secret) {
+        this.oauthProperties = oauthProperties;
+        this.replayGuard = replayGuard;
+        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.parser = Jwts.parser().verifyWith(signingKey).build();
+    }
 
     public String newBrowserBinding() {
         byte[] bytes = new byte[32];
@@ -45,7 +58,15 @@ public class OauthStateService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    public void requireKnownProvider(String provider) {
+        if (!KNOWN_PROVIDERS.contains(provider)) {
+            throw new ValidationException("Unknown OAuth provider: " + provider);
+        }
+    }
+
     public String createState(StateClaims state) {
+        requireKnownProvider(state.provider());
+        validateReturnTo(state.returnTo());
         if (state.pendingLinkToken() != null) {
             requireBound(parse(state.pendingLinkToken()), state.binding());
         }
@@ -64,7 +85,7 @@ public class OauthStateService {
         if (state.pendingLinkToken() != null) {
             builder.claim("pendingLinkToken", state.pendingLinkToken());
         }
-        return builder.signWith(getSigningKey()).compact();
+        return builder.signWith(signingKey).compact();
     }
 
     public StateClaims parseState(String state, String expectedProvider, String binding) {
@@ -108,7 +129,7 @@ public class OauthStateService {
                 .claim(BINDING_CLAIM, state.binding())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(oauthProperties.getPendingLinkTtlSeconds())))
-                .signWith(getSigningKey())
+                .signWith(signingKey)
                 .compact();
     }
 
@@ -134,18 +155,45 @@ public class OauthStateService {
 
     private Claims parse(String token) {
         try {
-            return Jwts.parser()
-                    .verifyWith(getSigningKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            return parser.parseSignedClaims(token).getPayload();
         } catch (JwtException | IllegalArgumentException e) {
             throw new UnauthorizedException("Invalid or expired token");
         }
     }
 
-    private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    private void validateReturnTo(String returnTo) {
+        var allowed = oauthProperties.getAllowedReturnOrigins();
+        if (allowed == null || allowed.isEmpty()) {
+            throw new ValidationException("OAuth allowed-return-origins is not configured");
+        }
+        String inboundOrigin = originOf(parseUri(returnTo));
+        if (inboundOrigin == null) {
+            throw new ValidationException("returnTo must be an absolute URL");
+        }
+        boolean ok = allowed.stream()
+                .map(origin -> originOf(parseUri(origin)))
+                .anyMatch(inboundOrigin::equalsIgnoreCase);
+        if (!ok) {
+            throw new ValidationException("returnTo is not in the allowed origin list");
+        }
+    }
+
+    private URI parseUri(String value) {
+        try {
+            return URI.create(value);
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Invalid URL: " + value);
+        }
+    }
+
+    private String originOf(URI uri) {
+        if (uri.getScheme() == null || uri.getHost() == null) {
+            return null;
+        }
+        int port = uri.getPort();
+        return port < 0
+                ? uri.getScheme() + "://" + uri.getHost()
+                : uri.getScheme() + "://" + uri.getHost() + ":" + port;
     }
 
     public record StateClaims(String provider, String returnTo, Long linkUserId, String pendingLinkToken,

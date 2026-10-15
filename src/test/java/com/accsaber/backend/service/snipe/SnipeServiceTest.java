@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +45,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class SnipeServiceTest {
@@ -58,7 +60,7 @@ class SnipeServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
     @Mock
-    private ScoreService scoreService;
+    private ScoreQueryService scoreQueryService;
     @Mock
     private MapService mapService;
 
@@ -67,6 +69,12 @@ class SnipeServiceTest {
 
     @InjectMocks
     private SnipeService snipeService;
+
+    @BeforeEach
+    void stubRepositoryLookups() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
+        lenient().when(categoryRepository.requireActiveByCode(any())).thenCallRealMethod();
+    }
 
     @Nested
     class FindSnipeComparisons {
@@ -86,8 +94,8 @@ class SnipeServiceTest {
             ScoreResponse sniperResponse = ScoreResponse.builder().build();
             ScoreResponse targetResponse = ScoreResponse.builder().build();
             PublicMapDifficultyResponse mapDiffResponse = PublicMapDifficultyResponse.builder().id(diffId).build();
-            when(scoreService.mapToResponse(sniperScore)).thenReturn(sniperResponse);
-            when(scoreService.mapToResponse(targetScore)).thenReturn(targetResponse);
+            when(scoreQueryService.mapToResponse(sniperScore)).thenReturn(sniperResponse);
+            when(scoreQueryService.mapToResponse(targetScore)).thenReturn(targetResponse);
             when(mapService.getDifficultyResponsePublic(diffId)).thenReturn(mapDiffResponse);
 
             Page<SnipeComparisonResponse> result = snipeService.findSnipeComparisons(query(null, null, null), pageable);
@@ -169,7 +177,7 @@ class SnipeServiceTest {
                     any()))
                     .thenReturn(new PageImpl<>(List.<Object[]>of(new Object[] { targetScore, null })));
             ScoreResponse targetResponse = ScoreResponse.builder().build();
-            when(scoreService.mapToResponse(targetScore)).thenReturn(targetResponse);
+            when(scoreQueryService.mapToResponse(targetScore)).thenReturn(targetResponse);
             when(mapService.getDifficultyResponsePublic(diffId))
                     .thenReturn(PublicMapDifficultyResponse.builder().id(diffId).build());
 

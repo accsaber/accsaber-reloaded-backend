@@ -40,13 +40,13 @@ class ItemServiceUniqueAwardTest {
     private DuplicateUserService duplicateUserService;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @Test
     void awardSystemSkipsWhenUniqueItemAlreadyOwned() {
         stubUniqueItemOwned();
 
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_completion, "other-campaign", "reward");
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_completion, "other-campaign", "reward");
 
         verify(userItemLinkRepository, never()).save(any());
     }
@@ -55,7 +55,7 @@ class ItemServiceUniqueAwardTest {
     void awardManualRejectsSecondCopyOfUniqueItem() {
         stubUniqueItemOwned();
 
-        assertThatThrownBy(() -> itemService.awardManual(USER_ID, ITEM_ID, null, "manual dup", null, 1L, null))
+        assertThatThrownBy(() -> itemAwardService.awardManual(USER_ID, ITEM_ID, null, "manual dup", null, 1L, null))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("unique item");
 

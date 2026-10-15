@@ -16,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
 import com.accsaber.backend.model.entity.clan.ClanMember;
@@ -116,7 +115,7 @@ class ClanRefCacheTest {
         when(memberRepository.findAllOpenInActiveClans()).thenReturn(List.of(member(owls, 1L)));
         cache.reload();
 
-        assertThat(PlayerRef.of(User.builder().id(1L).name("Founder").build()).clan().tag()).isEqualTo("NOW");
-        assertThat(PlayerRef.of(User.builder().id(9L).name("Clanless").build()).clan()).isNull();
+        assertThat(ClanRefCache.playerRef(User.builder().id(1L).name("Founder").build()).clan().tag()).isEqualTo("NOW");
+        assertThat(ClanRefCache.playerRef(User.builder().id(9L).name("Clanless").build()).clan()).isNull();
     }
 }

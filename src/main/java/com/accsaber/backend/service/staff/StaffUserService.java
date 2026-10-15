@@ -96,10 +96,6 @@ public class StaffUserService {
                 .map(this::toResponse);
     }
 
-    public StaffUserResponse getById(UUID id) {
-        return toResponse(requireActive(id));
-    }
-
     @Transactional
     public StaffUserResponse create(CreateStaffUserRequest request) {
         if (request.getUsername() == null && request.getEmail() == null) {

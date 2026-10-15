@@ -3,8 +3,6 @@ package com.accsaber.backend.model.dto.response.supporter;
 import java.time.Instant;
 
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
-import com.accsaber.backend.model.entity.supporter.SupporterAccount;
-import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.Builder;
 import lombok.Value;
@@ -24,22 +22,4 @@ public class SupporterCreditsRowResponse {
     Long lifetimeSupportedCents;
     Instant tierStartedAt;
     Instant firstSupportedAt;
-
-    public static SupporterCreditsRowResponse from(SupporterAccount account) {
-        SupporterCreditsRowResponseBuilder b = SupporterCreditsRowResponse.builder()
-                .userId(String.valueOf(account.getUserId()))
-                .name(account.getUser().getName())
-                .avatarUrl(account.getUser().getAvatarUrl())
-                .cdnAvatarUrl(account.getUser().getCdnAvatarUrl())
-                .clan(ClanRefCache.forUser(account.getUserId()))
-                .country(account.getUser().getCountry())
-                .lifetimeSupportedCents(account.getLifetimeSupportedCents())
-                .tierStartedAt(account.getTierStartedAt())
-                .firstSupportedAt(account.getCreatedAt());
-        if (account.getCurrentTier() != null) {
-            b.currentTier(account.getCurrentTier().getTierKey())
-                    .currentTierDisplayName(account.getCurrentTier().getDisplayName());
-        }
-        return b.build();
-    }
 }

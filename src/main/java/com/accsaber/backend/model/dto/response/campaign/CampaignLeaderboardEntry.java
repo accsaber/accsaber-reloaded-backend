@@ -2,6 +2,7 @@ package com.accsaber.backend.model.dto.response.campaign;
 
 import java.time.Instant;
 
+import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 
 import lombok.Builder;
@@ -12,7 +13,7 @@ import lombok.Getter;
 public class CampaignLeaderboardEntry {
 
     private Integer rank;
-    private CampaignLeaderboardPlayer player;
+    private UserIdentity player;
     private Instant completedAt;
     private Double averageAccuracy;
     private Double averageAp;

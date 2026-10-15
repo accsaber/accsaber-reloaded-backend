@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,7 +32,7 @@ import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.stats.OverallStatisticsService;
 import com.accsaber.backend.service.stats.RankingService;
@@ -69,7 +70,7 @@ class UserServiceTest {
     private UserSettingsService userSettingsService;
 
     @Mock
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @Mock
     private com.accsaber.backend.service.supporter.SupporterService supporterService;
@@ -88,6 +89,7 @@ class UserServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
         org.mockito.Mockito.lenient().when(supporterService.findCurrentTierKey(org.mockito.ArgumentMatchers.any(Long.class)))
                 .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(duplicateUserService.resolvePrimaryUserId(org.mockito.ArgumentMatchers.any(Long.class)))

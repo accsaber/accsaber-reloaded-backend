@@ -51,6 +51,7 @@ class OverallStatisticsServiceTest {
 
         @BeforeEach
         void setUp() {
+                lenient().when(categoryRepository.requireActiveByCode(any())).thenCallRealMethod();
                 user = User.builder()
                                 .id(userId)
                                 .name("TestPlayer")

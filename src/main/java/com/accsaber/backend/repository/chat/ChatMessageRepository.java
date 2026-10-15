@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.chat;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -19,6 +20,19 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
     @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan", "war" })
     Page<ChatMessage> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM (
+                SELECT 1 FROM chat_messages
+                WHERE clan_id = :clanId AND created_at > :since AND user_id IS DISTINCT FROM :userId
+                LIMIT :cap
+            ) unread
+            """, nativeQuery = true)
+    int countClanUnread(@Param("clanId") UUID clanId, @Param("userId") Long userId,
+            @Param("since") Instant since, @Param("cap") int cap);
+
+    @Query("SELECT MAX(m.createdAt) FROM ChatMessage m WHERE m.clan.id = :clanId")
+    Instant findLatestClanMessageAt(@Param("clanId") UUID clanId);
 
     @Modifying(flushAutomatically = true)
     @Query(value = """

@@ -20,7 +20,7 @@ public class LevelUpAwardService {
     private final LevelService levelService;
     private final LevelThresholdRepository levelThresholdRepository;
     private final ItemRepository itemRepository;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final UserRepository userRepository;
 
     @Transactional
@@ -72,8 +72,7 @@ public class LevelUpAwardService {
         addXp(userId, delta);
     }
 
-    @Transactional
-    public void processLevelUps(Long userId, Double oldXp, Double xpDelta) {
+    private void processLevelUps(Long userId, Double oldXp, Double xpDelta) {
         if (xpDelta == null || Math.signum(xpDelta) <= 0)
             return;
         Double previous = oldXp == null ? 0.0 : oldXp;
@@ -95,7 +94,7 @@ public class LevelUpAwardService {
     public void grantLevelRewards(Long userId, int level) {
         levelThresholdRepository.findById(level)
                 .filter(t -> t.getAwardsItem() != null)
-                .ifPresent(t -> itemService.awardSystem(
+                .ifPresent(t -> itemAwardService.awardSystem(
                         userId,
                         t.getAwardsItem().getId(),
                         ItemSource.level,
@@ -103,7 +102,7 @@ public class LevelUpAwardService {
                         "Reached level " + level));
 
         itemRepository.findByUnlockLevelAndActiveTrue(level).forEach(item ->
-                itemService.awardSystem(
+                itemAwardService.awardSystem(
                         userId,
                         item.getId(),
                         ItemSource.level,

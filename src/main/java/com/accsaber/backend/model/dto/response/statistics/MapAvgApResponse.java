@@ -3,7 +3,7 @@ package com.accsaber.backend.model.dto.response.statistics;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.accsaber.backend.model.entity.map.Difficulty;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -12,17 +12,8 @@ import lombok.Getter;
 @Builder
 public class MapAvgApResponse {
 
-    private UUID mapDifficultyId;
-    private UUID mapId;
-    private String songName;
-    private String songSubName;
-    private String songAuthor;
-    private String mapAuthor;
-    private String coverUrl;
-    private String cdnCoverUrl;
-    private Difficulty difficulty;
-    private UUID categoryId;
-    private String categoryName;
+    @JsonUnwrapped
+    private MapIdentity map;
     private Double averageWeightedAp;
     private long scoreCount;
     private UUID latestScoreId;

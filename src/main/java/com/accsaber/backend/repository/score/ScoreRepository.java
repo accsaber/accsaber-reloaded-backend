@@ -30,7 +30,9 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         WHERE s.user.id = :userId
                           AND s.mapDifficulty.id = :mapDifficultyId
                           AND s.partial = :partial
-                          AND (s.supersedesReason IS NULL OR s.supersedesReason <> 'Campaign attempt')
+                          AND ((:campaignAttempt = true AND s.supersedesReason = 'Campaign attempt')
+                               OR (:campaignAttempt = false
+                                   AND (s.supersedesReason IS NULL OR s.supersedesReason <> 'Campaign attempt')))
                           AND (s.createdAt >= :since OR (s.timeSet IS NOT NULL AND s.timeSet >= :since))
                           AND (s.scoreNoMods = :scoreNoMods
                                OR (s.timeSet IS NOT NULL AND s.timeSet BETWEEN :playFrom AND :playTo))
@@ -42,27 +44,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("mapDifficultyId") UUID mapDifficultyId,
                         @Param("scoreNoMods") Integer scoreNoMods,
                         @Param("partial") boolean partial,
-                        @Param("since") Instant since,
-                        @Param("playFrom") Instant playFrom,
-                        @Param("playTo") Instant playTo,
-                        Pageable pageable);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        WHERE s.user.id = :userId
-                          AND s.mapDifficulty.id = :mapDifficultyId
-                          AND s.partial = false
-                          AND s.supersedesReason = 'Campaign attempt'
-                          AND (s.createdAt >= :since OR (s.timeSet IS NOT NULL AND s.timeSet >= :since))
-                          AND (s.scoreNoMods = :scoreNoMods
-                               OR (s.timeSet IS NOT NULL AND s.timeSet BETWEEN :playFrom AND :playTo))
-                        ORDER BY CASE WHEN s.scoreNoMods = :scoreNoMods THEN 0 ELSE 1 END,
-                                 COALESCE(s.timeSet, s.createdAt) DESC
-                        """)
-        List<Score> findRecentCampaignAttempt(
-                        @Param("userId") Long userId,
-                        @Param("mapDifficultyId") UUID mapDifficultyId,
-                        @Param("scoreNoMods") Integer scoreNoMods,
+                        @Param("campaignAttempt") boolean campaignAttempt,
                         @Param("since") Instant since,
                         @Param("playFrom") Instant playFrom,
                         @Param("playTo") Instant playTo,
@@ -408,6 +390,19 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         @Param("search") String search,
                         Pageable pageable);
 
+        @Query(value = """
+                        SELECT c.id, c.code, ranked.ap
+                        FROM (SELECT md.category_id, s.ap,
+                                     ROW_NUMBER() OVER (PARTITION BY md.category_id ORDER BY s.ap DESC) AS position
+                              FROM scores s
+                              JOIN map_difficulties md ON md.id = s.map_difficulty_id
+                              WHERE s.user_id = :userId AND s.active = true) ranked
+                        JOIN categories c ON c.id = ranked.category_id
+                        WHERE ranked.position <= :limit AND c.active = true
+                        ORDER BY c.code, ranked.position
+                        """, nativeQuery = true)
+        List<Object[]> findTopApByCategory(@Param("userId") Long userId, @Param("limit") int limit);
+
         @Query("""
                         SELECT s FROM Score s
                         WHERE s.user.id = :userId
@@ -528,16 +523,6 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         ORDER BY s.createdAt ASC
                         """)
         List<Score> findAllTopOnes(@Param("difficultyId") UUID difficultyId);
-
-        @Query("""
-                        SELECT s FROM Score s
-                        JOIN FETCH s.user u
-                        WHERE s.mapDifficulty.id = :difficultyId
-                        AND s.rank = 1
-                        AND s.active = true
-                        AND u.active = true AND u.banned = false
-                        """)
-        Optional<Score> findCurrentTopOne(@Param("difficultyId") UUID difficultyId);
 
         @Query("""
                         SELECT s FROM Score s

@@ -11,7 +11,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
@@ -24,7 +23,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -38,7 +37,7 @@ public class SnipeService {
     private final ScoreRepository scoreRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
-    private final ScoreService scoreService;
+    private final ScoreQueryService scoreQueryService;
     private final MapService mapService;
 
     public Page<SnipeComparisonResponse> findSnipeComparisons(SnipeQuery query, Pageable pageable) {
@@ -61,7 +60,7 @@ public class SnipeService {
                 scores.add((Score) r[1]);
             }
         }
-        Map<UUID, ScoreResponse> scoreResponses = scoreService.mapToResponsesByScoreId(scores);
+        Map<UUID, ScoreResponse> scoreResponses = scoreQueryService.mapToResponsesByScoreId(scores);
 
         return pairs.map(r -> toComparison(r, difficulties, scoreResponses));
     }
@@ -107,7 +106,7 @@ public class SnipeService {
 
     private ScoreResponse resolveResponse(Score score, Map<UUID, ScoreResponse> scoreResponses) {
         ScoreResponse response = scoreResponses.get(score.getId());
-        return response != null ? response : scoreService.mapToResponse(score);
+        return response != null ? response : scoreQueryService.mapToResponse(score);
     }
 
     CategoryFilter resolveCategoryFilter(String categoryCode) {
@@ -115,9 +114,9 @@ public class SnipeService {
             return new CategoryFilter(null, false, null);
         }
         if (OVERALL_CODE.equalsIgnoreCase(categoryCode)) {
-            return new CategoryFilter(null, true, requireCategory(OVERALL_CODE).getName());
+            return new CategoryFilter(null, true, categoryRepository.requireActiveByCode(OVERALL_CODE).getName());
         }
-        Category category = requireCategory(categoryCode);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
         return new CategoryFilter(category.getId(), false, category.getName());
     }
 
@@ -125,18 +124,8 @@ public class SnipeService {
         if (query.sniperId().equals(query.targetId())) {
             throw new ValidationException("Sniper and target must be different players");
         }
-        requireUser(query.sniperId());
-        return requireUser(query.targetId());
-    }
-
-    private Category requireCategory(String categoryCode) {
-        return categoryRepository.findByCodeAndActiveTrue(categoryCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
-    }
-
-    private User requireUser(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        userRepository.requireActive(query.sniperId());
+        return userRepository.requireActive(query.targetId());
     }
 
     record CategoryFilter(UUID categoryId, boolean overallOnly, String label) {

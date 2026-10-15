@@ -3,6 +3,7 @@ package com.accsaber.backend.service.stats;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.dbl;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.num;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.rate;
+import static com.accsaber.backend.service.stats.StatsQueryRunner.userIdentity;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -23,7 +24,6 @@ import com.accsaber.backend.model.dto.response.statistics.CampaignNodeDifficulty
 import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignRequirementType;
 import com.accsaber.backend.model.entity.map.Difficulty;
-import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.util.TimeRangeUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -193,12 +193,7 @@ public class CampaignStatisticsService {
                 + " ORDER BY completed DESC, nodes_cleared DESC, u.name ASC";
 
         return queryRunner.paged(sql, params, pageable, row -> CampaignCompletorResponse.builder()
-                .userId(String.valueOf(((Number) row[0]).longValue()))
-                .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
-                .userName((String) row[1])
-                .avatarUrl((String) row[2])
-                .cdnAvatarUrl((String) row[3])
-                .country((String) row[4])
+                .user(userIdentity(row, 0))
                 .completed(num(row[5]))
                 .inProgress(num(row[6]))
                 .nodesCleared(num(row[7]))
@@ -232,12 +227,7 @@ public class CampaignStatisticsService {
             long participants = num(row[7]);
             long completions = num(row[8]);
             return CampaignCreatorResponse.builder()
-                    .userId(String.valueOf(((Number) row[0]).longValue()))
-                    .clan(ClanRefCache.forUser(((Number) row[0]).longValue()))
-                    .userName((String) row[1])
-                    .avatarUrl((String) row[2])
-                    .cdnAvatarUrl((String) row[3])
-                    .country((String) row[4])
+                    .user(userIdentity(row, 0))
                     .campaigns(num(row[5]))
                     .curatedCampaigns(num(row[6]))
                     .participants(participants)

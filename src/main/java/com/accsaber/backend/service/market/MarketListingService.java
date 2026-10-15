@@ -31,7 +31,7 @@ import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.market.MarketBidRepository;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemEquipService;
 import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.supporter.SupporterService;
@@ -51,7 +51,7 @@ public class MarketListingService {
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
     private final ItemTransferService itemTransferService;
-    private final ItemService itemService;
+    private final ItemEquipService itemEquipService;
     private final MarketSettlementService settlementService;
     private final SupporterService supporterService;
 
@@ -238,7 +238,7 @@ public class MarketListingService {
         if (!tradeItemRepository.findLinkIdsInTradesWithStatus(List.of(link.getId()), TradeStatus.pending).isEmpty()) {
             throw new ConflictException("This item is part of a pending trade and cannot be listed");
         }
-        if (itemService.isLinkEquipped(ownerId, link.getId())) {
+        if (itemEquipService.isLinkEquipped(ownerId, link.getId())) {
             throw new ConflictException("Unequip this item before listing it");
         }
     }

@@ -12,6 +12,8 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -47,6 +49,7 @@ public class CampaignDifficulty {
     @JoinColumn(name = "map_difficulty_id")
     private MapDifficulty mapDifficulty;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "requirement_type")
     private CampaignRequirementType requirementType;
 
@@ -64,6 +67,7 @@ public class CampaignDifficulty {
     @Builder.Default
     private boolean terminal = false;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "barrier_condition_type")
     private BarrierConditionType barrierConditionType;
 
@@ -73,10 +77,12 @@ public class CampaignDifficulty {
     @Column(name = "barrier_condition_value_max")
     private Double barrierConditionValueMax;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "prerequisite_mode", nullable = false)
     @Builder.Default
     private CampaignPrerequisiteMode prerequisiteMode = CampaignPrerequisiteMode.OR;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "target_mode", nullable = false)
     @Builder.Default
     private CampaignPrerequisiteMode targetMode = CampaignPrerequisiteMode.AND;
@@ -86,6 +92,7 @@ public class CampaignDifficulty {
     @Column(name = "checkpoint_label")
     private String checkpointLabel;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "checkpoint_label_position")
     private CampaignLabelPosition checkpointLabelPosition;
 
@@ -104,6 +111,7 @@ public class CampaignDifficulty {
     @Column(name = "node_border_url")
     private String nodeBorderUrl;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "node_border_layer", nullable = false)
     @Builder.Default
     private CampaignNodeBorderLayer nodeBorderLayer = CampaignNodeBorderLayer.ABOVE;

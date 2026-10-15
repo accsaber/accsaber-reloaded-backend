@@ -49,10 +49,6 @@ public class LevelService {
         return getLevelCurve().xpForLevel(n);
     }
 
-    public List<LevelThreshold> getAllThresholds() {
-        return levelThresholdRepository.findAllByOrderByLevelAsc();
-    }
-
     public List<LevelThresholdResponse> listThresholds() {
         return levelThresholdRepository.findAllByOrderByLevelAsc().stream()
                 .map(LevelService::toResponse)

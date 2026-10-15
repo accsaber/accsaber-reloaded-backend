@@ -1,7 +1,7 @@
 package com.accsaber.backend.model.dto.response.admin;
 
-import com.accsaber.backend.service.admin.JobField;
-import com.accsaber.backend.service.admin.JobFieldKind;
+import com.accsaber.backend.model.admin.JobField;
+import com.accsaber.backend.model.admin.JobFieldKind;
 
 import lombok.Builder;
 import lombok.Value;

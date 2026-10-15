@@ -32,7 +32,7 @@ import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanRivalRepository;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -214,7 +214,7 @@ public class ClanAllianceService {
 
     private ClanAllianceResponse toResponse(ClanAlliance alliance, UUID clanId) {
         UUID allyId = alliance.otherThan(clanId).getId();
-        return ClanAllianceResponse.of(alliance, clanId,
+        return ClanMapper.toAllianceResponse(alliance, clanId,
                 cosmeticService.equippedByClanIds(List.of(allyId)).getOrDefault(allyId, List.of()),
                 warsFoughtTogether(List.of(alliance)).getOrDefault(alliance.getId(), 0L));
     }
@@ -223,7 +223,7 @@ public class ClanAllianceService {
         Map<UUID, List<ItemResponse>> equipped = cosmeticService.equippedByClanIds(
                 page.getContent().stream().map(a -> a.otherThan(clanId).getId()).distinct().toList());
         Map<UUID, Long> wars = warsFoughtTogether(page.getContent());
-        return page.map(a -> ClanAllianceResponse.of(a, clanId,
+        return page.map(a -> ClanMapper.toAllianceResponse(a, clanId,
                 equipped.getOrDefault(a.otherThan(clanId).getId(), List.of()), wars.getOrDefault(a.getId(), 0L)));
     }
 }

@@ -9,13 +9,11 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.item.Item;
 
 import jakarta.persistence.LockModeType;
 
-@Repository
 public interface ItemRepository extends JpaRepository<Item, UUID> {
 
     List<Item> findByActiveTrue();
@@ -37,7 +35,6 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Item i WHERE i.id = :id")
     Optional<Item> findByIdForUpdate(@Param("id") UUID id);
-
 
     List<Item> findByUnlockLevelAndActiveTrue(Integer unlockLevel);
 

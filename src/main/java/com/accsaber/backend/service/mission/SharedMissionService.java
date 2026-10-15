@@ -31,7 +31,7 @@ import com.accsaber.backend.model.event.SharedMissionCompletedEvent;
 import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
@@ -53,7 +53,7 @@ public class SharedMissionService {
     private final SharedMissionContextLoader sharedMissionContextLoader;
     private final MissionRowFactory missionRowFactory;
     private final LevelUpAwardService levelUpAwardService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final MissionProgressService missionProgressService;
     private final ClanMissionService clanMissionService;
     private final TransactionTemplate transactionTemplate;
@@ -76,15 +76,15 @@ public class SharedMissionService {
     @Transactional(readOnly = true)
     public List<MissionResponse> list(UUID eventId, boolean activeOnly, Long viewerId) {
         List<UserMission> missions = userMissionRepository.findCommunity(eventId, activeOnly);
-        MissionResponse.SharedContext ctx = sharedMissionContextLoader.load(missions, viewerId);
-        return missions.stream().map(m -> MissionResponse.from(m, ctx)).toList();
+        MissionMapper.SharedContext ctx = sharedMissionContextLoader.load(missions, viewerId);
+        return missions.stream().map(m -> MissionMapper.from(m, ctx)).toList();
     }
 
     @Transactional(readOnly = true)
     public MissionResponse get(UUID missionId, Long viewerId) {
         UserMission mission = userMissionRepository.findCommunityById(missionId)
                 .orElseThrow(() -> new ResourceNotFoundException("CommunityMission", missionId));
-        return MissionResponse.from(mission, sharedMissionContextLoader.load(List.of(mission), viewerId));
+        return MissionMapper.from(mission, sharedMissionContextLoader.load(List.of(mission), viewerId));
     }
 
     @Transactional(readOnly = true)
@@ -195,7 +195,7 @@ public class SharedMissionService {
                     missionProgressService.creditMissionXp(userId, template, (double) (xpReward));
                 }
                 if (itemRewardId != null) {
-                    itemService.awardSystem(userId, itemRewardId, ItemSource.mission, missionId.toString(),
+                    itemAwardService.awardSystem(userId, itemRewardId, ItemSource.mission, missionId.toString(),
                             (template.isCommunity() ? "Community" : "Clan") + " mission reward: " + template.getName());
                 }
                 return true;

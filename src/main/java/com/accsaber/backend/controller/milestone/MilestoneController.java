@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.accsaber.backend.model.dto.response.milestone.LevelThresholdResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
@@ -20,7 +21,6 @@ import com.accsaber.backend.model.dto.response.milestone.MilestoneSetGroupRespon
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetLinkResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.PrerequisiteLinkResponse;
-import com.accsaber.backend.model.entity.milestone.LevelThreshold;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.milestone.MilestoneGraphService;
@@ -119,7 +119,7 @@ public class MilestoneController {
     @Operation(summary = "Level thresholds", description = "XP needed per level plus titles. Read them from "
             + "here, never hardcode them.")
     @GetMapping("/levels")
-    public ResponseEntity<List<LevelThreshold>> listLevels() {
-        return ResponseEntity.ok(levelService.getAllThresholds());
+    public ResponseEntity<List<LevelThresholdResponse>> listLevels() {
+        return ResponseEntity.ok(levelService.listThresholds());
     }
 }

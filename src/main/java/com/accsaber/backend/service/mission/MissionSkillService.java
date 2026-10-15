@@ -16,6 +16,7 @@ import com.accsaber.backend.model.entity.mission.MissionBand;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.UserCategorySkill;
 import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.util.CampaignScoreMetrics;
 
 import lombok.RequiredArgsConstructor;
 
@@ -176,7 +177,7 @@ public class MissionSkillService {
 
     public Double ageAdjustedUserAp(Score myScore, Double topAp) {
         double scoreAp = myScore.getAp();
-        Instant when = myScore.getTimeSet() != null ? myScore.getTimeSet() : myScore.getCreatedAt();
+        Instant when = CampaignScoreMetrics.effectiveTime(myScore);
         if (when == null || topAp == null || topAp <= scoreAp)
             return scoreAp;
         long days = Duration.between(when, Instant.now()).toDays();
@@ -193,7 +194,7 @@ public class MissionSkillService {
     public double pbFreshnessBoost(Score existing) {
         if (existing == null)
             return 1.0;
-        Instant when = existing.getTimeSet() != null ? existing.getTimeSet() : existing.getCreatedAt();
+        Instant when = CampaignScoreMetrics.effectiveTime(existing);
         if (when == null)
             return 1.0;
         long days = Duration.between(when, Instant.now()).toDays();

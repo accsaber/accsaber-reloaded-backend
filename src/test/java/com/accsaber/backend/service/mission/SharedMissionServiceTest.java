@@ -45,7 +45,7 @@ import com.accsaber.backend.repository.mission.MissionContributionRepository;
 import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.service.clan.ClanMissionService;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,7 +64,7 @@ class SharedMissionServiceTest {
     @Mock
     private LevelUpAwardService levelUpAwardService;
     @Mock
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
     @Mock
     private MissionProgressService missionProgressService;
     @Mock
@@ -173,7 +173,7 @@ class SharedMissionServiceTest {
             verify(contributionRepository, never()).findUnrewarded(any(), any());
             verify(contributionRepository, never()).markRewarded(any(), anyLong(), any());
             verify(levelUpAwardService, never()).addMissionXp(anyLong(), any(), any());
-            verify(itemService, never()).awardSystem(anyLong(), any(), any(), any(), any());
+            verify(itemAwardService, never()).awardSystem(anyLong(), any(), any(), any(), any());
         }
     }
 
@@ -196,8 +196,8 @@ class SharedMissionServiceTest {
             InOrder order = inOrder(levelUpAwardService);
             order.verify(levelUpAwardService).addMissionXp(eq(11L), any(), eq(250.0));
             order.verify(levelUpAwardService).addMissionXp(eq(22L), any(), eq(250.0));
-            verify(itemService).awardSystem(eq(11L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
-            verify(itemService).awardSystem(eq(22L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
+            verify(itemAwardService).awardSystem(eq(11L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
+            verify(itemAwardService).awardSystem(eq(22L), any(), eq(ItemSource.mission), eq(missionId.toString()), any());
             verify(missionProgressService).creditMissionXp(eq(11L), any(), eq(250.0));
             verify(missionProgressService).creditMissionXp(eq(22L), any(), eq(250.0));
         }
@@ -216,7 +216,7 @@ class SharedMissionServiceTest {
             service.payRewards(missionId);
 
             verify(levelUpAwardService, never()).addMissionXp(anyLong(), any(), any());
-            verify(itemService, never()).awardSystem(anyLong(), any(), any(), any(), any());
+            verify(itemAwardService, never()).awardSystem(anyLong(), any(), any(), any(), any());
         }
 
         @Test
@@ -253,8 +253,8 @@ class SharedMissionServiceTest {
             verify(contributionRepository).markRewarded(eq(missionId), eq(22L), any());
             verify(levelUpAwardService).addMissionXp(eq(11L), any(), eq(250.0));
             verify(levelUpAwardService, never()).addMissionXp(eq(22L), any(), any());
-            verify(itemService).awardSystem(eq(11L), any(), any(), any(), any());
-            verify(itemService, never()).awardSystem(eq(22L), any(), any(), any(), any());
+            verify(itemAwardService).awardSystem(eq(11L), any(), any(), any(), any());
+            verify(itemAwardService, never()).awardSystem(eq(22L), any(), any(), any(), any());
         }
     }
 

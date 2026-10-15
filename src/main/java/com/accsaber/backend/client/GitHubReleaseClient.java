@@ -2,8 +2,9 @@ package com.accsaber.backend.client;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -11,8 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,8 +29,15 @@ public class GitHubReleaseClient {
             List<GitHubAsset> assets) {
     }
 
+    private record RawAsset(String name, long size, @JsonProperty("browser_download_url") String downloadUrl) {
+    }
+
+    private record RawRelease(@JsonProperty("tag_name") String tag, String name,
+            @JsonProperty("published_at") String publishedAt, boolean prerelease, boolean draft,
+            List<RawAsset> assets) {
+    }
+
     private final WebClient webClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${accsaber.quest.github-repo:accsaber/accsaber-qlite-plugin}")
     private String repo;
@@ -44,40 +51,19 @@ public class GitHubReleaseClient {
 
     public List<GitHubRelease> listReleases() {
         try {
-            String body = authorized(webClient.get()
+            RawRelease[] body = authorized(webClient.get()
                     .uri("/repos/" + repo + "/releases?per_page=20")
                     .header("Accept", "application/vnd.github+json"))
                     .retrieve()
-                    .bodyToMono(String.class)
+                    .bodyToMono(RawRelease[].class)
                     .block(HTTP_TIMEOUT);
             if (body == null) {
                 return List.of();
             }
-
-            JsonNode root = objectMapper.readTree(body);
-            if (!root.isArray()) {
-                return List.of();
-            }
-            List<GitHubRelease> releases = new ArrayList<>();
-            for (JsonNode release : root) {
-                if (release.path("draft").asBoolean(false)) {
-                    continue;
-                }
-                List<GitHubAsset> assets = new ArrayList<>();
-                for (JsonNode asset : release.path("assets")) {
-                    assets.add(new GitHubAsset(
-                            asset.path("name").asText(""),
-                            asset.path("size").asLong(0),
-                            asset.path("browser_download_url").asText("")));
-                }
-                releases.add(new GitHubRelease(
-                        release.path("tag_name").asText(""),
-                        release.path("name").asText(""),
-                        parseInstant(release.path("published_at").asText(null)),
-                        release.path("prerelease").asBoolean(false),
-                        assets));
-            }
-            return releases;
+            return Arrays.stream(body)
+                    .filter(release -> !release.draft())
+                    .map(GitHubReleaseClient::toRelease)
+                    .toList();
         } catch (Exception e) {
             log.error("Failed to list GitHub releases for {}: {}", repo, e.getMessage());
             return List.of();
@@ -100,6 +86,20 @@ public class GitHubReleaseClient {
 
     private WebClient.RequestHeadersSpec<?> authorized(WebClient.RequestHeadersSpec<?> spec) {
         return token == null || token.isBlank() ? spec : spec.header("Authorization", "Bearer " + token);
+    }
+
+    private static GitHubRelease toRelease(RawRelease release) {
+        List<GitHubAsset> assets = release.assets() == null ? List.of()
+                : release.assets().stream()
+                        .map(asset -> new GitHubAsset(orEmpty(asset.name()), asset.size(),
+                                orEmpty(asset.downloadUrl())))
+                        .toList();
+        return new GitHubRelease(orEmpty(release.tag()), orEmpty(release.name()),
+                parseInstant(release.publishedAt()), release.prerelease(), assets);
+    }
+
+    private static String orEmpty(String value) {
+        return Objects.requireNonNullElse(value, "");
     }
 
     private static Instant parseInstant(String value) {

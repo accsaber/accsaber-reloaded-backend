@@ -3,6 +3,7 @@ package com.accsaber.backend.websocket.server;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -14,6 +15,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import com.accsaber.backend.util.Slugs;
 
 public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
 
@@ -34,6 +38,12 @@ public abstract class RoomWebSocketHandler<K> extends TextWebSocketHandler {
     }
 
     protected abstract K resolveRoomKey(WebSocketSession session);
+
+    protected static UUID uuidParam(WebSocketSession session, String name) {
+        return session.getUri() == null ? null
+                : Slugs.uuidOrNull(UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams()
+                        .getFirst(name));
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {

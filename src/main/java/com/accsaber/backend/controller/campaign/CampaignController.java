@@ -55,6 +55,8 @@ import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.security.StaffPrincipals;
 import com.accsaber.backend.service.campaign.CampaignEditor;
 import com.accsaber.backend.service.campaign.CampaignMediaKind;
+import com.accsaber.backend.service.campaign.CampaignBarrierService;
+import com.accsaber.backend.service.campaign.CampaignCanvasService;
 import com.accsaber.backend.service.campaign.CampaignNodeService;
 import com.accsaber.backend.service.campaign.CampaignProgressService;
 import com.accsaber.backend.service.campaign.CampaignService;
@@ -74,6 +76,8 @@ public class CampaignController {
 
     private final CampaignService campaignService;
     private final CampaignNodeService nodeService;
+    private final CampaignBarrierService barrierService;
+    private final CampaignCanvasService canvasService;
     private final CampaignProgressService progressService;
     private final MapImportService mapImportService;
 
@@ -203,7 +207,7 @@ public class CampaignController {
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me/progress")
     public ResponseEntity<List<CampaignProgressResponse>> getMyProgressBulk(
-            @RequestParam("ids") List<UUID> ids,
+            @RequestParam List<UUID> ids,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(progressService.getUserProgressBulk(principal.getUserId(), ids));
     }
@@ -474,7 +478,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(nodeService.addBarrier(editorFor(authentication, principal), campaignId, request));
+                .body(barrierService.addBarrier(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Update a barrier")
@@ -486,7 +490,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                nodeService.updateBarrier(editorFor(authentication, principal), barrierId, request));
+                barrierService.updateBarrier(editorFor(authentication, principal), barrierId, request));
     }
 
     @Operation(summary = "Remove a barrier")
@@ -497,7 +501,7 @@ public class CampaignController {
             @PathVariable UUID barrierId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        nodeService.removeBarrier(editorFor(authentication, principal), campaignId, barrierId);
+        barrierService.removeBarrier(editorFor(authentication, principal), campaignId, barrierId);
         return ResponseEntity.noContent().build();
     }
 
@@ -510,7 +514,7 @@ public class CampaignController {
             @Valid @RequestBody MoveCampaignElementsRequest request,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        nodeService.moveElements(editorFor(authentication, principal), campaignId, request);
+        canvasService.moveElements(editorFor(authentication, principal), campaignId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -523,7 +527,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(nodeService.addText(editorFor(authentication, principal), campaignId, request));
+                .body(canvasService.addText(editorFor(authentication, principal), campaignId, request));
     }
 
     @Operation(summary = "Edit text")
@@ -535,7 +539,7 @@ public class CampaignController {
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.ok(
-                nodeService.updateText(editorFor(authentication, principal), textId, request));
+                canvasService.updateText(editorFor(authentication, principal), textId, request));
     }
 
     @Operation(summary = "Remove text")
@@ -546,7 +550,7 @@ public class CampaignController {
             @PathVariable UUID textId,
             Authentication authentication,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        nodeService.removeText(editorFor(authentication, principal), campaignId, textId);
+        canvasService.removeText(editorFor(authentication, principal), campaignId, textId);
         return ResponseEntity.noContent().build();
     }
 }

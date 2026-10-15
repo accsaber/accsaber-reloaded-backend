@@ -10,7 +10,6 @@ public class BeatLeaderScoreResponse {
 
     private Long id;
     private Integer baseScore;
-    private Integer modifiedScore;
     private String modifiers;
     private Integer rank;
     private Integer wallsHit;

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.domain.JpaSort;
 
 import com.accsaber.backend.model.entity.score.SnipeSort;
 import com.accsaber.backend.model.entity.score.SnipeUnplayed;
+import com.accsaber.backend.repository.SortAliases;
 
 public record SnipeQuery(Long sniperId, Long targetId, String categoryCode, SnipeSort sort, Sort.Direction direction,
         SnipeUnplayed unplayed) {
@@ -29,9 +30,7 @@ public record SnipeQuery(Long sniperId, Long targetId, String categoryCode, Snip
     }
 
     public Sort toSort() {
-        Sort primary = Sort.by(JpaSort.unsafe(direction, sort.getExpression()).stream()
-                .map(order -> order.with(Sort.NullHandling.NULLS_LAST))
-                .toList());
-        return primary.and(JpaSort.unsafe(Sort.Direction.ASC, "s_b.id"));
+        return SortAliases.nullsLast(JpaSort.unsafe(direction, sort.getExpression()))
+                .and(JpaSort.unsafe(Sort.Direction.ASC, "s_b.id"));
     }
 }

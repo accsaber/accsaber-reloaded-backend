@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ForbiddenException;
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -26,8 +25,7 @@ public class ClanAccessService {
 
     public User player(Long playerId) {
         Long userId = duplicateUserService.resolvePrimaryUserId(playerId);
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         if (user.isBanned()) {
             throw new ForbiddenException("Banned players cannot take part in clans");
         }

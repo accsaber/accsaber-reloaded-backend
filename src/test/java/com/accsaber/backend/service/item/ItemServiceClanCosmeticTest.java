@@ -39,7 +39,7 @@ class ItemServiceClanCosmeticTest {
     private DuplicateUserService duplicateUserService;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @Test
     void aClanCosmeticNeverLandsInAPlayerInventory() {
@@ -50,7 +50,7 @@ class ItemServiceClanCosmeticTest {
         when(itemRepository.findByIdAndActiveTrue(ITEM_ID)).thenReturn(Optional.of(
                 Item.builder().id(ITEM_ID).type(tagCard).name("Aurora Card").active(true).build()));
 
-        assertThatThrownBy(() -> itemService.awardManual(USER_ID, ITEM_ID, null, "wrong shelf", null, 1L, null))
+        assertThatThrownBy(() -> itemAwardService.awardManual(USER_ID, ITEM_ID, null, "wrong shelf", null, 1L, null))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("clan cosmetic");
 

@@ -13,6 +13,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -46,6 +48,7 @@ public class CampaignDifficultyModifier {
     @JoinColumn(name = "modifier_id", nullable = false)
     private Modifier modifier;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CampaignModifierRequirement requirement;
 

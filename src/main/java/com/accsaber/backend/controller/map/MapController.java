@@ -29,7 +29,7 @@ import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.service.player.UserRelationService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,7 +43,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 public class MapController {
 
     private final MapService mapService;
-    private final ScoreService scoreService;
+    private final ScoreQueryService scoreQueryService;
     private final MapDifficultyStatisticsService statisticsService;
     private final UserRelationService userRelationService;
     private final CategoryService categoryService;
@@ -132,7 +132,7 @@ public class MapController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
         UUID difficultyId = mapService.findDifficultyIdByLeaderboardId(leaderboardId);
-        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search,
+        return ResponseEntity.ok(scoreQueryService.findLeaderboardByMapDifficulty(difficultyId, country, search,
                 userRelationService.resolveRelationFilter(relation, principal), pageable));
     }
 
@@ -146,7 +146,7 @@ public class MapController {
             @RequestParam(required = false) UserRelationType relation,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(scoreService.findLeaderboardByMapDifficulty(difficultyId, country, search,
+        return ResponseEntity.ok(scoreQueryService.findLeaderboardByMapDifficulty(difficultyId, country, search,
                 userRelationService.resolveRelationFilter(relation, principal), pageable));
     }
 
@@ -159,7 +159,7 @@ public class MapController {
             @RequestParam(defaultValue = "4") int above,
             @RequestParam(defaultValue = "5") int below) {
         UUID difficultyId = mapService.findDifficultyIdByLeaderboardId(leaderboardId);
-        return ResponseEntity.ok(scoreService.findScoresAround(difficultyId, userId, above, below));
+        return ResponseEntity.ok(scoreQueryService.findScoresAround(difficultyId, userId, above, below));
     }
 
     @Operation(summary = "Difficulty stats now", description = "204 if nobody has scored on it yet.")

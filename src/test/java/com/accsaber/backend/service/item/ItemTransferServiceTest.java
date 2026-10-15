@@ -46,7 +46,7 @@ class ItemTransferServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private ItemService itemService;
+    private ItemEquipService itemEquipService;
     @Mock
     private UserItemTradeItemRepository tradeItemRepository;
 
@@ -116,7 +116,7 @@ class ItemTransferServiceTest {
         UserItemLink escrowLink = link(SELLER_ID, item, 3L);
         escrowLink.setEscrowed(true);
         UserItemLink buyerStack = link(BUYER_ID, item, 4L);
-        when(userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(BUYER_ID, item.getId()))
+        when(userItemLinkRepository.findStacksForUpdate(BUYER_ID, item.getId()))
                 .thenReturn(List.of(buyerStack));
 
         transferService.transferEscrowed(escrowLink, BUYER_ID, ItemSource.market, "Purchased on the market");
@@ -139,7 +139,7 @@ class ItemTransferServiceTest {
 
         transferService.transferEscrowed(escrowLink, BUYER_ID, ItemSource.market, "Purchased on the market");
 
-        verify(itemService).clearEquippedIfLinkGone(SELLER_ID, escrowLink.getId(), "title");
+        verify(itemEquipService).clearEquippedIfLinkGone(SELLER_ID, escrowLink.getId(), "title");
     }
 
     @Test
@@ -163,7 +163,7 @@ class ItemTransferServiceTest {
         UserItemLink escrowLink = link(SELLER_ID, item, 3L);
         escrowLink.setEscrowed(true);
         UserItemLink remainder = link(SELLER_ID, item, 7L);
-        when(userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(SELLER_ID, item.getId()))
+        when(userItemLinkRepository.findStacksForUpdate(SELLER_ID, item.getId()))
                 .thenReturn(List.of(remainder));
 
         transferService.releaseEscrow(escrowLink);
@@ -179,7 +179,7 @@ class ItemTransferServiceTest {
         UserItemLink escrowLink = link(SELLER_ID, item, 3L);
         escrowLink.setEscrowed(true);
         UserItemLink offered = link(SELLER_ID, item, 7L);
-        when(userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(SELLER_ID, item.getId()))
+        when(userItemLinkRepository.findStacksForUpdate(SELLER_ID, item.getId()))
                 .thenReturn(List.of(offered));
         when(tradeItemRepository.findLinkIdsInTradesWithStatus(List.of(offered.getId()), TradeStatus.pending))
                 .thenReturn(List.of(offered.getId()));

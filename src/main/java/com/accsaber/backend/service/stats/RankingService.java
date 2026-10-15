@@ -122,8 +122,7 @@ public class RankingService {
         AfterCommit.run(() -> rankingExecutor.execute(() -> updateRankingForUser(categoryId, userId, postRankingCallback)));
     }
 
-    @CacheEvict(value = "leaderboards", allEntries = true)
-    public void updateRankingForUser(UUID categoryId, Long userId, Runnable postRankingCallback) {
+    private void updateRankingForUser(UUID categoryId, Long userId, Runnable postRankingCallback) {
         ReentrantLock lock = categoryLocks.computeIfAbsent(categoryId, k -> new ReentrantLock());
         lock.lock();
         try {

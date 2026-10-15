@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -40,7 +39,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.util.Rounding;
 
 import lombok.RequiredArgsConstructor;
@@ -68,10 +67,8 @@ public class MissionAssignmentService {
     private final MissionRolloverService rolloverService;
     private final EventMissionService eventMissionService;
     private final TransactionTemplate transactionTemplate;
-
-    @Autowired
     @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    private final Executor backfillExecutor;
 
     @Scheduled(cron = "${accsaber.scheduler.mission-daily-cron:0 0 4 * * *}")
     public void runDailyCron() {
@@ -181,7 +178,7 @@ public class MissionAssignmentService {
 
     public Item activeCrateSentinel() {
         return itemRepository.findByType_Key("crate").stream()
-                .filter(i -> i.isActive() && ItemService.isActiveCrateSentinel(i))
+                .filter(i -> i.isActive() && ItemAwardService.isActiveCrateSentinel(i))
                 .findFirst().orElse(null);
     }
 
@@ -206,8 +203,7 @@ public class MissionAssignmentService {
         }
     }
 
-    @Transactional
-    public List<UserMission> assignForUser(Long userId, MissionPool pool, MissionPoolCache cache,
+    private List<UserMission> assignForUser(Long userId, MissionPool pool, MissionPoolCache cache,
             boolean freshSeed) {
         User user = userRepository.findByIdAndActiveTrue(userId).orElse(null);
         if (user == null || user.isBanned())

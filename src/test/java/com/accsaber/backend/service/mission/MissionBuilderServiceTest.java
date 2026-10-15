@@ -10,10 +10,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,9 +25,17 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
+import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.mission.MissionBand;
+import com.accsaber.backend.model.entity.mission.MissionPool;
+import com.accsaber.backend.model.entity.mission.MissionTemplate;
+import com.accsaber.backend.model.entity.mission.MissionType;
+import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.model.entity.score.Score;
+import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.repository.score.ScoreRepository;
+import com.accsaber.backend.repository.user.UserRepository;
 
 class MissionBuilderServiceTest {
 
@@ -141,6 +152,60 @@ class MissionBuilderServiceTest {
                 eq(42L), eq(category.getId()), eq(0.0), eq(10.0), eq(13.0));
         verify(skillService, times(1)).representativeNormalizedApForComplexityBand(
                 eq(42L), eq(category.getId()), eq(0.0), eq(7.0), eq(10.0));
+    }
+
+    @Test
+    void accAndApMapMissionsDrawTheSameMapBandAndRewardFromTheSameSeed() {
+        MissionCalibrationService calibration = mock(MissionCalibrationService.class);
+        MissionTargetService targets = mock(MissionTargetService.class);
+        MissionBuilderService builder = new MissionBuilderService(mock(UserRepository.class),
+                mock(ScoreRepository.class), calibration, targets, skillService);
+        Category mapCategory = Category.builder().id(UUID.randomUUID()).code("true_acc").scoreCurve(scoreCurve)
+                .build();
+        MissionAssignmentContext mapCtx = new MissionAssignmentContext(42L, List.of(mapCategory),
+                Map.of(mapCategory.getId(), UserCategorySkill.builder().rawApForOneGain(800.0).build()), Map.of(),
+                0.0);
+        MapPick picked = pick(11.0);
+        when(targets.sampleEligibleMap(any(), any(), any(), any())).thenReturn(picked);
+        when(targets.applyLeaderboardDensityDampener(any(), any(), any(), any(), any())).thenReturn(900.0);
+        when(calibration.targetAccuracy(any(), any(), any(), any())).thenReturn(0.995);
+        List<Item> items = List.of(Item.builder().id(UUID.randomUUID()).build(),
+                Item.builder().id(UUID.randomUUID()).build());
+
+        for (long seed = 0; seed < 20; seed++) {
+            UserMission acc = builder.pickAndBuildForCategory(mapDraw(mapCtx, seed, items),
+                    List.of(template(MissionType.ACC_ON_MAP)), mapCategory, null);
+            UserMission ap = builder.pickAndBuildForCategory(mapDraw(mapCtx, seed, items),
+                    List.of(template(MissionType.AP_ON_MAP)), mapCategory, null);
+
+            Random expected = new Random(seed);
+            int bandRoll = expected.nextInt(100);
+            MissionBand band = bandRoll < 30 ? MissionBand.easy
+                    : bandRoll < 70 ? MissionBand.medium : bandRoll < 95 ? MissionBand.hard : MissionBand.extreme;
+            Item item = expected.nextInt(100) >= 15 ? null : items.get(expected.nextInt(items.size()));
+
+            assertThat(acc.getBand()).isEqualTo(band);
+            assertThat(acc.getItemReward()).isEqualTo(item);
+            assertThat(acc.getTargetMapDifficulty()).isSameAs(picked.difficulty());
+            assertThat(acc.getTargetAcc()).isEqualTo(0.995);
+            assertThat(acc.getTargetScore()).isEqualTo(995);
+            assertThat(acc.getTargetAp()).isNull();
+            assertThat(ap.getBand()).isEqualTo(band);
+            assertThat(ap.getItemReward()).isEqualTo(item);
+            assertThat(ap.getTargetMapDifficulty()).isSameAs(picked.difficulty());
+            assertThat(ap.getTargetAp()).isEqualTo(900.0);
+            assertThat(ap.getTargetScore()).isEqualTo(995);
+            assertThat(ap.getTargetAcc()).isNull();
+        }
+    }
+
+    private MissionDraw mapDraw(MissionAssignmentContext mapCtx, long seed, List<Item> items) {
+        return new MissionDraw(mapCtx, Instant.EPOCH, MissionPool.daily, new Random(seed),
+                new MissionPoolCache(List.of(), List.of(), items, null, new ConcurrentHashMap<>()), null);
+    }
+
+    private MissionTemplate template(MissionType type) {
+        return MissionTemplate.builder().id(UUID.randomUUID()).code(type.name()).type(type).weight(1).build();
     }
 
     private void stubRepresentativeNormalizedAp(Double value) {

@@ -61,7 +61,7 @@ import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,7 +81,7 @@ class MissionProgressServiceTest {
         @Mock
         private LevelUpAwardService levelUpAwardService;
         @Mock
-        private ItemService itemService;
+        private ItemAwardService itemAwardService;
         @Mock
         private UserRepository userRepository;
         @Mock

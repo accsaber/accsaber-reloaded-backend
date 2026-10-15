@@ -46,7 +46,6 @@ public interface CampaignLeaderboardRepository extends JpaRepository<UserCampaig
               AND u.active = true AND u.banned = false
               AND md.max_score IS NOT NULL AND md.max_score > 0
             GROUP BY u.id, u.name, u.country, u.avatar_url, u.cdn_avatar_url
-            ORDER BY avg_acc DESC
             """,
             countQuery = """
             SELECT count(DISTINCT uc.user_id)
@@ -63,43 +62,7 @@ public interface CampaignLeaderboardRepository extends JpaRepository<UserCampaig
               AND md.max_score IS NOT NULL AND md.max_score > 0
             """,
             nativeQuery = true)
-    Page<Object[]> averagesByAccuracy(@Param("campaignId") UUID campaignId, Pageable pageable);
-
-    @Query(value = """
-            SELECT u.id, u.name, u.country, u.avatar_url, u.cdn_avatar_url,
-                   AVG(s.score_no_mods::numeric / md.max_score) AS avg_acc,
-                   AVG(s.ap) AS avg_ap,
-                   COUNT(*) AS nodes
-            FROM user_campaigns uc
-            JOIN users u ON u.id = uc.user_id
-            JOIN user_campaign_scores ucs
-              ON ucs.user_id = uc.user_id AND ucs.campaign_id = uc.campaign_id AND ucs.active = true
-            JOIN campaign_difficulties cd
-              ON ucs.campaign_difficulty_id = cd.id AND cd.active = true AND cd.barrier = false
-            JOIN scores s ON s.id = ucs.score_id
-            JOIN map_difficulties md ON md.id = s.map_difficulty_id
-            WHERE uc.campaign_id = :campaignId AND uc.status = 'completed' AND uc.active = true
-              AND u.active = true AND u.banned = false
-              AND md.max_score IS NOT NULL AND md.max_score > 0
-            GROUP BY u.id, u.name, u.country, u.avatar_url, u.cdn_avatar_url
-            ORDER BY avg_ap DESC
-            """,
-            countQuery = """
-            SELECT count(DISTINCT uc.user_id)
-            FROM user_campaigns uc
-            JOIN users u ON u.id = uc.user_id
-            JOIN user_campaign_scores ucs
-              ON ucs.user_id = uc.user_id AND ucs.campaign_id = uc.campaign_id AND ucs.active = true
-            JOIN campaign_difficulties cd
-              ON ucs.campaign_difficulty_id = cd.id AND cd.active = true AND cd.barrier = false
-            JOIN scores s ON s.id = ucs.score_id
-            JOIN map_difficulties md ON md.id = s.map_difficulty_id
-            WHERE uc.campaign_id = :campaignId AND uc.status = 'completed' AND uc.active = true
-              AND u.active = true AND u.banned = false
-              AND md.max_score IS NOT NULL AND md.max_score > 0
-            """,
-            nativeQuery = true)
-    Page<Object[]> averagesByAp(@Param("campaignId") UUID campaignId, Pageable pageable);
+    Page<Object[]> averages(@Param("campaignId") UUID campaignId, Pageable pageable);
 
     @Query(value = """
             SELECT u.id, u.name, u.country, u.avatar_url, u.cdn_avatar_url, uc.status, uc.completed_at,

@@ -21,6 +21,7 @@ import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
+import com.accsaber.backend.service.mission.MissionMapper;
 import com.accsaber.backend.service.mission.SharedMissionContextLoader;
 
 import lombok.RequiredArgsConstructor;
@@ -41,13 +42,13 @@ public class ClanMissionService {
         clanRepository.requireActive(clanId);
         Page<UserMission> page = userMissionRepository.findClanShared(clanId, current, Instant.now(), pageable);
         boolean seasonRunning = standingService.currentSeason().isPresent();
-        Map<UUID, MissionResponse.ClanReward> rewards = page.getContent().stream()
-                .collect(Collectors.toMap(UserMission::getId, mission -> new MissionResponse.ClanReward(
+        Map<UUID, MissionMapper.ClanReward> rewards = page.getContent().stream()
+                .collect(Collectors.toMap(UserMission::getId, mission -> new MissionMapper.ClanReward(
                         (int) Math.round(clanXpFor(mission)),
                         seasonRunning ? (int) Math.round(standingFor(mission)) : null)));
-        MissionResponse.SharedContext context = sharedMissionContextLoader.load(page.getContent(), viewerId)
+        MissionMapper.SharedContext context = sharedMissionContextLoader.load(page.getContent(), viewerId)
                 .withClanRewards(rewards);
-        return page.map(mission -> MissionResponse.from(mission, context));
+        return page.map(mission -> MissionMapper.from(mission, context));
     }
 
     public Page<MissionContributorResponse> contributors(UUID clanId, UUID missionId, Pageable pageable) {

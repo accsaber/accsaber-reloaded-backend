@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
@@ -32,13 +31,7 @@ public class ComplexityModelClient {
     }
 
     public Optional<NoteAccuracies> noteAccuracies(byte[] zipBytes, String difficulty, String characteristic) {
-        MultipartBodyBuilder builder = new MultipartBodyBuilder();
-        builder.part("zip", new ByteArrayResource(zipBytes) {
-            @Override
-            public String getFilename() {
-                return "map.zip";
-            }
-        }).contentType(MediaType.APPLICATION_OCTET_STREAM);
+        MultipartBodyBuilder builder = ClientSupport.mapZipForm(zipBytes);
         builder.part("difficulty", difficulty);
         builder.part("characteristic", characteristic);
         try {

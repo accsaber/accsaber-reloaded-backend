@@ -313,8 +313,8 @@ public class DuplicateUserService {
 
     @Async("taskExecutor")
     public void recalculateAfterUnmerge(Long primaryUserId, Long secondaryUserId) {
-        userRepository.recalculateTotalXpForUser(primaryUserId);
-        userRepository.recalculateTotalXpForUser(secondaryUserId);
+        userRepository.rebuildXpTotals(primaryUserId);
+        userRepository.rebuildXpTotals(secondaryUserId);
 
         var categories = categoryRepository.findByActiveTrueAndCountForOverallTrue();
         for (var category : categories) {
@@ -425,7 +425,7 @@ public class DuplicateUserService {
             usersByCategory.put(category.getId(), primaryUserIds);
         }
         scoreRecalculationService.recalculatePlayers(usersByCategory, usersByCategory.keySet(), PlayerRecalc.MERGE);
-        primaryUserIds.forEach(userRepository::recalculateTotalXpForUser);
+        primaryUserIds.forEach(userRepository::rebuildXpTotals);
         log.info("Bulk merge recalculation complete for {} users", primaryUserIds.size());
     }
 

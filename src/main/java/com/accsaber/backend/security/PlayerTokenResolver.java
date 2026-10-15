@@ -36,11 +36,11 @@ public class PlayerTokenResolver {
         }
         Long userId;
         try {
-            jwtService.validateToken(token);
-            if (!JwtService.TYPE_PLAYER.equals(jwtService.extractTokenType(token))) {
+            JwtService.VerifiedToken verified = jwtService.verify(token);
+            if (!JwtService.TYPE_PLAYER.equals(verified.type())) {
                 return Resolution.rejected(HttpStatus.UNAUTHORIZED, "non-player token");
             }
-            userId = duplicateUserService.resolvePrimaryUserId(jwtService.extractPlayerId(token));
+            userId = duplicateUserService.resolvePrimaryUserId(verified.playerId());
         } catch (JwtException | IllegalArgumentException e) {
             return Resolution.rejected(HttpStatus.UNAUTHORIZED, "invalid token (" + e.getMessage() + ")");
         }

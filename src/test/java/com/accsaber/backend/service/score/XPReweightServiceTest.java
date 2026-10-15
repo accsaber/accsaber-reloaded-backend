@@ -53,14 +53,7 @@ class XPReweightServiceTest {
         @BeforeEach
         void setUp() {
                 service = new XPReweightService(scoreRepository, userRepository, statisticsRepository,
-                                mapComplexityService, xpCalculationService);
-                try {
-                        var field = XPReweightService.class.getDeclaredField("backfillExecutor");
-                        field.setAccessible(true);
-                        field.set(service, directExecutor);
-                } catch (Exception e) {
-                        throw new RuntimeException(e);
-                }
+                                mapComplexityService, xpCalculationService, directExecutor);
                 user = User.builder().id(42L).name("TestPlayer").build();
         }
 
@@ -330,7 +323,7 @@ class XPReweightServiceTest {
                         verify(scoreRepository).saveAll(any());
                         verify(xpCalculationService).evictXpCurveCache();
                         verify(statisticsRepository).rebuildScoreXp(null);
-                        verify(userRepository).recalculateTotalXpForAllActiveUsers();
+                        verify(userRepository).rebuildXpTotals(null);
                 }
         }
 
@@ -342,7 +335,7 @@ class XPReweightServiceTest {
                         service.recalculateTotalXpForAllUsers();
 
                         verify(statisticsRepository).rebuildScoreXp(null);
-                        verify(userRepository).recalculateTotalXpForAllActiveUsers();
+                        verify(userRepository).rebuildXpTotals(null);
                 }
         }
 
@@ -354,7 +347,7 @@ class XPReweightServiceTest {
                         service.recalculateTotalXpForUser(42L);
 
                         verify(statisticsRepository).rebuildScoreXp(42L);
-                        verify(userRepository).recalculateTotalXpForUser(42L);
+                        verify(userRepository).rebuildXpTotals(42L);
                 }
         }
 }

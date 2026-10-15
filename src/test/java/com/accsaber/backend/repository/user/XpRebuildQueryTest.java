@@ -161,7 +161,7 @@ class XpRebuildQueryTest {
         persistScore(0.0, false, "Campaign attempt");
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForUser(user.getId());
+        userRepository.rebuildXpTotals(user.getId());
 
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(325.0);
@@ -224,7 +224,7 @@ class XpRebuildQueryTest {
         persistScore(120.0, true, null);
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForAllActiveUsers();
+        userRepository.rebuildXpTotals(null);
 
         entityManager.refresh(user);
         assertThat(user.getTotalXp()).isEqualTo(120.0);
@@ -261,7 +261,7 @@ class XpRebuildQueryTest {
                 .executeUpdate();
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForUser(user.getId());
+        userRepository.rebuildXpTotals(user.getId());
 
         entityManager.refresh(user);
         assertThat(user.getMissionXp()).isEqualTo(100.0);
@@ -300,7 +300,7 @@ class XpRebuildQueryTest {
                 .executeUpdate();
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForUser(user.getId());
+        userRepository.rebuildXpTotals(user.getId());
 
         entityManager.refresh(user);
         assertThat(user.getClanXp()).isEqualTo(150.0);
@@ -366,7 +366,7 @@ class XpRebuildQueryTest {
         warWithHit(40.0, Instant.parse("2025-01-01T00:00:00Z"));
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForUser(user.getId());
+        userRepository.rebuildXpTotals(user.getId());
         List<Object[]> timeline = userRepository.findXpTimeline(user.getId());
 
         entityManager.refresh(user);
@@ -385,7 +385,7 @@ class XpRebuildQueryTest {
                 .setParameter(2, war).setParameter(3, user.getId()).executeUpdate();
         entityManager.flush();
 
-        userRepository.recalculateTotalXpForUser(user.getId());
+        userRepository.rebuildXpTotals(user.getId());
         List<Object[]> timeline = userRepository.findXpTimeline(user.getId());
 
         entityManager.refresh(user);

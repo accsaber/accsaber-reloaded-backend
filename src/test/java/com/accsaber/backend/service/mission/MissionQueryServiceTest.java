@@ -3,6 +3,7 @@ package com.accsaber.backend.service.mission;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -34,7 +35,7 @@ class MissionQueryServiceTest {
 
     @Test
     void theUnfilteredListsLeaveClanRowsOut() {
-        when(userMissionRepository.findCurrentByUser(eq(USER), any())).thenReturn(List.of(weekly, clanRow));
+        when(userMissionRepository.findCurrentByUser(eq(USER), isNull(), any())).thenReturn(List.of(weekly, clanRow));
         when(userMissionRepository.findByUser_IdAndStatus(USER, MissionStatus.completed))
                 .thenReturn(List.of(clanRow, weekly));
 
@@ -44,7 +45,7 @@ class MissionQueryServiceTest {
 
     @Test
     void askingForTheClanPoolReturnsTheClanRows() {
-        when(userMissionRepository.findCurrentByUserAndPool(eq(USER), eq(MissionPool.clan), any()))
+        when(userMissionRepository.findCurrentByUser(eq(USER), eq(MissionPool.clan), any()))
                 .thenReturn(List.of(clanRow));
 
         assertThat(service.listActiveByPool(USER, MissionPool.clan)).containsExactly(clanRow);

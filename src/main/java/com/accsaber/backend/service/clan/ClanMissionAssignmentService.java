@@ -10,7 +10,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,10 +55,8 @@ public class ClanMissionAssignmentService {
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
     private final ClanChatChannel clanChatChannel;
-
-    @Autowired
     @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    private final Executor backfillExecutor;
 
     @Transactional
     public int expireStale() {

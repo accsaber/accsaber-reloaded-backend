@@ -29,7 +29,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -91,8 +90,7 @@ class ClanMissionAssignmentServiceTest {
     void setUp() {
         service = new ClanMissionAssignmentService(clanRepository, memberRepository, templateRepository,
                 userMissionRepository, missionAssignmentService, builderService, rowFactory, rolloverService,
-                clanProperties, transactionTemplate, clanChatChannel);
-        ReflectionTestUtils.setField(service, "backfillExecutor", backfillExecutor);
+                clanProperties, transactionTemplate, clanChatChannel, backfillExecutor);
         lenient().when(clanRepository.findByIdAndActiveTrue(clan.getId())).thenReturn(Optional.of(clan));
         lenient().when(rolloverService.nextRollover(eq(MissionPool.clan), any())).thenReturn(WEEK_END);
         lenient().when(userMissionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

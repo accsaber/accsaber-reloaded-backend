@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -22,8 +23,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.accsaber.backend.model.dto.request.news.CreateNewsRequest;
-import com.accsaber.backend.model.dto.request.news.UpdateNewsRequest;
+import com.accsaber.backend.model.dto.request.OnCreate;
+import com.accsaber.backend.model.dto.request.news.NewsRequest;
 import com.accsaber.backend.model.dto.response.news.NewsResponse;
 import com.accsaber.backend.model.entity.news.NewsStatus;
 import com.accsaber.backend.model.entity.news.NewsType;
@@ -74,7 +75,7 @@ public class AdminNewsController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RANKING_HEAD')")
     @PostMapping
     public ResponseEntity<NewsResponse> create(
-            @Valid @RequestBody CreateNewsRequest request,
+            @Validated(OnCreate.class) @RequestBody NewsRequest request,
             Authentication authentication) {
         NewsResponse response = newsService.create(request, StaffPrincipals.staffIdOf(authentication));
         return ResponseEntity.created(URI.create("/v1/news/" + response.getId())).body(response);
@@ -85,7 +86,7 @@ public class AdminNewsController {
     @PatchMapping("/{id}")
     public ResponseEntity<NewsResponse> update(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateNewsRequest request,
+            @Valid @RequestBody NewsRequest request,
             Authentication authentication) {
         NewsResponse response = newsService.update(
                 id,

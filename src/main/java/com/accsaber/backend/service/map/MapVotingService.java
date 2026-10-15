@@ -52,17 +52,14 @@ public class MapVotingService {
     @Value("${accsaber.voting.unrank-threshold:3}")
     private int unrankThreshold;
 
-    private record StaffInfo(String username, String avatarUrl) {
-    }
-
     public VoteListResponse getVotes(UUID mapDifficultyId, MapVoteAction type) {
         List<StaffMapVote> voteEntities = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
-        java.util.Map<UUID, StaffInfo> staffInfo = loadStaffInfo(voteEntities);
+        java.util.Map<UUID, StaffUser> staff = loadStaff(voteEntities);
         Double complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
 
         List<VoteResponse> votes = voteEntities.stream()
                 .filter(v -> v.getType() == type)
-                .map(v -> toResponse(v, staffInfo.get(v.getStaffId()), complexity))
+                .map(v -> toResponse(v, staff.get(v.getStaffId()), complexity))
                 .toList();
 
         boolean rankReady = isThresholdMet(mapDifficultyId, MapVoteAction.RANK, rankThreshold);
@@ -92,23 +89,14 @@ public class MapVotingService {
 
     public Page<VoteResponse> getActivityFeed(Pageable pageable) {
         Page<StaffMapVote> votes = voteRepository.findAllActiveWithMap(pageable);
-        List<UUID> staffIds = votes.getContent().stream()
-                .map(StaffMapVote::getStaffId)
-                .distinct()
-                .toList();
-        java.util.Map<UUID, StaffInfo> staffInfo = staffIds.isEmpty()
-                ? java.util.Map.of()
-                : staffUserRepository.findAllByIdWithUser(staffIds).stream()
-                        .collect(java.util.stream.Collectors.toMap(StaffUser::getId,
-                                s -> new StaffInfo(s.getUsername(),
-                                        s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
+        java.util.Map<UUID, StaffUser> staff = loadStaff(votes.getContent());
         List<UUID> difficultyIds = votes.getContent().stream()
                 .map(v -> v.getMapDifficulty().getId())
                 .distinct()
                 .toList();
         java.util.Map<UUID, Double> complexities = complexityService
                 .findActiveComplexitiesForDifficulties(difficultyIds);
-        return votes.map(v -> toResponse(v, staffInfo.get(v.getStaffId()),
+        return votes.map(v -> toResponse(v, staff.get(v.getStaffId()),
                 complexities.get(v.getMapDifficulty().getId())));
     }
 
@@ -150,13 +138,8 @@ public class MapVotingService {
             }
         }
 
-        StaffInfo info = staffUserRepository.findAllByIdWithUser(List.of(staffId)).stream()
-                .findFirst()
-                .map(s -> new StaffInfo(s.getUsername(),
-                        s.getUser() != null ? s.getUser().getAvatarUrl() : null))
-                .orElse(null);
         Double complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
-        return toResponse(saved, info, complexity);
+        return toResponse(saved, loadStaff(List.of(saved)).get(staffId), complexity);
     }
 
     @Transactional
@@ -295,7 +278,7 @@ public class MapVotingService {
                 .build();
     }
 
-    private java.util.Map<UUID, StaffInfo> loadStaffInfo(List<StaffMapVote> votes) {
+    private java.util.Map<UUID, StaffUser> loadStaff(List<StaffMapVote> votes) {
         List<UUID> staffIds = votes.stream()
                 .map(StaffMapVote::getStaffId)
                 .distinct()
@@ -304,12 +287,10 @@ public class MapVotingService {
             return java.util.Map.of();
 
         return staffUserRepository.findAllByIdWithUser(staffIds).stream()
-                .collect(java.util.stream.Collectors.toMap(StaffUser::getId,
-                        s -> new StaffInfo(s.getUsername(),
-                                s.getUser() != null ? s.getUser().getAvatarUrl() : null)));
+                .collect(java.util.stream.Collectors.toMap(StaffUser::getId, s -> s));
     }
 
-    private VoteResponse toResponse(StaffMapVote v, StaffInfo info, Double complexity) {
+    private VoteResponse toResponse(StaffMapVote v, StaffUser staff, Double complexity) {
         var map = v.getMapDifficulty().getMap();
         return VoteResponse.builder()
                 .id(v.getId())
@@ -323,8 +304,9 @@ public class MapVotingService {
                 .coverUrl(map.getCoverUrl())
                 .cdnCoverUrl(map.getCdnCoverUrl())
                 .staffId(v.getStaffId())
-                .staffUsername(info != null ? info.username() : null)
-                .staffAvatarUrl(info != null ? info.avatarUrl() : null)
+                .staffUsername(staff != null ? staff.getUsername() : null)
+                .staffAvatarUrl(staff != null && staff.getUser() != null ? staff.getUser().getAvatarUrl() : null)
+                .staffRole(staff != null ? staff.getRole() : null)
                 .vote(v.getVote())
                 .type(v.getType())
                 .suggestedComplexity(v.getSuggestedComplexity())

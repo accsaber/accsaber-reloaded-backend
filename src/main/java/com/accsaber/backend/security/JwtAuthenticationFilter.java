@@ -79,9 +79,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = authHeader.substring(7);
+        JwtService.VerifiedToken token;
         try {
-            jwtService.validateToken(token);
+            token = jwtService.verify(authHeader.substring(7));
         } catch (JwtException e) {
             log.warn("Invalid JWT token: {}", e.getMessage());
             chain.doFilter(request, response);
@@ -102,11 +102,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private UserDetails loadUserDetails(String token, List<StaffRole> surfacedRoles) {
-        String type = jwtService.extractTokenType(token);
+    private UserDetails loadUserDetails(JwtService.VerifiedToken token, List<StaffRole> surfacedRoles) {
+        String type = token.type();
         if (JwtService.TYPE_PLAYER.equals(type)) {
-            Long userId = duplicateUserService.resolvePrimaryUserId(jwtService.extractPlayerId(token));
-            String scope = jwtService.extractPlayerScope(token);
+            Long userId = duplicateUserService.resolvePrimaryUserId(token.playerId());
+            String scope = token.scope();
             return userRepository.findByIdAndActiveTrue(userId)
                     .map(user -> {
                         StaffUser staff = surfaceStaffRole(userId, surfacedRoles);
@@ -120,7 +120,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         if (JwtService.TYPE_STAFF.equals(type)) {
             return staffUserRepository
-                    .findByIdAndActiveTrueAndStatus(jwtService.extractStaffId(token), StaffUserStatus.ACCEPTED)
+                    .findByIdAndActiveTrueAndStatus(token.staffId(),StaffUserStatus.ACCEPTED)
                     .map(StaffUserDetails::new)
                     .orElse(null);
         }

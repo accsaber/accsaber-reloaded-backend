@@ -507,8 +507,8 @@ class DuplicateUserServiceTest {
 
                         service.recalculateAfterUnmerge(PRIMARY_ID, SECONDARY_ID);
 
-                        verify(userRepository).recalculateTotalXpForUser(PRIMARY_ID);
-                        verify(userRepository).recalculateTotalXpForUser(SECONDARY_ID);
+                        verify(userRepository).rebuildXpTotals(PRIMARY_ID);
+                        verify(userRepository).rebuildXpTotals(SECONDARY_ID);
                 }
 
                 @Test

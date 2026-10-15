@@ -131,12 +131,15 @@ class MapVotingServiceTest {
                         });
                         when(staffUserRepository.findAllByIdWithUser(List.of(staffId)))
                                         .thenReturn(List.of(
-                                                        StaffUser.builder().id(staffId).username("tester").build()));
+                                                        StaffUser.builder().id(staffId).username("tester")
+                                                                        .role(StaffRole.RANKING_HEAD).build()));
 
                         VoteResponse response = votingService.castVote(diff.getId(), staffId,
                                         VoteType.UPVOTE, MapVoteAction.RANK, null, "Looks good", null, null,
                                         StaffRole.RANKING);
 
+                        assertThat(response.getStaffUsername()).isEqualTo("tester");
+                        assertThat(response.getStaffRole()).isEqualTo(StaffRole.RANKING_HEAD);
                         assertThat(response.getVote()).isEqualTo(VoteType.UPVOTE);
                         assertThat(response.getType()).isEqualTo(MapVoteAction.RANK);
                         assertThat(response.getReason()).isEqualTo("Looks good");

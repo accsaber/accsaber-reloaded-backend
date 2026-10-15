@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.codec.DecodingException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -23,6 +22,8 @@ import reactor.util.retry.Retry;
 @Service
 public class ScoreSaberClient {
 
+    private static final Retry RATE_LIMIT_RETRY = ClientSupport.rateLimitRetry("ScoreSaber", 20, Duration.ofSeconds(3));
+
     private final WebClient webClient;
 
     public ScoreSaberClient(@Qualifier("scoreSaberWebClient") WebClient webClient) {
@@ -35,7 +36,7 @@ public class ScoreSaberClient {
                     .uri("/v2/players/{id}/basic", playerId)
                     .retrieve()
                     .bodyToMono(ScoreSaberPlayerResponse.class)
-                    .retryWhen(rateLimitRetrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block());
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -55,7 +56,7 @@ public class ScoreSaberClient {
                             .build(playerId))
                     .retrieve()
                     .bodyToMono(ScoreSaberPlayerScoresPage.class)
-                    .retryWhen(rateLimitRetrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block();
             if (page == null || page.getData() == null || page.getData().isEmpty()) {
                 return Optional.empty();
@@ -76,7 +77,7 @@ public class ScoreSaberClient {
                     .uri("/v2/scores/{id}/stats", scoreId)
                     .retrieve()
                     .bodyToMono(ScoreSaberScoreStats.class)
-                    .retryWhen(rateLimitRetrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block());
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -95,7 +96,7 @@ public class ScoreSaberClient {
                         .build(leaderboardId))
                 .retrieve()
                 .bodyToMono(ScoreSaberScoresPage.class)
-                .retryWhen(rateLimitRetrySpec())
+                .retryWhen(RATE_LIMIT_RETRY)
                 .block();
     }
 
@@ -110,7 +111,7 @@ public class ScoreSaberClient {
                         .build(leaderboardId))
                 .retrieve()
                 .bodyToMono(ScoreSaberScoresPage.class)
-                .retryWhen(rateLimitRetrySpec())
+                .retryWhen(RATE_LIMIT_RETRY)
                 .block();
     }
 
@@ -120,7 +121,7 @@ public class ScoreSaberClient {
                     .uri("/v2/leaderboards/{id}", leaderboardId)
                     .retrieve()
                     .bodyToMono(ScoreSaberLeaderboardResponse.class)
-                    .retryWhen(rateLimitRetrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block());
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -128,28 +129,5 @@ public class ScoreSaberClient {
             log.error("Failed to fetch SS leaderboard {}: {}", leaderboardId, e.getMessage());
             return Optional.empty();
         }
-    }
-
-    private Retry rateLimitRetrySpec() {
-        return Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(3))
-                .maxBackoff(Duration.ofSeconds(60))
-                .jitter(0.3)
-                .filter(throwable -> {
-                    if (throwable instanceof WebClientResponseException.NotFound)
-                        return false;
-                    if (throwable instanceof DecodingException)
-                        return false;
-                    if (throwable instanceof WebClientResponseException wce) {
-                        int code = wce.getStatusCode().value();
-                        if (code == 429) {
-                            log.warn("ScoreSaber 429 rate limited, backing off and retrying");
-                            return true;
-                        }
-                        if (code >= 400 && code < 500) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
     }
 }

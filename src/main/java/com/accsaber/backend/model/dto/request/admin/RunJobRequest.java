@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.admin.JobType;
 import com.accsaber.backend.model.entity.map.LeaderboardPlatform;
-import com.accsaber.backend.service.admin.JobType;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;

@@ -13,6 +13,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarRewardItemResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
 import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.service.clan.ClanMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,7 +26,7 @@ public class ClanWarRewardService {
     private final ItemRepository itemRepository;
 
     public List<ClanWarRewardItemResponse> list() {
-        return rewardItemRepository.findAllWithItems().stream().map(ClanWarRewardItemResponse::of).toList();
+        return rewardItemRepository.findAllWithItems().stream().map(ClanMapper::toWarRewardItemResponse).toList();
     }
 
     @Transactional
@@ -37,12 +38,12 @@ public class ClanWarRewardService {
                 .item(itemRepository.findById(request.getItemId())
                         .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId())))
                 .build();
-        return ClanWarRewardItemResponse.of(rewardItemRepository.save(apply(reward, request)));
+        return ClanMapper.toWarRewardItemResponse(rewardItemRepository.save(apply(reward, request)));
     }
 
     @Transactional
     public ClanWarRewardItemResponse update(UUID rewardId, ClanWarRewardItemRequest request) {
-        return ClanWarRewardItemResponse.of(rewardItemRepository.save(apply(find(rewardId), request)));
+        return ClanMapper.toWarRewardItemResponse(rewardItemRepository.save(apply(find(rewardId), request)));
     }
 
     @Transactional

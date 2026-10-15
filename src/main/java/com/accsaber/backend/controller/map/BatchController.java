@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.model.dto.response.map.PublicBatchResponse;
+import com.accsaber.backend.model.dto.response.map.BatchResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.service.map.BatchService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,7 +31,7 @@ public class BatchController {
 
     @Operation(summary = "Released batches", description = "Newest first. Unreleased batches do not show up.")
     @GetMapping
-    public ResponseEntity<Page<PublicBatchResponse>> listBatches(
+    public ResponseEntity<Page<BatchResponse<PublicMapDifficultyResponse>>> listBatches(
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(batchService.findAllPublic(search, pageable));
@@ -38,7 +39,7 @@ public class BatchController {
 
     @Operation(summary = "Get a released batch", description = "Unreleased batches give a 404.")
     @GetMapping("/{id}")
-    public ResponseEntity<PublicBatchResponse> getBatch(@PathVariable UUID id) {
+    public ResponseEntity<BatchResponse<PublicMapDifficultyResponse>> getBatch(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.findByIdPublic(id));
     }
 }

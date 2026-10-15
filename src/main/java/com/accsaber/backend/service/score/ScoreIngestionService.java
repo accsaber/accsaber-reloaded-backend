@@ -26,7 +26,6 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.map.MapDifficultyLeaderboardAliasRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
-import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.infra.MetricsService;
 import com.accsaber.backend.service.infra.ModifierCacheService;
 import com.accsaber.backend.service.player.DuplicateUserService;
@@ -35,21 +34,23 @@ import com.accsaber.backend.util.PlatformScoreMapper;
 
 import io.micrometer.core.instrument.Counter;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ScoreIngestionService {
 
     private final ScoreService scoreService;
     private final PlayerImportService playerImportService;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final MapDifficultyLeaderboardAliasRepository aliasRepository;
-    private final ScoreImportService scoreImportService;
+    private final ScoreGapFillService scoreGapFillService;
     private final ModifierCacheService modifierCacheService;
     private final PlatformProperties properties;
+    @Qualifier("ingestionScheduler")
     private final ScheduledExecutorService ingestionScheduler;
-
     private final MetricsService metricsService;
     private final DuplicateUserService duplicateUserService;
     private final ScoreSaberClient scoreSaberClient;
@@ -57,33 +58,6 @@ public class ScoreIngestionService {
 
     private volatile Set<String> rankedBlIds = Set.of();
     private volatile Set<String> rankedSsIds = Set.of();
-
-    public ScoreIngestionService(ScoreService scoreService,
-            PlayerImportService playerImportService,
-            MapDifficultyRepository mapDifficultyRepository,
-            MapDifficultyLeaderboardAliasRepository aliasRepository,
-            ScoreRepository scoreRepository,
-            ScoreImportService scoreImportService,
-            ModifierCacheService modifierCacheService,
-            PlatformProperties properties,
-            @Qualifier("ingestionScheduler") ScheduledExecutorService ingestionScheduler,
-            MetricsService metricsService,
-            DuplicateUserService duplicateUserService,
-            ScoreSaberClient scoreSaberClient,
-            CampaignScoreGate campaignScoreGate) {
-        this.scoreService = scoreService;
-        this.playerImportService = playerImportService;
-        this.mapDifficultyRepository = mapDifficultyRepository;
-        this.aliasRepository = aliasRepository;
-        this.scoreImportService = scoreImportService;
-        this.modifierCacheService = modifierCacheService;
-        this.properties = properties;
-        this.ingestionScheduler = ingestionScheduler;
-        this.metricsService = metricsService;
-        this.duplicateUserService = duplicateUserService;
-        this.scoreSaberClient = scoreSaberClient;
-        this.campaignScoreGate = campaignScoreGate;
-    }
 
     @PostConstruct
     public void init() {
@@ -241,7 +215,7 @@ public class ScoreIngestionService {
                             && difficulty.getSsLeaderboardId() != null);
             if (relevant) {
                 try {
-                    scoreImportService.gapFillDifficulty(difficulty, since, platform, enrichOnly);
+                    scoreGapFillService.gapFillDifficulty(difficulty, since, platform, enrichOnly);
                 } catch (Exception e) {
                     log.error("Gap fill error for difficulty {}: {}", difficulty.getId(), e.getMessage());
                 }

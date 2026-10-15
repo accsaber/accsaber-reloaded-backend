@@ -10,7 +10,7 @@ public final class TimeRangeUtil {
     private TimeRangeUtil() {
     }
 
-    public static ChronoUnit parseUnit(String unit) {
+    private static ChronoUnit parseUnit(String unit) {
         return switch (unit.toLowerCase()) {
             case "h" -> ChronoUnit.HOURS;
             case "d" -> ChronoUnit.DAYS;

@@ -219,7 +219,6 @@ class PlatformScoreMapperTest {
             ScoreSaberScoreResponse ss = buildScoreSaberScore();
             ss.setMods(java.util.List.of("NF"));
             ss.setUnmodifiedScore(890000);
-            ss.setModifiedScore(445000);
 
             SubmitScoreRequest result = PlatformScoreMapper.fromScoreSaber(ss, null, MAP_DIFF_ID, USER_ID,
                     MODIFIER_MAP);
@@ -232,7 +231,6 @@ class PlatformScoreMapperTest {
     private BeatLeaderScoreResponse buildBeatLeaderScore() {
         BeatLeaderScoreResponse bl = new BeatLeaderScoreResponse();
         bl.setId(123456L);
-        bl.setModifiedScore(950000);
         bl.setBaseScore(900000);
         bl.setRank(5);
         bl.setMaxCombo(500);
@@ -256,7 +254,6 @@ class PlatformScoreMapperTest {
     private ScoreSaberScoreResponse buildScoreSaberScore() {
         ScoreSaberScoreResponse ss = new ScoreSaberScoreResponse();
         ss.setId(789012L);
-        ss.setModifiedScore(940000);
         ss.setUnmodifiedScore(890000);
         ss.setRank(7);
         ss.setMaxCombo(480);

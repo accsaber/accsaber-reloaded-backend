@@ -192,8 +192,7 @@ public class ClanWarPoolService {
                 if (!category || complexity) {
                     throw new ValidationException("categoryId", "a category turf war needs a category and nothing else");
                 }
-                Category turf = categoryRepository.findByIdAndActiveTrue(request.getCategoryId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
+                Category turf = categoryRepository.requireActive(request.getCategoryId());
                 if (OVERALL_CODE.equals(turf.getCode())) {
                     throw new ValidationException("categoryId", "must be a ranked category, not overall");
                 }

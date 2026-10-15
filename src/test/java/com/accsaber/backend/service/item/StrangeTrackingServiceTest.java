@@ -26,7 +26,7 @@ class StrangeTrackingServiceTest {
     private static final Long USER_ID = 76561198087536397L;
 
     @Mock
-    private ItemService itemService;
+    private ItemEquipService itemEquipService;
     @Mock
     private UserItemLinkCounterRepository counterRepository;
 
@@ -38,7 +38,7 @@ class StrangeTrackingServiceTest {
         UserItemLink strangeBorder = link("strange", "founders");
         UserItemLink strangeTitle = link("strange");
         UserItemLink normal = link("normal");
-        when(itemService.findEffectiveEquippedLinks(USER_ID))
+        when(itemEquipService.findEffectiveEquippedLinks(USER_ID))
                 .thenReturn(List.of(strangeBorder, strangeTitle, normal));
 
         strangeTrackingService.recordPlay(USER_ID);
@@ -51,7 +51,7 @@ class StrangeTrackingServiceTest {
 
     @Test
     void nothingEquippedIncrementsNothing() {
-        when(itemService.findEffectiveEquippedLinks(USER_ID)).thenReturn(List.of());
+        when(itemEquipService.findEffectiveEquippedLinks(USER_ID)).thenReturn(List.of());
 
         strangeTrackingService.recordPlay(USER_ID);
 
@@ -60,7 +60,7 @@ class StrangeTrackingServiceTest {
 
     @Test
     void aFailingLookupNeverPropagates() {
-        when(itemService.findEffectiveEquippedLinks(USER_ID)).thenThrow(new IllegalStateException("boom"));
+        when(itemEquipService.findEffectiveEquippedLinks(USER_ID)).thenThrow(new IllegalStateException("boom"));
 
         strangeTrackingService.recordPlay(USER_ID);
 

@@ -93,7 +93,7 @@ src/main/resources/
 | `POSTGRES_DB`             | Yes      | Database name                              |
 | `POSTGRES_USER`           | Yes      | Database username                          |
 | `POSTGRES_PASSWORD`       | Yes      | Database password                          |
-| `JWT_SECRET`              | Yes      | Secret key for signing JWT tokens          |
+| `JWT_SECRET`              | Yes      | Base64 secret for signing JWT tokens       |
 | `SERVICE_API_KEY`         | Yes      | API key for authenticated score submission |
 | `SPRING_PROFILES_ACTIVE`  | No       | `dev` or `prod` (prod compose hardcodes this) |
 | `GRAFANA_ADMIN_PASSWORD`  | No       | Grafana admin password (default: `admin`)  |

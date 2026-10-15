@@ -60,6 +60,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.CampaignDistinctionEvent;
 import com.accsaber.backend.model.event.LegacyCampaignBackfillEvent;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.SortAliases;
 import com.accsaber.backend.repository.campaign.CampaignCompletionItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyItemRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
@@ -71,12 +72,11 @@ import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.CampaignScoreGate;
 import com.accsaber.backend.util.Slugs;
-import com.accsaber.backend.util.SortAliases;
 import com.accsaber.backend.util.WilsonScore;
 
 import lombok.RequiredArgsConstructor;
@@ -223,8 +223,7 @@ public class CampaignService {
         }
         User creator = null;
         if (request.getCreatorId() != null) {
-            creator = userRepository.findByIdAndActiveTrue(request.getCreatorId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", request.getCreatorId()));
+            creator = userRepository.requireActive(request.getCreatorId());
         }
         if (creator == null && (request.getCreatorAlias() == null || request.getCreatorAlias().isBlank())) {
             throw new ValidationException("creatorId or creatorAlias is required");
@@ -570,7 +569,7 @@ public class CampaignService {
     private Item loadRewardItem(SetCampaignItemRequest request, Campaign campaign) {
         Item item = itemRepository.findByIdAndActiveTrue(request.getItemId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item", request.getItemId()));
-        if (!item.isTradeable() && !campaign.isOfficial() && !ItemService.isActiveCrateSentinel(item)) {
+        if (!item.isTradeable() && !campaign.isOfficial() && !ItemAwardService.isActiveCrateSentinel(item)) {
             throw new ValidationException(
                     "Only official campaigns can reward untradeable items");
         }
@@ -588,8 +587,7 @@ public class CampaignService {
         if (campaign.getStatus() == CampaignStatus.DRAFT) {
             throw new ValidationException("Cannot start a draft campaign");
         }
-        User user = userRepository.findByIdAndActiveTrue(resolvedUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolvedUserId));
+        User user = userRepository.requireActive(resolvedUserId);
 
         UserCampaign existing = userCampaignRepository
                 .findByUser_IdAndCampaign_IdAndActiveTrue(resolvedUserId, campaignId)
@@ -647,8 +645,7 @@ public class CampaignService {
         if (campaign.getStatus() == CampaignStatus.DRAFT) {
             throw new ValidationException("Cannot vote on a draft campaign");
         }
-        User user = userRepository.findByIdAndActiveTrue(resolvedUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolvedUserId));
+        User user = userRepository.requireActive(resolvedUserId);
         CampaignVote vote = campaignVoteRepository.findByCampaign_IdAndUser_Id(campaignId, resolvedUserId)
                 .orElseGet(() -> CampaignVote.builder().campaign(campaign).user(user).build());
         vote.setVote(direction);
@@ -713,8 +710,7 @@ public class CampaignService {
 
         Category category = null;
         if (request.getCategoryId() != null) {
-            category = categoryRepository.findByIdAndActiveTrue(request.getCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
+            category = categoryRepository.requireActive(request.getCategoryId());
         }
 
         CampaignTag tag = CampaignTag.builder()

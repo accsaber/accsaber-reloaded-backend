@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,6 @@ import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProfileResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
-import com.accsaber.backend.model.dto.response.mission.EventResponse;
 import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.item.Item;
@@ -42,7 +41,7 @@ import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 import lombok.RequiredArgsConstructor;
@@ -61,14 +60,12 @@ public class EventMissionService {
     private final CategoryRepository categoryRepository;
     private final MapDifficultyRepository mapDifficultyRepository;
     private final LevelUpAwardService levelUpAwardService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final MissionRowFactory missionRowFactory;
     private final SharedMissionContextLoader sharedMissionContextLoader;
     private final TransactionTemplate transactionTemplate;
-
-    @Autowired
     @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    private final Executor backfillExecutor;
 
     private volatile Instant lastUnlockSweep = Instant.now();
 
@@ -126,8 +123,7 @@ public class EventMissionService {
         if (!event.isLive(Instant.now())) {
             throw new ValidationException("Event is not live");
         }
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         if (user.isBanned()) {
             throw new ValidationException("Banned users cannot join events");
         }
@@ -160,7 +156,7 @@ public class EventMissionService {
         }
     }
 
-    public void ensureForUserAndEventId(Long userId, UUID eventId) {
+    private void ensureForUserAndEventId(Long userId, UUID eventId) {
         Event event = eventRepository.findByIdAndActiveTrue(eventId).orElse(null);
         if (event == null || !event.isLive(Instant.now())) {
             return;
@@ -302,7 +298,7 @@ public class EventMissionService {
         }
         for (Item item : event.getBonusItems()) {
             try {
-                itemService.awardSystem(userId, item.getId(), ItemSource.event,
+                itemAwardService.awardSystem(userId, item.getId(), ItemSource.event,
                         event.getId().toString(), "Event bonus: " + event.getTitle());
             } catch (Exception e) {
                 log.warn("Failed to award event bonus item {} for event {}: {}",
@@ -321,7 +317,7 @@ public class EventMissionService {
     public EventDetailResponse getDetail(UUID eventId) {
         Event event = activeEvent(eventId);
         return EventDetailResponse.builder()
-                .event(EventResponse.from(event))
+                .event(MissionMapper.toEventResponse(event))
                 .missions(missionResponses(event, templateRepository.findActiveByEvent(eventId)))
                 .build();
     }
@@ -333,31 +329,39 @@ public class EventMissionService {
     }
 
     private List<MissionResponse> missionResponses(Event event, List<MissionTemplate> templates) {
-        MissionResponse.TargetContext ctx = buildTargetContext(templates);
+        MissionMapper.TargetContext ctx = buildTargetContext(templates);
         Instant now = Instant.now();
         return templates.stream()
-                .map(t -> MissionResponse.fromTemplate(t, event, now, ctx))
+                .map(t -> MissionMapper.fromTemplate(t, event, now, ctx))
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<EventProgressResponse.EventMissionProgressResponse> getMissionsWithProgress(
             Long userId, UUID eventId, Integer week) {
-        Event event = activeEvent(eventId);
-        UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(eventId, userId).orElse(null);
-        return assembleMissionProgress(userId, event, templatesForWeek(event, week), profile);
+        ensureForUserAndEventId(userId, eventId);
+        return readOnly(() -> {
+            Event event = activeEvent(eventId);
+            UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(eventId, userId).orElse(null);
+            return assembleMissionProgress(userId, event, templatesForWeek(event, week), profile);
+        });
     }
 
-    @Transactional(readOnly = true)
     public EventProgressResponse getProgress(Long userId, UUID eventId) {
-        Event event = activeEvent(eventId);
-        return buildProgress(userId, event, templateRepository.findActiveByEvent(eventId));
+        ensureForUserAndEventId(userId, eventId);
+        return readOnly(() -> buildProgress(userId, activeEvent(eventId),
+                templateRepository.findActiveByEvent(eventId)));
+    }
+
+    private <T> T readOnly(Supplier<T> work) {
+        TransactionTemplate readOnly = new TransactionTemplate(transactionTemplate.getTransactionManager());
+        readOnly.setReadOnly(true);
+        return readOnly.execute(status -> work.get());
     }
 
     private EventProgressResponse buildProgress(Long userId, Event event, List<MissionTemplate> templates) {
         UserEventProfile profile = profileRepository.findByEvent_IdAndUser_Id(event.getId(), userId).orElse(null);
         return EventProgressResponse.builder()
-                .event(EventResponse.from(event))
+                .event(MissionMapper.toEventResponse(event))
                 .profile(profile != null ? EventProfileResponse.from(profile) : null)
                 .begun(profile != null)
                 .missions(assembleMissionProgress(userId, event, templates, profile))
@@ -367,11 +371,11 @@ public class EventMissionService {
 
     private List<EventProgressResponse.EventMissionProgressResponse> assembleMissionProgress(
             Long userId, Event event, List<MissionTemplate> templates, UserEventProfile profile) {
-        MissionResponse.TargetContext ctx = buildTargetContext(templates);
+        MissionMapper.TargetContext ctx = buildTargetContext(templates);
         Map<UUID, List<UserMission>> byTemplate = userMissionRepository.findByUserAndEvent(userId, event.getId())
                 .stream().collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         List<UserMission> communityRows = userMissionRepository.findCommunity(event.getId(), false);
-        MissionResponse.SharedContext sharedCtx = sharedMissionContextLoader.load(communityRows, userId);
+        MissionMapper.SharedContext sharedCtx = sharedMissionContextLoader.load(communityRows, userId);
         Map<UUID, List<UserMission>> communityByTemplate = communityRows.stream()
                 .collect(Collectors.groupingBy(m -> m.getTemplate().getId()));
         Instant now = Instant.now();
@@ -390,8 +394,8 @@ public class EventMissionService {
                             .reduce((a, b) -> b).orElse(null));
             long completions = rows.stream().filter(m -> m.getStatus() == MissionStatus.completed).count();
             return EventProgressResponse.EventMissionProgressResponse.builder()
-                    .mission(MissionResponse.fromTemplate(t, event, now, ctx))
-                    .current(current != null ? MissionResponse.from(current, sharedCtx) : null)
+                    .mission(MissionMapper.fromTemplate(t, event, now, ctx))
+                    .current(current != null ? MissionMapper.from(current, sharedCtx) : null)
                     .completions(completions)
                     .completed(completions > 0)
                     .weekLocked(weekLocked)
@@ -417,7 +421,7 @@ public class EventMissionService {
                 .toList();
     }
 
-    private MissionResponse.TargetContext buildTargetContext(List<MissionTemplate> templates) {
+    private MissionMapper.TargetContext buildTargetContext(List<MissionTemplate> templates) {
         Set<UUID> categoryIds = new LinkedHashSet<>();
         Set<UUID> mapDifficultyIds = new LinkedHashSet<>();
         Set<Long> playerIds = new LinkedHashSet<>();
@@ -446,6 +450,6 @@ public class EventMissionService {
         Map<Long, User> players = playerIds.isEmpty() ? Map.of()
                 : userRepository.findAllById(playerIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u));
-        return new MissionResponse.TargetContext(categories, mapDifficulties, players);
+        return new MissionMapper.TargetContext(categories, mapDifficulties, players);
     }
 }

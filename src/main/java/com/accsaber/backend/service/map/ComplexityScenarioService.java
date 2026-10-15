@@ -18,6 +18,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
 import com.accsaber.backend.model.dto.projection.SimulationScoreRow;
 import com.accsaber.backend.model.entity.Category;

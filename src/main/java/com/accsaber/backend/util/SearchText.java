@@ -11,7 +11,7 @@ public final class SearchText {
     private SearchText() {
     }
 
-    public static String normalise(String text) {
+    private static String normalise(String text) {
         if (text == null) {
             return "";
         }

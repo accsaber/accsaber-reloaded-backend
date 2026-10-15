@@ -16,9 +16,6 @@ public class ScoreSaberScoresPage {
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Metadata {
-        private Integer page;
-        private Integer itemsPerPage;
-        private Integer totalItems;
         private Integer totalPages;
     }
 }

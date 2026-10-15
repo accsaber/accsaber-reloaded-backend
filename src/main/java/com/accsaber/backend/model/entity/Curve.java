@@ -7,8 +7,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -36,7 +37,7 @@ public class Curve {
     private String name;
 
     @Column(nullable = false)
-    @Convert(converter = CurveTypeConverter.class)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
     private CurveType type = CurveType.FORMULA;
 

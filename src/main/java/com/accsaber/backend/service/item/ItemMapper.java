@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.item;
 
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.util.Rounding;
 
 import java.util.Comparator;
@@ -7,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.CrateContentResponse;
 import com.accsaber.backend.model.dto.response.item.CrateModifierResponse;
 import com.accsaber.backend.model.dto.response.item.CrateOpenResponse;
@@ -87,7 +87,7 @@ public final class ItemMapper {
                 .build();
     }
 
-    public static UserItemResponse.ModifierRef toModifierRef(ItemModifier m) {
+    private static UserItemResponse.ModifierRef toModifierRef(ItemModifier m) {
         if (m == null)
             return null;
         return UserItemResponse.ModifierRef.builder()
@@ -154,7 +154,7 @@ public final class ItemMapper {
                 .build();
     }
 
-    public static UserItemResponse.EffectRef toEffectRef(UnusualEffect effect) {
+    private static UserItemResponse.EffectRef toEffectRef(UnusualEffect effect) {
         if (effect == null) {
             return null;
         }
@@ -215,8 +215,8 @@ public final class ItemMapper {
                 .id(trade.getId())
                 .fromUserId(trade.getFromUser().getId())
                 .toUserId(trade.getToUser().getId())
-                .fromUser(PlayerRef.of(trade.getFromUser()))
-                .toUser(PlayerRef.of(trade.getToUser()))
+                .fromUser(ClanRefCache.playerRef(trade.getFromUser()))
+                .toUser(ClanRefCache.playerRef(trade.getToUser()))
                 .offeredItems(tradeItemsForSide(trade, TradeItemSide.offered))
                 .requestedItems(tradeItemsForSide(trade, TradeItemSide.requested))
                 .offeredEssence(trade.getOfferedEssence())

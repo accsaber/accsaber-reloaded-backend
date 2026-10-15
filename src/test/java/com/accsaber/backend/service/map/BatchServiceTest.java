@@ -18,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
@@ -26,6 +28,7 @@ import com.accsaber.backend.model.dto.request.map.CreateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
+import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
@@ -81,6 +84,38 @@ class BatchServiceTest {
         private BatchService batchService;
 
         @Nested
+        class FindAll {
+
+                @Test
+                void loadsEveryBatchOnThePageInOneQueryAndKeepsEachBatchsOrder() {
+                        Batch first = buildBatch(BatchStatus.DRAFT);
+                        Batch second = buildBatch(BatchStatus.RELEASED);
+                        Batch empty = buildBatch(BatchStatus.DRAFT);
+                        MapDifficulty a = buildDifficulty(first);
+                        MapDifficulty b = buildDifficulty(second);
+                        MapDifficulty c = buildDifficulty(first);
+                        PageRequest pageable = PageRequest.of(0, 20);
+                        when(batchRepository.findFiltered(null, null, pageable))
+                                        .thenReturn(new PageImpl<>(List.of(first, second, empty), pageable, 3));
+                        when(mapDifficultyRepository.findByBatch_IdInAndActiveTrue(
+                                        List.of(first.getId(), second.getId(), empty.getId())))
+                                        .thenReturn(List.of(a, b, c));
+
+                        List<BatchResponse<MapDifficultyResponse>> page = batchService.findAll(null, null, pageable)
+                                        .getContent();
+
+                        assertThat(page).extracting(BatchResponse::getId)
+                                        .containsExactly(first.getId(), second.getId(), empty.getId());
+                        assertThat(page.get(0).getDifficulties()).extracting(d -> d.getId())
+                                        .containsExactly(a.getId(), c.getId());
+                        assertThat(page.get(1).getDifficulties()).extracting(d -> d.getId())
+                                        .containsExactly(b.getId());
+                        assertThat(page.get(2).getDifficulties()).isEmpty();
+                        verify(mapDifficultyRepository, never()).findByBatch_IdAndActiveTrue(any());
+                }
+        }
+
+        @Nested
         class FindById {
 
                 @Test
@@ -107,7 +142,7 @@ class BatchServiceTest {
                         request.setDescription("A test batch");
                         when(batchRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-                        BatchResponse response = batchService.create(request, staffId);
+                        BatchResponse<MapDifficultyResponse> response = batchService.create(request, staffId);
 
                         ArgumentCaptor<Batch> captor = ArgumentCaptor.forClass(Batch.class);
                         verify(batchRepository).save(captor.capture());
@@ -136,7 +171,7 @@ class BatchServiceTest {
                         UpdateBatchRequest request = new UpdateBatchRequest();
                         request.setName("Typo Fixed");
 
-                        BatchResponse response = batchService.update(batch.getId(), request);
+                        BatchResponse<MapDifficultyResponse> response = batchService.update(batch.getId(), request);
 
                         assertThat(response.getName()).isEqualTo("Typo Fixed");
                         assertThat(response.getStatus()).isEqualTo(BatchStatus.RELEASED);

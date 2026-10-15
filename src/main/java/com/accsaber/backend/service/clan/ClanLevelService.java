@@ -211,7 +211,7 @@ public class ClanLevelService {
 
     public Page<ClanXpGrantResponse> xpHistory(UUID clanId, Pageable pageable) {
         return grantRepository.findHistory(clanId, PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()))
-                .map(ClanXpGrantResponse::of);
+                .map(ClanMapper::toXpGrantResponse);
     }
 
     private UnlockRows loadUnlockRows() {

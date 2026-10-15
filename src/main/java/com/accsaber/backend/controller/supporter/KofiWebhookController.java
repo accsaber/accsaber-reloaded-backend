@@ -27,7 +27,7 @@ public class KofiWebhookController {
     @Operation(summary = "Ko-fi webhook", description = "For Ko-fi only. Auth is the verification token in the "
             + "payload.")
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<Map<String, Object>> receive(@RequestParam("data") String data) {
+    public ResponseEntity<Map<String, Object>> receive(@RequestParam String data) {
         return supporterService.receiveWebhook(data)
                 .map(event -> ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.<String, Object>of(
                         "eventId", event.getId(),

@@ -14,17 +14,18 @@ import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.security.PlayerTokenResolver;
 import com.accsaber.backend.util.Slugs;
 
-import lombok.RequiredArgsConstructor;
-
 @Component
-@RequiredArgsConstructor
 public class ClanChatHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
     static final String ATTR_CLAN_ID = "clanId";
-    static final String ATTR_USER_ID = "userId";
 
-    private final PlayerTokenResolver playerTokenResolver;
     private final ClanMemberRepository memberRepository;
+
+    public ClanChatHandshakeInterceptor(PlayerTokenResolver playerTokenResolver,
+            ClanMemberRepository memberRepository) {
+        super(playerTokenResolver);
+        this.memberRepository = memberRepository;
+    }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -35,7 +36,7 @@ public class ClanChatHandshakeInterceptor extends PlayerHandshakeInterceptor {
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
-        PlayerTokenResolver.Resolution resolution = authenticate(playerTokenResolver, params, response);
+        PlayerTokenResolver.Resolution resolution = authenticate(params, response);
         if (!resolution.accepted()) {
             return false;
         }

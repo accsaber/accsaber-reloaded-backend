@@ -13,7 +13,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.model.dto.response.mission.MissionContributorResponse;
-import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionContribution;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.mission.MissionContributionRepository;
@@ -26,27 +25,27 @@ public class SharedMissionContextLoader {
 
     private final MissionContributionRepository contributionRepository;
 
-    public MissionResponse.SharedContext load(List<UserMission> missions, Long viewerId) {
+    public MissionMapper.SharedContext load(List<UserMission> missions, Long viewerId) {
         List<UUID> ids = missions.stream()
                 .filter(UserMission::isShared)
                 .map(UserMission::getId)
                 .toList();
         if (ids.isEmpty()) {
-            return MissionResponse.SharedContext.EMPTY;
+            return MissionMapper.SharedContext.EMPTY;
         }
         Map<UUID, Long> contributors = contributionRepository.countContributors(ids).stream()
                 .collect(Collectors.toMap(
                         MissionContributionRepository.ContributorCountView::getMissionId,
                         MissionContributionRepository.ContributorCountView::getContributors));
         if (viewerId == null) {
-            return new MissionResponse.SharedContext(contributors, Map.of());
+            return new MissionMapper.SharedContext(contributors, Map.of());
         }
         Map<UUID, Double> yours = new HashMap<>();
         for (MissionContributionRepository.ContributionView view : contributionRepository
                 .findContributionsByUser(viewerId, ids)) {
             yours.put(view.getMissionId(), view.getContribution());
         }
-        return new MissionResponse.SharedContext(contributors, yours);
+        return new MissionMapper.SharedContext(contributors, yours);
     }
 
     public Page<MissionContributorResponse> contributors(UUID missionId, Pageable pageable) {
@@ -54,7 +53,7 @@ public class SharedMissionContextLoader {
         List<MissionContribution> content = page.getContent();
         List<MissionContributorResponse> rows = new ArrayList<>(content.size());
         for (int i = 0; i < content.size(); i++) {
-            rows.add(MissionContributorResponse.from(content.get(i), pageable.getOffset() + i + 1));
+            rows.add(MissionMapper.toContributorResponse(content.get(i), pageable.getOffset() + i + 1));
         }
         return new PageImpl<>(rows, pageable, page.getTotalElements());
     }

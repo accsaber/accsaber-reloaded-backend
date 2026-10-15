@@ -51,7 +51,7 @@ public final class StaffPrincipals {
         return role == StaffRole.ADMIN || role == StaffRole.CAMPAIGN_CURATOR;
     }
 
-    public static StaffRole roleOrNull(Authentication auth) {
+    private static StaffRole roleOrNull(Authentication auth) {
         return auth == null ? null : roleOfPrincipal(auth.getPrincipal());
     }
 

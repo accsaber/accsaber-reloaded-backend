@@ -2,11 +2,14 @@ package com.accsaber.backend.service.clan;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,11 @@ class ClanAccessServiceTest {
 
     @InjectMocks
     private ClanAccessService accessService;
+
+    @BeforeEach
+    void stubRepositoryLookups() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
+    }
 
     @Nested
     class Player {

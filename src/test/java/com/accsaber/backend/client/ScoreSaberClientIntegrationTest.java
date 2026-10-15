@@ -90,12 +90,10 @@ class ScoreSaberClientIntegrationTest {
             assertThat(page).isNotNull();
             assertThat(page.getData()).isNotEmpty();
             assertThat(page.getMetadata()).isNotNull();
-            assertThat(page.getMetadata().getTotalItems()).isGreaterThan(0);
 
             for (ScoreSaberScoreResponse score : page.getData()) {
                 assertThat(score.getId()).as("id").isGreaterThan(0);
                 assertThat(score.getUnmodifiedScore()).as("unmodifiedScore").isGreaterThan(0);
-                assertThat(score.getModifiedScore()).as("modifiedScore").isGreaterThan(0);
                 assertThat(score.getRank()).as("rank").isGreaterThan(0);
                 assertThat(score.getMaxCombo()).as("maxCombo").isGreaterThan(0);
                 assertThat(score.getCreatedAt()).as("createdAt").isNotBlank();

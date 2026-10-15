@@ -52,7 +52,7 @@ public class CampaignChatChannel implements ChatChannel {
 
     @Override
     public List<ChatMessageResponse> toResponses(List<ChatMessage> messages) {
-        return messages.stream().map(message -> ChatMessageResponse.of(message, null)).toList();
+        return messages.stream().map(message -> ChatChannel.toResponse(message, null)).toList();
     }
 
     @Override

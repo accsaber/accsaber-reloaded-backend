@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.ser.std.ToStringSerializer;
 
 import lombok.Builder;
 import lombok.Getter;

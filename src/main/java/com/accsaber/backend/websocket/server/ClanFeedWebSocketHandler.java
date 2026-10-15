@@ -10,6 +10,6 @@ public class ClanFeedWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
     @Override
     protected UUID resolveRoomKey(WebSocketSession session) {
-        return PlayerHandshakeInterceptor.uuidParam(session.getUri(), "clanId");
+        return uuidParam(session, "clanId");
     }
 }

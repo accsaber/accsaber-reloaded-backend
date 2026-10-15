@@ -20,7 +20,6 @@ import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.Curve;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.mission.MissionBand;
-import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.MissionType;
 import com.accsaber.backend.model.entity.mission.UserMission;
@@ -128,93 +127,69 @@ public class MissionBuilderService {
     private UserMission buildMission(MissionDraw draw, MissionTemplate template, Category category) {
         if (category == null && !typeAllowsNullCategory(template.getType()))
             return failBuild("no-category-for-type");
-        MissionAssignmentContext ctx = draw.ctx();
-        Instant expiresAt = draw.expiresAt();
-        MissionPool pool = draw.pool();
-        Random rng = draw.rng();
-        MissionPoolCache cache = draw.cache();
-        MissionBand band = draw.forcedBand() != null ? draw.forcedBand() : pickBand(rng);
-        boolean bandForced = draw.forcedBand() != null;
+        MissionBand band = draw.forcedBand() != null ? draw.forcedBand() : pickBand(draw.rng());
         return switch (template.getType()) {
-            case PLAY_N_MAPS -> buildPlayNMaps(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case XP_IN_WINDOW -> buildXpInWindow(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case ACC_ON_MAP -> buildAccOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
-            case AP_ON_MAP -> buildApOnMap(ctx, template, category, expiresAt, pool, band, rng, cache, bandForced);
-            case PB_SPECIFIC_MAP -> buildPbSpecificMap(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case PB_ABOVE_THRESHOLD ->
-                buildPbAboveThreshold(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case SNIPE_PLAYER_ON_MAP -> buildSnipe(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case STREAK_ON_MAP -> buildStreakOnMap(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case STREAK_N_IN_CATEGORY ->
-                buildStreakNInCategory(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case PLAY_N_MAPS -> buildPlayNMaps(draw, template, category);
+            case XP_IN_WINDOW -> buildXpInWindow(draw, template, category);
+            case ACC_ON_MAP, AP_ON_MAP -> buildMapTarget(draw, template, category, band);
+            case PB_SPECIFIC_MAP -> buildPbSpecificMap(draw, template, category, band);
+            case PB_ABOVE_THRESHOLD -> buildPbAboveThreshold(draw, template, category, band);
+            case SNIPE_PLAYER_ON_MAP -> buildSnipe(draw, template, category, band);
+            case STREAK_ON_MAP -> buildStreakOnMap(draw, template, category, band);
+            case STREAK_N_IN_CATEGORY -> buildStreakNInCategory(draw, template, category, band);
             case STREAK_SUM_N, SNIPE_RIVAL_ANY_MAP, AP_GAIN_OVERALL, BATCH_PLAY_N, PB_RANKED_BEFORE_N,
                     CAMPAIGN_COMPLETE_N, MISSIONS_COMPLETE_N ->
                 failBuild("event-only-type");
-            case COMEBACK_PB -> buildComebackPb(ctx, template, category, expiresAt, pool, band, rng, cache);
-            case SCORES_N -> buildScoresN(ctx, template, category, expiresAt, pool, band, rng, cache);
+            case COMEBACK_PB -> buildComebackPb(draw, template, category);
+            case SCORES_N -> buildScoresN(draw, template, category);
         };
     }
 
-    private UserMission buildPlayNMaps(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
-        int count = pickCount(template, effectiveBand, rng);
-        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
+    private UserMission buildPlayNMaps(MissionDraw draw, MissionTemplate template, Category category) {
+        MissionBand effectiveBand = draw.rng().nextBoolean() ? MissionBand.easy : MissionBand.medium;
+        int count = pickCount(template, effectiveBand, draw.rng());
+        int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(draw.ctx(), category),
                 effectiveBand, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+        return baseBuilder(draw, template, category, effectiveBand)
                 .targetCount(count)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
-    private UserMission buildXpInWindow(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
-        MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
+    private UserMission buildXpInWindow(MissionDraw draw, MissionTemplate template, Category category) {
+        MissionBand effectiveBand = draw.rng().nextBoolean() ? MissionBand.easy : MissionBand.medium;
         Double multiplier = calibrationService.bandMultiplier(template, effectiveBand);
-        Double rolling = ctx.rollingDailyXp() == null ? (double) (500) : ctx.rollingDailyXp();
+        Double rolling = draw.ctx().rollingDailyXp() == null ? (double) (500) : draw.ctx().rollingDailyXp();
         int targetXp = (int) (Rounding.round(Math.max((rolling * multiplier), (double) (100)), 0));
         int xp = Math.max(50, calibrationService.computeXpReward(template,
-                skillService.skillLevelFor(ctx, category), effectiveBand, null));
-        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+                skillService.skillLevelFor(draw.ctx(), category), effectiveBand, null));
+        return baseBuilder(draw, template, category, effectiveBand)
                 .targetXp(targetXp)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
-    private UserMission buildAccOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
-            boolean bandForced) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
+    private UserMission buildMapTarget(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MapTargetResult result = computeMapTarget(draw, template, category, band);
         if (result == null)
             return null;
-        return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
+        UserMission.UserMissionBuilder builder = baseBuilder(draw, template, category, result.effectiveBand())
                 .targetMapDifficulty(result.pick().difficulty())
-                .targetAcc(result.targetAcc())
                 .targetScore(result.targetScore())
                 .xpReward(result.xpReward())
-                .itemReward(rollItemReward(template, rng, cache))
-                .build();
+                .itemReward(rollItemReward(template, draw));
+        return template.getType() == MissionType.ACC_ON_MAP
+                ? builder.targetAcc(result.targetAcc()).build()
+                : builder.targetAp(result.targetRawAp()).build();
     }
 
-    private UserMission buildApOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache,
-            boolean bandForced) {
-        MapTargetResult result = computeMapTarget(ctx, template, category, band, rng, cache, bandForced);
-        if (result == null)
-            return null;
-        return baseBuilder(ctx, template, category, expiresAt, pool, result.effectiveBand())
-                .targetMapDifficulty(result.pick().difficulty())
-                .targetAp(result.targetRawAp())
-                .targetScore(result.targetScore())
-                .xpReward(result.xpReward())
-                .itemReward(rollItemReward(template, rng, cache))
-                .build();
-    }
-
-    private MapTargetResult computeMapTarget(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, MissionBand band, Random rng, MissionPoolCache cache, boolean bandForced) {
+    private MapTargetResult computeMapTarget(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        MissionPoolCache cache = draw.cache();
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null)
             return failBuild("no-skill-or-threshold");
@@ -230,7 +205,7 @@ public class MissionBuilderService {
 
         String lastReason = "no-eligible-map";
         for (int attempt = 0; attempt < COMPUTE_MAP_RETRIES; attempt++) {
-            MapPick pick = targetService.sampleEligibleMap(category, pickAnchor, scoreCurve, rng);
+            MapPick pick = targetService.sampleEligibleMap(category, pickAnchor, scoreCurve, draw.rng());
             if (pick == null) {
                 lastReason = "no-eligible-map";
                 break;
@@ -242,7 +217,7 @@ public class MissionBuilderService {
             MissionBand effectiveBand = band;
             Optional<Score> existing = scoreRepository.findByUser_IdAndMapDifficulty_IdAndActiveTrue(
                     ctx.userId(), pick.difficulty().getId());
-            if (!bandForced && existing.isPresent()) {
+            if (draw.forcedBand() == null && existing.isPresent()) {
                 Double maxWeightedAp = scoreRepository.findMaxWeightedApByUserAndCategory(
                         ctx.userId(), category.getId());
                 MissionBand derived = targetService.bandFromWeightedRatio(existing.get().getWeightedAp(),
@@ -266,8 +241,11 @@ public class MissionBuilderService {
         return failBuild(lastReason);
     }
 
-    private UserMission buildPbSpecificMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+    private UserMission buildPbSpecificMap(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
+        MissionPoolCache cache = draw.cache();
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
@@ -315,11 +293,11 @@ public class MissionBuilderService {
 
         int xp = calibrationService.computeXpReward(template, categorySkill, builtBand, null);
         xp = (int) Math.round(xp * skillService.pbFreshnessBoost(existing.orElse(null)));
-        return baseBuilder(ctx, template, category, expiresAt, pool, builtBand)
+        return baseBuilder(draw, template, category, builtBand)
                 .targetMapDifficulty(pick.difficulty())
                 .targetAp(targetRawAp)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
@@ -331,9 +309,10 @@ public class MissionBuilderService {
         return Math.min(ap, threshold);
     }
 
-    private UserMission buildPbAboveThreshold(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
-            MissionPoolCache cache) {
+    private UserMission buildPbAboveThreshold(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
         List<Score> scores = scoreRepository.findActiveByUserAndCategoryOrderByApDesc(ctx.userId(), category.getId());
         if (scores.size() < 5)
             return failBuild("too-few-scores-in-category");
@@ -370,11 +349,11 @@ public class MissionBuilderService {
         if (count <= 0)
             return failBuild("count-clamp-zero");
         int xp = calibrationService.computeXpReward(template, categorySkill, band, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+        return baseBuilder(draw, template, category, band)
                 .targetThresholdAp(threshold)
                 .targetCount(count)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
@@ -383,8 +362,11 @@ public class MissionBuilderService {
         return Math.min(scoreCount - 1, Math.max(0, (int) Math.round(sampled * percentile)));
     }
 
-    private UserMission buildSnipe(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+    private UserMission buildSnipe(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
+        MissionPoolCache cache = draw.cache();
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
@@ -437,7 +419,7 @@ public class MissionBuilderService {
         Double targetAcc = snipeTargetAcc(target, pick.maxScore());
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category), band,
                 snipeDistance);
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+        return baseBuilder(draw, template, category, band)
                 .targetMapDifficulty(pick.difficulty())
                 .targetPlayer(target.getUser())
                 .targetScore(target.getScore())
@@ -445,7 +427,7 @@ public class MissionBuilderService {
                 .targetAcc(targetAcc)
                 .snipeDistance(snipeDistance)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
@@ -545,23 +527,25 @@ public class MissionBuilderService {
         return Rounding.round((double) (target.getScoreNoMods()) / (double) (maxScore), 10);
     }
 
-    private UserMission buildScoresN(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+    private UserMission buildScoresN(MissionDraw draw, MissionTemplate template, Category category) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
         MissionBand effectiveBand = rng.nextBoolean() ? MissionBand.easy : MissionBand.medium;
         int min = template.getTargetCountMin() != null ? template.getTargetCountMin() : 1;
         int max = template.getTargetCountMax() != null ? template.getTargetCountMax() : 3;
         int count = min + rng.nextInt(Math.max(1, max - min + 1));
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
                 effectiveBand, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+        return baseBuilder(draw, template, category, effectiveBand)
                 .targetCount(count)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
-    private UserMission buildComebackPb(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+    private UserMission buildComebackPb(MissionDraw draw, MissionTemplate template, Category category) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
         Instant olderThan = Instant.now().minus(Duration.ofDays(365));
         List<Score> oldScores = scoreRepository.findActiveByUserAndCategoryOlderThan(
                 ctx.userId(), category.getId(), olderThan);
@@ -571,10 +555,10 @@ public class MissionBuilderService {
         MissionBand effectiveBand = comebackBand(ctx.skillByCategoryId().get(category.getId()));
         int xp = calibrationService.computeXpReward(template, skillService.skillLevelFor(ctx, category),
                 effectiveBand, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, effectiveBand)
+        return baseBuilder(draw, template, category, effectiveBand)
                 .targetMapDifficulty(chosen.getMapDifficulty())
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
@@ -589,9 +573,10 @@ public class MissionBuilderService {
         return MissionBand.easy;
     }
 
-    private UserMission buildStreakNInCategory(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, Instant expiresAt, MissionPool pool, MissionBand band, Random rng,
-            MissionPoolCache cache) {
+    private UserMission buildStreakNInCategory(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
         int reference = skillService.representativeUserStreak(ctx.userId(), category.getId(), band);
         if (reference < 3)
             return failBuild("user-streak-too-low");
@@ -600,16 +585,18 @@ public class MissionBuilderService {
         int targetStreak = Math.max(3, streakTargetFor(band, reference, topTier));
         int count = pickCount(template, band, rng);
         int xp = calibrationService.computeXpReward(template, skillLevel, band, null);
-        return baseBuilder(ctx, template, category, expiresAt, pool, band)
+        return baseBuilder(draw, template, category, band)
                 .targetStreak(targetStreak)
                 .targetCount(count)
                 .xpReward(xp)
-                .itemReward(rollItemReward(template, rng, cache))
+                .itemReward(rollItemReward(template, draw))
                 .build();
     }
 
-    private UserMission buildStreakOnMap(MissionAssignmentContext ctx, MissionTemplate template, Category category,
-            Instant expiresAt, MissionPool pool, MissionBand band, Random rng, MissionPoolCache cache) {
+    private UserMission buildStreakOnMap(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
+        Random rng = draw.rng();
         UserCategorySkill skill = ctx.skillByCategoryId().get(category.getId());
         if (skill == null || skill.getRawApForOneGain() == null || category.getScoreCurve() == null)
             return failBuild("no-skill-or-threshold-or-curve");
@@ -632,11 +619,11 @@ public class MissionBuilderService {
             int reference = mapStreakReference(pick, bandAbility);
             int targetStreak = Math.max(3, Math.min(streakTargetFor(band, reference, topTier), bandAbility + 1));
             int xp = calibrationService.computeXpReward(template, skillLvl, band, null);
-            return baseBuilder(ctx, template, category, expiresAt, pool, band)
+            return baseBuilder(draw, template, category, band)
                     .targetMapDifficulty(pick.difficulty())
                     .targetStreak(targetStreak)
                     .xpReward(xp)
-                    .itemReward(rollItemReward(template, rng, cache))
+                    .itemReward(rollItemReward(template, draw))
                     .build();
         }
         return failBuild(lastReason);
@@ -862,7 +849,9 @@ public class MissionBuilderService {
         return crate != null && rng.nextInt(100) < 20 ? crate : null;
     }
 
-    private Item rollItemReward(MissionTemplate template, Random rng, MissionPoolCache cache) {
+    private Item rollItemReward(MissionTemplate template, MissionDraw draw) {
+        Random rng = draw.rng();
+        MissionPoolCache cache = draw.cache();
         Item item = rollCrateDrop(template, rng, cache.eventCrate());
         if (item != null)
             return item;
@@ -874,17 +863,18 @@ public class MissionBuilderService {
         return pool.get(rng.nextInt(pool.size()));
     }
 
-    private UserMission.UserMissionBuilder baseBuilder(MissionAssignmentContext ctx, MissionTemplate template,
-            Category category, Instant expiresAt, MissionPool pool, MissionBand band) {
+    private UserMission.UserMissionBuilder baseBuilder(MissionDraw draw, MissionTemplate template, Category category,
+            MissionBand band) {
+        MissionAssignmentContext ctx = draw.ctx();
         return UserMission.builder()
                 .user(userRepository.getReferenceById(ctx.userId()))
                 .template(template)
-                .pool(pool)
+                .pool(draw.pool())
                 .category(category)
                 .band(band)
                 .assignedSkillLevel(skillService.skillLevelFor(ctx, category))
                 .assignedSkillThreshold(skillService.skillThresholdFor(ctx, category))
-                .expiresAt(expiresAt);
+                .expiresAt(draw.expiresAt());
     }
 
     private String describeAttempt(MissionTemplate template, Category category) {

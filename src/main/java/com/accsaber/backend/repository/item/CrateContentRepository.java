@@ -6,12 +6,10 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.item.CrateContent;
 import com.accsaber.backend.model.entity.item.CrateContent.CrateContentId;
 
-@Repository
 public interface CrateContentRepository extends JpaRepository<CrateContent, CrateContentId> {
 
     List<CrateContent> findByCrateItem_Id(UUID crateItemId);

@@ -36,7 +36,7 @@ public class MissionCalibrationService {
         };
     }
 
-    public Double targetNormalizedAp(Double targetRawAp, Double complexity, Curve scoreCurve) {
+    private Double targetNormalizedAp(Double targetRawAp, Double complexity, Curve scoreCurve) {
         Double scale = scoreCurve.getScale() != null ? scoreCurve.getScale() : 1.0;
         Double shift = scoreCurve.getShift() != null ? scoreCurve.getShift() : 0.0;
         Double denom =((complexity - shift) * scale);

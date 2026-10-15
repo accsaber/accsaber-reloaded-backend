@@ -1,5 +1,6 @@
 package com.accsaber.backend.model.dto.response.campaign;
 
+import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -9,7 +10,7 @@ import lombok.Getter;
 public class CampaignNodeScoreEntry {
 
     private Integer rank;
-    private CampaignLeaderboardPlayer player;
+    private UserIdentity player;
     private Integer score;
     private Double accuracy;
     private Double ap;

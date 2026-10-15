@@ -32,7 +32,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanXpAward;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 import lombok.RequiredArgsConstructor;
@@ -51,7 +51,7 @@ public class ClanWarSettlementService {
     private final ClanItemRepository clanItemRepository;
     private final ClanLevelService levelService;
     private final LevelUpAwardService levelUpAwardService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
 
@@ -127,7 +127,7 @@ public class ClanWarSettlementService {
                         .filter(reward -> !reward.getItem().getType().isClanCosmetic())
                         .filter(reward -> reward.getTopContributors() == null
                                 || winnerRank <= reward.getTopContributors())
-                        .forEach(reward -> itemService.awardSystem(userId, reward.getItem().getId(),
+                        .forEach(reward -> itemAwardService.awardSystem(userId, reward.getItem().getId(),
                                 ItemSource.clan_war, war.getId().toString(), "Clan war reward: "
                                         + war.getAttackerClan().getTag() + " vs " + war.getDefenderClan().getTag(),
                                 reward.getQuantity()));

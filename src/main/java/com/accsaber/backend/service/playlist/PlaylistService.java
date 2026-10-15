@@ -14,6 +14,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
 
@@ -54,7 +55,7 @@ public class PlaylistService {
     private final ScoreRepository scoreRepository;
     private final UserRepository userRepository;
     private final CampaignDifficultyRepository campaignDifficultyRepository;
-    private final ScoreService scoreService;
+    private final ScoreQueryService scoreQueryService;
     private final PlaylistAssembler playlistAssembler;
     private final BatchRepository batchRepository;
     private final CampaignRepository campaignRepository;
@@ -68,11 +69,9 @@ public class PlaylistService {
 
     @Cacheable(value = "playlists", key = "#categoryCode")
     public Map<String, Object> generatePlaylist(String categoryCode, String syncUrl) {
-        Category category = requireCategory(categoryCode);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
 
-        List<MapDifficulty> rankedDifficulties = "overall".equals(categoryCode)
-                ? mapDifficultyRepository.findByCountForOverallAndStatusWithMap(MapDifficultyStatus.RANKED)
-                : mapDifficultyRepository.findByCategoryIdAndStatusWithMap(category.getId(), MapDifficultyStatus.RANKED);
+        List<MapDifficulty> rankedDifficulties = rankedDifficulties(category);
 
         return playlistAssembler.assemble(
                 "AccSaber " + category.getName() + " Ranked Maps",
@@ -83,12 +82,10 @@ public class PlaylistService {
 
     @Cacheable(value = "missingPlaylists", key = "#userId + ':' + #categoryCode")
     public Map<String, Object> generateMissingPlaylist(Long userId, String categoryCode, String syncUrl) {
-        Category category = requireCategory(categoryCode);
-        User user = requireUser(userId);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
+        User user = userRepository.requireActive(userId);
 
-        List<MapDifficulty> rankedDifficulties = OVERALL_CODE.equals(categoryCode)
-                ? mapDifficultyRepository.findByCountForOverallAndStatusWithMap(MapDifficultyStatus.RANKED)
-                : mapDifficultyRepository.findByCategoryIdAndStatusWithMap(category.getId(), MapDifficultyStatus.RANKED);
+        List<MapDifficulty> rankedDifficulties = rankedDifficulties(category);
 
         Set<UUID> playedIds = new HashSet<>(scoreRepository.findDistinctMapDifficultyIdsByUser(userId));
         List<MapDifficulty> missing = rankedDifficulties.stream()
@@ -104,18 +101,27 @@ public class PlaylistService {
 
     @Cacheable(value = "unrankedPlaylists", key = "#categoryCode")
     public Map<String, Object> generateUnrankedPlaylist(String categoryCode, String syncUrl) {
-        Category category = requireCategory(categoryCode);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
 
-        List<MapDifficultyStatus> statuses = List.of(MapDifficultyStatus.QUEUE, MapDifficultyStatus.QUALIFIED);
-        List<MapDifficulty> unrankedDifficulties = "overall".equals(categoryCode)
-                ? mapDifficultyRepository.findByCountForOverallAndStatusInWithMap(statuses)
-                : mapDifficultyRepository.findByCategoryIdAndStatusInWithMap(category.getId(), statuses);
+        List<MapDifficulty> unrankedDifficulties = mapDifficultyRepository.findPlaylistDifficulties(
+                playlistCategoryId(category),
+                List.of(MapDifficultyStatus.QUEUE, MapDifficultyStatus.QUALIFIED),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
 
         return playlistAssembler.assemble(
                 "AccSaber " + category.getName() + " Queued Maps",
                 playlistAssembler.loadCategoryImage("unranked"),
                 syncUrl,
                 unrankedDifficulties);
+    }
+
+    private List<MapDifficulty> rankedDifficulties(Category category) {
+        return mapDifficultyRepository.findPlaylistDifficulties(playlistCategoryId(category),
+                List.of(MapDifficultyStatus.RANKED), Sort.by(Sort.Direction.DESC, "rankedAt"));
+    }
+
+    private UUID playlistCategoryId(Category category) {
+        return OVERALL_CODE.equals(category.getCode()) ? null : category.getId();
     }
 
     public PlaylistFile generateBatchPlaylist(UUID batchId, String syncUrl) {
@@ -175,8 +181,8 @@ public class PlaylistService {
 
     public Map<String, Object> generateUserScoresPlaylist(Long userId, UUID categoryId, String search,
             Pageable pageable, String syncUrl) {
-        User user = requireUser(userId);
-        List<MapDifficulty> difficulties = scoreService.findDifficultiesByUser(userId, categoryId, search, pageable);
+        User user = userRepository.requireActive(userId);
+        List<MapDifficulty> difficulties = scoreQueryService.findDifficultiesByUser(userId, categoryId, search, pageable);
 
         String label = categoryId == null ? null
                 : categoryRepository.findById(categoryId)
@@ -221,15 +227,5 @@ public class PlaylistService {
     @CacheEvict(value = "campaignPlaylists", key = "#campaignId")
     public void evictCampaignPlaylist(UUID campaignId) {
         log.info("Evicted campaign playlist cache for campaign: {}", campaignId);
-    }
-
-    private Category requireCategory(String categoryCode) {
-        return categoryRepository.findByCodeAndActiveTrue(categoryCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryCode));
-    }
-
-    private User requireUser(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
     }
 }

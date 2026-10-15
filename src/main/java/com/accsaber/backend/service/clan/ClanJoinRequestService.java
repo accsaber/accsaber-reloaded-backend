@@ -131,14 +131,14 @@ public class ClanJoinRequestService {
 
     private ClanJoinRequestResponse toResponse(ClanJoinRequest request) {
         UUID clanId = request.getClan().getId();
-        return ClanJoinRequestResponse.of(request,
+        return ClanMapper.toJoinRequestResponse(request,
                 cosmeticService.equippedByClanIds(List.of(clanId)).getOrDefault(clanId, List.of()));
     }
 
     private Page<ClanJoinRequestResponse> toResponses(Page<ClanJoinRequest> page) {
         Map<UUID, List<ItemResponse>> equipped = cosmeticService.equippedByClanIds(
                 page.getContent().stream().map(r -> r.getClan().getId()).distinct().toList());
-        return page.map(r -> ClanJoinRequestResponse.of(r, equipped.getOrDefault(r.getClan().getId(), List.of())));
+        return page.map(r -> ClanMapper.toJoinRequestResponse(r, equipped.getOrDefault(r.getClan().getId(), List.of())));
     }
 
     private User inviteSubject(Clan clan, User actor, Long invitedUserId) {

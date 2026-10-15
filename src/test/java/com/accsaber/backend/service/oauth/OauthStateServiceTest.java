@@ -4,13 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Base64;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.accsaber.backend.config.OauthProperties;
 import com.accsaber.backend.exception.UnauthorizedException;
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.service.oauth.DiscordOauthClient.DiscordIdentity;
 import com.accsaber.backend.service.oauth.OauthStateService.StateClaims;
 
@@ -23,8 +24,8 @@ class OauthStateServiceTest {
     @BeforeEach
     void setUp() {
         OauthProperties properties = new OauthProperties();
-        stateService = new OauthStateService(properties, new StateReplayGuard(properties));
-        ReflectionTestUtils.setField(stateService, "secret",
+        properties.setAllowedReturnOrigins(List.of("https://accsaber.com"));
+        stateService = new OauthStateService(properties, new StateReplayGuard(properties),
                 Base64.getEncoder().encodeToString(new byte[64]));
     }
 
@@ -61,6 +62,22 @@ class OauthStateServiceTest {
         assertThatThrownBy(() -> stateService.createState(new StateClaims(
                 "beatleader", RETURN_TO, null, pendingLinkToken, stateService.newBrowserBinding())))
                 .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    void startRejectsUnknownProvidersAndForeignReturnOrigins() {
+        String binding = stateService.newBrowserBinding();
+
+        assertThatThrownBy(() -> stateService.createState(new StateClaims("twitch", RETURN_TO, null, null, binding)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("Unknown OAuth provider: twitch");
+        assertThatThrownBy(() -> stateService.createState(
+                new StateClaims("discord", "https://evil.example/finish", null, null, binding)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("returnTo is not in the allowed origin list");
+        assertThatThrownBy(() -> stateService.createState(new StateClaims("discord", "/relative", null, null, binding)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("returnTo must be an absolute URL");
     }
 
     private static DiscordIdentity discordIdentity() {

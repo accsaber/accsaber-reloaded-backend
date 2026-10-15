@@ -3,7 +3,7 @@ package com.accsaber.backend.model.event;
 import java.util.List;
 import java.util.UUID;
 
-import com.accsaber.backend.websocket.server.ClanFeedBroadcast;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedBroadcast;
 
 public record ClanFeedEvent(List<UUID> clanIds, ClanFeedBroadcast payload) {
 }

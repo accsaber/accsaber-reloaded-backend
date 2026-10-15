@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.config.ComplexityRaterProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
@@ -414,8 +415,7 @@ public class ComplexityComparisonService {
     private PlayerBoard players(Map<ComplexityScenario, ScenarioState> states, PlayerQuery query) {
         UUID categoryId = query.categoryId();
         Category category = categoryId == null ? null
-                : categoryRepository.findByIdAndActiveTrue(categoryId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+                : categoryRepository.requireActive(categoryId);
         Set<Long> matching = query.search() == null || query.search().isBlank() ? null
                 : new HashSet<>(userRepository.findIdsBySearch(query.search().trim()));
         Map<ComplexityScenario, Map<Long, PlayerTotal>> totals = new EnumMap<>(ComplexityScenario.class);

@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -37,10 +36,8 @@ public class XPReweightService {
     private final UserCategoryStatisticsRepository statisticsRepository;
     private final MapDifficultyComplexityService mapComplexityService;
     private final XPCalculationService xpCalculationService;
-
-    @Autowired
     @Qualifier("backfillExecutor")
-    private Executor backfillExecutor;
+    private final Executor backfillExecutor;
 
     @Async("taskExecutor")
     public CompletableFuture<Void> reweightAllScores() {
@@ -99,7 +96,7 @@ public class XPReweightService {
         for (List<Score> userScores : scoresByUser.values()) {
             Double currentBestAccuracy = null;
             for (Score score : userScores) {
-                Double accuracy = Rounding.round((double) (score.getScore()) / (double) (maxScore), 10);
+                Double accuracy = Rounding.round((double) score.getScore() / maxScore, 10);
                 Double newXp;
                 if (score.isReweightDerivative()) {
                     newXp = 0.0;
@@ -137,7 +134,7 @@ public class XPReweightService {
 
     private void rebuildAllTotals() {
         statisticsRepository.rebuildScoreXp(null);
-        userRepository.recalculateTotalXpForAllActiveUsers();
+        userRepository.rebuildXpTotals(null);
     }
 
     @Async("taskExecutor")
@@ -145,7 +142,7 @@ public class XPReweightService {
     public CompletableFuture<Void> recalculateTotalXpForUser(Long userId) {
         log.info("Starting total XP recalculation for user {}", userId);
         statisticsRepository.rebuildScoreXp(userId);
-        userRepository.recalculateTotalXpForUser(userId);
+        userRepository.rebuildXpTotals(userId);
         log.info("Total XP recalculation complete for user {}", userId);
         return CompletableFuture.completedFuture(null);
     }

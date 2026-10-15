@@ -11,13 +11,13 @@ import lombok.Value;
 
 @Value
 @Builder
-public class BatchResponse {
+public class BatchResponse<D> {
 
     UUID id;
     String name;
     String description;
     BatchStatus status;
-    List<MapDifficultyResponse> difficulties;
+    List<D> difficulties;
     Instant releasedAt;
     Instant createdAt;
     Instant updatedAt;

@@ -2,8 +2,8 @@ package com.accsaber.backend.model.dto.response.admin;
 
 import java.util.List;
 
-import com.accsaber.backend.service.admin.JobGroup;
-import com.accsaber.backend.service.admin.JobType;
+import com.accsaber.backend.model.admin.JobGroup;
+import com.accsaber.backend.model.admin.JobType;
 
 import lombok.Builder;
 import lombok.Value;

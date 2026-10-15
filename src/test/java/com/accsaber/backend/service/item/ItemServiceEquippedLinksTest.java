@@ -38,7 +38,7 @@ class ItemServiceEquippedLinksTest {
     private UserSettingsService userSettingsService;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemEquipService itemEquipService;
 
     @Test
     void resolvesPrimaryUserAndIncludesFallbackPicks() {
@@ -53,7 +53,7 @@ class ItemServiceEquippedLinksTest {
         when(userItemLinkRepository.findOwnedByTypeKeys(eq(PRIMARY_ID), anySet()))
                 .thenReturn(List.of(fallbackBorder));
 
-        List<UserItemLink> links = itemService.findEffectiveEquippedLinks(SECONDARY_ID);
+        List<UserItemLink> links = itemEquipService.findEffectiveEquippedLinks(SECONDARY_ID);
 
         assertThat(links).containsExactlyInAnyOrder(explicitTitle, fallbackBorder);
     }
@@ -70,7 +70,7 @@ class ItemServiceEquippedLinksTest {
         when(userItemLinkRepository.findOwnedByTypeKeys(eq(PRIMARY_ID), anySet()))
                 .thenReturn(List.of());
 
-        List<UserItemLink> links = itemService.findEffectiveEquippedLinks(PRIMARY_ID);
+        List<UserItemLink> links = itemEquipService.findEffectiveEquippedLinks(PRIMARY_ID);
 
         assertThat(links).isEmpty();
     }

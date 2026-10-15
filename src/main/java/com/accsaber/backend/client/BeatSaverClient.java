@@ -19,6 +19,8 @@ import reactor.util.retry.Retry;
 @Service
 public class BeatSaverClient {
 
+    private static final Retry RATE_LIMIT_RETRY = ClientSupport.rateLimitRetry("BeatSaver", 20, Duration.ofSeconds(2));
+
     private final WebClient webClient;
     private final PlatformProperties properties;
 
@@ -34,7 +36,7 @@ public class BeatSaverClient {
                     .uri("/maps/hash/{hash}", hash)
                     .retrieve()
                     .bodyToMono(BeatSaverMapResponse.class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block(timeout()));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -51,7 +53,7 @@ public class BeatSaverClient {
                     .uri(uri)
                     .retrieve()
                     .bodyToMono(byte[].class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block(Duration.ofSeconds(30)));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -59,24 +61,6 @@ public class BeatSaverClient {
             log.error("Failed to download BeatSaver zip for hash {}: {}", hash, e.getMessage());
             return Optional.empty();
         }
-    }
-
-    private Retry retrySpec() {
-        return Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2))
-                .maxBackoff(Duration.ofSeconds(60))
-                .jitter(0.3)
-                .filter(throwable -> {
-                    if (throwable instanceof WebClientResponseException.NotFound) return false;
-                    if (throwable instanceof WebClientResponseException wce) {
-                        int code = wce.getStatusCode().value();
-                        if (code == 429) {
-                            log.warn("BeatSaver 429 rate limited, backing off and retrying");
-                            return true;
-                        }
-                        if (code >= 400 && code < 500) return false;
-                    }
-                    return true;
-                });
     }
 
     private Duration timeout() {

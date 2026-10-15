@@ -63,7 +63,7 @@ class ItemServiceActiveCrateResolutionTest {
     private NotificationService notificationService;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     private final Item sentinel = Item.builder()
             .id(SENTINEL_ID)
@@ -94,7 +94,7 @@ class ItemServiceActiveCrateResolutionTest {
 
         Set<UUID> seen = new HashSet<>();
         for (int i = 0; i < 200; i++) {
-            Item resolved = itemService.resolveGrantItem(sentinel);
+            Item resolved = itemAwardService.resolveGrantItem(sentinel);
             assertThat(resolved).isIn(first, second);
             seen.add(resolved.getId());
         }
@@ -106,7 +106,7 @@ class ItemServiceActiveCrateResolutionTest {
         Item only = crate("Spooky '26 Crate", daysAgo(30), inDays(10));
         stubCrates(only, sentinel);
 
-        assertThat(itemService.resolveGrantItem(sentinel)).isSameAs(only);
+        assertThat(itemAwardService.resolveGrantItem(sentinel)).isSameAs(only);
     }
 
     @Test
@@ -115,14 +115,14 @@ class ItemServiceActiveCrateResolutionTest {
         Item newer = crate("Spooky '26 Crate", daysAgo(30), daysAgo(1));
         stubCrates(older, newer, sentinel);
 
-        assertThat(itemService.resolveGrantItem(sentinel)).isSameAs(newer);
+        assertThat(itemAwardService.resolveGrantItem(sentinel)).isSameAs(newer);
     }
 
     @Test
     void skipsTheGrantWhenNoCrateQualifiesAtAll() {
         stubCrates(sentinel);
 
-        itemService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID, "reward");
+        itemAwardService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID, "reward");
 
         verify(userItemLinkRepository, never()).save(any());
     }
@@ -132,7 +132,7 @@ class ItemServiceActiveCrateResolutionTest {
         Item only = crate("Spooky '26 Crate", daysAgo(30), inDays(10));
         stubCrates(only, sentinel);
 
-        itemService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID,
+        itemAwardService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID,
                 "Completed milestone: Crate Expectations");
 
         ArgumentCaptor<UserItemLink> captor = ArgumentCaptor.forClass(UserItemLink.class);
@@ -151,7 +151,7 @@ class ItemServiceActiveCrateResolutionTest {
         when(userItemLinkRepository.countByUser_IdAndItem_Type_KeyAndSourceAndSourceId(
                 USER_ID, "crate", ItemSource.milestone, MILESTONE_ID)).thenReturn(1L);
 
-        itemService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID, "reward");
+        itemAwardService.awardSystem(USER_ID, SENTINEL_ID, ItemSource.milestone, MILESTONE_ID, "reward");
 
         verify(userItemLinkRepository, never()).save(any());
     }
@@ -160,7 +160,7 @@ class ItemServiceActiveCrateResolutionTest {
     void leavesNonSentinelItemsUntouched() {
         Item plain = crate("Spooky '26 Crate", daysAgo(30), inDays(10));
 
-        assertThat(itemService.resolveGrantItem(plain)).isSameAs(plain);
+        assertThat(itemAwardService.resolveGrantItem(plain)).isSameAs(plain);
         verify(itemRepository, never()).findByType_KeyAndActiveTrueAndDeprecatedFalseAndVisibleTrue(any());
     }
 

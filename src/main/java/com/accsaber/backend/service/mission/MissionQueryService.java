@@ -21,11 +21,11 @@ public class MissionQueryService {
     private final UserMissionRepository userMissionRepository;
 
     public List<UserMission> listActive(Long userId) {
-        return withoutClanRows(userMissionRepository.findCurrentByUser(userId, Instant.now()));
+        return withoutClanRows(userMissionRepository.findCurrentByUser(userId, null, Instant.now()));
     }
 
     public List<UserMission> listActiveByPool(Long userId, MissionPool pool) {
-        return userMissionRepository.findCurrentByUserAndPool(userId, pool, Instant.now());
+        return userMissionRepository.findCurrentByUser(userId, pool, Instant.now());
     }
 
     public List<UserMission> listCompleted(Long userId) {

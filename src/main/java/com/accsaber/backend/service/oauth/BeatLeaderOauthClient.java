@@ -55,7 +55,7 @@ public class BeatLeaderOauthClient {
     }
 
     public BeatLeaderIdentity exchangeCode(String code) {
-        OauthTokenResponse token = exchange(code);
+        OauthTokenResponse token = OauthTokenExchange.exchange(webClient, config, code, "BeatLeader");
         return webClient.get()
                 .uri(config.getUserInfoUrl())
                 .header("Authorization", "Bearer " + token.getAccessToken())
@@ -104,25 +104,6 @@ public class BeatLeaderOauthClient {
                     .then(Mono.error(new UnauthorizedException("BeatLeader signin returned no session cookie")));
         }
         return response.releaseBody().thenReturn(header);
-    }
-
-    private OauthTokenResponse exchange(String code) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "authorization_code");
-        form.add("code", code);
-        form.add("redirect_uri", config.getRedirectUri());
-        form.add("client_id", config.getClientId());
-        form.add("client_secret", config.getClientSecret());
-
-        return webClient.post()
-                .uri(config.getTokenUrl())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(form))
-                .retrieve()
-                .bodyToMono(OauthTokenResponse.class)
-                .timeout(HTTP_TIMEOUT)
-                .blockOptional()
-                .orElseThrow(() -> new UnauthorizedException("BeatLeader token exchange failed"));
     }
 
     @Data

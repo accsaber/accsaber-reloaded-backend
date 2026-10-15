@@ -43,6 +43,7 @@ import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.CategoryRepository;
+import com.accsaber.backend.repository.SortAliases;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
@@ -259,13 +260,8 @@ public class MapService {
             } else {
                 String mapped = JPQL_SORT_MAPPING.get(order.getProperty());
                 if (mapped != null) {
-                    resolved = resolved
-                            .and(JpaSort.unsafe(Sort.Direction.ASC,
-                                    "(CASE WHEN " + mapped + " IS NULL THEN 1 ELSE 0 END)"))
-                            .and(JpaSort.unsafe(order.getDirection(),
-                                    isTextSortField(order.getProperty())
-                                            ? "LOWER(" + mapped + ")"
-                                            : mapped));
+                    resolved = resolved.and(SortAliases.nullsLastUnsafe(order.getDirection(), mapped,
+                            isTextSortField(order.getProperty()) ? "LOWER(" + mapped + ")" : mapped));
                 } else {
                     resolved = resolved.and(Sort.by(
                             new Sort.Order(order.getDirection(), order.getProperty(),
@@ -452,8 +448,7 @@ public class MapService {
             }
         }
 
-        Category category = categoryRepository.findByIdAndActiveTrue(request.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
+        Category category = categoryRepository.requireActive(request.getCategoryId());
 
         Batch batch = request.getBatchId() != null
                 ? batchRepository.findById(request.getBatchId())
@@ -572,8 +567,7 @@ public class MapService {
         if (difficulty.getStatus() == MapDifficultyStatus.RANKED) {
             throw new ValidationException("Cannot change category on a RANKED difficulty");
         }
-        Category category = categoryRepository.findByIdAndActiveTrue(categoryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+        Category category = categoryRepository.requireActive(categoryId);
         difficulty.setCategory(category);
         difficulty.setLastUpdatedBy(staffId);
         mapDifficultyRepository.save(difficulty);
@@ -849,7 +843,7 @@ public class MapService {
                 .collect(java.util.stream.Collectors.toMap(e -> e.getMapDifficulty().getId(), e -> e));
     }
 
-    public static PublicMapResponse toPublicMapResponse(MapResponse map) {
+    private static PublicMapResponse toPublicMapResponse(MapResponse map) {
         return PublicMapResponse.builder()
                 .id(map.getId())
                 .songName(map.getSongName())

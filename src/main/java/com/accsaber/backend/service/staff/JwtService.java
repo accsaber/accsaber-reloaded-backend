@@ -14,6 +14,7 @@ import com.accsaber.backend.model.entity.staff.StaffUser;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -29,14 +30,19 @@ public class JwtService {
     public static final String SCOPE_GAME = "game";
     public static final String SCOPE_WEB = "web";
 
-    @Value("${accsaber.jwt.secret}")
-    private String secret;
+    private final SecretKey signingKey;
+    private final JwtParser parser;
+    private final long accessTokenTtl;
+    private final long playerAccessTokenTtl;
 
-    @Value("${accsaber.jwt.access-token-ttl}")
-    private long accessTokenTtl;
-
-    @Value("${accsaber.jwt.player-access-token-ttl}")
-    private long playerAccessTokenTtl;
+    public JwtService(@Value("${accsaber.jwt.secret}") String secret,
+            @Value("${accsaber.jwt.access-token-ttl}") long accessTokenTtl,
+            @Value("${accsaber.jwt.player-access-token-ttl}") long playerAccessTokenTtl) {
+        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.parser = Jwts.parser().verifyWith(signingKey).build();
+        this.accessTokenTtl = accessTokenTtl;
+        this.playerAccessTokenTtl = playerAccessTokenTtl;
+    }
 
     public String generateAccessToken(StaffUser staffUser) {
         Instant now = Instant.now();
@@ -47,7 +53,7 @@ public class JwtService {
                 .claim("role", staffUser.getRole().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(accessTokenTtl)))
-                .signWith(getSigningKey())
+                .signWith(signingKey)
                 .compact();
     }
 
@@ -75,11 +81,7 @@ public class JwtService {
         if (scope != null) {
             builder.claim("scope", scope);
         }
-        return builder.signWith(getSigningKey()).compact();
-    }
-
-    public String extractPlayerScope(String token) {
-        return parseClaims(token).get("scope", String.class);
+        return builder.signWith(signingKey).compact();
     }
 
     public long getPlayerAccessTokenTtl() {
@@ -90,41 +92,28 @@ public class JwtService {
         return UUID.randomUUID().toString();
     }
 
-    public String extractTokenType(String token) {
-        return parseClaims(token).get("typ", String.class);
+    public record VerifiedToken(String type, String subject, String scope) {
+
+        public Long playerId() {
+            return Long.parseLong(subject);
+        }
+
+        public UUID staffId() {
+            return UUID.fromString(subject);
+        }
     }
 
-    public UUID extractStaffId(String token) {
-        return UUID.fromString(parseClaims(token).getSubject());
-    }
-
-    public Long extractPlayerId(String token) {
-        return Long.parseLong(parseClaims(token).getSubject());
-    }
-
-    public StaffRole extractRole(String token) {
-        String roleName = parseClaims(token).get("role", String.class);
-        return StaffRole.valueOf(roleName);
-    }
-
-    public void validateToken(String token) {
-        parseClaims(token);
+    public VerifiedToken verify(String token) {
+        Claims claims = parseClaims(token);
+        return new VerifiedToken(claims.get("typ", String.class), claims.getSubject(),
+                claims.get("scope", String.class));
     }
 
     private Claims parseClaims(String token) {
         try {
-            return Jwts.parser()
-                    .verifyWith(getSigningKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            return parser.parseSignedClaims(token).getPayload();
         } catch (JwtException | IllegalArgumentException e) {
-            throw new JwtException("Invalid JWT token: " + e.getMessage(), e);
+            throw new JwtException(e.getMessage(), e);
         }
-    }
-
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
-        return Keys.hmacShaKeyFor(keyBytes);
     }
 }

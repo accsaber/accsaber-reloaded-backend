@@ -24,7 +24,7 @@ import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.player.UserRelationService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 public class UserRelationController {
 
     private final UserRelationService relationService;
-    private final ScoreService scoreService;
+    private final ScoreQueryService scoreQueryService;
     private final CategoryService categoryService;
 
     @Operation(summary = "Your relations", description = "Only place your blocked list shows up. Pass type to "
@@ -63,7 +63,7 @@ public class UserRelationController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
         Long userId = PlayerUserDetails.require(principal).getUserId();
-        return ResponseEntity.ok(scoreService.findByUserRelations(userId, type,
+        return ResponseEntity.ok(scoreQueryService.findByUserRelations(userId, type,
                 categoryService.resolveId(categoryId), search, includePrincipal, pageable));
     }
 

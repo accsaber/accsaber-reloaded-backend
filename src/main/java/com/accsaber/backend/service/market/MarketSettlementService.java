@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ConflictException;
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.entity.item.EssenceReason;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.UserItemLink;
@@ -19,6 +18,7 @@ import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.MarketListingEvent;
 import com.accsaber.backend.repository.market.MarketListingRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.EssenceLedgerService;
 import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.notification.NotificationService;
@@ -113,7 +113,7 @@ public class MarketSettlementService {
 
     private void publish(MarketListing listing, String type, Long amount) {
         eventPublisher.publishEvent(new MarketListingEvent(listing.getId(), type, listing.getStatus(),
-                amount, PlayerRef.of(listing.getWinner()), PlayerRef.of(listing.getSeller()),
+                amount, ClanRefCache.playerRef(listing.getWinner()), ClanRefCache.playerRef(listing.getSeller()),
                 listing.getEndsAt()));
     }
 }

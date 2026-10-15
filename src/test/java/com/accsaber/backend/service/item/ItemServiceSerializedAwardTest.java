@@ -51,7 +51,7 @@ class ItemServiceSerializedAwardTest {
     private EntityManager entityManager;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @Test
     void manualAwardOfNonSerializedItemHasNoSerialAndNoFounders() {
@@ -74,7 +74,7 @@ class ItemServiceSerializedAwardTest {
         when(userRepository.getReferenceById(USER_ID)).thenReturn(new User());
         when(userItemLinkRepository.save(any(UserItemLink.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UserItemLink link = itemService.awardManual(USER_ID, ITEM_ID, null, "test", null, 1L, null);
+        UserItemLink link = itemAwardService.awardManual(USER_ID, ITEM_ID, null, "test", null, 1L, null);
 
         assertThat(link.getSerialNumber()).isNull();
         assertThat(link.getModifiers()).extracting(ItemModifier::getKey)

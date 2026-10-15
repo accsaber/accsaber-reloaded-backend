@@ -301,8 +301,7 @@ public class OauthService {
             return conn;
         }
 
-        User primary = userRepository.findByIdAndActiveTrue(primaryId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", primaryId));
+        User primary = userRepository.requireActive(primaryId);
         OauthConnection onPrimary = oauthConnectionRepository
                 .findByUserIdAndProviderAndActiveTrue(primaryId, conn.getProvider())
                 .filter(existing -> !existing.getId().equals(conn.getId()))
@@ -378,9 +377,7 @@ public class OauthService {
     }
 
     private User requireUser(Long userId) {
-        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return userRepository.findByIdAndActiveTrue(resolved)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolved));
+        return userRepository.requireActive(duplicateUserService.resolvePrimaryUserId(userId));
     }
 
     private StaffContext toStaffContext(StaffUser staffUser) {

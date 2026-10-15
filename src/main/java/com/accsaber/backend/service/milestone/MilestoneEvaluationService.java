@@ -42,7 +42,7 @@ import com.accsaber.backend.repository.milestone.UserMilestoneSetBonusRepository
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemMapper;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
 import com.accsaber.backend.service.milestone.source.MilestoneSourceRegistry;
@@ -67,7 +67,7 @@ public class MilestoneEvaluationService {
     private final UserMilestoneSetBonusRepository userMilestoneSetBonusRepository;
     private final UserRepository userRepository;
     private final MilestoneQueryBuilderService queryBuilderService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final UserItemLinkRepository userItemLinkRepository;
     private final LevelUpAwardService levelUpAwardService;
     private final MissionProgressService missionProgressService;
@@ -284,7 +284,7 @@ public class MilestoneEvaluationService {
                 if (alreadyHave.contains(userId)) {
                     continue;
                 }
-                itemService.awardSystem(userId, reward.getItem().getId(), ItemSource.milestone, sourceId, reason,
+                itemAwardService.awardSystem(userId, reward.getItem().getId(), ItemSource.milestone, sourceId, reason,
                         reward.getQuantity());
                 granted++;
             }
@@ -331,7 +331,7 @@ public class MilestoneEvaluationService {
     private MilestoneRewardResponse awardObtainableItem(Long userId, Item item, int quantity, ItemSource source,
             String sourceId, String reason) {
         if (item.isObtainableAt(Instant.now())) {
-            itemService.awardSystem(userId, item.getId(), source, sourceId, reason, quantity);
+            itemAwardService.awardSystem(userId, item.getId(), source, sourceId, reason, quantity);
         }
         return ItemMapper.toRewardResponse(item, quantity);
     }
@@ -431,7 +431,7 @@ public class MilestoneEvaluationService {
             if (!item.isObtainableAt(now) || countPriorSetGrants(userId, item, sourceId) > 0) {
                 continue;
             }
-            itemService.awardSystem(userId, item.getId(), ItemSource.milestone_set, sourceId, reason,
+            itemAwardService.awardSystem(userId, item.getId(), ItemSource.milestone_set, sourceId, reason,
                     link.getQuantity());
             granted++;
         }
@@ -439,7 +439,7 @@ public class MilestoneEvaluationService {
     }
 
     private long countPriorSetGrants(Long userId, Item item, String sourceId) {
-        if (ItemService.isActiveCrateSentinel(item)) {
+        if (ItemAwardService.isActiveCrateSentinel(item)) {
             return userItemLinkRepository.countByUser_IdAndItem_Type_KeyAndSourceAndSourceId(
                     userId, item.getType().getKey(), ItemSource.milestone_set, sourceId);
         }

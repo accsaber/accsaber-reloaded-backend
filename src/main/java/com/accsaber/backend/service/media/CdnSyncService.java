@@ -56,7 +56,7 @@ public class CdnSyncService {
     @Qualifier("cdnBackfillExecutor")
     private final Executor cdnBackfillExecutor;
 
-    public void mirrorMapCover(UUID mapId) {
+    private void mirrorMapCover(UUID mapId) {
         Map map = mapRepository.findByIdAndActiveTrue(mapId).orElse(null);
         if (map == null) return;
         BeatLeaderLeaderboardResponse.Song song = fetchSongFromBeatLeader(map);

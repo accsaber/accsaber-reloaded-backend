@@ -30,6 +30,7 @@ import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
@@ -169,7 +170,7 @@ class ClanRosterTest {
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(member.getLeaveReason()).isEqualTo(ClanLeaveReason.kicked);
         verify(memberRepository).saveAndFlush(member);
-        verify(userMissionRepository).voidActiveClanRowsForUser(USER);
+        verify(userMissionRepository).voidActiveForUserAndPool(USER, MissionPool.clan);
     }
 
     @Test

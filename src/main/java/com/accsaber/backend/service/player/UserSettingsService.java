@@ -8,7 +8,6 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSetting;
@@ -94,8 +93,7 @@ public class UserSettingsService {
 
     @Transactional
     public void set(Long userId, UserSettingKey key, Object value) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         JsonNode node = MAPPER.valueToTree(value);
         validate(key, node);
         UserSetting existing = settingRepository.findByUser_IdAndKey(userId, key.key()).orElse(null);
@@ -114,8 +112,7 @@ public class UserSettingsService {
 
     @Transactional
     public Map<String, Object> updateGroup(Long userId, String group, Map<String, Object> patch) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         for (Map.Entry<String, Object> entry : patch.entrySet()) {
             UserSettingKey key = UserSettingKey.byKey(entry.getKey())
                     .orElseThrow(() -> new ValidationException("Unknown setting: " + entry.getKey()));

@@ -63,11 +63,11 @@ class ItemServiceQuantityAwardTest {
     private EntityManager entityManager;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(itemService, "entityManager", entityManager);
+        ReflectionTestUtils.setField(itemAwardService, "entityManager", entityManager);
         when(duplicateUserService.resolvePrimaryUserId(USER_ID)).thenReturn(USER_ID);
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(userRepository.getReferenceById(USER_ID)).thenReturn(User.builder().id(USER_ID).build());
@@ -79,7 +79,7 @@ class ItemServiceQuantityAwardTest {
 
     @Test
     void awardsOneRowPerCrateRatherThanOneStackOfTwo() {
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
 
         ArgumentCaptor<UserItemLink> captor = ArgumentCaptor.forClass(UserItemLink.class);
         verify(userItemLinkRepository, times(2)).save(captor.capture());
@@ -90,7 +90,7 @@ class ItemServiceQuantityAwardTest {
 
     @Test
     void notifiesOnceForTheWholeGrant() {
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
 
         verify(notificationService, times(1)).notify(any(), any(), any(), any(), any());
     }
@@ -100,7 +100,7 @@ class ItemServiceQuantityAwardTest {
         when(userItemLinkRepository.countByUser_IdAndItem_IdAndSourceAndSourceId(
                 USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID)).thenReturn(1L);
 
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
 
         verify(userItemLinkRepository, times(1)).save(any());
     }
@@ -110,7 +110,7 @@ class ItemServiceQuantityAwardTest {
         when(userItemLinkRepository.countByUser_IdAndItem_IdAndSourceAndSourceId(
                 USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID)).thenReturn(2L);
 
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 2);
 
         verify(userItemLinkRepository, never()).save(any());
     }
@@ -125,7 +125,7 @@ class ItemServiceQuantityAwardTest {
         when(serialQuery.setParameter(any(String.class), any())).thenReturn(serialQuery);
         when(serialQuery.getSingleResult()).thenReturn(4L, 5L);
 
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_completion, NODE_ID, "reward", 2);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_completion, NODE_ID, "reward", 2);
 
         ArgumentCaptor<UserItemLink> captor = ArgumentCaptor.forClass(UserItemLink.class);
         verify(userItemLinkRepository, times(2)).save(captor.capture());
@@ -136,7 +136,7 @@ class ItemServiceQuantityAwardTest {
 
     @Test
     void ignoresANonPositiveQuantity() {
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 0);
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.campaign_difficulty, NODE_ID, "reward", 0);
 
         verify(userItemLinkRepository, never()).save(any());
     }

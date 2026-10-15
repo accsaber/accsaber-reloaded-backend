@@ -34,12 +34,12 @@ public final class CampaignScoreMetrics {
         return Rounding.round((double) (scoreNoMods) / (double) (maxScore), 6);
     }
 
-    public static boolean isFullCombo(Score score) {
+    private static boolean isFullCombo(Score score) {
         return score.getMisses() != null && score.getBadCuts() != null
                 && score.getMisses() == 0 && score.getBadCuts() == 0;
     }
 
-    public static Integer mistakes(Score score) {
+    private static Integer mistakes(Score score) {
         if (score.getBadCuts() == null || score.getMisses() == null) {
             return null;
         }
@@ -177,7 +177,7 @@ public final class CampaignScoreMetrics {
         return (actual - cap) / scale;
     }
 
-    public static Double bestAccuracy(UserMapDifficultyBests bests) {
+    private static Double bestAccuracy(UserMapDifficultyBests bests) {
         return accuracy(bests.bestScoreNoMods(), bests.maxScore());
     }
 

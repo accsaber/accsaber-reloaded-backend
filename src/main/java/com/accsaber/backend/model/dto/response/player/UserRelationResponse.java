@@ -8,13 +8,17 @@ import com.accsaber.backend.model.entity.user.UserRelationType;
 
 import lombok.Builder;
 import lombok.Value;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.ser.std.ToStringSerializer;
 
 @Value
 @Builder
 public class UserRelationResponse {
 
     UUID id;
+    @JsonSerialize(using = ToStringSerializer.class)
     Long userId;
+    @JsonSerialize(using = ToStringSerializer.class)
     Long targetUserId;
     String targetName;
     String targetAvatarUrl;

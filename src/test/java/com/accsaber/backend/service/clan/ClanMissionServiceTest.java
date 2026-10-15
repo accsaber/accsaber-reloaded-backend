@@ -25,12 +25,12 @@ import org.springframework.data.domain.Pageable;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.ClanXpSource;
 import com.accsaber.backend.model.dto.EventMissionTargets;
-import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.MissionType;
@@ -38,6 +38,7 @@ import com.accsaber.backend.model.entity.mission.MissionTemplate;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
+import com.accsaber.backend.service.mission.MissionMapper;
 import com.accsaber.backend.service.mission.SharedMissionContextLoader;
 
 @ExtendWith(MockitoExtension.class)
@@ -100,7 +101,7 @@ class ClanMissionServiceTest {
         when(clanRepository.requireActive(clan.getId())).thenCallRealMethod();
         when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(mission)));
-        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);
+        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionMapper.SharedContext.EMPTY);
         when(standingService.currentSeason()).thenReturn(Optional.of(ClanSeason.builder().build()));
 
         MissionResponse response = service.list(clan.getId(), true, null, Pageable.unpaged()).getContent().get(0);
@@ -120,7 +121,7 @@ class ClanMissionServiceTest {
         when(clanRepository.requireActive(clan.getId())).thenCallRealMethod();
         when(userMissionRepository.findClanShared(any(), anyBoolean(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(mission)));
-        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionResponse.SharedContext.EMPTY);
+        when(sharedMissionContextLoader.load(any(), any())).thenReturn(MissionMapper.SharedContext.EMPTY);
         when(standingService.currentSeason()).thenReturn(Optional.empty());
 
         MissionResponse response = service.list(clan.getId(), true, null, Pageable.unpaged()).getContent().get(0);

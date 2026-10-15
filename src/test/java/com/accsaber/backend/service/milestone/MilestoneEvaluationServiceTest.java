@@ -49,7 +49,7 @@ import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.milestone.MilestoneQueryBuilderService.Progress;
@@ -69,7 +69,7 @@ class MilestoneEvaluationServiceTest {
         @Mock
         private MilestoneQueryBuilderService queryBuilderService;
         @Mock
-        private ItemService itemService;
+        private ItemAwardService itemAwardService;
         @Mock
         private LevelUpAwardService levelUpAwardService;
         @Mock
@@ -663,7 +663,7 @@ class MilestoneEvaluationServiceTest {
 
                         service.evaluateAfterScore(USER_ID, newScore);
 
-                        verify(itemService).awardSystem(eq(USER_ID), eq(itemId), eq(ItemSource.milestone_set),
+                        verify(itemAwardService).awardSystem(eq(USER_ID), eq(itemId), eq(ItemSource.milestone_set),
                                         eq(setWithItem.getId().toString()), eq("Completed milestone set: Item Set"),
                                         eq(3));
                 }
@@ -728,7 +728,7 @@ class MilestoneEvaluationServiceTest {
                         int granted = service.settleSetRewards(USER_ID, milestoneSet.getId(), earnedAt);
 
                         assertThat(granted).isEqualTo(1);
-                        verify(itemService).awardSystem(eq(USER_ID), eq(itemId), eq(ItemSource.milestone_set),
+                        verify(itemAwardService).awardSystem(eq(USER_ID), eq(itemId), eq(ItemSource.milestone_set),
                                         eq(milestoneSet.getId().toString()),
                                         eq("Completed milestone set: Test Set"), eq(1));
                         verify(userMilestoneSetBonusRepository, never()).save(any(UserMilestoneSetBonus.class));
@@ -760,7 +760,7 @@ class MilestoneEvaluationServiceTest {
 
                         assertThat(service.settleSetRewards(USER_ID, milestoneSet.getId(), earnedAt)).isZero();
 
-                        verify(itemService, never()).awardSystem(any(), any(), any(), any(), any(), anyInt());
+                        verify(itemAwardService, never()).awardSystem(any(), any(), any(), any(), any(), anyInt());
                 }
 
                 @Test
@@ -788,7 +788,7 @@ class MilestoneEvaluationServiceTest {
 
                         assertThat(service.settleSetRewards(USER_ID, milestoneSet.getId(), earnedAt)).isEqualTo(1);
 
-                        verify(itemService).awardSystem(eq(USER_ID), eq(sentinelId), eq(ItemSource.milestone_set),
+                        verify(itemAwardService).awardSystem(eq(USER_ID), eq(sentinelId), eq(ItemSource.milestone_set),
                                         eq(milestoneSet.getId().toString()),
                                         eq("Completed milestone set: Test Set"), eq(1));
                 }
@@ -810,7 +810,7 @@ class MilestoneEvaluationServiceTest {
                         int granted = service.settleSetRewards(USER_ID, milestoneSet.getId(), earnedAt);
 
                         assertThat(granted).isZero();
-                        verify(itemService, never()).awardSystem(any(), any(), any(), any(), any(), anyInt());
+                        verify(itemAwardService, never()).awardSystem(any(), any(), any(), any(), any(), anyInt());
                 }
 
                 @Test

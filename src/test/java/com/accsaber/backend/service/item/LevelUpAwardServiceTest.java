@@ -38,7 +38,7 @@ class LevelUpAwardServiceTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
     @Mock
     private UserRepository userRepository;
 

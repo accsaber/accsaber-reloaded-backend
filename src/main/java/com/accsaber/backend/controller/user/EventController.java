@@ -1,7 +1,6 @@
 package com.accsaber.backend.controller.user;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,11 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.response.mission.EventDetailResponse;
 import com.accsaber.backend.model.dto.response.mission.EventProgressResponse;
-import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.dto.response.mission.EventResponse;
+import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.mission.EventMissionService;
 import com.accsaber.backend.service.mission.EventService;
+import com.accsaber.backend.service.mission.MissionMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +37,7 @@ public class EventController {
     @GetMapping
     public ResponseEntity<List<EventResponse>> list(@RequestParam(required = false) String state) {
         return ResponseEntity.ok(eventService.listPublic(state).stream()
-                .map(EventResponse::from).toList());
+                .map(MissionMapper::toEventResponse).toList());
     }
 
     @Operation(summary = "The live event",
@@ -45,7 +45,7 @@ public class EventController {
     @GetMapping("/current")
     public ResponseEntity<EventResponse> current() {
         return eventService.findCurrent()
-                .map(event -> ResponseEntity.ok(EventResponse.from(event)))
+                .map(event -> ResponseEntity.ok(MissionMapper.toEventResponse(event)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
@@ -64,10 +64,8 @@ public class EventController {
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable String idOrSlug,
             @RequestParam(required = false) Integer week) {
-        Long userId = PlayerUserDetails.require(principal).getUserId();
-        UUID id = eventService.resolveId(idOrSlug);
-        eventMissionService.ensureForUserAndEventId(userId, id);
-        return ResponseEntity.ok(eventMissionService.getMissionsWithProgress(userId, id, week));
+        return ResponseEntity.ok(eventMissionService.getMissionsWithProgress(
+                PlayerUserDetails.require(principal).getUserId(), eventService.resolveId(idOrSlug), week));
     }
 
     @Operation(summary = "Join an event",
@@ -92,9 +90,7 @@ public class EventController {
     public ResponseEntity<EventProgressResponse> getMyProgress(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable String idOrSlug) {
-        Long userId = PlayerUserDetails.require(principal).getUserId();
-        UUID id = eventService.resolveId(idOrSlug);
-        eventMissionService.ensureForUserAndEventId(userId, id);
-        return ResponseEntity.ok(eventMissionService.getProgress(userId, id));
+        return ResponseEntity.ok(eventMissionService.getProgress(
+                PlayerUserDetails.require(principal).getUserId(), eventService.resolveId(idOrSlug)));
     }
 }

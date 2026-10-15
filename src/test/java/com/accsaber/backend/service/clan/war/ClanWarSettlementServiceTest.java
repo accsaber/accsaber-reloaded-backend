@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -51,7 +50,7 @@ import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanXpAward;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,7 +73,7 @@ class ClanWarSettlementServiceTest {
     @Mock
     private LevelUpAwardService levelUpAwardService;
     @Mock
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -92,7 +91,7 @@ class ClanWarSettlementServiceTest {
         clanProperties.getWar().setWinClanXp(1000.0);
         clanProperties.getWar().setXpPerContribution(0.5);
         service = new ClanWarSettlementService(warRepository, participantRepository, sideRepository, stakeService,
-                rewardItemRepository, clanItemRepository, levelService, levelUpAwardService, itemService,
+                rewardItemRepository, clanItemRepository, levelService, levelUpAwardService, itemAwardService,
                 clanProperties, transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(red).defenderClan(blue)
                 .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won).endedAt(Instant.now()).build();
@@ -140,16 +139,16 @@ class ClanWarSettlementServiceTest {
         verify(levelUpAwardService).addClanXp(2L, 50.0);
         verify(levelUpAwardService, never()).addClanXp(eq(3L), anyDouble());
         verify(participantRepository).markRewarded(eq(war.getId()), eq(3L), eq(0.0), any());
-        InOrder order = inOrder(itemService);
-        order.verify(itemService).awardSystem(eq(1L), eq(crate.getItem().getId()), eq(ItemSource.clan_war),
+        InOrder order = inOrder(itemAwardService);
+        order.verify(itemAwardService).awardSystem(eq(1L), eq(crate.getItem().getId()), eq(ItemSource.clan_war),
                 eq(war.getId().toString()), anyString(), eq(1));
-        order.verify(itemService).awardSystem(eq(1L), eq(trophy.getItem().getId()), eq(ItemSource.clan_war),
+        order.verify(itemAwardService).awardSystem(eq(1L), eq(trophy.getItem().getId()), eq(ItemSource.clan_war),
                 anyString(), anyString(), eq(1));
-        order.verify(itemService).awardSystem(eq(2L), eq(crate.getItem().getId()), eq(ItemSource.clan_war),
+        order.verify(itemAwardService).awardSystem(eq(2L), eq(crate.getItem().getId()), eq(ItemSource.clan_war),
                 anyString(), anyString(), eq(1));
-        verify(itemService, never()).awardSystem(eq(2L), eq(trophy.getItem().getId()), any(), anyString(),
+        verify(itemAwardService, never()).awardSystem(eq(2L), eq(trophy.getItem().getId()), any(), anyString(),
                 anyString(), anyInt());
-        verify(itemService, never()).awardSystem(eq(11L), any(), any(), anyString(), anyString(), anyInt());
+        verify(itemAwardService, never()).awardSystem(eq(11L), any(), any(), anyString(), anyString(), anyInt());
     }
 
     @Test
@@ -173,12 +172,12 @@ class ClanWarSettlementServiceTest {
         verify(levelService, never()).grantXp(eq(deserter.getId()), any());
         verify(clanItemRepository).grantItem(red.getId(), banner.getItem().getId(), "war", source);
         verify(clanItemRepository).grantItem(ally.getId(), banner.getItem().getId(), "war", source);
-        verify(itemService).awardSystem(eq(21L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
+        verify(itemAwardService).awardSystem(eq(21L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
                 eq(1));
-        verify(itemService).awardSystem(eq(1L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
+        verify(itemAwardService).awardSystem(eq(1L), eq(trophy.getItem().getId()), any(), anyString(), anyString(),
                 eq(1));
-        verify(itemService, never()).awardSystem(eq(31L), any(), any(), anyString(), anyString(), anyInt());
-        verify(itemService, never()).awardSystem(eq(2L), any(), any(), anyString(), anyString(), anyInt());
+        verify(itemAwardService, never()).awardSystem(eq(31L), any(), any(), anyString(), anyString(), anyInt());
+        verify(itemAwardService, never()).awardSystem(eq(2L), any(), any(), anyString(), anyString(), anyInt());
     }
 
     @Test

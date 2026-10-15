@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ForbiddenException;
+import com.accsaber.backend.model.dto.response.chat.ChatUnreadResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
@@ -65,6 +67,26 @@ class ClanChatChannelTest {
         doThrow(new ForbiddenException("no")).when(accessService).require(owls.getId(), 9L, ClanPermission.CHAT);
 
         assertThatThrownBy(() -> channel.assertParticipant(owls.getId(), 9L)).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void unreadChecksMembershipThenCountsOthersMessagesCappedAt99() {
+        Instant since = Instant.parse("2026-10-14T20:00:00Z");
+        Instant latest = Instant.parse("2026-10-14T20:11:05Z");
+        when(chatService.requireParticipant(channel, owls.getId(), 7L)).thenReturn(1L);
+        when(chatRepository.countClanUnread(owls.getId(), 1L, since, 99)).thenReturn(3);
+        when(chatRepository.findLatestClanMessageAt(owls.getId())).thenReturn(latest);
+
+        assertThat(channel.unread(owls.getId(), 7L, since)).isEqualTo(new ChatUnreadResponse(3, latest));
+    }
+
+    @Test
+    void unreadStopsAtTheMembershipCheck() {
+        when(chatService.requireParticipant(channel, owls.getId(), 9L)).thenThrow(new ForbiddenException("no"));
+
+        assertThatThrownBy(() -> channel.unread(owls.getId(), 9L, Instant.now()))
+                .isInstanceOf(ForbiddenException.class);
+        verifyNoInteractions(chatRepository);
     }
 
     @Test

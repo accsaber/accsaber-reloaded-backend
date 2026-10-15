@@ -2,11 +2,14 @@ package com.accsaber.backend.service.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +28,12 @@ class CategoryServiceTest {
 
     @InjectMocks
     private CategoryService categoryService;
+
+    @BeforeEach
+    void stubRepositoryLookups() {
+        lenient().when(categoryRepository.requireActive(any())).thenCallRealMethod();
+        lenient().when(categoryRepository.requireActiveByCode(any())).thenCallRealMethod();
+    }
 
     @Test
     void findById_throwsWhenNotFound() {

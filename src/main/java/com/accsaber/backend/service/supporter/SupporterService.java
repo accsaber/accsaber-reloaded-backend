@@ -20,6 +20,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.UnauthorizedException;
 import com.accsaber.backend.model.dto.request.supporter.ManualSupporterGrantRequest;
 import com.accsaber.backend.model.dto.response.supporter.ManualSupporterGrantResponse;
+import com.accsaber.backend.model.dto.response.supporter.SupporterCreditsRowResponse;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.supporter.KofiClaimSource;
@@ -33,8 +34,10 @@ import com.accsaber.backend.repository.supporter.KofiEventRepository;
 import com.accsaber.backend.repository.supporter.SupporterAccountRepository;
 import com.accsaber.backend.repository.supporter.SupporterTierRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.clan.ClanRefCache;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.util.Rounding;
+import com.accsaber.backend.util.Texts;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -54,7 +57,7 @@ public class SupporterService {
     private final SupporterTierRepository supporterTierRepository;
     private final UserRepository userRepository;
     private final ItemRepository itemRepository;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final com.accsaber.backend.repository.user.OauthConnectionRepository oauthConnectionRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -129,8 +132,7 @@ public class SupporterService {
         }
     }
 
-    @Transactional
-    public void claimEventForUser(UUID eventId, Long userId, KofiClaimSource source) {
+    private void claimEventForUser(UUID eventId, Long userId, KofiClaimSource source) {
         KofiEvent event = kofiEventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("KofiEvent", eventId));
         if (event.getClaimedUser() != null) {
@@ -148,8 +150,7 @@ public class SupporterService {
         log.info("Ko-fi event {} claimed by user {} via {}", event.getKofiTransactionId(), userId, source);
     }
 
-    @Transactional
-    public Optional<KofiEvent> claimByRoleSignal(Long userId, String tierName, Instant assignedAt) {
+    private Optional<KofiEvent> claimByRoleSignal(Long userId, String tierName, Instant assignedAt) {
         SupporterTier signalTier = resolveTierByName(tierName).orElse(null);
         if (signalTier == null) {
             log.warn("Role-signal claim for user {}: tier name '{}' does not resolve to any supporter tier", userId,
@@ -275,13 +276,32 @@ public class SupporterService {
     }
 
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<SupporterAccount> findCredits(
+    public org.springframework.data.domain.Page<SupporterCreditsRowResponse> findCredits(
             String status, org.springframework.data.domain.Pageable pageable) {
         String normalized = status == null ? "all" : status.toLowerCase();
         if (!normalized.equals("all") && !normalized.equals("active") && !normalized.equals("past")) {
             normalized = "all";
         }
-        return supporterAccountRepository.findCredits(normalized, pageable);
+        return supporterAccountRepository.findCredits(normalized, pageable)
+                .map(SupporterService::toCreditsRow);
+    }
+
+    private static SupporterCreditsRowResponse toCreditsRow(SupporterAccount account) {
+        SupporterCreditsRowResponse.SupporterCreditsRowResponseBuilder b = SupporterCreditsRowResponse.builder()
+                .userId(String.valueOf(account.getUserId()))
+                .name(account.getUser().getName())
+                .avatarUrl(account.getUser().getAvatarUrl())
+                .cdnAvatarUrl(account.getUser().getCdnAvatarUrl())
+                .clan(ClanRefCache.forUser(account.getUserId()))
+                .country(account.getUser().getCountry())
+                .lifetimeSupportedCents(account.getLifetimeSupportedCents())
+                .tierStartedAt(account.getTierStartedAt())
+                .firstSupportedAt(account.getCreatedAt());
+        if (account.getCurrentTier() != null) {
+            b.currentTier(account.getCurrentTier().getTierKey())
+                    .currentTierDisplayName(account.getCurrentTier().getDisplayName());
+        }
+        return b.build();
     }
 
     @Transactional(readOnly = true)
@@ -292,7 +312,7 @@ public class SupporterService {
         if (!normalized.equals("all") && !normalized.equals("unclaimed") && !normalized.equals("claimed")) {
             normalized = "all";
         }
-        String needle = search == null || search.isBlank() ? null : search.trim();
+        String needle = Texts.trimToNull(search);
         return kofiEventRepository.findFiltered(normalized, userId, needle, pageable);
     }
 
@@ -307,8 +327,7 @@ public class SupporterService {
                 .orElseThrow(() -> new ResourceNotFoundException("DiscordLink", discordId));
     }
 
-    @Transactional
-    public void applyEntitlement(Long userId, int amountCents, String webhookTierName) {
+    private void applyEntitlement(Long userId, int amountCents, String webhookTierName) {
         SupporterAccount account = loadOrCreateAccount(userId);
         account.setLifetimeSupportedCents(account.getLifetimeSupportedCents() + amountCents);
 
@@ -453,7 +472,7 @@ public class SupporterService {
                 log.warn("Supporter item missing: {} / {}", ref.typeKey, ref.name);
                 continue;
             }
-            itemService.awardSystem(userId, item.get().getId(), ItemSource.supporter_tier, tierKey,
+            itemAwardService.awardSystem(userId, item.get().getId(), ItemSource.supporter_tier, tierKey,
                     "Supported the platform through Ko-fi.");
         }
     }

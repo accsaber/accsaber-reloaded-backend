@@ -14,14 +14,12 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.item.TradeStatus;
 import com.accsaber.backend.model.entity.item.UserItemTrade;
 
 import jakarta.persistence.LockModeType;
 
-@Repository
 public interface UserItemTradeRepository extends JpaRepository<UserItemTrade, UUID> {
 
        @Lock(LockModeType.PESSIMISTIC_WRITE)

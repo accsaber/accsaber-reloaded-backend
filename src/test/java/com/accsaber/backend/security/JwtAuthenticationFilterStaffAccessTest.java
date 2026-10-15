@@ -74,8 +74,7 @@ class JwtAuthenticationFilterStaffAccessTest {
     }
 
     private void stubStaffToken(Optional<StaffUser> account) {
-        when(jwtService.extractTokenType(TOKEN)).thenReturn(JwtService.TYPE_STAFF);
-        when(jwtService.extractStaffId(TOKEN)).thenReturn(STAFF_ID);
+        when(jwtService.verify(TOKEN)).thenReturn(new JwtService.VerifiedToken(JwtService.TYPE_STAFF, STAFF_ID.toString(), null));
         when(staffUserRepository.findByIdAndActiveTrueAndStatus(STAFF_ID, StaffUserStatus.ACCEPTED))
                 .thenReturn(account);
     }

@@ -64,7 +64,7 @@ public class AdminCampaignController {
     @PatchMapping("/{campaignId}/loved")
     public ResponseEntity<CampaignResponse> setLoved(
             @PathVariable UUID campaignId,
-            @RequestParam(name = "loved", defaultValue = "true") boolean loved,
+            @RequestParam(defaultValue = "true") boolean loved,
             Authentication authentication) {
         return ResponseEntity.ok(
                 campaignService.setLoved(campaignId, loved, StaffPrincipals.staffIdOf(authentication)));

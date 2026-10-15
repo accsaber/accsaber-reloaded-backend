@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +43,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
 
@@ -62,12 +64,18 @@ class PlaylistServiceTest {
     @Mock
     private CampaignDifficultyRepository campaignDifficultyRepository;
     @Mock
-    private ScoreService scoreService;
+    private ScoreQueryService scoreQueryService;
     @Mock
     private PlaylistAssembler playlistAssembler;
 
     @InjectMocks
     private PlaylistService playlistService;
+
+    @BeforeEach
+    void stubRepositoryLookups() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
+        lenient().when(categoryRepository.requireActiveByCode(any())).thenCallRealMethod();
+    }
 
     @Nested
     class GenerateCampaignPlaylist {
@@ -130,7 +138,7 @@ class PlaylistServiceTest {
                     .thenReturn(Optional.of(User.builder().id(TARGET_ID).name("Player").avatarUrl(AVATAR).build()));
             MapDifficulty diffA = MapDifficulty.builder().id(UUID.randomUUID()).build();
             MapDifficulty diffB = MapDifficulty.builder().id(UUID.randomUUID()).build();
-            when(scoreService.findDifficultiesByUser(TARGET_ID, null, null, pageable))
+            when(scoreQueryService.findDifficultiesByUser(TARGET_ID, null, null, pageable))
                     .thenReturn(List.of(diffA, diffB));
             when(playlistAssembler.fetchAndEncodeImage(AVATAR)).thenReturn("data:image/png;base64,XXX");
             Map<String, Object> assembled = Map.of("playlistTitle", "AccSaber Scores - Player");
@@ -153,7 +161,7 @@ class PlaylistServiceTest {
             when(userRepository.findByIdAndActiveTrue(TARGET_ID))
                     .thenReturn(Optional.of(User.builder().id(TARGET_ID).name("Player").avatarUrl(AVATAR).build()));
             UUID catId = UUID.randomUUID();
-            when(scoreService.findDifficultiesByUser(TARGET_ID, catId, "camellia", pageable)).thenReturn(List.of());
+            when(scoreQueryService.findDifficultiesByUser(TARGET_ID, catId, "camellia", pageable)).thenReturn(List.of());
             when(categoryRepository.findById(catId))
                     .thenReturn(Optional.of(Category.builder().id(catId).code("tech_acc").name("Tech Acc").build()));
             when(playlistAssembler.assemble(eq("AccSaber Scores - Player (Tech Acc)"), any(), eq(SYNC_URL), any()))
@@ -161,7 +169,7 @@ class PlaylistServiceTest {
 
             playlistService.generateUserScoresPlaylist(TARGET_ID, catId, "camellia", pageable, SYNC_URL);
 
-            verify(scoreService).findDifficultiesByUser(TARGET_ID, catId, "camellia", pageable);
+            verify(scoreQueryService).findDifficultiesByUser(TARGET_ID, catId, "camellia", pageable);
             verify(playlistAssembler).assemble(eq("AccSaber Scores - Player (Tech Acc)"), any(), eq(SYNC_URL), any());
         }
 

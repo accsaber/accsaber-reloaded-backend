@@ -39,7 +39,7 @@ import com.accsaber.backend.repository.mission.MissionTemplateRepository;
 import com.accsaber.backend.repository.mission.UserEventProfileRepository;
 import com.accsaber.backend.repository.mission.UserMissionRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,7 +64,7 @@ class EventMissionServiceTest {
         @Mock
         private LevelUpAwardService levelUpAwardService;
         @Mock
-        private ItemService itemService;
+        private ItemAwardService itemAwardService;
         @Mock
         private MissionRowFactory missionRowFactory;
         @Mock

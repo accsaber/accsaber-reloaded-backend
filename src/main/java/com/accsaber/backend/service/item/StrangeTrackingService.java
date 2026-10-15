@@ -18,7 +18,7 @@ public class StrangeTrackingService {
 
     private static final Logger log = LoggerFactory.getLogger(StrangeTrackingService.class);
 
-    private final ItemService itemService;
+    private final ItemEquipService itemEquipService;
     private final UserItemLinkCounterRepository counterRepository;
 
     public void recordPlay(Long userId) {
@@ -30,7 +30,7 @@ public class StrangeTrackingService {
     }
 
     private void incrementForUser(Long userId, String statKey, long delta) {
-        for (UserItemLink link : itemService.findEffectiveEquippedLinks(userId)) {
+        for (UserItemLink link : itemEquipService.findEffectiveEquippedLinks(userId)) {
             if (carriesStrange(link)) {
                 counterRepository.incrementBy(link.getId(), statKey, delta);
             }

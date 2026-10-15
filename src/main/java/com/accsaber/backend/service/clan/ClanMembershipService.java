@@ -70,7 +70,7 @@ public class ClanMembershipService {
         Clan clan = clanRepository.requireActive(clanId);
         Page<ClanMember> page = memberRepository.findRoster(clanId, pageable);
         Map<Long, ClanMembershipResponse> memberships = memberships(clan, page.getContent());
-        return page.map(m -> PlayerRef.of(m.getUser(), memberships.get(m.getUser().getId())));
+        return page.map(m -> ClanRefCache.playerRef(m.getUser(), memberships.get(m.getUser().getId())));
     }
 
     private Map<Long, ClanMembershipResponse> memberships(Clan clan, List<ClanMember> members) {
@@ -289,7 +289,7 @@ public class ClanMembershipService {
     }
 
     private PlayerRef toResponse(ClanMember member) {
-        return PlayerRef.of(member.getUser(), memberships(member.getClan(), List.of(member))
+        return ClanRefCache.playerRef(member.getUser(), memberships(member.getClan(), List.of(member))
                 .get(member.getUser().getId()));
     }
 }

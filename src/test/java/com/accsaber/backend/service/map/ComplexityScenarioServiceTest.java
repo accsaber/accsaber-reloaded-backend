@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.APResult;
 import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
 import com.accsaber.backend.model.dto.projection.SimulationScoreRow;

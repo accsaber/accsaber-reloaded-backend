@@ -9,11 +9,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.score.PracticeScore;
 
-@Repository
 public interface PracticeScoreRepository extends JpaRepository<PracticeScore, UUID> {
 
     List<PracticeScore> findAllByOrderByScoreDesc(Pageable pageable);

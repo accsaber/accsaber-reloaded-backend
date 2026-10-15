@@ -48,7 +48,7 @@ public class RankingBatchController {
     @Operation(summary = "List batches")
     @GetMapping
     @PreAuthorize("hasRole('RANKING')")
-    public ResponseEntity<Page<BatchResponse>> listBatches(
+    public ResponseEntity<Page<BatchResponse<MapDifficultyResponse>>> listBatches(
             @RequestParam(required = false) BatchStatus status,
             @RequestParam(required = false) String search,
             Pageable pageable) {
@@ -58,22 +58,22 @@ public class RankingBatchController {
     @Operation(summary = "Get a batch")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('RANKING')")
-    public ResponseEntity<BatchResponse> getBatch(@PathVariable UUID id) {
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> getBatch(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.findById(id));
     }
 
     @Operation(summary = "Create a batch", description = "Starts as a draft.")
     @PostMapping
-    public ResponseEntity<BatchResponse> createBatch(
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> createBatch(
             @Valid @RequestBody CreateBatchRequest request,
             Authentication authentication) {
-        BatchResponse response = batchService.create(request, StaffPrincipals.staffIdOf(authentication));
+        BatchResponse<MapDifficultyResponse> response = batchService.create(request, StaffPrincipals.staffIdOf(authentication));
         return ResponseEntity.created(URI.create("/v1/batches/" + response.getId())).body(response);
     }
 
     @Operation(summary = "Edit a batch", description = "Name and description. Works in any status, even released.")
     @PatchMapping("/{id}")
-    public ResponseEntity<BatchResponse> updateBatch(
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> updateBatch(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateBatchRequest request) {
         return ResponseEntity.ok(batchService.update(id, request));
@@ -81,7 +81,7 @@ public class RankingBatchController {
 
     @Operation(summary = "Set batch status", description = "draft or release_ready only. Use /release to publish.")
     @PatchMapping("/{id}/status")
-    public ResponseEntity<BatchResponse> updateStatus(
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateBatchStatusRequest request) {
         return ResponseEntity.ok(batchService.updateStatus(id, request));
@@ -89,7 +89,7 @@ public class RankingBatchController {
 
     @Operation(summary = "Add a difficulty to a batch")
     @PostMapping("/{id}/difficulties/{difficultyId}")
-    public ResponseEntity<BatchResponse> addDifficulty(
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> addDifficulty(
             @PathVariable UUID id,
             @PathVariable UUID difficultyId) {
         return ResponseEntity.ok(batchService.addDifficulty(id, difficultyId));
@@ -97,7 +97,7 @@ public class RankingBatchController {
 
     @Operation(summary = "Remove a difficulty from a batch")
     @DeleteMapping("/{id}/difficulties/{difficultyId}")
-    public ResponseEntity<BatchResponse> removeDifficulty(
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> removeDifficulty(
             @PathVariable UUID id,
             @PathVariable UUID difficultyId) {
         return ResponseEntity.ok(batchService.removeDifficulty(id, difficultyId));
@@ -105,7 +105,7 @@ public class RankingBatchController {
 
     @Operation(summary = "Release a batch", description = "Ranks every difficulty in it at once. Cannot be undone.")
     @PostMapping("/{id}/release")
-    public ResponseEntity<BatchResponse> release(@PathVariable UUID id) {
+    public ResponseEntity<BatchResponse<MapDifficultyResponse>> release(@PathVariable UUID id) {
         return ResponseEntity.ok(batchService.release(id));
     }
 

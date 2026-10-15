@@ -17,8 +17,8 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
 import com.accsaber.backend.model.event.ClanFeedEvent;
 import com.accsaber.backend.service.clan.war.ClanWarResponses;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.websocket.server.ClanFeedBroadcast;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedBroadcast;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,7 +45,7 @@ public class ClanFeed {
 
     public void hit(ClanWar war, ClanWarHit hit, List<UUID> rooms) {
         UUID difficultyId = hit.getMapDifficulty().getId();
-        ClanWarHitResponse response = ClanWarHitResponse.of(hit,
+        ClanWarHitResponse response = ClanMapper.toWarHitResponse(hit,
                 mapService.getDifficultyResponsesPublic(List.of(difficultyId)).get(difficultyId));
         eventPublisher.publishEvent(new ClanFeedEvent(rooms, ClanFeedBroadcast.hit(war.getId(), response)));
         if (hit.isBroke()) {

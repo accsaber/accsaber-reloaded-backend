@@ -42,7 +42,7 @@ import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.repository.market.MarketBidRepository;
 import com.accsaber.backend.repository.market.MarketListingRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemEquipService;
 import com.accsaber.backend.service.item.ItemTransferService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.service.supporter.SupporterService;
@@ -71,7 +71,7 @@ class MarketListingCreateTest {
     @Mock
     private ItemTransferService itemTransferService;
     @Mock
-    private ItemService itemService;
+    private ItemEquipService itemEquipService;
     @Mock
     private MarketSettlementService settlementService;
     @Mock
@@ -91,7 +91,7 @@ class MarketListingCreateTest {
         when(userItemLinkRepository.findByIdForUpdate(LINK_ID)).thenReturn(Optional.of(link));
         when(listingRepository.countBySeller_IdAndStatus(SELLER_ID, MarketListingStatus.active)).thenReturn(0L);
         when(tradeItemRepository.findLinkIdsInTradesWithStatus(any(), any())).thenReturn(List.of());
-        when(itemService.isLinkEquipped(anyLong(), any())).thenReturn(false);
+        when(itemEquipService.isLinkEquipped(anyLong(), any())).thenReturn(false);
         when(itemTransferService.escrow(any(), anyLong())).thenReturn(link);
         when(userRepository.getReferenceById(SELLER_ID)).thenReturn(user());
         when(listingRepository.save(any())).thenAnswer(returnsFirstArg());

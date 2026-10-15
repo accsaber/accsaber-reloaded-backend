@@ -1,7 +1,6 @@
 package com.accsaber.backend.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -34,8 +33,7 @@ class PlayerTokenResolverTest {
     private PlayerTokenResolver resolver;
 
     private void playerToken(long tokenUserId, long primaryUserId) {
-        when(jwtService.extractTokenType("tok")).thenReturn(JwtService.TYPE_PLAYER);
-        when(jwtService.extractPlayerId("tok")).thenReturn(tokenUserId);
+        when(jwtService.verify("tok")).thenReturn(new JwtService.VerifiedToken(JwtService.TYPE_PLAYER, Long.toString(tokenUserId), null));
         when(duplicateUserService.resolvePrimaryUserId(tokenUserId)).thenReturn(primaryUserId);
     }
 
@@ -59,14 +57,14 @@ class PlayerTokenResolverTest {
 
     @Test
     void staffTokenIsUnauthorized() {
-        when(jwtService.extractTokenType("tok")).thenReturn(JwtService.TYPE_STAFF);
+        when(jwtService.verify("tok")).thenReturn(new JwtService.VerifiedToken(JwtService.TYPE_STAFF, "x", null));
 
         assertThat(resolver.resolve("tok").rejection()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     void brokenTokenIsUnauthorized() {
-        doThrow(new JwtException("expired")).when(jwtService).validateToken("tok");
+        when(jwtService.verify("tok")).thenThrow(new JwtException("expired"));
 
         PlayerTokenResolver.Resolution resolution = resolver.resolve("tok");
 

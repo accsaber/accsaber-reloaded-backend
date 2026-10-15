@@ -8,6 +8,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.accsaber.backend.model.admin.JobRecord;
+import com.accsaber.backend.model.admin.JobStatus;
+import com.accsaber.backend.model.admin.JobType;
+
 class JobRegistryTest {
 
     private JobRegistry registry;

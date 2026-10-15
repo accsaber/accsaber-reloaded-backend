@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ConflictException;
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.milestone.LevelResponse;
 import com.accsaber.backend.model.dto.response.player.UserLevelData;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
@@ -20,18 +19,16 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserNameHistory;
-import com.accsaber.backend.model.entity.user.UserPinnedScore;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserCategorySkillRepository;
 import com.accsaber.backend.repository.user.UserCategoryStatisticsRepository;
 import com.accsaber.backend.repository.user.UserDuplicateLinkRepository;
 import com.accsaber.backend.repository.user.UserNameHistoryRepository;
-import com.accsaber.backend.repository.user.UserPinnedScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.infra.AfterCommit;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.score.ScoreRankingService;
@@ -53,7 +50,6 @@ public class UserService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserNameHistoryRepository userNameHistoryRepository;
-    private final UserPinnedScoreRepository userPinnedScoreRepository;
     private final UserCategoryStatisticsRepository statisticsRepository;
     private final UserCategorySkillRepository userCategorySkillRepository;
     private final DuplicateUserService duplicateUserService;
@@ -68,7 +64,7 @@ public class UserService {
     private final SkillService skillService;
     private final UserRelationService userRelationService;
     private final UserSettingsService userSettingsService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final com.accsaber.backend.service.supporter.SupporterService supporterService;
 
     @Autowired
@@ -81,8 +77,7 @@ public class UserService {
 
     public UserResponse findByUserId(Long userId, Long viewerUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        User user = userRepository.findByIdAndActiveTrue(resolved)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolved));
+        User user = userRepository.requireActive(resolved);
         return toResponse(user, viewerUserId);
     }
 
@@ -102,21 +97,19 @@ public class UserService {
                 .avatarUrl(avatarUrl)
                 .country(country)
                 .build());
-        itemService.grantWelcomeItems(saved.getId());
+        itemAwardService.grantWelcomeItems(saved.getId());
         return saved;
     }
 
     public Double getTotalXp(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        User user = userRepository.findByIdAndActiveTrue(resolved)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolved));
+        User user = userRepository.requireActive(resolved);
         return user.getTotalXp();
     }
 
     @Transactional
     public User updateProfile(Long userId, String name, String avatarUrl, String country, Boolean playerInactive) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         if (name != null && !name.equals(user.getName())) {
             userNameHistoryRepository.save(UserNameHistory.builder()
                     .user(user)
@@ -135,8 +128,7 @@ public class UserService {
 
     @Transactional
     public void setAvatarFromPlatformSync(Long userId, String cdnUrl, String upstreamUrl) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         user.setAvatarUrl(upstreamUrl);
         user.setCdnAvatarUrl(cdnUrl);
         user.setLastSyncedAvatarUrl(upstreamUrl);
@@ -154,16 +146,14 @@ public class UserService {
 
     @Transactional
     public void setUserUploadedAvatar(Long userId, String cdnUrl) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         user.setCdnAvatarUrl(cdnUrl);
         userRepository.save(user);
     }
 
     @Transactional
     public User overrideCountry(Long userId, String country) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         user.setCountry(country);
         user.setCountryOverride(true);
         userRepository.save(user);
@@ -173,16 +163,14 @@ public class UserService {
 
     @Transactional
     public User clearCountryOverride(Long userId) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         user.setCountryOverride(false);
         return userRepository.save(user);
     }
 
     @Transactional
     public void setBanned(Long userId, boolean banned) {
-        User user = userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        User user = userRepository.requireActive(userId);
         if (user.isBanned() == banned) {
             log.info("User {} is already {}, skipping", userId, banned ? "banned" : "unbanned");
             return;
@@ -300,11 +288,6 @@ public class UserService {
     public List<UserNameHistory> getNameHistory(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         return userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(resolved);
-    }
-
-    public List<UserPinnedScore> getPinnedScores(Long userId) {
-        Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        return userPinnedScoreRepository.findActiveByUserIdWithScoreGraph(resolved);
     }
 
     private UserResponse toResponse(User user, Long viewerUserId) {

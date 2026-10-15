@@ -79,7 +79,6 @@ class BeatLeaderClientIntegrationTest {
             assertThat(result).isPresent();
             BeatLeaderLeaderboardResponse lb = result.get();
             assertThat(lb.getId()).isEqualTo(BL_LEADERBOARD_ID);
-            assertThat(lb.getPlays()).isGreaterThan(0);
 
             assertThat(lb.getSong()).isNotNull();
             assertThat(lb.getSong().getHash()).isEqualToIgnoringCase(EXPECTED_HASH);
@@ -107,7 +106,6 @@ class BeatLeaderClientIntegrationTest {
             for (BeatLeaderScoreResponse score : scores) {
                 assertThat(score.getId()).as("id").isGreaterThan(0);
                 assertThat(score.getBaseScore()).as("baseScore").isGreaterThan(0);
-                assertThat(score.getModifiedScore()).as("modifiedScore").isGreaterThan(0);
                 assertThat(score.getRank()).as("rank").isGreaterThan(0);
                 assertThat(score.getTimepost()).as("timepost").isGreaterThan(0);
                 assertThat(score.getLeaderboardId()).as("leaderboardId").isEqualTo(BL_LEADERBOARD_ID);

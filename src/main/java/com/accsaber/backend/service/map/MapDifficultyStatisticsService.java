@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.map;
 
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class MapDifficultyStatisticsService {
 
-    private static final MathContext MC = new MathContext(16, RoundingMode.HALF_UP);
     private static final int ACCURACY_SCALE = 10;
 
     private final MapDifficultyStatisticsRepository statisticsRepository;
@@ -45,7 +42,8 @@ public class MapDifficultyStatisticsService {
         if (stats.isEmpty())
             return Optional.empty();
 
-        TopScoreSnapshot topScore = scoreRepository.findCurrentTopOne(mapDifficultyId)
+        TopScoreSnapshot topScore = scoreRepository.findCurrentTopOnes(List.of(mapDifficultyId)).stream()
+                .findFirst()
                 .map(this::toTopScoreSnapshot)
                 .orElse(null);
 

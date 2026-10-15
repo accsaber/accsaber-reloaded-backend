@@ -242,7 +242,6 @@ class MapImportServiceTest {
         private BeatLeaderLeaderboardResponse buildBlLeaderboard() {
                 BeatLeaderLeaderboardResponse lb = new BeatLeaderLeaderboardResponse();
                 lb.setId("bl_123");
-                lb.setPlays(Long.valueOf(500));
 
                 BeatLeaderLeaderboardResponse.Song song = new BeatLeaderLeaderboardResponse.Song();
                 song.setHash("abc123hash");

@@ -3,12 +3,8 @@ package com.accsaber.backend.service.oauth;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriUtils;
 
@@ -50,7 +46,7 @@ public class DiscordOauthClient {
     }
 
     public DiscordIdentity exchangeCode(String code) {
-        OauthTokenResponse token = exchange(code);
+        OauthTokenResponse token = OauthTokenExchange.exchange(webClient, config, code, "Discord");
         return webClient.get()
                 .uri(config.getUserInfoUrl())
                 .header("Authorization", "Bearer " + token.getAccessToken())
@@ -59,25 +55,6 @@ public class DiscordOauthClient {
                 .timeout(HTTP_TIMEOUT)
                 .blockOptional()
                 .orElseThrow(() -> new UnauthorizedException("Discord identity lookup failed"));
-    }
-
-    private OauthTokenResponse exchange(String code) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "authorization_code");
-        form.add("code", code);
-        form.add("redirect_uri", config.getRedirectUri());
-        form.add("client_id", config.getClientId());
-        form.add("client_secret", config.getClientSecret());
-
-        return webClient.post()
-                .uri(config.getTokenUrl())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(form))
-                .retrieve()
-                .bodyToMono(OauthTokenResponse.class)
-                .timeout(HTTP_TIMEOUT)
-                .blockOptional()
-                .orElseThrow(() -> new UnauthorizedException("Discord token exchange failed"));
     }
 
     @Data

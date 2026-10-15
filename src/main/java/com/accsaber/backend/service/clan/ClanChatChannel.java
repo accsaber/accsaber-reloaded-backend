@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.clan;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,6 +13,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
+import com.accsaber.backend.model.dto.response.chat.ChatUnreadResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.clan.Clan;
@@ -30,6 +32,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClanChatChannel implements ChatChannel {
 
+    private static final int UNREAD_CAP = 99;
+
     private final ChatMessageRepository chatRepository;
     private final ClanRepository clanRepository;
     private final ClanMemberRepository memberRepository;
@@ -47,6 +51,12 @@ public class ClanChatChannel implements ChatChannel {
                 .subjectClan(notice.subjectClan())
                 .war(notice.war())
                 .build());
+    }
+
+    public ChatUnreadResponse unread(UUID clanId, Long playerId, Instant since) {
+        Long userId = chatService.requireParticipant(this, clanId, playerId);
+        return new ChatUnreadResponse(chatRepository.countClanUnread(clanId, userId, since, UNREAD_CAP),
+                chatRepository.findLatestClanMessageAt(clanId));
     }
 
     @Override
@@ -75,7 +85,7 @@ public class ClanChatChannel implements ChatChannel {
                 .filter(Objects::nonNull)
                 .toList());
         return messages.stream()
-                .map(message -> ChatMessageResponse.of(message, message.getSubjectClan() == null ? null
+                .map(message -> ChatChannel.toResponse(message, message.getSubjectClan() == null ? null
                         : refs.get(message.getSubjectClan().getId())))
                 .toList();
     }

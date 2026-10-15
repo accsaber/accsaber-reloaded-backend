@@ -72,9 +72,9 @@ class CampaignLeaderboardServiceTest {
         assertThat(page.getContent()).hasSize(2);
         CampaignLeaderboardEntry first = page.getContent().get(0);
         assertThat(first.getRank()).isEqualTo(1);
-        assertThat(first.getPlayer().getUserId()).isEqualTo("1");
-        assertThat(first.getPlayer().getUserName()).isEqualTo("alice");
-        assertThat(first.getPlayer().getCdnAvatarUrl()).isEqualTo("cdn1");
+        assertThat(first.getPlayer().userId()).isEqualTo("1");
+        assertThat(first.getPlayer().userName()).isEqualTo("alice");
+        assertThat(first.getPlayer().cdnAvatarUrl()).isEqualTo("cdn1");
         assertThat(first.getCompletedAt()).isEqualTo(Instant.parse("2026-01-01T10:00:00Z"));
         assertThat(page.getContent().get(1).getRank()).isEqualTo(2);
     }
@@ -83,7 +83,7 @@ class CampaignLeaderboardServiceTest {
     void averageBoardMapsAccuracyApAndNodes() {
         when(campaignRepository.findByIdAndActiveTrue(campaignId)).thenReturn(Optional.of(published));
         Object[] carol = { 3L, "carol", "US", "a3", "cdn3", 0.98875, 295, 2L };
-        when(leaderboardRepository.averagesByAccuracy(eq(campaignId), any()))
+        when(leaderboardRepository.averages(eq(campaignId), any()))
                 .thenReturn(new PageImpl<>(List.<Object[]>of(carol), paging, 1));
 
         CampaignLeaderboardEntry entry = service.getBoard(campaignId, CampaignLeaderboardBoard.AVG_ACCURACY,
@@ -134,7 +134,7 @@ class CampaignLeaderboardServiceTest {
         CampaignNodeScoreEntry entry = service.getNodeBoard(campaignId, nodeId, paging).getContent().get(0);
 
         assertThat(entry.getRank()).isEqualTo(1);
-        assertThat(entry.getPlayer().getUserName()).isEqualTo("carol");
+        assertThat(entry.getPlayer().userName()).isEqualTo("carol");
         assertThat(entry.getScore()).isEqualTo(990000);
         assertThat(entry.getAccuracy()).isEqualByComparingTo(0.99);
         assertThat(entry.getAp()).isEqualByComparingTo(320.0);

@@ -1,14 +1,10 @@
 package com.accsaber.backend.client;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.core.codec.DecodingException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -25,13 +21,18 @@ import reactor.util.retry.Retry;
 @Service
 public class BeatLeaderClient {
 
+    private static final Retry RATE_LIMIT_RETRY = ClientSupport.rateLimitRetry("BeatLeader", 10, Duration.ofSeconds(2));
+
     private final WebClient webClient;
     private final PlatformProperties properties;
+    private final Retry retry;
 
     public BeatLeaderClient(@Qualifier("beatLeaderWebClient") WebClient webClient,
             PlatformProperties properties) {
         this.webClient = webClient;
         this.properties = properties;
+        this.retry = ClientSupport.rateLimitRetry("BeatLeader", properties.getBeatleader().getMaxRetries(),
+                Duration.ofSeconds(1));
     }
 
     public Optional<BeatLeaderPlayerResponse> getPlayer(String playerId) {
@@ -40,7 +41,7 @@ public class BeatLeaderClient {
                     .uri("/player/{id}", playerId)
                     .retrieve()
                     .bodyToMono(BeatLeaderPlayerResponse.class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(retry)
                     .block(timeout()));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -60,7 +61,7 @@ public class BeatLeaderClient {
                     .uri("/score/{playerId}/{hash}/{difficulty}/{mode}", playerId, songHash, difficultyName, modeName)
                     .retrieve()
                     .bodyToMono(BeatLeaderScoreResponse.class)
-                    .retryWhen(rateLimitRetrySpec())
+                    .retryWhen(RATE_LIMIT_RETRY)
                     .block(timeout()));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -80,7 +81,7 @@ public class BeatLeaderClient {
                         .build(leaderboardId))
                 .retrieve()
                 .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                .retryWhen(rateLimitRetrySpec())
+                .retryWhen(RATE_LIMIT_RETRY)
                 .block(timeout());
         return response != null && response.getScores() != null
                 ? response.getScores()
@@ -93,7 +94,7 @@ public class BeatLeaderClient {
                     .uri("/leaderboard/{id}", leaderboardId)
                     .retrieve()
                     .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(retry)
                     .block(timeout()));
         } catch (WebClientResponseException.NotFound e) {
             return Optional.empty();
@@ -113,7 +114,7 @@ public class BeatLeaderClient {
                         .build(leaderboardId))
                 .retrieve()
                 .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                .retryWhen(rateLimitRetrySpec())
+                .retryWhen(RATE_LIMIT_RETRY)
                 .block(timeout());
         return response != null && response.getScores() != null ? response.getScores() : List.of();
     }
@@ -128,7 +129,7 @@ public class BeatLeaderClient {
                             .build(leaderboardId))
                     .retrieve()
                     .bodyToMono(BeatLeaderLeaderboardResponse.class)
-                    .retryWhen(retrySpec())
+                    .retryWhen(retry)
                     .block(timeout());
             if (response == null || response.getScores() == null)
                 return List.of();
@@ -139,31 +140,6 @@ public class BeatLeaderClient {
             log.error("Failed to fetch BL recent scores for {}: {}", leaderboardId, e.getMessage());
             return List.of();
         }
-    }
-
-    private Retry retrySpec() {
-        return Retry.backoff(properties.getBeatleader().getMaxRetries(), Duration.ofSeconds(1))
-                .maxBackoff(Duration.ofSeconds(10))
-                .jitter(0.5)
-                .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound)
-                        && !(throwable instanceof DecodingException));
-    }
-
-    private Retry rateLimitRetrySpec() {
-        return Retry.backoff(10, Duration.ofSeconds(2))
-                .maxBackoff(Duration.ofSeconds(60))
-                .jitter(0.3)
-                .filter(throwable -> {
-                    if (throwable instanceof WebClientResponseException.NotFound)
-                        return false;
-                    if (throwable instanceof DecodingException)
-                        return false;
-                    if (throwable instanceof WebClientResponseException wce && wce.getStatusCode().value() == 429) {
-                        log.warn("BeatLeader 429 rate limited, backing off and retrying");
-                        return true;
-                    }
-                    return true;
-                });
     }
 
     private Duration timeout() {

@@ -56,7 +56,7 @@ public class ScoreCorrectionService {
                 log.info("Hard-deleted {} score(s) for user {} on difficulty {} - reason: {}",
                                 scoreIds.size(), userId, mapDifficultyId, reason);
 
-                userRepository.recalculateTotalXpForAllActiveUsers();
+                userRepository.rebuildXpTotals(null);
                 scoreRankingService.reassignRanks(mapDifficultyId);
 
                 if (categoryId != null) {

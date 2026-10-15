@@ -39,12 +39,14 @@ import com.accsaber.backend.model.dto.response.statistics.ItemHolderResponse;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.item.ItemDisintegrationService;
+import com.accsaber.backend.service.item.ItemEquipService;
 import com.accsaber.backend.service.item.ItemFileService;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
 import com.accsaber.backend.service.item.UnusualEffectService;
-import com.accsaber.backend.service.stats.SiteStatisticsService;
+import com.accsaber.backend.service.stats.ItemStatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -58,10 +60,12 @@ import lombok.RequiredArgsConstructor;
 public class ItemController {
 
     private final ItemService itemService;
+    private final ItemEquipService itemEquipService;
     private final ItemFileService itemFileService;
+    private final ItemDisintegrationService itemDisintegrationService;
     private final ItemTypeService itemTypeService;
     private final UnusualEffectService unusualEffectService;
-    private final SiteStatisticsService siteStatisticsService;
+    private final ItemStatisticsService itemStatisticsService;
 
     @Operation(summary = "Item types", description = "The type decides the equip slot. Pass its key when "
             + "you equip or clear a slot.")
@@ -124,7 +128,7 @@ public class ItemController {
             @PageableDefault(size = 20) Pageable pageable) {
         itemService.findById(id);
         Long viewerId = principal != null ? principal.getUserId() : null;
-        return ResponseEntity.ok(siteStatisticsService.getItemHolders(id, modifier, search, sort, viewerId, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getItemHolders(id, modifier, search, sort, viewerId, pageable));
     }
 
     @Operation(summary = "Preview an item combo", description = "Renders an item with a modifier and an "
@@ -188,7 +192,7 @@ public class ItemController {
     public ResponseEntity<Void> equip(
             @Valid @RequestBody EquipItemRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.equip(PlayerUserDetails.require(principal).getUserId(), request.linkId(), request.variantKey());
+        itemEquipService.equip(PlayerUserDetails.require(principal).getUserId(), request.linkId(), request.variantKey());
         return ResponseEntity.noContent().build();
     }
 
@@ -197,7 +201,7 @@ public class ItemController {
     public ResponseEntity<Void> unequip(
             @PathVariable String typeKey,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        itemService.unequip(PlayerUserDetails.require(principal).getUserId(), typeKey);
+        itemEquipService.unequip(PlayerUserDetails.require(principal).getUserId(), typeKey);
         return ResponseEntity.noContent().build();
     }
 
@@ -221,7 +225,7 @@ public class ItemController {
             @Valid @RequestBody DisintegrateRequest request,
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = PlayerUserDetails.require(principal).getUserId();
-        return ResponseEntity.ok(itemService.disintegrate(me, request.getEntries()));
+        return ResponseEntity.ok(itemDisintegrationService.disintegrate(me, request.getEntries()));
     }
 
     @Operation(summary = "Your essence", description = "You get essence from disintegrating items and "
@@ -230,6 +234,6 @@ public class ItemController {
     public ResponseEntity<EssenceBalanceResponse> getEssenceBalance(
             @AuthenticationPrincipal PlayerUserDetails principal) {
         Long me = PlayerUserDetails.require(principal).getUserId();
-        return ResponseEntity.ok(itemService.getEssence(me));
+        return ResponseEntity.ok(itemDisintegrationService.getEssence(me));
     }
 }

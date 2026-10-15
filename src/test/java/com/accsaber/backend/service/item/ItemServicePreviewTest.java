@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,6 @@ import com.accsaber.backend.model.entity.item.ItemModifier;
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.UnusualEffect;
-import com.accsaber.backend.repository.item.ItemModifierRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.repository.item.UnusualEffectRepository;
 
@@ -35,7 +35,7 @@ class ItemServicePreviewTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
-    private ItemModifierRepository itemModifierRepository;
+    private ItemAwardService itemAwardService;
     @Mock
     private UnusualEffectRepository unusualEffectRepository;
 
@@ -45,7 +45,7 @@ class ItemServicePreviewTest {
     @Test
     void previewReturnsFullComboFaithfully() {
         when(itemRepository.findById(ITEM_ID)).thenReturn(Optional.of(item()));
-        when(itemModifierRepository.findByKey(ItemModifier.UNUSUAL)).thenReturn(Optional.of(unusualModifier()));
+        when(itemAwardService.loadModifierSet(List.of(ItemModifier.UNUSUAL))).thenReturn(Set.of(unusualModifier()));
         when(unusualEffectRepository.findById(EFFECT_ID)).thenReturn(Optional.of(fiery()));
 
         UserItemResponse response = itemService.previewItem(
@@ -82,7 +82,7 @@ class ItemServicePreviewTest {
     @Test
     void previewThrowsWhenEffectMissing() {
         when(itemRepository.findById(ITEM_ID)).thenReturn(Optional.of(item()));
-        when(itemModifierRepository.findByKey(ItemModifier.UNUSUAL)).thenReturn(Optional.of(unusualModifier()));
+        when(itemAwardService.loadModifierSet(List.of(ItemModifier.UNUSUAL))).thenReturn(Set.of(unusualModifier()));
         when(unusualEffectRepository.findById(EFFECT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> itemService.previewItem(

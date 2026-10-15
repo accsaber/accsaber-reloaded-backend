@@ -34,7 +34,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanFeedEvent;
 import com.accsaber.backend.service.clan.war.ClanWarResponses;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
 class ClanFeedTest {

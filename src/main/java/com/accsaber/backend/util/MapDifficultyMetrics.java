@@ -8,10 +8,7 @@ public final class MapDifficultyMetrics {
     }
 
     public static Integer maxCombo(MapDifficultyMetadata metadata) {
-        if (metadata == null || metadata.getNotes() == null) {
-            return null;
-        }
-        return metadata.getNotes();
+        return metadata == null ? null : metadata.getNotes();
     }
 
     public static Double nps(MapDifficultyMetadata metadata) {

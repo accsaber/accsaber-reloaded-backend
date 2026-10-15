@@ -9,15 +9,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.user.User;
 
-@Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByIdAndActiveTrue(Long id);
+
+    default User requireActive(Long id) {
+        return findByIdAndActiveTrue(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
+    }
 
     List<User> findByActiveTrue();
 
@@ -330,14 +333,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             ORDER BY e.ts ASC NULLS FIRST
             """, nativeQuery = true)
     List<Object[]> findXpTimeline(@Param("userId") Long userId);
-
-    default void recalculateTotalXpForAllActiveUsers() {
-        rebuildXpTotals(null);
-    }
-
-    default void recalculateTotalXpForUser(Long userId) {
-        rebuildXpTotals(userId);
-    }
 
     @Modifying
     @Transactional

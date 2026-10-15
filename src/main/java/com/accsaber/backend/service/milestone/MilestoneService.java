@@ -21,7 +21,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
-import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
+import com.accsaber.backend.model.dto.request.milestone.MilestoneSetRequest;
 import com.accsaber.backend.model.dto.request.milestone.MilestoneRewardRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneHolderResponse;
@@ -57,6 +57,7 @@ import com.accsaber.backend.repository.milestone.MilestoneSetRepository;
 import com.accsaber.backend.repository.milestone.UserMilestoneLinkRepository;
 import com.accsaber.backend.repository.user.UserPinnedMilestoneRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.player.DuplicateUserService;
 import com.accsaber.backend.util.Rounding;
@@ -265,11 +266,12 @@ public class MilestoneService {
     public Page<MilestoneHolderResponse> findMilestoneHolders(UUID milestoneId, Pageable pageable) {
         milestoneRepository.findByIdAndActiveTrueAndStatusActive(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", milestoneId));
-        return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable);
+        return userMilestoneLinkRepository.findCompletedUsersByMilestoneId(milestoneId, pageable)
+                .map(holder -> holder.withClan(ClanRefCache.forUser(holder.getUserId())));
     }
 
     @Transactional
-    public MilestoneSetResponse createSet(CreateMilestoneSetRequest request) {
+    public MilestoneSetResponse createSet(MilestoneSetRequest request) {
         MilestoneSet set = MilestoneSet.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -282,7 +284,7 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneSetResponse updateSet(UUID id,
-            com.accsaber.backend.model.dto.request.milestone.UpdateMilestoneSetRequest request) {
+            MilestoneSetRequest request) {
         MilestoneSet set = milestoneSetRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MilestoneSet", id));
         if (request.getTitle() != null)
@@ -346,8 +348,7 @@ public class MilestoneService {
 
         Category category = null;
         if (request.getCategoryId() != null) {
-            category = categoryRepository.findByIdAndActiveTrue(request.getCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
+            category = categoryRepository.requireActive(request.getCategoryId());
         }
 
         queryBuilderService.validate(request.getQuerySpec());
@@ -483,7 +484,7 @@ public class MilestoneService {
         milestone.setActive(false);
         milestone.setStatus(MilestoneStatus.DRAFT);
         milestoneRepository.save(milestone);
-        userRepository.recalculateTotalXpForAllActiveUsers();
+        userRepository.rebuildXpTotals(null);
     }
 
     @Async("taskExecutor")

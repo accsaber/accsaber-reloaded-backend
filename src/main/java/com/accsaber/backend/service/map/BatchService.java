@@ -24,7 +24,7 @@ import com.accsaber.backend.model.dto.request.map.UpdateBatchStatusRequest;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
-import com.accsaber.backend.model.dto.response.map.PublicBatchResponse;
+import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Batch;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
@@ -37,6 +37,7 @@ import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.score.CampaignScoreGate;
 import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
+import com.accsaber.backend.util.Texts;
 
 import lombok.RequiredArgsConstructor;
 
@@ -56,22 +57,22 @@ public class BatchService {
     private final MapService mapService;
     private final PlaylistService playlistService;
 
-    public Page<BatchResponse> findAll(BatchStatus status, String search, Pageable pageable) {
-        String term = search == null || search.isBlank() ? null : search.trim();
-        return toResponsesWithDifficulties(batchRepository.findFiltered(status, term, resolveBatchSort(pageable)));
+    public Page<BatchResponse<MapDifficultyResponse>> findAll(BatchStatus status, String search, Pageable pageable) {
+        return toResponsesWithDifficulties(
+                batchRepository.findFiltered(status, Texts.trimToNull(search), resolveBatchSort(pageable)));
     }
 
-    public BatchResponse findById(UUID id) {
+    public BatchResponse<MapDifficultyResponse> findById(UUID id) {
         Batch batch = batchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch", id));
         return toResponse(batch, loadDifficulties(id));
     }
 
-    public Page<PublicBatchResponse> findAllPublic(String search, Pageable pageable) {
+    public Page<BatchResponse<PublicMapDifficultyResponse>> findAllPublic(String search, Pageable pageable) {
         return findAll(BatchStatus.RELEASED, search, pageable).map(BatchService::toPublicResponse);
     }
 
-    public PublicBatchResponse findByIdPublic(UUID id) {
+    public BatchResponse<PublicMapDifficultyResponse> findByIdPublic(UUID id) {
         Batch batch = batchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch", id));
         if (batch.getStatus() != BatchStatus.RELEASED) {
@@ -80,8 +81,9 @@ public class BatchService {
         return toPublicResponse(toResponse(batch, loadDifficulties(id)));
     }
 
-    private static PublicBatchResponse toPublicResponse(BatchResponse batch) {
-        return PublicBatchResponse.builder()
+    private static BatchResponse<PublicMapDifficultyResponse> toPublicResponse(
+            BatchResponse<MapDifficultyResponse> batch) {
+        return BatchResponse.<PublicMapDifficultyResponse>builder()
                 .id(batch.getId())
                 .name(batch.getName())
                 .description(batch.getDescription())
@@ -96,7 +98,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse create(CreateBatchRequest request, UUID createdById) {
+    public BatchResponse<MapDifficultyResponse> create(CreateBatchRequest request, UUID createdById) {
         StaffUser createdBy = staffUserRepository.findById(createdById)
                 .orElseThrow(() -> new ResourceNotFoundException("StaffUser", createdById));
         Batch batch = batchRepository.save(Batch.builder()
@@ -108,7 +110,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse update(UUID id, UpdateBatchRequest request) {
+    public BatchResponse<MapDifficultyResponse> update(UUID id, UpdateBatchRequest request) {
         Batch batch = batchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch", id));
 
@@ -119,7 +121,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse updateStatus(UUID id, UpdateBatchStatusRequest request) {
+    public BatchResponse<MapDifficultyResponse> updateStatus(UUID id, UpdateBatchStatusRequest request) {
         Batch batch = findUnreleasedBatch(id);
 
         if (request.getStatus() == BatchStatus.RELEASED) {
@@ -132,7 +134,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse addDifficulty(UUID batchId, UUID difficultyId) {
+    public BatchResponse<MapDifficultyResponse> addDifficulty(UUID batchId, UUID difficultyId) {
         Batch batch = findUnreleasedBatch(batchId);
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
@@ -151,7 +153,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse removeDifficulty(UUID batchId, UUID difficultyId) {
+    public BatchResponse<MapDifficultyResponse> removeDifficulty(UUID batchId, UUID difficultyId) {
         findUnreleasedBatch(batchId);
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
@@ -162,7 +164,7 @@ public class BatchService {
     }
 
     @Transactional
-    public BatchResponse release(UUID batchId) {
+    public BatchResponse<MapDifficultyResponse> release(UUID batchId) {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
 
@@ -211,9 +213,7 @@ public class BatchService {
         Sort resolved = Sort.unsorted();
         for (Sort.Order order : pageable.getSort()) {
             if ("difficultyCount".equals(order.getProperty())) {
-                resolved = resolved
-                        .and(JpaSort.unsafe(Sort.Direction.ASC, "(CASE WHEN COUNT(d) IS NULL THEN 1 ELSE 0 END)"))
-                        .and(JpaSort.unsafe(order.getDirection(), "COUNT(d)"));
+                resolved = resolved.and(JpaSort.unsafe(order.getDirection(), "COUNT(d)"));
             } else {
                 resolved = resolved.and(Sort.by(
                         new Sort.Order(order.getDirection(), order.getProperty(),
@@ -236,25 +236,18 @@ public class BatchService {
         return enrich(mapDifficultyRepository.findByBatch_IdAndActiveTrue(batchId));
     }
 
-    private Page<BatchResponse> toResponsesWithDifficulties(Page<Batch> batches) {
-        Map<UUID, List<MapDifficulty>> byBatch = new HashMap<>();
-        List<UUID> allDifficultyIds = new ArrayList<>();
-        for (Batch b : batches.getContent()) {
-            List<MapDifficulty> diffs = mapDifficultyRepository.findByBatch_IdAndActiveTrue(b.getId());
-            byBatch.put(b.getId(), diffs);
-            for (MapDifficulty d : diffs) {
-                allDifficultyIds.add(d.getId());
-            }
+    private Page<BatchResponse<MapDifficultyResponse>> toResponsesWithDifficulties(Page<Batch> batches) {
+        List<UUID> batchIds = batches.getContent().stream().map(Batch::getId).toList();
+        List<MapDifficulty> difficulties = batchIds.isEmpty()
+                ? List.of()
+                : mapDifficultyRepository.findByBatch_IdInAndActiveTrue(batchIds);
+        List<MapDifficultyResponse> responses = enrich(difficulties);
+        Map<UUID, List<MapDifficultyResponse>> byBatch = new HashMap<>();
+        for (int i = 0; i < difficulties.size(); i++) {
+            byBatch.computeIfAbsent(difficulties.get(i).getBatch().getId(), k -> new ArrayList<>())
+                    .add(responses.get(i));
         }
-        Map<UUID, Double> complexities = allDifficultyIds.isEmpty()
-                ? Map.of()
-                : complexityService.findActiveComplexitiesForDifficulties(allDifficultyIds);
-        Map<UUID, MapDifficultyStatisticsResponse> stats = allDifficultyIds.isEmpty()
-                ? Map.of()
-                : statisticsService.findActiveForDifficulties(allDifficultyIds);
-        return batches.map(b -> toResponse(b, byBatch.get(b.getId()).stream()
-                .map(d -> toDifficultyResponse(d, complexities.get(d.getId()), stats.get(d.getId())))
-                .toList()));
+        return batches.map(b -> toResponse(b, byBatch.getOrDefault(b.getId(), List.of())));
     }
 
     private List<MapDifficultyResponse> enrich(List<MapDifficulty> difficulties) {
@@ -270,8 +263,8 @@ public class BatchService {
                 .toList();
     }
 
-    private BatchResponse toResponse(Batch batch, List<MapDifficultyResponse> difficulties) {
-        return BatchResponse.builder()
+    private BatchResponse<MapDifficultyResponse> toResponse(Batch batch, List<MapDifficultyResponse> difficulties) {
+        return BatchResponse.<MapDifficultyResponse>builder()
                 .id(batch.getId())
                 .name(batch.getName())
                 .description(batch.getDescription())

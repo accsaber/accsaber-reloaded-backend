@@ -37,8 +37,7 @@ public class OverallStatisticsService {
         }
 
         public void recalculate(Long userId, boolean triggerRanking) {
-                Category overallCategory = categoryRepository.findByCodeAndActiveTrue("overall")
-                                .orElseThrow(() -> new ResourceNotFoundException("Category", "overall"));
+                Category overallCategory = categoryRepository.requireActiveByCode("overall");
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 

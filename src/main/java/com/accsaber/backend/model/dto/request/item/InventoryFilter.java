@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
+import com.accsaber.backend.util.Texts;
 
 public record InventoryFilter(
         List<String> typeKey,
@@ -38,7 +39,7 @@ public record InventoryFilter(
     }
 
     public String searchOrNull() {
-        return search == null || search.isBlank() ? null : search.trim();
+        return Texts.trimToNull(search);
     }
 
     public Boolean deprecatedEffective() {

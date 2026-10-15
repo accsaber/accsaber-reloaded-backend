@@ -57,12 +57,13 @@ import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
+import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.map.MapService;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -200,8 +201,9 @@ public class ClanWarService {
     }
 
     public Page<ClanWarParticipantResponse> participants(UUID warId, Long viewerId, Pageable pageable) {
-        ClanWar war = warRepository.findWithRefsById(warId)
-                .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
+        if (!warRepository.existsById(warId)) {
+            throw new ResourceNotFoundException("ClanWar", warId);
+        }
         List<ClanWarSide> sides = sideRepository.findByWarId(warId);
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
                 sides.stream().map(ClanWarSide::getClan).toList());
@@ -216,7 +218,7 @@ public class ClanWarService {
         Double viewerSkill = viewerId == null ? null : skills.getOrDefault(viewerId, 0.0);
         return page.map(p -> {
             double skill = skills.getOrDefault(p.getUser().getId(), 0.0);
-            return ClanWarParticipantResponse.of(p, clans.get(p.getClan().getId()), skill,
+            return ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()), skill,
                     viewerSkill == null ? null : rosterService.inBand(viewerSkill, skill));
         });
     }
@@ -228,7 +230,7 @@ public class ClanWarService {
         Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, userId, pageable);
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
                 page.getContent().stream().map(hit -> hit.getMapDifficulty().getId()).toList());
-        return page.map(hit -> ClanWarHitResponse.of(hit, difficulties.get(hit.getMapDifficulty().getId())));
+        return page.map(hit -> ClanMapper.toWarHitResponse(hit, difficulties.get(hit.getMapDifficulty().getId())));
     }
 
     private void end(ClanWar war, ClanWarOutcome outcome, User actor) {

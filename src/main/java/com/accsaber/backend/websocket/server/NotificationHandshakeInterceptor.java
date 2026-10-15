@@ -9,21 +9,17 @@ import org.springframework.web.socket.WebSocketHandler;
 
 import com.accsaber.backend.security.PlayerTokenResolver;
 
-import lombok.RequiredArgsConstructor;
-
 @Component
-@RequiredArgsConstructor
 public class NotificationHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
-    static final String ATTR_USER_ID = "userId";
-
-    private final PlayerTokenResolver playerTokenResolver;
+    public NotificationHandshakeInterceptor(PlayerTokenResolver playerTokenResolver) {
+        super(playerTokenResolver);
+    }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
             WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        PlayerTokenResolver.Resolution resolution = authenticate(playerTokenResolver,
-                queryParams(request.getURI()), response);
+        PlayerTokenResolver.Resolution resolution = authenticate(queryParams(request.getURI()), response);
         if (!resolution.accepted()) {
             return false;
         }

@@ -36,6 +36,7 @@ import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
+import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
@@ -86,8 +87,7 @@ public class ClanWarRosterService {
         warRepository.findActiveIdsByClanId(event.clanId()).forEach(this::resync);
     }
 
-    @Transactional
-    public void resync(UUID warId) {
+    private void resync(UUID warId) {
         warRepository.findByIdForUpdate(warId)
                 .filter(war -> war.getStatus() == ClanWarStatus.active)
                 .ifPresent(war -> sync(war, sideRepository.findByWarId(warId)));
@@ -124,7 +124,7 @@ public class ClanWarRosterService {
             chooser.setTarget(target.getUser());
         }
         participantRepository.saveAndFlush(chooser);
-        return ClanWarParticipantResponse.of(chooser, cosmeticService.publicRefs(List.of(chooser.getClan()))
+        return ClanMapper.toWarParticipantResponse(chooser, cosmeticService.publicRefs(List.of(chooser.getClan()))
                 .get(chooser.getClan().getId()), chooserSkill, null);
     }
 

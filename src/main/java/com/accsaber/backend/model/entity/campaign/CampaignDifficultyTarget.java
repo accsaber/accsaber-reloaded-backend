@@ -7,6 +7,8 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -37,6 +39,7 @@ public class CampaignDifficultyTarget {
     @JoinColumn(name = "campaign_difficulty_id", nullable = false)
     private CampaignDifficulty campaignDifficulty;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "requirement_type", nullable = false)
     private CampaignRequirementType requirementType;
 

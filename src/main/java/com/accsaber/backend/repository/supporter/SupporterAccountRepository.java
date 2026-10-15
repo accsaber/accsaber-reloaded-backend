@@ -9,11 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.supporter.SupporterAccount;
 
-@Repository
 public interface SupporterAccountRepository extends JpaRepository<SupporterAccount, Long> {
 
     @Query("SELECT a FROM SupporterAccount a WHERE a.currentTier IS NOT NULL AND a.lastDebitAt <= :cutoff")

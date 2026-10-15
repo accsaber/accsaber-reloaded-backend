@@ -8,4 +8,8 @@ public final class Texts {
     public static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
     }
+
+    public static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 }

@@ -11,6 +11,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.service.score.ScoreGapFillService;
 import com.accsaber.backend.service.score.ScoreImportService;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class StartupBackfillRunner implements ApplicationRunner {
 
     private final ScoreImportService scoreImportService;
+    private final ScoreGapFillService scoreGapFillService;
 
     @Value("${accsaber.backfill.on-startup:true}")
     private boolean backfillOnStartup;
@@ -61,7 +63,7 @@ public class StartupBackfillRunner implements ApplicationRunner {
         } else {
             Instant since = Instant.now().minus(gapFillDays, ChronoUnit.DAYS);
             log.info("Starting startup gap-fill for last {} days (since {})", gapFillDays, since);
-            scoreImportService.startupGapFillAllRankedDifficulties(since);
+            scoreGapFillService.startupGapFillAllRankedDifficulties(since);
         }
     }
 }

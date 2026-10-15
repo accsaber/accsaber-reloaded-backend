@@ -3,6 +3,7 @@ package com.accsaber.backend.service.player;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +70,7 @@ class ProfileCustomizationServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
         user = User.builder().id(USER_ID).name("Old").build();
     }
 

@@ -13,6 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.admin.JobField;
+import com.accsaber.backend.model.admin.JobType;
 import com.accsaber.backend.model.dto.request.admin.RunJobRequest;
 import com.accsaber.backend.model.dto.response.admin.JobTypeResponse;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;

@@ -13,6 +13,10 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 import org.springframework.stereotype.Component;
 
+import com.accsaber.backend.model.admin.JobRecord;
+import com.accsaber.backend.model.admin.JobStatus;
+import com.accsaber.backend.model.admin.JobType;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

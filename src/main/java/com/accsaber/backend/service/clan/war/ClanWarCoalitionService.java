@@ -42,6 +42,7 @@ import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
+import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
@@ -257,6 +258,6 @@ public class ClanWarCoalitionService {
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(aids.stream()
                 .flatMap(aid -> Stream.of(aid.getClan(), aid.getWar().lead(aid.getTeam())))
                 .toList());
-        return aids.stream().map(aid -> ClanWarAidResponse.of(aid, clans)).toList();
+        return aids.stream().map(aid -> ClanMapper.toWarAidResponse(aid, clans)).toList();
     }
 }

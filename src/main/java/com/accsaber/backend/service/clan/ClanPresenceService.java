@@ -11,12 +11,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
+import com.accsaber.backend.model.dto.response.clan.ClanPresenceBroadcast;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.event.PresenceChangedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.websocket.server.ClanChatWebSocketHandler;
-import com.accsaber.backend.websocket.server.ClanPresenceBroadcast;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,7 +73,7 @@ public class ClanPresenceService {
         userRepository.findByIdAndActiveTrue(userId).ifPresent(user -> {
             try {
                 chatHandler.broadcast(clan.id(),
-                        MAPPER.writeValueAsString(ClanPresenceBroadcast.of(clan.id(), PlayerRef.of(user), online)));
+                        MAPPER.writeValueAsString(ClanPresenceBroadcast.of(clan.id(), ClanRefCache.playerRef(user), online)));
             } catch (JsonProcessingException e) {
                 log.error("Failed to serialize clan presence for user {}: {}", userId, e.getMessage());
             }

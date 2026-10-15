@@ -36,6 +36,7 @@ import com.accsaber.backend.service.milestone.sql.MilestoneSqlCompiler;
 import com.accsaber.backend.service.milestone.sql.MilestoneSqlCompiler.Compiled;
 import com.accsaber.backend.service.milestone.sql.MilestoneSqlCompiler.Context;
 import com.accsaber.backend.util.Rounding;
+import com.accsaber.backend.util.SqlValues;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -156,8 +157,9 @@ public class MilestoneQueryBuilderService {
                 List.of(new OrderBySpec("time_set", "ASC")), 1, bounded.orGroups(), bounded.scope());
 
         Compiled compiled = compiler.scalar(identity, Context.of(userId, categoryId));
-        Object id = bind(compiled).getResultList().stream().findFirst().orElse(null);
-        return id == null ? null : entityManager.find(Score.class, toUuid(id));
+        List<?> ids = bind(compiled).getResultList();
+        return ids.isEmpty() || ids.getFirst() == null ? null
+                : entityManager.find(Score.class, SqlValues.toUuid(ids.getFirst()));
     }
 
     public MilestoneSchemaResponse getSchema() {
@@ -190,7 +192,7 @@ public class MilestoneQueryBuilderService {
         if (spec.having() != null && spec.having().valueQuery() != null) {
             context = context.withHavingValue(havingValue);
         }
-        return toDouble(bind(compiler.scalar(spec, context)).getSingleResult());
+        return SqlValues.toDouble(bind(compiler.scalar(spec, context)).getSingleResult());
     }
 
     private Double havingValue(MilestoneQuerySpec spec, Long userId, UUID categoryId) {
@@ -221,7 +223,7 @@ public class MilestoneQueryBuilderService {
 
         Map<UUID, Double> results = new HashMap<>();
         for (int i = 0; i < projections.size(); i++) {
-            Double value = toDouble(projections.size() == 1 ? row : ((Object[]) row)[i]);
+            Double value = SqlValues.toDouble(projections.size() == 1 ? row : ((Object[]) row)[i]);
             for (UUID milestoneId : byProjection.get(projections.get(i))) {
                 results.put(milestoneId, value);
             }
@@ -238,20 +240,6 @@ public class MilestoneQueryBuilderService {
     private MilestoneQuerySpec withFilters(MilestoneQuerySpec spec, List<FilterSpec> filters) {
         return new MilestoneQuerySpec(spec.select(), spec.from(), filters, spec.having(), spec.divisor(),
                 spec.groupBy(), spec.outerFunction(), spec.orderBy(), spec.limit(), spec.orGroups(), spec.scope());
-    }
-
-    private UUID toUuid(Object value) {
-        return value instanceof UUID uuid ? uuid : UUID.fromString(value.toString());
-    }
-
-    private Double toDouble(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        return Double.parseDouble(value.toString());
     }
 
     private record BatchKey(String from, UUID categoryId, String signature) {

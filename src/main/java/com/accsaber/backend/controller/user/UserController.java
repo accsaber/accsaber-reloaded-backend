@@ -35,6 +35,7 @@ import com.accsaber.backend.model.dto.response.player.StatsDiffResponse;
 import com.accsaber.backend.model.dto.response.player.UserAllStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserCategoryStatisticsResponse;
 import com.accsaber.backend.model.dto.response.player.UserResponse;
+import com.accsaber.backend.model.dto.response.score.ApCurveResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.dto.response.score.UserScoreSummaryResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -45,7 +46,7 @@ import com.accsaber.backend.service.milestone.LevelService;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.milestone.MilestoneService;
 import com.accsaber.backend.service.player.UserService;
-import com.accsaber.backend.service.score.ScoreService;
+import com.accsaber.backend.service.score.ScoreQueryService;
 import com.accsaber.backend.service.stats.StatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,7 +60,7 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
     private final UserService userService;
-    private final ScoreService scoreService;
+    private final ScoreQueryService scoreQueryService;
     private final StatisticsService statisticsService;
     private final MapService mapService;
     private final MilestoneService milestoneService;
@@ -95,14 +96,7 @@ public class UserController {
             + "supporters.")
     @GetMapping("/{userId}/pinned-scores")
     public ResponseEntity<List<PinnedScoreResponse>> getPinnedScores(@PathVariable Long userId) {
-        var pins = userService.getPinnedScores(userId);
-        var scores = scoreService.mapToResponsesByScoreId(pins.stream().map(pin -> pin.getScore()).toList());
-        return ResponseEntity.ok(pins.stream()
-                .map(pin -> PinnedScoreResponse.builder()
-                        .score(scores.get(pin.getScore().getId()))
-                        .comment(pin.getComment())
-                        .build())
-                .toList());
+        return ResponseEntity.ok(scoreQueryService.findPinnedScores(userId));
     }
 
     @Operation(summary = "Pinned milestones", description = "In display order. Four max, eight for "
@@ -169,7 +163,7 @@ public class UserController {
             @RequestParam UUID mapDifficultyId,
             @RequestParam(defaultValue = "7") int amount,
             @RequestParam(defaultValue = "d") String unit) {
-        return ResponseEntity.ok(scoreService.findHistoric(userId, mapDifficultyId, amount, unit));
+        return ResponseEntity.ok(scoreQueryService.findHistoric(userId, mapDifficultyId, amount, unit));
     }
 
     @Operation(summary = "Score by song hash", description = "difficulty is required, one of EASY, "
@@ -181,7 +175,7 @@ public class UserController {
             @RequestParam Difficulty difficulty,
             @RequestParam(defaultValue = "Standard") String characteristic) {
         return ResponseEntity
-                .ok(scoreService.findActiveByUserAndSongHash(userId, songHash, difficulty, characteristic));
+                .ok(scoreQueryService.findActiveByUserAndSongHash(userId, songHash, difficulty, characteristic));
     }
 
     @Operation(summary = "Player scores", description = "Current scores, best AP first. Filter by category "
@@ -193,14 +187,23 @@ public class UserController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "ap", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity
-                .ok(scoreService.findByUser(userId, categoryService.resolveId(categoryId), search, pageable));
+                .ok(scoreQueryService.findByUser(userId, categoryService.resolveId(categoryId), search, pageable));
+    }
+
+    @Operation(summary = "AP curves", description = "Top AP values per category, best first, up to 100 each. "
+            + "One query for every category, for the profile curve chart.")
+    @GetMapping("/{userId}/ap-curves")
+    public ResponseEntity<List<ApCurveResponse>> getApCurves(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "100") int limit) {
+        return ResponseEntity.ok(scoreQueryService.findApCurves(userId, limit));
     }
 
     @Operation(summary = "All scores, no paging", description = "Trimmed fields, best AP first. The "
             + "plugin uses this to fill its cache.")
     @GetMapping("/{userId}/scores/all")
     public ResponseEntity<List<UserScoreSummaryResponse>> getAllUserScores(@PathVariable Long userId) {
-        return ResponseEntity.ok(scoreService.findAllSummariesByUser(userId));
+        return ResponseEntity.ok(scoreQueryService.findAllSummariesByUser(userId));
     }
 
     @Operation(summary = "Milestone progress")

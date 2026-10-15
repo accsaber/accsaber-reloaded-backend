@@ -17,8 +17,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.method.HandlerMethod;
 
+import com.accsaber.backend.model.entity.staff.StaffRole;
+
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Configuration
 public class OpenApiResponseConfig {
@@ -28,8 +33,8 @@ public class OpenApiResponseConfig {
     private static final Set<RequestMethod> WRITE_METHODS = Set.of(
             RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH);
 
-    private static final Set<String> STAFF_ROLES = Set.of(
-            "ADMIN", "RANKING", "RANKING_HEAD", "CREATIVE", "CAMPAIGN_CURATOR", "SERVICE");
+    private static final Set<String> STAFF_ROLES = Stream.concat(
+            Arrays.stream(StaffRole.values()).map(Enum::name), Stream.of("SERVICE")).collect(Collectors.toSet());
 
     @Bean
     public OperationCustomizer standardApiResponses() {

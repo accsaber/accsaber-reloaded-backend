@@ -85,8 +85,7 @@ public class StatisticsService {
             boolean triggerOverall) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        Category category = categoryRepository.findByIdAndActiveTrue(categoryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+        Category category = categoryRepository.requireActive(categoryId);
 
         UserCategoryStatistics current = statisticsRepository
                 .findActiveForUpdate(userId, categoryId)
@@ -140,8 +139,7 @@ public class StatisticsService {
 
     public UserAllStatisticsResponse findAllByUser(Long userId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
-        User user = userRepository.findByIdAndActiveTrue(resolved)
-                .orElseThrow(() -> new ResourceNotFoundException("User", resolved));
+        User user = userRepository.requireActive(resolved);
         return UserAllStatisticsResponse.builder()
                 .totalXp(user.getTotalXp())
                 .totalScoreXp(scoreRepository.sumXpGainedByUserId(resolved))

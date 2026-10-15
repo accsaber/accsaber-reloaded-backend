@@ -52,7 +52,7 @@ import com.accsaber.backend.repository.clan.ClanSeasonRewardRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonStandingRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
 import com.accsaber.backend.service.clan.war.ClanWarService;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanSeasonServiceTest {
@@ -74,7 +74,7 @@ class ClanSeasonServiceTest {
     @Mock
     private ClanWarService warService;
     @Mock
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
     @Mock
     private ClanFeed feed;
 
@@ -85,7 +85,7 @@ class ClanSeasonServiceTest {
     void setUp() {
         clanProperties.setMissionContribution(100.0);
         service = new ClanSeasonService(seasonRepository, resultRepository, rewardRepository, clanRepository,
-                clanItemRepository, standingService, warService, itemService, itemRepository, clanProperties, feed);
+                clanItemRepository, standingService, warService, itemAwardService, itemRepository, clanProperties, feed);
         lenient().when(clanRepository.getReferenceById(any()))
                 .thenAnswer(inv -> Clan.builder().id(inv.getArgument(0)).build());
     }
@@ -119,15 +119,7 @@ class ClanSeasonServiceTest {
         }
 
         private ClanSeasonRepository.ContributorView contributor(Long userId) {
-            return new ClanSeasonRepository.ContributorView() {
-                public Long getUserId() {
-                    return userId;
-                }
-
-                public double getContribution() {
-                    return 1.0;
-                }
-            };
+            return () -> userId;
         }
 
         private ClanSeasonReward reward(int from, int to, ItemType type) {
@@ -173,12 +165,12 @@ class ClanSeasonServiceTest {
             assertThat(results.getAllValues()).extracting(ClanSeasonResult::getRank).containsExactly(1, 2);
             assertThat(results.getAllValues().get(0).getEarned()).isEqualTo(120.0);
             verify(clanItemRepository).grantItem(first, banner.getItem().getId(), "season", seasonId.toString());
-            InOrder order = inOrder(itemService);
-            order.verify(itemService).awardSystem(eq(11L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
+            InOrder order = inOrder(itemAwardService);
+            order.verify(itemAwardService).awardSystem(eq(11L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
                     anyString(), anyString(), eq(1));
-            order.verify(itemService).awardSystem(eq(12L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
+            order.verify(itemAwardService).awardSystem(eq(12L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
                     anyString(), anyString(), eq(1));
-            order.verify(itemService).awardSystem(eq(21L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
+            order.verify(itemAwardService).awardSystem(eq(21L), eq(crates.getItem().getId()), eq(ItemSource.clan_season),
                     anyString(), anyString(), eq(1));
             assertThat(season.getClosedAt()).isNotNull();
             verify(feed).seasonClosed(new ClanSeasonClosedResponse(ClanSeasonResponse.of(season), List.of()));

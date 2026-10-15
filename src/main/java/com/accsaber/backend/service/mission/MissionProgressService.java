@@ -17,7 +17,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.model.dto.EventMissionTargets;
 import com.accsaber.backend.model.dto.response.mission.MissionCompletedResponse;
-import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.item.ItemSource;
@@ -50,7 +49,7 @@ import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanMissionService;
 import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.infra.ModifierCacheService;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.util.Rounding;
 
@@ -68,7 +67,7 @@ public class MissionProgressService {
     private final UserEventProfileRepository eventProfileRepository;
     private final ScoreRepository scoreRepository;
     private final LevelUpAwardService levelUpAwardService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventMissionService eventMissionService;
@@ -459,7 +458,7 @@ public class MissionProgressService {
         }
         if (mission.getItemReward() != null && !mission.isItemAwarded()) {
             try {
-                itemService.awardSystem(userId, mission.getItemReward().getId(),
+                itemAwardService.awardSystem(userId, mission.getItemReward().getId(),
                         ItemSource.mission, mission.getId().toString(),
                         "Mission reward: " + mission.getTemplate().getName());
                 mission.setItemAwarded(true);
@@ -556,7 +555,7 @@ public class MissionProgressService {
                 .templateCode(mission.getTemplate() != null ? mission.getTemplate().getCode() : null)
                 .templateName(mission.getTemplate() != null ? mission.getTemplate().getName() : null)
                 .templateDescription(mission.getTemplate() != null
-                        ? MissionResponse.renderDescription(mission) : null)
+                        ? MissionMapper.renderDescription(mission) : null)
                 .type(mission.getTemplate() != null && mission.getTemplate().getType() != null
                         ? mission.getTemplate().getType().name() : null)
                 .pool(mission.getPool() != null ? mission.getPool().name() : null)

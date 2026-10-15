@@ -31,6 +31,8 @@ import com.accsaber.backend.model.dto.response.statistics.TimeSeriesPointRespons
 import com.accsaber.backend.model.dto.response.statistics.UserImprovementsResponse;
 import com.accsaber.backend.model.dto.response.statistics.UserMapImprovementsResponse;
 import com.accsaber.backend.service.infra.CategoryService;
+import com.accsaber.backend.service.stats.ItemStatisticsService;
+import com.accsaber.backend.service.stats.SiteChartStatisticsService;
 import com.accsaber.backend.service.stats.SiteStatisticsService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +46,8 @@ import lombok.RequiredArgsConstructor;
 public class SiteStatisticsController {
 
     private final SiteStatisticsService siteStatisticsService;
+    private final SiteChartStatisticsService siteChartStatisticsService;
+    private final ItemStatisticsService itemStatisticsService;
     private final CategoryService categoryService;
 
     @Operation(summary = "Longest 115 streaks", description = "BeatLeader scores only. Every attempt counts. One "
@@ -127,7 +131,7 @@ public class SiteStatisticsController {
             @RequestParam(required = false) String modifier,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostItems(type, modifier, country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getMostItems(type, modifier, country, pageable));
     }
 
     @Operation(summary = "Most crates opened", description = "Pass a crate item ID to count one kind of crate.")
@@ -136,7 +140,7 @@ public class SiteStatisticsController {
             @RequestParam(required = false) UUID crateId,
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostCratesOpened(crateId, country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getMostCratesOpened(crateId, country, pageable));
     }
 
     @Operation(summary = "Luckiest crate pulls", description = "Crate drops ranked by modifier count, then rarity.")
@@ -144,7 +148,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<RarestUnboxedResponse>> getRarestUnboxed(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getRarestUnboxed(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getRarestUnboxed(country, pageable));
     }
 
     @Operation(summary = "Richest inventories", description = "Disintegrate value of tradeable items plus "
@@ -153,7 +157,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<InventoryValueResponse>> getMostValuableInventory(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostValuableInventory(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getMostValuableInventory(country, pageable));
     }
 
     @Operation(summary = "Most first editions", description = "Counts serial number one items.")
@@ -161,7 +165,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<FirstEditionsResponse>> getFirstEditions(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getFirstEditions(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getFirstEditions(country, pageable));
     }
 
     @Operation(summary = "First edition owners", description = "Who holds serial number one of each "
@@ -170,7 +174,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<FirstEditionHolderResponse>> getFirstEditionHolders(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getFirstEditionHolders(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getFirstEditionHolders(country, pageable));
     }
 
     @Operation(summary = "Most complete collections", description = "Share of the tradeable catalogue owned, as a "
@@ -179,14 +183,14 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<CollectionCompletionResponse>> getMostCompleteCollection(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostCompleteCollection(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getMostCompleteCollection(country, pageable));
     }
 
     @Operation(summary = "Rarest items", description = "Has copy count and distinct owner count.")
     @GetMapping("/leaderboards/rarest-items")
     public ResponseEntity<Page<ItemScarcityResponse>> getItemScarcity(
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getItemScarcity(pageable));
+        return ResponseEntity.ok(itemStatisticsService.getItemScarcity(pageable));
     }
 
     @Operation(summary = "Busiest traders", description = "Completed trades only.")
@@ -194,7 +198,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<BiggestTraderResponse>> getBiggestTraders(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getBiggestTraders(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getBiggestTraders(country, pageable));
     }
 
     @Operation(summary = "Most essence earned", description = "Lifetime essence from disintegrating. It is not the "
@@ -203,7 +207,7 @@ public class SiteStatisticsController {
     public ResponseEntity<Page<EssenceEarnedResponse>> getMostEssenceEarned(
             @RequestParam(required = false) String country,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(siteStatisticsService.getMostEssenceEarned(country, pageable));
+        return ResponseEntity.ok(itemStatisticsService.getMostEssenceEarned(country, pageable));
     }
 
     @Operation(summary = "New players per day", description = "unit is h, d, w or mo, amount is how many back. Over "
@@ -213,7 +217,7 @@ public class SiteStatisticsController {
             @RequestParam(defaultValue = "30") int amount,
             @RequestParam(defaultValue = "d") String unit,
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getNewPlayersPerDay(amount, unit, country));
+        return ResponseEntity.ok(siteChartStatisticsService.getNewPlayersPerDay(amount, unit, country));
     }
 
     @Operation(summary = "Scores per day", description = "unit is h, d, w or mo, amount is how many back. Over 65 "
@@ -223,7 +227,7 @@ public class SiteStatisticsController {
             @RequestParam(defaultValue = "30") int amount,
             @RequestParam(defaultValue = "d") String unit,
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getScoresPerDay(amount, unit, country));
+        return ResponseEntity.ok(siteChartStatisticsService.getScoresPerDay(amount, unit, country));
     }
 
     @Operation(summary = "Accounts over time", description = "Running total of active accounts. unit is h, d, w or "
@@ -233,7 +237,7 @@ public class SiteStatisticsController {
             @RequestParam(defaultValue = "30") int amount,
             @RequestParam(defaultValue = "d") String unit,
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getCumulativeAccounts(amount, unit, country));
+        return ResponseEntity.ok(siteChartStatisticsService.getCumulativeAccounts(amount, unit, country));
     }
 
     @Operation(summary = "Scores over time", description = "Running total of all scores. unit is h, d, w or mo, "
@@ -243,26 +247,26 @@ public class SiteStatisticsController {
             @RequestParam(defaultValue = "30") int amount,
             @RequestParam(defaultValue = "d") String unit,
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getCumulativeScores(amount, unit, country));
+        return ResponseEntity.ok(siteChartStatisticsService.getCumulativeScores(amount, unit, country));
     }
 
     @Operation(summary = "Scores by category")
     @GetMapping("/charts/scores-per-category")
     public ResponseEntity<List<DistributionEntryResponse>> getScoresPerCategory(
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getScoresPerCategory(country));
+        return ResponseEntity.ok(siteChartStatisticsService.getScoresPerCategory(country));
     }
 
     @Operation(summary = "Players by headset", description = "Uses the headset from each player's latest score.")
     @GetMapping("/charts/players-by-hmd")
     public ResponseEntity<List<DistributionEntryResponse>> getPlayersByHmd(
             @RequestParam(required = false) String country) {
-        return ResponseEntity.ok(siteStatisticsService.getPlayersByHmd(country));
+        return ResponseEntity.ok(siteChartStatisticsService.getPlayersByHmd(country));
     }
 
     @Operation(summary = "Players by country", description = "Active players only.")
     @GetMapping("/charts/players-per-country")
     public ResponseEntity<List<DistributionEntryResponse>> getPlayersPerCountry() {
-        return ResponseEntity.ok(siteStatisticsService.getPlayersPerCountry());
+        return ResponseEntity.ok(siteChartStatisticsService.getPlayersPerCountry());
     }
 }

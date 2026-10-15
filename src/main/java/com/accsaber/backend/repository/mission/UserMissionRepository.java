@@ -60,28 +60,12 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         LEFT JOIN FETCH m.itemReward ir
                         LEFT JOIN FETCH ir.type
                         WHERE m.user.id = :userId
+                          AND (:pool IS NULL OR m.pool = :pool)
                           AND (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                                OR (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
                                    AND m.expiresAt > :now))
                         """)
-        List<UserMission> findCurrentByUser(@Param("userId") Long userId, @Param("now") Instant now);
-
-        @Query("""
-                        SELECT m FROM UserMission m
-                        JOIN FETCH m.template
-                        LEFT JOIN FETCH m.category
-                        LEFT JOIN FETCH m.targetMapDifficulty d
-                        LEFT JOIN FETCH d.map
-                        LEFT JOIN FETCH m.targetPlayer
-                        LEFT JOIN FETCH m.itemReward ir
-                        LEFT JOIN FETCH ir.type
-                        WHERE m.user.id = :userId
-                          AND m.pool = :pool
-                          AND (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                               OR (m.status = com.accsaber.backend.model.entity.mission.MissionStatus.completed
-                                   AND m.expiresAt > :now))
-                        """)
-        List<UserMission> findCurrentByUserAndPool(
+        List<UserMission> findCurrentByUser(
                         @Param("userId") Long userId,
                         @Param("pool") MissionPool pool,
                         @Param("now") Instant now);
@@ -96,7 +80,7 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                         """)
         int voidActiveForUser(@Param("userId") Long userId);
 
-        @Modifying
+        @Modifying(flushAutomatically = true)
         @Query("""
                         UPDATE UserMission m
                         SET m.status = com.accsaber.backend.model.entity.mission.MissionStatus.voided
@@ -258,16 +242,6 @@ public interface UserMissionRepository extends JpaRepository<UserMission, UUID> 
                           AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
                         """)
         int expireActiveForClan(@Param("clanId") UUID clanId);
-
-        @Modifying(flushAutomatically = true)
-        @Query("""
-                        UPDATE UserMission m
-                        SET m.status = com.accsaber.backend.model.entity.mission.MissionStatus.voided
-                        WHERE m.user.id = :userId
-                          AND m.pool = com.accsaber.backend.model.entity.mission.MissionPool.clan
-                          AND m.status = com.accsaber.backend.model.entity.mission.MissionStatus.active
-                        """)
-        int voidActiveClanRowsForUser(@Param("userId") Long userId);
 
         @Query("""
                         SELECT m.template.id FROM UserMission m

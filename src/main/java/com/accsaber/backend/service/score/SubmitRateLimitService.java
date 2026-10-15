@@ -4,21 +4,12 @@ import java.time.Duration;
 
 import org.springframework.stereotype.Service;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import com.accsaber.backend.service.infra.UserRateLimiter;
 
 @Service
-public class SubmitRateLimitService {
+public class SubmitRateLimitService extends UserRateLimiter {
 
-    private final Cache<Long, Boolean> cache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMinutes(1))
-            .maximumSize(50_000)
-            .build();
-
-    public boolean tryAcquire(Long userId) {
-        if (userId == null) {
-            return false;
-        }
-        return cache.asMap().putIfAbsent(userId, Boolean.TRUE) == null;
+    public SubmitRateLimitService() {
+        super(1, Duration.ofMinutes(1));
     }
 }

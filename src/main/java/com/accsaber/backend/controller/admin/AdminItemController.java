@@ -32,10 +32,10 @@ import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.dto.response.item.ItemTypeResponse;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.security.StaffUserDetails;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.ItemMapper;
 import com.accsaber.backend.service.item.ItemService;
 import com.accsaber.backend.service.item.ItemTypeService;
-import com.accsaber.backend.service.media.MediaProcessingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,11 +49,9 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Admin - Items and Crates")
 public class AdminItemController {
 
-    private static final String ITEM_ICON_SUBDIR = "items";
-
     private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final ItemTypeService itemTypeService;
-    private final MediaProcessingService mediaProcessingService;
 
     @Operation(summary = "List item types")
     @GetMapping("/item-types")
@@ -108,11 +106,7 @@ public class AdminItemController {
     @Operation(summary = "Create an item")
     @PostMapping("/items")
     public ResponseEntity<ItemResponse> createItem(@Valid @RequestBody CreateItemRequest req) {
-        var item = itemService.create(req.getTypeId(), req.getName(), req.getDescription(),
-                req.getIconUrl(), req.getValue(), req.getRarity(), req.isTradeable(), req.isVisible(),
-                req.isStackable(), req.isWelcomeGrant(), req.isMissionPoolable(), req.isDownloadable(),
-                req.isUniquePerUser(), req.isSerialized(), req.isActive(), req.getWorth(), req.getRequirement(),
-                req.getUnlockLevel());
+        var item = itemService.create(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toItemResponse(item));
     }
 
@@ -120,11 +114,7 @@ public class AdminItemController {
     @PatchMapping("/items/{id}")
     public ResponseEntity<ItemResponse> updateItem(@PathVariable UUID id,
             @RequestBody UpdateItemRequest req) {
-        var item = itemService.update(id, req.getName(), req.getDescription(), req.getIconUrl(),
-                req.getValue(), req.getRarity(), req.getTradeable(), req.getVisible(),
-                req.getStackable(), req.getWelcomeGrant(), req.getMissionPoolable(), req.getDownloadable(),
-                req.getUniquePerUser(), req.getSerialized(), req.getWorth(), req.getRequirement(),
-                req.getUnlockLevel());
+        var item = itemService.update(id, req);
         return ResponseEntity.ok(ItemMapper.toItemResponse(item));
     }
 
@@ -140,7 +130,7 @@ public class AdminItemController {
     @PostMapping("/items/award")
     public ResponseEntity<UserItemResponse> award(@Valid @RequestBody AwardItemRequest req,
             @AuthenticationPrincipal StaffUserDetails staff) {
-        var link = itemService.awardManual(req.getUserId(), req.getItemId(),
+        var link = itemAwardService.awardManual(req.getUserId(), req.getItemId(),
                 staff.getStaffUser(), req.getReason(), req.getModifierKeys(), req.getQuantity(),
                 req.getUnusualEffectId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ItemMapper.toUserItemResponse(link, null));
@@ -173,7 +163,7 @@ public class AdminItemController {
     @Operation(summary = "Take back an item award")
     @DeleteMapping("/items/awards/{linkId}")
     public ResponseEntity<Void> revokeAward(@PathVariable UUID linkId) {
-        itemService.revokeAward(linkId);
+        itemAwardService.revokeAward(linkId);
         return ResponseEntity.noContent().build();
     }
 
@@ -182,16 +172,12 @@ public class AdminItemController {
     @PostMapping(value = "/items/{id}/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ItemResponse> uploadIcon(@PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
-        itemService.findByIdForStaff(id);
-        String url = mediaProcessingService.storeImage(file, ITEM_ICON_SUBDIR, id.toString());
-        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setUploadedImage(id, url)));
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.uploadImage(id, file)));
     }
 
     @Operation(summary = "Remove an item image")
     @DeleteMapping("/items/{id}/icon")
     public ResponseEntity<ItemResponse> deleteIcon(@PathVariable UUID id) {
-        itemService.findByIdForStaff(id);
-        mediaProcessingService.deleteIfExists(ITEM_ICON_SUBDIR, id.toString());
-        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.setIconUrl(id, null)));
+        return ResponseEntity.ok(ItemMapper.toItemResponse(itemService.removeImage(id)));
     }
 }

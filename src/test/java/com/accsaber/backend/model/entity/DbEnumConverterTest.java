@@ -10,14 +10,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import com.accsaber.backend.model.entity.campaign.BarrierConditionTypeConverter;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatusConverter;
 import com.accsaber.backend.model.entity.campaign.CampaignCompletionModeConverter;
-import com.accsaber.backend.model.entity.campaign.CampaignLabelPositionConverter;
-import com.accsaber.backend.model.entity.campaign.CampaignModifierRequirementConverter;
-import com.accsaber.backend.model.entity.campaign.CampaignNodeBorderLayerConverter;
-import com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteModeConverter;
-import com.accsaber.backend.model.entity.campaign.CampaignRequirementTypeConverter;
 import com.accsaber.backend.model.entity.campaign.CampaignStatusConverter;
 import com.accsaber.backend.model.entity.campaign.CampaignTagKindConverter;
 import com.accsaber.backend.model.entity.campaign.CampaignVoteDirectionConverter;
@@ -41,27 +35,10 @@ class DbEnumConverterTest {
                         "Unknown auto criteria status: bogus"),
                 Arguments.of(new CriteriaStatusConverter(), new String[] { "pending", "passed", "failed" },
                         "Unknown criteria status: bogus"),
-                Arguments.of(new CurveTypeConverter(), new String[] { "POINT_LOOKUP", "FORMULA" },
-                        "No enum constant com.accsaber.backend.model.entity.CurveType.bogus"),
-                Arguments.of(new BarrierConditionTypeConverter(),
-                        new String[] { "AVERAGE_ACC", "AVERAGE_AP", "AP_MAX", "ACC_MAX", "STREAK_115_AVERAGE",
-                                "STREAK_115_MAX", "FC", "AVERAGE_RANK", "MAX_RANK", "COMPLETION_COUNT", "PASS",
-                                "AVERAGE_COMBO", "AVERAGE_BOMB_HITS", "AVERAGE_MISTAKES", "AVERAGE_PAUSES" },
-                        "No enum constant com.accsaber.backend.model.entity.campaign.BarrierConditionType.bogus"),
                 Arguments.of(new CampaignCollaboratorStatusConverter(), new String[] { "pending", "accepted", "declined" },
                         "Unknown campaign collaborator status: bogus"),
                 Arguments.of(new CampaignCompletionModeConverter(), new String[] { "terminal", "all" },
                         "Unknown campaign completion mode: bogus"),
-                Arguments.of(new CampaignLabelPositionConverter(), new String[] { "LEFT", "RIGHT", "UP", "DOWN", "NONE" },
-                        "No enum constant com.accsaber.backend.model.entity.campaign.CampaignLabelPosition.bogus"),
-                Arguments.of(new CampaignModifierRequirementConverter(), new String[] { "REQUIRED", "FORBIDDEN" },
-                        "No enum constant com.accsaber.backend.model.entity.campaign.CampaignModifierRequirement.bogus"),
-                Arguments.of(new CampaignNodeBorderLayerConverter(), new String[] { "ABOVE", "BELOW" },
-                        "No enum constant com.accsaber.backend.model.entity.campaign.CampaignNodeBorderLayer.bogus"),
-                Arguments.of(new CampaignPrerequisiteModeConverter(), new String[] { "OR", "AND" },
-                        "No enum constant com.accsaber.backend.model.entity.campaign.CampaignPrerequisiteMode.bogus"),
-                Arguments.of(new CampaignRequirementTypeConverter(), requirementTypeNames(),
-                        "No enum constant com.accsaber.backend.model.entity.campaign.CampaignRequirementType.bogus"),
                 Arguments.of(new CampaignStatusConverter(), new String[] { "draft", "published", "editing", "curated" },
                         "Unknown campaign status: bogus"),
                 Arguments.of(new CampaignTagKindConverter(), new String[] { "category", "difficulty", "theme", "genre" },
@@ -88,11 +65,6 @@ class DbEnumConverterTest {
                         "Unknown staff role: bogus"),
                 Arguments.of(new StaffUserStatusConverter(), new String[] { "requested", "accepted", "denied" },
                         "Unknown staff user status: bogus"));
-    }
-
-    private static String[] requirementTypeNames() {
-        return Arrays.stream(com.accsaber.backend.model.entity.campaign.CampaignRequirementType.values())
-                .map(Enum::name).toArray(String[]::new);
     }
 
     @ParameterizedTest

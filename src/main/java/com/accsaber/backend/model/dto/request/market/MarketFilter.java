@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.util.Texts;
 
 public record MarketFilter(
         MarketListingStatus status,
@@ -51,7 +52,7 @@ public record MarketFilter(
     }
 
     public String searchOrNull() {
-        return search == null || search.isBlank() ? null : search.trim();
+        return Texts.trimToNull(search);
     }
 
     private static <T> List<T> nullIfEmpty(List<T> values) {

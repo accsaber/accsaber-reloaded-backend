@@ -49,7 +49,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
@@ -77,7 +77,7 @@ public class CampaignEvaluationService {
     private final ScoreRepository scoreRepository;
     private final ScoreModifierLinkRepository scoreModifierLinkRepository;
     private final LevelUpAwardService levelUpAwardService;
-    private final ItemService itemService;
+    private final ItemAwardService itemAwardService;
     private final MissionProgressService missionProgressService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -96,7 +96,7 @@ public class CampaignEvaluationService {
             return;
         }
 
-        Instant scoreTime = effectiveTime(score);
+        Instant scoreTime = CampaignScoreMetrics.effectiveTime(score);
         ScoreModifierIndex modifiers = ScoreModifierIndex.load(List.of(score),
                 scoreModifierLinkRepository::findModifierRows);
         for (UserCampaign uc : participations) {
@@ -881,7 +881,7 @@ public class CampaignEvaluationService {
         List<CampaignDifficultyItem> items = campaignDifficultyItemRepository
                 .findByCampaignDifficulty_Id(difficulty.getId());
         for (CampaignDifficultyItem item : items) {
-            itemService.awardSystem(userId, item.getItem().getId(), ItemSource.campaign_difficulty,
+            itemAwardService.awardSystem(userId, item.getItem().getId(), ItemSource.campaign_difficulty,
                     difficulty.getId().toString(),
                     "Campaign difficulty cleared: " + difficulty.getCampaign().getName(),
                     item.getQuantity());
@@ -899,7 +899,7 @@ public class CampaignEvaluationService {
         }
         List<CampaignCompletionItem> items = campaignCompletionItemRepository.findByCampaign_Id(campaign.getId());
         for (CampaignCompletionItem item : items) {
-            itemService.awardSystem(userId, item.getItem().getId(), ItemSource.campaign_completion,
+            itemAwardService.awardSystem(userId, item.getItem().getId(), ItemSource.campaign_completion,
                     campaign.getId().toString(), "Campaign completed: " + campaign.getName(),
                     item.getQuantity());
         }
@@ -967,12 +967,5 @@ public class CampaignEvaluationService {
         return candidate.getScoreNoMods() != null
                 && (current.getScoreNoMods() == null
                         || candidate.getScoreNoMods() > current.getScoreNoMods());
-    }
-
-    private Instant effectiveTime(Score score) {
-        if (score.getTimeSet() != null) {
-            return score.getTimeSet();
-        }
-        return score.getCreatedAt();
     }
 }

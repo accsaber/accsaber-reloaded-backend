@@ -8,7 +8,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.user.PinnedMilestoneEntry;
 import com.accsaber.backend.model.dto.request.user.PinnedScoreEntry;
@@ -78,7 +77,7 @@ public class ProfileCustomizationService {
     @Transactional
     public void updateName(Long userId, String newName) {
         validateName(newName);
-        User user = requireUser(userId);
+        User user = userRepository.requireActive(userId);
         if (newName.equals(user.getName())) {
             return;
         }
@@ -88,13 +87,13 @@ public class ProfileCustomizationService {
 
     @Transactional
     public String updateAvatar(Long userId, MultipartFile file) {
-        requireUser(userId);
+        userRepository.requireActive(userId);
         return cdnSyncService.storeUserUploadedAvatar(userId, file);
     }
 
     @Transactional
     public void updateBio(Long userId, String rawHtml) {
-        User user = requireUser(userId);
+        User user = userRepository.requireActive(userId);
         boolean supporter = supporterService.isActiveSupporter(userId);
         int maxLength = supporter ? SUPPORTER_MAX_BIO_LENGTH : BASIC_MAX_BIO_LENGTH;
         user.setBio(richTextSanitizer.sanitize(rawHtml, maxLength, supporter));
@@ -122,7 +121,7 @@ public class ProfileCustomizationService {
                 throw new ValidationException("pinnedScores", "duplicate displayOrder " + entry.displayOrder());
             }
         }
-        User user = requireUser(userId);
+        User user = userRepository.requireActive(userId);
         List<UserPinnedScore> built = normalized.stream()
                 .map(entry -> buildPin(user, entry))
                 .toList();
@@ -131,8 +130,7 @@ public class ProfileCustomizationService {
         pinnedScoreRepository.saveAll(built);
     }
 
-    @Transactional
-    public void updatePinnedMilestones(Long userId, List<PinnedMilestoneEntry> entries) {
+    private void updatePinnedMilestones(Long userId, List<PinnedMilestoneEntry> entries) {
         List<PinnedMilestoneEntry> normalized = entries == null ? List.of() : entries;
         int pinnedMax = pinnedMilestoneMaxFor(userId);
         if (normalized.size() > pinnedMax) {
@@ -152,7 +150,7 @@ public class ProfileCustomizationService {
                 throw new ValidationException("pinnedMilestones", "duplicate displayOrder " + entry.displayOrder());
             }
         }
-        User user = requireUser(userId);
+        User user = userRepository.requireActive(userId);
         List<UserPinnedMilestone> built = normalized.stream()
                 .map(entry -> buildMilestonePin(user, entry))
                 .toList();
@@ -223,11 +221,6 @@ public class ProfileCustomizationService {
                     "comment must be at most " + MAX_PIN_COMMENT_LENGTH + " characters");
         }
         return trimmed;
-    }
-
-    private User requireUser(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
     }
 
     private void validateName(String name) {

@@ -15,21 +15,23 @@ import com.accsaber.backend.security.PlayerTokenResolver;
 import com.accsaber.backend.service.campaign.CampaignCollaboratorService;
 import com.accsaber.backend.util.Slugs;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class CampaignPresenceHandshakeInterceptor extends PlayerHandshakeInterceptor {
 
     static final String ATTR_CAMPAIGN_ID = "campaignId";
-    static final String ATTR_USER_ID = "userId";
     static final String ATTR_USER_NAME = "userName";
     static final String ATTR_USER_AVATAR = "userAvatar";
 
-    private final PlayerTokenResolver playerTokenResolver;
     private final CampaignCollaboratorService collaboratorService;
+
+    public CampaignPresenceHandshakeInterceptor(PlayerTokenResolver playerTokenResolver,
+            CampaignCollaboratorService collaboratorService) {
+        super(playerTokenResolver);
+        this.collaboratorService = collaboratorService;
+    }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -42,7 +44,7 @@ public class CampaignPresenceHandshakeInterceptor extends PlayerHandshakeInterce
             return false;
         }
 
-        PlayerTokenResolver.Resolution resolution = authenticate(playerTokenResolver, params, response);
+        PlayerTokenResolver.Resolution resolution = authenticate(params, response);
         if (!resolution.accepted()) {
             log.warn("Presence handshake rejected: {} (campaign {})", resolution.reason(), campaignId);
             return false;

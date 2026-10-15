@@ -36,6 +36,7 @@ import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.SortAliases;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
@@ -43,9 +44,8 @@ import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.util.Slugs;
-import com.accsaber.backend.util.SortAliases;
 import com.accsaber.backend.util.Texts;
-import com.accsaber.backend.websocket.server.ClanFeedType;
+import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -215,7 +215,7 @@ public class ClanService {
     public Page<ClanAuditEntryResponse> audit(UUID clanId, Long playerId, Pageable pageable) {
         User viewer = accessService.player(playerId);
         accessService.require(clanId, viewer.getId(), ClanPermission.READ_AUDIT);
-        return auditRepository.findPageByClanId(clanId, pageable).map(ClanAuditEntryResponse::of);
+        return auditRepository.findPageByClanId(clanId, pageable).map(ClanMapper::toAuditEntryResponse);
     }
 
     private Clan findActive(String slugOrId) {
@@ -298,7 +298,7 @@ public class ClanService {
                 .collect(Collectors.toMap(ClanMemberRepository.MemberCountView::getClanId,
                         ClanMemberRepository.MemberCountView::getMembers));
         Map<UUID, PlayerRef> founders = memberRepository.findOpenFounders(ids).stream()
-                .collect(Collectors.toMap(m -> m.getClan().getId(), m -> PlayerRef.of(m.getUser()),
+                .collect(Collectors.toMap(m -> m.getClan().getId(), m -> ClanRefCache.playerRef(m.getUser()),
                         (first, second) -> first));
         return new ListExtras(counts, founders, cosmeticService.publicRefs(clans),
                 standingService.earnedInCurrentSeason(ids), levelService.capacities());

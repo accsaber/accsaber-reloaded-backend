@@ -1,5 +1,6 @@
 package com.accsaber.backend.controller.clan;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -15,10 +16,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.chat.SendChatMessageRequest;
 import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
+import com.accsaber.backend.model.dto.response.chat.ChatUnreadResponse;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.chat.ChatService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
@@ -47,6 +50,18 @@ public class ClanChatController {
             @PathVariable UUID clanId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(chatService.getMessages(clanChatChannel, clanId, principal.getUserId(), pageable));
+    }
+
+    @Operation(summary = "Unread clan chat count",
+            description = "Members only. Messages after since that you didn't write, capped at 99, plus the newest "
+                    + "message time. Cheap enough to poll instead of reading the chat.")
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/{clanId}/chat/unread")
+    public ResponseEntity<ChatUnreadResponse> unread(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID clanId,
+            @RequestParam Instant since) {
+        return ResponseEntity.ok(clanChatChannel.unread(clanId, principal.getUserId(), since));
     }
 
     @Operation(summary = "Post in clan chat", description = "Members only. Chat rate limit applies.")

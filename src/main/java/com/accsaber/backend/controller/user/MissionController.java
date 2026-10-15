@@ -13,6 +13,7 @@ import com.accsaber.backend.model.dto.response.mission.MissionResponse;
 import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.mission.MissionMapper;
 import com.accsaber.backend.service.mission.MissionQueryService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,7 +38,7 @@ public class MissionController {
             @RequestParam(required = false) MissionPool pool) {
         Long userId = PlayerUserDetails.require(principal).getUserId();
         List<UserMission> missions = resolveMissions(userId, completed, pool);
-        return ResponseEntity.ok(missions.stream().map(MissionResponse::from).toList());
+        return ResponseEntity.ok(missions.stream().map(MissionMapper::from).toList());
     }
 
     private List<UserMission> resolveMissions(Long userId, boolean completed, MissionPool pool) {

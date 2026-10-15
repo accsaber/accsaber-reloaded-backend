@@ -64,7 +64,7 @@ import com.accsaber.backend.repository.campaign.UserCampaignRepository;
 import com.accsaber.backend.repository.campaign.UserCampaignScoreRepository;
 import com.accsaber.backend.repository.score.ScoreModifierLinkRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
-import com.accsaber.backend.service.item.ItemService;
+import com.accsaber.backend.service.item.ItemAwardService;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 import com.accsaber.backend.service.mission.MissionProgressService;
 
@@ -100,7 +100,7 @@ class CampaignEvaluationServiceTest {
         @Mock
         private LevelUpAwardService levelUpAwardService;
         @Mock
-        private ItemService itemService;
+        private ItemAwardService itemAwardService;
         @Mock
         private MissionProgressService missionProgressService;
         @Mock

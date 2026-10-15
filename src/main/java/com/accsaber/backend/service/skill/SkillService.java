@@ -72,7 +72,7 @@ public class SkillService {
 
     @Transactional
     public SkillResponse computeSkillForUser(Long userId, String categoryCode) {
-        User user = requireUser(userId);
+        User user = userRepository.requireActive(userId);
 
         if (categoryCode == null || categoryCode.isBlank()) {
             List<UserCategorySkill> rows = skillRepository.findByUserIdActive(userId);
@@ -87,7 +87,7 @@ public class SkillService {
             return toResponse(user, rows);
         }
 
-        Category category = requireCategory(categoryCode);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
         UserCategorySkill row = skillRepository
                 .findByUserIdAndCategoryId(userId, category.getId())
                 .orElseGet(() -> {
@@ -100,8 +100,8 @@ public class SkillService {
     }
 
     public ApToNextResponse calculateApToNext(Long userId, String categoryCode) {
-        User user = requireUser(userId);
-        Category category = requireCategory(categoryCode);
+        User user = userRepository.requireActive(userId);
+        Category category = categoryRepository.requireActiveByCode(categoryCode);
         Double raw = computeRawApForOneGain(user.getId(), category);
         return ApToNextResponse.builder()
                 .userId(String.valueOf(user.getId()))
@@ -429,15 +429,5 @@ public class SkillService {
 
     private Double round2(double v) {
         return Rounding.round((double) (v), 2);
-    }
-
-    private User requireUser(Long userId) {
-        return userRepository.findByIdAndActiveTrue(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-    }
-
-    private Category requireCategory(String code) {
-        return categoryRepository.findByCodeAndActiveTrue(code)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", code));
     }
 }

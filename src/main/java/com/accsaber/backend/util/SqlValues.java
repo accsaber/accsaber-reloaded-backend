@@ -35,6 +35,16 @@ public final class SqlValues {
         return value == null ? null : ((Number) value).longValue();
     }
 
+    public static Double toDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return Double.parseDouble(value.toString());
+    }
+
     public static UUID toUuid(Object value) {
         if (value == null) {
             return null;

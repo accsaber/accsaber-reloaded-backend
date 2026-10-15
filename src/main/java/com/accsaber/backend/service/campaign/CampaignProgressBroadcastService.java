@@ -8,13 +8,13 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
-import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardPlayer;
+import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
+import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.CampaignCompletedEvent;
 import com.accsaber.backend.model.event.CampaignNodeCompletedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanRefCache;
-import com.accsaber.backend.websocket.server.CampaignProgressBroadcast;
 import com.accsaber.backend.websocket.server.CampaignProgressWebSocketHandler;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -54,21 +54,15 @@ public class CampaignProgressBroadcastService {
                 campaignService.getCampaignSummary(event.campaignId()), null, event.completedAt()));
     }
 
-    private CampaignLeaderboardPlayer player(Long userId) {
+    private UserIdentity player(Long userId) {
         return userRepository.findByIdAndActiveTrue(userId)
                 .map(CampaignProgressBroadcastService::toPlayer)
                 .orElse(null);
     }
 
-    private static CampaignLeaderboardPlayer toPlayer(User user) {
-        return CampaignLeaderboardPlayer.builder()
-                .userId(String.valueOf(user.getId()))
-                .clan(ClanRefCache.forUser(user.getId()))
-                .userName(user.getName())
-                .country(user.getCountry())
-                .avatarUrl(user.getAvatarUrl())
-                .cdnAvatarUrl(user.getCdnAvatarUrl())
-                .build();
+    private static UserIdentity toPlayer(User user) {
+        return new UserIdentity(String.valueOf(user.getId()), user.getName(), user.getAvatarUrl(),
+                user.getCdnAvatarUrl(), ClanRefCache.forUser(user.getId()), user.getCountry());
     }
 
     private void broadcast(CampaignProgressBroadcast payload) {

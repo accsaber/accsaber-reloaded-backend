@@ -10,12 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.user.UserRelation;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 
-@Repository
 public interface UserRelationRepository extends JpaRepository<UserRelation, UUID> {
 
     Optional<UserRelation> findByUser_IdAndTargetUser_IdAndType(Long userId, Long targetUserId, UserRelationType type);

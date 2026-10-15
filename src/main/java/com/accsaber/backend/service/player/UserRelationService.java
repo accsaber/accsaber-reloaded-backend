@@ -41,7 +41,7 @@ public class UserRelationService {
     private final UserRepository userRepository;
     private final UserSettingsService userSettingsService;
 
-    public List<Long> findActiveTargetUserIds(Long userId, UserRelationType type) {
+    private List<Long> findActiveTargetUserIds(Long userId, UserRelationType type) {
         return relationRepository.findByUser_IdAndTypeAndActiveTrue(userId, type, Pageable.unpaged())
                 .map(r -> r.getTargetUser().getId())
                 .getContent();
@@ -54,7 +54,7 @@ public class UserRelationService {
         return relationRepository.findActiveTargetUserIdsByTypes(userId, types);
     }
 
-    public List<Long> findRelationFilterUserIds(Long userId, UserRelationType type) {
+    private List<Long> findRelationFilterUserIds(Long userId, UserRelationType type) {
         List<Long> targets = findActiveTargetUserIds(userId, type);
         if (type == UserRelationType.blocked) {
             return targets;
@@ -193,8 +193,7 @@ public class UserRelationService {
         if (userId.equals(targetUserId)) {
             throw new ValidationException("Cannot create a relation to yourself");
         }
-        User target = userRepository.findByIdAndActiveTrue(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", targetUserId));
+        User target = userRepository.requireActive(targetUserId);
 
         if (type != UserRelationType.blocked
                 && relationRepository.existsByUser_IdAndTargetUser_IdAndTypeAndActiveTrue(targetUserId, userId,
@@ -209,8 +208,7 @@ public class UserRelationService {
             throw new ConflictException("User relation", type + ":" + targetUserId);
         }
         if (relation == null) {
-            User user = userRepository.findByIdAndActiveTrue(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+            User user = userRepository.requireActive(userId);
             relation = UserRelation.builder()
                     .user(user)
                     .targetUser(target)

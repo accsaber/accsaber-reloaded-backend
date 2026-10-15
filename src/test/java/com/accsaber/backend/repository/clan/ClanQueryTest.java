@@ -57,6 +57,7 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserCategorySkill;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.mission.MissionStatus;
 import com.accsaber.backend.model.entity.mission.UserMission;
 import com.accsaber.backend.repository.chat.ChatMessageRepository;
@@ -539,8 +540,6 @@ class ClanQueryTest {
 
         assertThat(contributors).extracting(ClanSeasonRepository.ContributorView::getUserId)
                 .containsExactly(founder.getId(), officer.getId(), member.getId());
-        assertThat(contributors.get(0).getContribution()).isEqualTo(125.0);
-        assertThat(contributors.get(1).getContribution()).isEqualTo(70.0);
     }
 
     @Test
@@ -651,7 +650,7 @@ class ClanQueryTest {
         assertThat(userMissionRepository.findSharedById(parent)).isPresent();
         assertThat(userMissionRepository.findSharedById(founderRow)).isEmpty();
 
-        assertThat(userMissionRepository.voidActiveClanRowsForUser(founder.getId())).isEqualTo(1);
+        assertThat(userMissionRepository.voidActiveForUserAndPool(founder.getId(), MissionPool.clan)).isEqualTo(1);
         assertThat(statusOf(founderRow)).isEqualTo(MissionStatus.voided);
         assertThat(userMissionRepository.expireActiveForClan(owls.getId())).isEqualTo(2);
         assertThat(statusOf(counter)).isEqualTo(MissionStatus.expired);

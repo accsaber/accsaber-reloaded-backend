@@ -32,7 +32,7 @@ import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec;
 import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneRequest;
-import com.accsaber.backend.model.dto.request.milestone.CreateMilestoneSetRequest;
+import com.accsaber.backend.model.dto.request.milestone.MilestoneSetRequest;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneSetResponse;
 import com.accsaber.backend.model.dto.response.milestone.UserMilestoneProgressResponse;
@@ -183,7 +183,7 @@ class MilestoneServiceTest {
 
         @Test
         void nullBonusXp_defaultsToZero() {
-            CreateMilestoneSetRequest request = new CreateMilestoneSetRequest();
+            MilestoneSetRequest request = new MilestoneSetRequest();
             request.setTitle("Set");
             request.setSetBonusXp(null);
 

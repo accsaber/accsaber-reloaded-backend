@@ -50,11 +50,6 @@ import lombok.extern.slf4j.Slf4j;
 @Tag(name = "Auth")
 public class OauthController {
 
-    private static final Set<String> KNOWN_PROVIDERS = Set.of(
-            OauthService.PROVIDER_DISCORD,
-            OauthService.PROVIDER_BEATLEADER,
-            OauthService.PROVIDER_STEAM);
-
     private static final String BINDING_COOKIE = "oauth_bind";
 
     private static final Set<String> INGAME_TICKET_PROVIDERS = Set.of("steamTicket", "oculusTicket");
@@ -74,8 +69,6 @@ public class OauthController {
             @CookieValue(name = BINDING_COOKIE, required = false) String binding,
             @AuthenticationPrincipal PlayerUserDetails principal) {
 
-        requireKnownProvider(provider);
-        validateReturnTo(returnTo);
         Long linkUserId = principal != null ? principal.getUserId() : null;
         String browserBinding = binding != null ? binding : stateService.newBrowserBinding();
 
@@ -122,7 +115,7 @@ public class OauthController {
 
     @Operation(summary = "Steam callback")
     @GetMapping("/steam/callback")
-    public ResponseEntity<Void> steamCallback(@RequestParam("state") String state,
+    public ResponseEntity<Void> steamCallback(@RequestParam String state,
             @CookieValue(name = BINDING_COOKIE, required = false) String binding, HttpServletRequest request) {
         StateClaims claims = stateService.parseState(state, OauthService.PROVIDER_STEAM, binding);
         try {
@@ -171,7 +164,7 @@ public class OauthController {
     public ResponseEntity<Void> removeConnection(
             @PathVariable String provider,
             @AuthenticationPrincipal PlayerUserDetails principal) {
-        requireKnownProvider(provider);
+        stateService.requireKnownProvider(provider);
         oauthService.removeConnection(PlayerUserDetails.require(principal).getUserId(), provider);
         return ResponseEntity.noContent().build();
     }
@@ -185,12 +178,6 @@ public class OauthController {
                 .path("/v1/auth")
                 .maxAge(Duration.ofSeconds(ttl))
                 .build();
-    }
-
-    private void requireKnownProvider(String provider) {
-        if (!KNOWN_PROVIDERS.contains(provider)) {
-            throw new ValidationException("Unknown OAuth provider: " + provider);
-        }
     }
 
     private Map<String, String> openidParams(HttpServletRequest request) {
@@ -222,41 +209,6 @@ public class OauthController {
         return redirectWithFragment(returnTo,
                 "error=" + encode(e.getErrorCode().toLowerCase())
                         + "&message=" + encode(e.getMessage()));
-    }
-
-    private void validateReturnTo(String returnTo) {
-        var allowed = oauthProperties.getAllowedReturnOrigins();
-        if (allowed == null || allowed.isEmpty()) {
-            throw new ValidationException("OAuth allowed-return-origins is not configured");
-        }
-        String inboundOrigin = originOf(parseUri(returnTo));
-        if (inboundOrigin == null) {
-            throw new ValidationException("returnTo must be an absolute URL");
-        }
-        boolean ok = allowed.stream()
-                .map(origin -> originOf(parseUri(origin)))
-                .anyMatch(inboundOrigin::equalsIgnoreCase);
-        if (!ok) {
-            throw new ValidationException("returnTo is not in the allowed origin list");
-        }
-    }
-
-    private URI parseUri(String value) {
-        try {
-            return URI.create(value);
-        } catch (IllegalArgumentException ex) {
-            throw new ValidationException("Invalid URL: " + value);
-        }
-    }
-
-    private String originOf(URI uri) {
-        if (uri.getScheme() == null || uri.getHost() == null) {
-            return null;
-        }
-        int port = uri.getPort();
-        return port < 0
-                ? uri.getScheme() + "://" + uri.getHost()
-                : uri.getScheme() + "://" + uri.getHost() + ":" + port;
     }
 
     private static String encode(String s) {

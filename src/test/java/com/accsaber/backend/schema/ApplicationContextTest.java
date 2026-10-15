@@ -20,7 +20,7 @@ import com.accsaber.backend.websocket.IngestionLeaderLock;
 @Testcontainers
 @ActiveProfiles("prod")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "accsaber.jwt.secret=integration-test-signing-secret-that-is-long-enough-for-hmac-sha256",
+        "accsaber.jwt.secret=aW50ZWdyYXRpb24tdGVzdC1zaWduaW5nLXNlY3JldC10aGF0LWlzLWxvbmctZW5vdWdoLWZvci1obWFjLXNoYTI1Ng==",
         "accsaber.service.api-key=integration-test-service-key",
         "accsaber.platforms.beatleader.websocket-url=",
         "accsaber.platforms.scoresaber.websocket-url=",

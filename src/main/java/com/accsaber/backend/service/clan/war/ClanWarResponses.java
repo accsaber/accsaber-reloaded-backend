@@ -9,11 +9,14 @@ import org.springframework.stereotype.Component;
 
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarSideResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarTeamResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,9 +42,23 @@ public class ClanWarResponses {
                 .map(ClanWarSide::getClan)
                 .toList());
         return wars.stream()
-                .map(war -> ClanWarResponse.of(war, sides.getOrDefault(war.getId(), List.of()).stream()
-                        .map(side -> ClanWarSideResponse.of(side, clans.get(side.getClan().getId())))
+                .map(war -> toWarResponse(war, sides.getOrDefault(war.getId(), List.of()).stream()
+                        .map(side -> toWarSideResponse(side, clans.get(side.getClan().getId())))
                         .toList()))
                 .toList();
+    }
+
+    private static ClanWarResponse toWarResponse(ClanWar war, List<ClanWarSideResponse> sides) {
+        return new ClanWarResponse(war.getId(), war.getArena(), war.getArenaSpec(), war.getRuleset(),
+                war.getStatus(), war.getOutcome(), ClanRefCache.playerRef(war.getDeclaredBy()),
+                ClanWarTeamResponse.of(war.getAttackerClan().getId(), ClanWarTeam.attack, sides),
+                ClanWarTeamResponse.of(war.getDefenderClan().getId(), ClanWarTeam.defend, sides),
+                war.getDeclaredAt(), war.getPicksDueAt(), war.getStartsAt(), war.getEndedAt());
+    }
+
+    private static ClanWarSideResponse toWarSideResponse(ClanWarSide side, PublicClanResponse clan) {
+        return new ClanWarSideResponse(clan, side.getTeam(), ClanRefCache.playerRef(side.getLeadUser()), side.getStake(),
+                side.getStakeRemaining(), side.getStandingAtDeclare(), side.getPicksSubmittedAt(), side.getJoinedAt(),
+                side.getLeftAt(), side.fallen());
     }
 }

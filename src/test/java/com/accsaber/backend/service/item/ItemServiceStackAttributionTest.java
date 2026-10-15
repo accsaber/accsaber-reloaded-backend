@@ -49,7 +49,7 @@ class ItemServiceStackAttributionTest {
     private NotificationService notificationService;
 
     @InjectMocks
-    private ItemService itemService;
+    private ItemAwardService itemAwardService;
 
     @Test
     void aMissionGrantMergedIntoAStaffAwardedStackNoLongerClaimsToBeStaffAwarded() {
@@ -67,7 +67,7 @@ class ItemServiceStackAttributionTest {
         stubStack(normal, staffAwarded);
 
         String missionId = UUID.randomUUID().toString();
-        itemService.awardSystem(USER_ID, ITEM_ID, ItemSource.mission, missionId, "Mission reward: Daily grind");
+        itemAwardService.awardSystem(USER_ID, ITEM_ID, ItemSource.mission, missionId, "Mission reward: Daily grind");
 
         assertThat(staffAwarded.getQuantity()).isEqualTo(3L);
         assertThat(staffAwarded.getSource()).isEqualTo(ItemSource.mission);
@@ -81,7 +81,7 @@ class ItemServiceStackAttributionTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(itemRepository.findByIdAndActiveTrue(ITEM_ID)).thenReturn(Optional.of(crate()));
         when(itemModifierRepository.findByKey(ItemModifier.NORMAL)).thenReturn(Optional.of(normal));
-        when(userItemLinkRepository.findByUser_IdAndItem_IdAndEscrowedFalse(USER_ID, ITEM_ID))
+        when(userItemLinkRepository.findStacksForUpdate(USER_ID, ITEM_ID))
                 .thenReturn(List.of(existing));
         when(userItemLinkRepository.save(any(UserItemLink.class))).thenAnswer(inv -> inv.getArgument(0));
     }

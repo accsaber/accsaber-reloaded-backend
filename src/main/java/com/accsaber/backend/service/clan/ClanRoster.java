@@ -19,6 +19,7 @@ import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
+import com.accsaber.backend.model.entity.mission.MissionPool;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
@@ -99,7 +100,7 @@ public class ClanRoster {
         member.setLeftAt(Instant.now());
         member.setLeaveReason(reason);
         memberRepository.saveAndFlush(member);
-        userMissionRepository.voidActiveClanRowsForUser(member.getUser().getId());
+        userMissionRepository.voidActiveForUserAndPool(member.getUser().getId(), MissionPool.clan);
         eventPublisher.publishEvent(new ClanMembershipChangedEvent(member.getClan().getId()));
     }
 

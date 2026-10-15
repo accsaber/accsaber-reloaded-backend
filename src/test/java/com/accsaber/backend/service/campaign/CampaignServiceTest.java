@@ -47,10 +47,13 @@ import org.springframework.web.multipart.MultipartFile;
 import com.accsaber.backend.config.CdnProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.request.campaign.AddCampaignBarrierRequest;
 import com.accsaber.backend.model.dto.request.campaign.AddCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.CampaignBound;
 import com.accsaber.backend.model.dto.request.campaign.CampaignFilter;
+import com.accsaber.backend.model.dto.request.campaign.CampaignTextRequest;
 import com.accsaber.backend.model.dto.request.campaign.CreateCampaignRequest;
+import com.accsaber.backend.model.dto.request.campaign.MoveCampaignElementsRequest;
 import com.accsaber.backend.model.dto.request.campaign.SetCampaignItemRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignDifficultyRequest;
 import com.accsaber.backend.model.dto.request.campaign.UpdateCampaignRequest;
@@ -189,6 +192,8 @@ class CampaignServiceTest {
 
         private CampaignService campaignService;
         private CampaignNodeService nodeService;
+        private CampaignBarrierService barrierService;
+        private CampaignCanvasService canvasService;
         private CampaignProgressService progressService;
 
         private User creator;
@@ -198,6 +203,8 @@ class CampaignServiceTest {
 
         @BeforeEach
         void setUp() {
+                lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
+                lenient().when(categoryRepository.requireActive(any())).thenCallRealMethod();
                 lenient().when(duplicateUserService.resolvePrimaryUserId(any(Long.class)))
                                 .thenAnswer(inv -> inv.getArgument(0));
                 lenient().when(transactionTemplate.execute(any()))
@@ -222,12 +229,21 @@ class CampaignServiceTest {
                                 itemRepository, categoryRepository, staffUserRepository, duplicateUserService,
                                 campaignEvaluationService, campaignScoreGate, playlistService, new CdnProperties(),
                                 eventPublisher, transactionTemplate, access, mapper);
-                nodeService = new CampaignNodeService(campaignDifficultyRepository, campaignDifficultyPathRepository,
-                                barrierAffectedRepository, campaignTextRepository, campaignDifficultyItemRepository,
-                                campaignDifficultyModifierRepository, campaignDifficultyTargetRepository,
-                                userCampaignScoreRepository, modifierRepository, mapDifficultyRepository,
-                                richTextSanitizer, campaignEvaluationService, campaignScoreGate, mapImportService,
-                                playlistService, transactionTemplate, access, mapper);
+                CampaignNodeGraph graph = new CampaignNodeGraph(campaignDifficultyRepository,
+                                campaignDifficultyPathRepository, barrierAffectedRepository,
+                                campaignDifficultyItemRepository, campaignDifficultyModifierRepository,
+                                campaignDifficultyTargetRepository, userCampaignScoreRepository, playlistService,
+                                campaignScoreGate);
+                CampaignNodeRequirements requirements = new CampaignNodeRequirements(
+                                campaignDifficultyTargetRepository, campaignDifficultyModifierRepository,
+                                modifierRepository);
+                nodeService = new CampaignNodeService(campaignDifficultyRepository, mapDifficultyRepository,
+                                campaignEvaluationService, campaignScoreGate, mapImportService, playlistService,
+                                transactionTemplate, access, mapper, requirements, graph);
+                barrierService = new CampaignBarrierService(campaignDifficultyRepository, barrierAffectedRepository,
+                                campaignEvaluationService, access, mapper, graph);
+                canvasService = new CampaignCanvasService(campaignDifficultyRepository, campaignTextRepository,
+                                richTextSanitizer, access);
                 progressService = new CampaignProgressService(campaignRepository, campaignDifficultyRepository,
                                 campaignDifficultyPathRepository, barrierAffectedRepository, userCampaignRepository,
                                 userCampaignScoreRepository, scoreRepository, scoreModifierLinkRepository,
@@ -1615,6 +1631,73 @@ class CampaignServiceTest {
 
                         verify(campaignDifficultyRepository, never())
                                         .countByCampaign_IdAndBarrierFalseAndActiveTrue(any());
+                }
+                @Test
+                void playerHitsTheBarrierCap() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository
+                                        .countByCampaign_IdAndBarrierTrueAndActiveTrue(campaign.getId()))
+                                        .thenReturn(100L);
+
+                        assertThatThrownBy(() -> barrierService.addBarrier(
+                                        CampaignEditor.player(creator.getId()), campaign.getId(),
+                                        new AddCampaignBarrierRequest()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("maximum of 100 barriers");
+                }
+
+                @Test
+                void barrierRejectedOnProgressionAgnosticCampaign() {
+                        campaign.setProgressionAgnostic(true);
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+
+                        assertThatThrownBy(() -> barrierService.addBarrier(
+                                        CampaignEditor.staff(999L), campaign.getId(),
+                                        new AddCampaignBarrierRequest()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("progression-agnostic");
+                }
+
+                @Test
+                void playerHitsTheTextCap() {
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignTextRepository.countByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(100L);
+
+                        assertThatThrownBy(() -> canvasService.addText(
+                                        CampaignEditor.player(creator.getId()), campaign.getId(),
+                                        new CampaignTextRequest()))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("maximum of 100 text elements");
+                }
+
+                @Test
+                void moveRejectsTwoNodesOnOneCell() {
+                        CampaignDifficulty first = CampaignDifficulty.builder().id(UUID.randomUUID())
+                                        .campaign(campaign).positionX(0.0).positionY(0.0).active(true).build();
+                        CampaignDifficulty second = CampaignDifficulty.builder().id(UUID.randomUUID())
+                                        .campaign(campaign).positionX(1.0).positionY(0.0).active(true).build();
+                        when(campaignRepository.findByIdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(Optional.of(campaign));
+                        when(campaignDifficultyRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of(first, second));
+                        when(campaignTextRepository.findByCampaign_IdAndActiveTrue(campaign.getId()))
+                                        .thenReturn(List.of());
+                        MoveCampaignElementsRequest.Move move = new MoveCampaignElementsRequest.Move();
+                        move.setId(second.getId());
+                        move.setPositionX(0.0);
+                        move.setPositionY(0.0);
+                        MoveCampaignElementsRequest request = new MoveCampaignElementsRequest();
+                        request.setMoves(List.of(move));
+
+                        assertThatThrownBy(() -> canvasService.moveElements(
+                                        CampaignEditor.staff(999L), campaign.getId(), request))
+                                        .isInstanceOf(ValidationException.class)
+                                        .hasMessageContaining("grid position");
+                        verify(campaignDifficultyRepository, never()).saveAll(any());
                 }
         }
 }

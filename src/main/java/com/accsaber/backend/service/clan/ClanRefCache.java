@@ -12,11 +12,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import com.accsaber.backend.model.dto.response.clan.ClanMembershipResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanEquippedItem;
 import com.accsaber.backend.model.entity.clan.ClanMember;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanEquippedItemRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -40,6 +43,18 @@ public class ClanRefCache {
 
     public static PublicClanResponse forUser(Long userId) {
         return userId == null ? null : byUser.get(userId);
+    }
+
+    public static PlayerRef playerRef(User user) {
+        return playerRef(user, null);
+    }
+
+    public static PlayerRef playerRef(User user, ClanMembershipResponse membership) {
+        if (user == null) {
+            return null;
+        }
+        return new PlayerRef(String.valueOf(user.getId()), user.getName(), user.getAvatarUrl(),
+                user.getCdnAvatarUrl(), user.getCountry(), forUser(user.getId()), membership);
     }
 
     @PostConstruct

@@ -13,7 +13,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemRarity;
@@ -22,14 +21,19 @@ import com.accsaber.backend.model.entity.item.UserItemLink;
 
 import jakarta.persistence.LockModeType;
 
-@Repository
 public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID> {
 
         List<UserItemLink> findByUser_IdAndEscrowedFalse(Long userId);
 
         List<UserItemLink> findByUser_IdAndItem_Type_KeyAndEscrowedFalse(Long userId, String typeKey);
 
-        List<UserItemLink> findByUser_IdAndItem_IdAndEscrowedFalse(Long userId, UUID itemId);
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("""
+                        SELECT l FROM UserItemLink l
+                        WHERE l.user.id = :userId AND l.item.id = :itemId AND l.escrowed = false
+                        ORDER BY l.id
+                        """)
+        List<UserItemLink> findStacksForUpdate(@Param("userId") Long userId, @Param("itemId") UUID itemId);
 
         @Query(value = """
                         SELECT i, l

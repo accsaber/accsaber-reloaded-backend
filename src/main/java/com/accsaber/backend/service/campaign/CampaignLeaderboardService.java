@@ -14,14 +14,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry;
-import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardPlayer;
 import com.accsaber.backend.model.dto.response.campaign.CampaignNodeScoreEntry;
+import com.accsaber.backend.model.dto.response.statistics.UserIdentity;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignDifficulty;
 import com.accsaber.backend.model.entity.campaign.CampaignLeaderboardBoard;
@@ -48,12 +49,13 @@ public class CampaignLeaderboardService {
             Pageable pageable) {
         requireNonDraftCampaign(campaignId);
         String searchArg = search != null && !search.isBlank() ? search.trim() : null;
-        Pageable paging = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        PageRequest paging = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
 
         Page<Object[]> rows = switch (board) {
             case COMPLETIONS -> leaderboardRepository.completions(campaignId, paging);
-            case AVG_ACCURACY -> leaderboardRepository.averagesByAccuracy(campaignId, paging);
-            case AVG_AP -> leaderboardRepository.averagesByAp(campaignId, paging);
+            case AVG_ACCURACY ->
+                leaderboardRepository.averages(campaignId, paging.withSort(Sort.Direction.DESC, "avg_acc"));
+            case AVG_AP -> leaderboardRepository.averages(campaignId, paging.withSort(Sort.Direction.DESC, "avg_ap"));
             case PROGRESS -> leaderboardRepository.progress(campaignId, searchArg, paging);
         };
 
@@ -124,15 +126,9 @@ public class CampaignLeaderboardService {
         };
     }
 
-    private static CampaignLeaderboardPlayer player(Object[] row) {
-        return CampaignLeaderboardPlayer.builder()
-                .userId(String.valueOf(asLong(row[0])))
-                .clan(ClanRefCache.forUser(asLong(row[0])))
-                .userName(asString(row[1]))
-                .country(asString(row[2]))
-                .avatarUrl(asString(row[3]))
-                .cdnAvatarUrl(asString(row[4]))
-                .build();
+    private static UserIdentity player(Object[] row) {
+        return new UserIdentity(String.valueOf(asLong(row[0])), asString(row[1]), asString(row[3]), asString(row[4]),
+                ClanRefCache.forUser(asLong(row[0])), asString(row[2]));
     }
 
     private static Long asLong(Object value) {

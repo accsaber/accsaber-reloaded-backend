@@ -27,7 +27,6 @@ import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.exception.TooManyRequestsException;
 import com.accsaber.backend.exception.ValidationException;
-import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.user.User;
@@ -60,6 +59,7 @@ class ChatServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userRepository.requireActive(any())).thenCallRealMethod();
         channelId = UUID.randomUUID();
         user = User.builder().id(50L).name("Tester").build();
         lenient().when(duplicateUserService.resolvePrimaryUserId(51L)).thenReturn(50L);
@@ -81,7 +81,8 @@ class ChatServiceTest {
         verify(channel).prune(channelId);
         ArgumentCaptor<ChatMessageEvent> event = ArgumentCaptor.forClass(ChatMessageEvent.class);
         verify(eventPublisher).publishEvent(event.capture());
-        assertThat(event.getValue().channel()).isSameAs(channel);
+        event.getValue().sink().accept("payload");
+        verify(channel).broadcast(channelId, "payload");
         assertThat(event.getValue().channelId()).isEqualTo(channelId);
         assertThat(response.content()).isEqualTo("hello team");
         assertThat(response.author().id()).isEqualTo("50");
@@ -90,7 +91,7 @@ class ChatServiceTest {
 
     private void mapsPlainly() {
         when(channel.toResponses(any())).thenAnswer(inv -> inv.<List<ChatMessage>>getArgument(0).stream()
-                .map(m -> ChatMessageResponse.of(m, null)).toList());
+                .map(m -> ChatChannel.toResponse(m, null)).toList());
     }
 
     @Test

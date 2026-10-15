@@ -37,8 +37,6 @@ public interface ClanSeasonRepository extends JpaRepository<ClanSeason, UUID> {
 
     interface ContributorView {
         Long getUserId();
-
-        double getContribution();
     }
 
     @Query(value = """

@@ -2,7 +2,6 @@ package com.accsaber.backend.service.market;
 
 import java.util.Map;
 
-import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.dto.response.market.MarketBidResponse;
 import com.accsaber.backend.model.dto.response.market.MarketListingResponse;
@@ -10,6 +9,7 @@ import com.accsaber.backend.model.entity.item.UserItemLink;
 import com.accsaber.backend.model.entity.market.MarketBid;
 import com.accsaber.backend.model.entity.market.MarketListing;
 import com.accsaber.backend.model.entity.market.MarketListingStatus;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.item.ItemMapper;
 
 public final class MarketMapper {
@@ -23,14 +23,14 @@ public final class MarketMapper {
                 .id(listing.getId())
                 .title(listing.getTitle())
                 .description(listing.getDescription())
-                .seller(PlayerRef.of(listing.getSeller()))
+                .seller(ClanRefCache.playerRef(listing.getSeller()))
                 .item(toItemView(listing, counters))
                 .quantity(listing.getQuantity())
                 .startingBid(listing.getStartingBid())
                 .buyoutPrice(listing.getBuyoutPrice())
                 .minIncrement(listing.getMinIncrement())
                 .currentBid(listing.getCurrentBid())
-                .currentBidder(PlayerRef.of(listing.getCurrentBidder()))
+                .currentBidder(ClanRefCache.playerRef(listing.getCurrentBidder()))
                 .minimumNextBid(listing.getStatus() == MarketListingStatus.active && listing.isAuction()
                         ? listing.minimumAcceptableBid()
                         : null)
@@ -39,7 +39,7 @@ public final class MarketMapper {
                 .createdAt(listing.getCreatedAt())
                 .endsAt(listing.getEndsAt())
                 .settledAt(listing.getSettledAt())
-                .winner(PlayerRef.of(listing.getWinner()))
+                .winner(ClanRefCache.playerRef(listing.getWinner()))
                 .finalPrice(listing.getFinalPrice())
                 .build();
     }
@@ -59,7 +59,7 @@ public final class MarketMapper {
         return MarketBidResponse.builder()
                 .id(bid.getId())
                 .listingId(bid.getListing().getId())
-                .bidder(PlayerRef.of(bid.getBidder()))
+                .bidder(ClanRefCache.playerRef(bid.getBidder()))
                 .amount(bid.getAmount())
                 .buyout(bid.isBuyout())
                 .createdAt(bid.getCreatedAt())
