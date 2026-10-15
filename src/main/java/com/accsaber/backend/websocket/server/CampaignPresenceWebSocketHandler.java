@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.accsaber.backend.config.PlainDoubleJackson2Module;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class CampaignPresenceWebSocketHandler extends RoomWebSocketHandler<UUID> {
 
     private static final Logger log = LoggerFactory.getLogger(CampaignPresenceWebSocketHandler.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = PlainDoubleJackson2Module.mapper();
     private static final int MAX_MESSAGE_LENGTH = 4096;
 
     @Override
