@@ -14,11 +14,13 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignCollaboratorResp
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaborator;
 import com.accsaber.backend.model.entity.campaign.CampaignCollaboratorStatus;
+import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.campaign.CampaignCollaboratorRepository;
 import com.accsaber.backend.repository.campaign.CampaignRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ClanRefCache;
+import com.accsaber.backend.service.notification.NotificationService;
 import com.accsaber.backend.service.player.DuplicateUserService;
 
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class CampaignCollaboratorService {
     private final CampaignRepository campaignRepository;
     private final UserRepository userRepository;
     private final DuplicateUserService duplicateUserService;
+    private final NotificationService notificationService;
 
     @Transactional
     public CampaignCollaboratorResponse invite(Long ownerId, UUID campaignId, Long targetUserId) {
@@ -61,7 +64,7 @@ public class CampaignCollaboratorService {
             if (existing.getStatus() == CampaignCollaboratorStatus.DECLINED) {
                 existing.setStatus(CampaignCollaboratorStatus.PENDING);
                 existing.setInvitedBy(campaign.getCreator());
-                return toResponse(collaboratorRepository.save(existing));
+                return toResponse(notifyInvited(collaboratorRepository.save(existing)));
             }
             throw new ValidationException("User is already invited to this campaign");
         }
@@ -72,7 +75,15 @@ public class CampaignCollaboratorService {
                 .status(CampaignCollaboratorStatus.PENDING)
                 .invitedBy(campaign.getCreator())
                 .build();
-        return toResponse(collaboratorRepository.save(collaborator));
+        return toResponse(notifyInvited(collaboratorRepository.save(collaborator)));
+    }
+
+    private CampaignCollaborator notifyInvited(CampaignCollaborator invite) {
+        User inviter = invite.getInvitedBy();
+        notificationService.notify(invite.getUser().getId(), NotificationType.campaign_invite, inviter.getId(),
+                inviter.getName() + " has invited you to collaborate on " + invite.getCampaign().getName(),
+                "/campaigns?pane=invites");
+        return invite;
     }
 
     @Transactional
