@@ -24,7 +24,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @Query(value = """
             SELECT COUNT(*) FROM (
                 SELECT 1 FROM chat_messages
-                WHERE clan_id = :clanId AND created_at > :since AND user_id IS DISTINCT FROM :userId
+                WHERE clan_id = :clanId
+                  AND created_at >= date_trunc('milliseconds', CAST(:since AS timestamptz)) + INTERVAL '1 millisecond'
+                  AND user_id IS DISTINCT FROM :userId
                 LIMIT :cap
             ) unread
             """, nativeQuery = true)
