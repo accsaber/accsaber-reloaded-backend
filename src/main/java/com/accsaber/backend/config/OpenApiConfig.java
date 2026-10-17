@@ -25,27 +25,9 @@ public class OpenApiConfig {
         public static final String STAFF_TOKEN = "Staff Token";
 
         private static final String INTRO = """
-                        Welcome to the AccSaber API. This is what powers the site, the Discord bot \
-                        and the in game plugin, and you are very welcome to build things on top of it too.
+                        The API behind the AccSaber site, Discord bot and in game plugin.
 
-                        A few things worth knowing before you start.
-
-                        Most of the read endpoints are open and need nothing at all. For the \
-                        ones that do want a token, players get theirs by signing in through Steam, Discord or \
-                        BeatLeader under Auth, and staff get a separate one from the staff login. Both are \
-                        bearer tokens but they are not interchangeable, so have a look at what an endpoint \
-                        expects before you send one.
-
-                        Anything returning a list takes page and size, and page starts at \
-                        zero. Size defaults to 20 and will not go above 100. Most list endpoints also accept \
-                        sort, written as sort=field,direction.
-
-                        **Rate limit:** You get 400 requests every 60 seconds.
-
-                        Every error comes back in the same shape, with an HTTP \
-                        status, a short code you can branch on, a message meant for humans, and a \
-                        correlationId. If you ever need to ask us about a request that failed, send the \
-                        correlationId along with it, because that is how we find it in the logs.
+                        Lists take `page` (from 0), `size` (default 20, max 600) and `sort=field,direction`.                         The limit is 400 requests per 60 seconds. Errors carry a `code` to branch on and a                         `correlationId` to quote when you report one.
                         """;
 
         @Bean
@@ -78,147 +60,50 @@ public class OpenApiConfig {
 
         private Components components() {
                 Components components = new Components()
-                                .addSecuritySchemes(PLAYER_TOKEN, new SecurityScheme()
-                                                .type(SecurityScheme.Type.HTTP)
-                                                .scheme("bearer")
-                                                .bearerFormat("JWT")
-                                                .description("""
-                                                                The token a player gets after signing in through Steam, Discord or \
-                                                                BeatLeader, or through the in game route the plugin uses. Send it as \
-                                                                Authorization: Bearer and it will be read as that player. If the \
-                                                                player also happens to be staff, their staff roles come through on \
-                                                                this token as well, though only on the subdomain those roles belong \
-                                                                to."""))
-                                .addSecuritySchemes(STAFF_TOKEN, new SecurityScheme()
-                                                .type(SecurityScheme.Type.HTTP)
-                                                .scheme("bearer")
-                                                .bearerFormat("JWT")
-                                                .description("""
-                                                                The token you get back from the staff login. It is separate from a \
-                                                                player token and carries the ranking or admin role instead. Send it \
-                                                                the same way, as Authorization: Bearer."""));
+                                .addSecuritySchemes(PLAYER_TOKEN, bearer("From a Steam, Discord, BeatLeader or plugin sign in."))
+                                .addSecuritySchemes(STAFF_TOKEN, bearer("From the staff login. Not interchangeable with a player token."));
 
                 ModelConverters.getInstance().readAll(ErrorResponse.class).forEach(components::addSchemas);
                 return components;
         }
 
+        private SecurityScheme bearer(String description) {
+                return new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description(description);
+        }
+
         private List<Tag> tags() {
                 return List.of(
-                                new Tag().name("Auth")
-                                                .description("""
-                                                                How you get a token in the first place. Players sign in through \
-                                                                Steam, Discord or BeatLeader, and the game plugin has its own in \
-                                                                game route. Once you have one, you pass it as an Authorization \
-                                                                header on anything that asks for it."""),
-                                new Tag().name("Players")
-                                                .description("""
-                                                                Everything about a single player. Profiles, name history, per \
-                                                                category statistics and how they have shifted over time, skill \
-                                                                breakdowns, followers and rivals, notifications, settings and \
-                                                                profile customisation."""),
-                                new Tag().name("Scores")
-                                                .description("""
-                                                                Submitting scores, and the practice score board. Reading scores \
-                                                                mostly happens under Players or Maps, so this is the writing side \
-                                                                plus practice runs."""),
-                                new Tag().name("Maps")
-                                                .description("""
-                                                                Ranked maps and the difficulties inside them. Look one up by id, \
-                                                                song hash or BeatSaver code, read its complexity history, and pull \
-                                                                the leaderboard for a single difficulty. Release batches sit here \
-                                                                too, since a batch is really just a set of difficulties that went \
-                                                                ranked together."""),
-                                new Tag().name("Leaderboards")
-                                                .description("""
-                                                                Global and per country rankings for each category, plus the XP \
-                                                                board. These are cached for a few minutes, so a score will not \
-                                                                always show up the instant it lands."""),
-                                new Tag().name("Campaigns")
-                                                .description("""
-                                                                Campaigns are map progressions that players work through node by \
-                                                                node. Anyone can build one and publish it, and the ones that get \
-                                                                curated are the ones that hand out XP and items. Browsing them, \
-                                                                starting one, following progress, chat and per campaign \
-                                                                leaderboards all live here."""),
-                                new Tag().name("Clans")
-                                                .description("""
-                                                                Clans are groups of players who level up together, run                                                                 missions as a team and go to war with other clans over                                                                 Standing. Founding one, joining, ranks, invites and the                                                                 audit log all live here."""),
-                                new Tag().name("Milestones")
-                                                .description("""
-                                                                Milestones and achievements, the sets and groups they belong to, \
-                                                                who has finished what, and the XP thresholds sitting behind player \
-                                                                levels."""),
-                                new Tag().name("Missions and Events")
-                                                .description("""
-                                                                Daily and weekly missions that get calibrated to how good a player \
-                                                                actually is, and the seasonal events that bring their own mission \
-                                                                pools with them. Dailies roll over at 4AM server time and weeklies \
-                                                                go on Monday."""),
-                                new Tag().name("Items and Market")
-                                                .description("""
-                                                                Cosmetic items, the crates you open to get them, unusual effect \
-                                                                variants, straight trades between players, and the market where \
-                                                                listings and auctions happen."""),
-                                new Tag().name("Playlists")
-                                                .description("""
-                                                                Downloadable Beat Saber playlist files. Each one carries a syncURL \
-                                                                so mod managers can refresh it later on, which is also why these \
-                                                                use path segments instead of query parameters. Standalone Beat \
-                                                                Saber will not follow a sync URL with a query string on it, so \
-                                                                please treat these paths as fixed."""),
-                                new Tag().name("Site Statistics")
-                                                .description("""
-                                                                Site wide numbers. The leaderboard family covers things like \
-                                                                streaks, retries and collection completion, and the chart family \
-                                                                gives you time series and distributions if you want to graph \
-                                                                something."""),
-                                new Tag().name("Platform")
-                                                .description("""
-                                                                The pieces holding everything else up. Health checks, categories, \
-                                                                scoring curves, modifiers, CDN limits, news, the metadata behind \
-                                                                link previews, and the Ko-fi webhook receiver."""),
+                                tag("Auth", "Player sign in through Steam, Discord, BeatLeader or the plugin."),
+                                tag("Players", "Profiles, statistics, skills, relations, notifications and settings."),
+                                tag("Scores", "Practice scores."),
+                                tag("Maps", "Ranked maps, difficulties, their leaderboards and release batches."),
+                                tag("Leaderboards", "Category and XP rankings. Cached for up to 10 minutes."),
+                                tag("Campaigns", "Player built map progressions. Curated ones award XP and items."),
+                                tag("Clans", "Membership, levels, missions, alliances, rivals and wars."),
+                                tag("Milestones", "Milestones, achievements and level thresholds."),
+                                tag("Missions and Events", "Dailies reset at 4AM server time, weeklies on Monday."),
+                                tag("Items and Market", "Items, crates, trades and the market."),
+                                tag("Playlists", "Paths are fixed. Standalone Beat Saber cannot sync a URL with a query string."),
+                                tag("Site Statistics", "Site wide boards and charts."),
+                                tag("Quest", "Quest mod releases and downloads."),
+                                tag("Platform", "Health, categories, curves, modifiers, news, link previews and the Ko-fi webhook."),
+                                tag("Ranking", "Queue, imports, votes, status changes, reweights and batches."),
+                                tag("Ranking - Complexity", "The complexity script panel."),
+                                tag("Staff Accounts", "Staff login and account management."),
+                                tag("Admin - Campaigns", "Curation and live campaign edits."),
+                                tag("Admin - Clans", "Level table, seasons, war rewards and moderation."),
+                                tag("Admin - Items and Crates", "The item catalog, crate contents and unusual effects."),
+                                tag("Admin - Milestones and Missions", "Milestones, mission templates and their backfills."),
+                                tag("Admin - Events and News", "Events and news posts."),
+                                tag("Admin - Players", "Bans, overrides, duplicates, supporters and Discord links."),
+                                tag("Admin - Operations", "Backfills, recalculations, WebSocket feeds and broadcasts. Jobs answer 202."));
+        }
 
-                                new Tag().name("Ranking")
-                                                .description("""
-                                                                Everything the ranking team works with. Reading the queue with the \
-                                                                staff only fields attached, importing new difficulties, voting, \
-                                                                moving things between statuses, reweights and unranks, batches, and \
-                                                                ranking news posts."""),
-                                new Tag().name("Staff Accounts")
-                                                .description("""
-                                                                Staff sign in and account management. Staff authenticate separately \
-                                                                from players, so a staff token and a player token are not the same \
-                                                                thing even when the same person holds both."""),
-                                new Tag().name("Admin - Campaigns")
-                                                .description("""
-                                                                Curating, publishing and moderating campaigns, and editing them \
-                                                                while they are already live."""),
-                                new Tag().name("Admin - Clans")
-                                                .description("""
-                                                                Tuning the clan level table, running clan seasons and the war                                                                 reward pool, and stepping in when a clan breaks the rules."""),
-                                new Tag().name("Admin - Items and Crates")
-                                                .description("""
-                                                                The item catalog itself. Types and items, what is inside a crate \
-                                                                and how likely each thing is, unusual effects, and awarding or \
-                                                                taking back an item. Staff with the creative role can read the \
-                                                                catalog here as well, they just cannot change any of it."""),
-                                new Tag().name("Admin - Milestones and Missions")
-                                                .description("""
-                                                                Writing milestones and missions. Sets, groups, prerequisites, \
-                                                                mission templates, and the backfills that apply a new one to \
-                                                                players who already qualified."""),
-                                new Tag().name("Admin - Events and News")
-                                                .description("Seasonal events and news posts, artwork included."),
-                                new Tag().name("Admin - Players")
-                                                .description("""
-                                                                Looking after player accounts. Bans, country overrides, profile \
-                                                                refreshes, spotting and merging duplicate accounts, supporter \
-                                                                grants and Discord links."""),
-                                new Tag().name("Admin - Operations")
-                                                .description("""
-                                                                The heavy jobs and the plumbing. Score backfills, AP and XP \
-                                                                recalculations, CDN backfills, control over the WebSocket feeds, \
-                                                                and broadcast notifications. Most of these go off in the background \
-                                                                and hand you a 202 straight away."""));
+        private static Tag tag(String name, String description) {
+                return new Tag().name(name).description(description);
         }
 }

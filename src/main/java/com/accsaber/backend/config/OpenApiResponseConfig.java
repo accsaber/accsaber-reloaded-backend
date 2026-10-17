@@ -43,34 +43,22 @@ public class OpenApiResponseConfig {
             String authorization = authorizationExpression(handlerMethod);
 
             if (hasInput(operation)) {
-                put(responses, "400", """
-                        Something in the request did not parse. Usually a query parameter of the \
-                        wrong type, or a body that is not valid JSON.""");
+                put(responses, "400", "Malformed parameter or body.");
             }
             if (authorization != null) {
-                put(responses, "401", """
-                        No token, or the one you sent has expired. Grab a fresh one and try again.""");
-                put(responses, "403", """
-                        Your token is fine, it just does not have the role this endpoint asks for.""");
+                put(responses, "401", "Missing or expired token.");
+                put(responses, "403", "Token lacks the required role.");
                 applySecurity(operation, authorization);
             }
             if (hasPathParameter(operation)) {
                 put(responses, "404", "Nothing exists at that id.");
             }
             if (isWrite(handlerMethod)) {
-                put(responses, "409", """
-                        This clashes with something that is already there, or the thing you are \
-                        changing is not in a state that allows it right now.""");
-                put(responses, "422", """
-                        The request was readable but it did not pass validation. Look at \
-                        fieldErrors to see which fields upset it.""");
+                put(responses, "409", "Conflicts with the current state.");
+                put(responses, "422", "Validation failed. See fieldErrors.");
             }
-            put(responses, "429", """
-                    You have gone past 400 requests in 60 seconds. Ease off and it will clear on \
-                    its own.""");
-            put(responses, "500", """
-                    Something broke on our side. If it keeps happening, send us the correlationId \
-                    from the body.""");
+            put(responses, "429", "Over 400 requests in 60 seconds.");
+            put(responses, "500", "Server error. Quote the correlationId.");
 
             return operation;
         };
