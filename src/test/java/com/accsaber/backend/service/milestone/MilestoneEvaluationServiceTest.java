@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -282,6 +283,30 @@ class MilestoneEvaluationServiceTest {
 
                         assertThat(existingLink.isCompleted()).isTrue();
                         assertThat(existingLink.getProgress()).isEqualByComparingTo((double) (950));
+                }
+
+                @Test
+                void completedByAConcurrentEvaluation_paysNothingTwice() {
+                        Milestone milestone = buildMilestone((double) (900), "GTE");
+                        Score newScore = buildScoreWithMapDifficulty();
+                        UserMilestoneLink staleLink = UserMilestoneLink.builder()
+                                        .milestone(milestone)
+                                        .completed(false)
+                                        .build();
+
+                        mockScopedQuery(List.of(milestone));
+                        mockBatchEval(List.of(milestone), (double) (950));
+                        mockExistingLinks(staleLink);
+                        when(userMilestoneLinkRepository.findCompletedMilestoneIds(USER_ID, List.of(milestone.getId())))
+                                        .thenReturn(Set.of(milestone.getId()));
+
+                        var result = service.evaluateAfterScore(USER_ID, newScore);
+
+                        assertThat(result.completedMilestones()).isEmpty();
+                        assertThat(staleLink.isCompleted()).isFalse();
+                        verify(userRepository).lockById(USER_ID);
+                        verify(itemAwardService, never()).awardSystem(any(), any(), any(), any(), any(), anyInt());
+                        verify(levelUpAwardService, never()).addXp(any(), any());
                 }
 
                 @Test

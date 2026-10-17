@@ -97,7 +97,8 @@ public class MilestoneEvaluationService {
         link.setProgress(progress.value());
         link.setGateFraction(progress.gateFraction());
 
-        boolean newlyCompleted = isCompleted(milestone, progress.value());
+        boolean newlyCompleted = isCompleted(milestone, progress.value())
+                && !claimUncompleted(userId, List.of(milestone)).isEmpty();
         if (newlyCompleted) {
             markCompleted(link, findQualifying(milestone, userId));
         }
@@ -132,7 +133,7 @@ public class MilestoneEvaluationService {
         Map<UUID, Progress> batchResults = evaluateAll(uncompleted, userId);
         Map<UUID, UserMilestoneLink> linkMap = loadLinkMap(userId, uncompleted);
 
-        List<Milestone> newlyCompleted = new ArrayList<>();
+        List<Milestone> reached = new ArrayList<>();
         List<UserMilestoneLink> linksToSave = new ArrayList<>();
 
         for (Milestone milestone : uncompleted) {
@@ -143,15 +144,30 @@ public class MilestoneEvaluationService {
             link.setGateFraction(progress.gateFraction());
 
             if (isCompleted(milestone, currentValue) && !link.isCompleted()) {
-                markCompleted(link, newScore != null ? newScore : findQualifying(milestone, userId));
-                newlyCompleted.add(milestone);
+                reached.add(milestone);
             }
 
             linksToSave.add(link);
         }
 
+        List<Milestone> newlyCompleted = claimUncompleted(userId, reached);
+        for (Milestone milestone : newlyCompleted) {
+            markCompleted(linkMap.get(milestone.getId()),
+                    newScore != null ? newScore : findQualifying(milestone, userId));
+        }
+
         userMilestoneLinkRepository.saveAll(linksToSave);
         return finishCompletion(userId, newlyCompleted);
+    }
+
+    private List<Milestone> claimUncompleted(Long userId, List<Milestone> reached) {
+        if (reached.isEmpty()) {
+            return reached;
+        }
+        userRepository.lockById(userId);
+        Set<UUID> alreadyCompleted = userMilestoneLinkRepository.findCompletedMilestoneIds(userId,
+                reached.stream().map(Milestone::getId).toList());
+        return reached.stream().filter(m -> !alreadyCompleted.contains(m.getId())).toList();
     }
 
     private void markCompleted(UserMilestoneLink link, Score qualifying) {
@@ -356,18 +372,16 @@ public class MilestoneEvaluationService {
     private Map<UUID, UserMilestoneLink> loadLinkMap(Long userId, List<Milestone> milestones) {
         List<UUID> milestoneIds = milestones.stream().map(Milestone::getId).toList();
         return userMilestoneLinkRepository.findByUser_IdAndMilestone_IdIn(userId, milestoneIds).stream()
-                .collect(Collectors.toMap(l -> l.getMilestone().getId(), Function.identity()));
+                .collect(Collectors.toMap(l -> l.getMilestone().getId(), Function.identity(), (a, b) -> a,
+                        HashMap::new));
     }
 
     private UserMilestoneLink getOrCreateFromMap(Map<UUID, UserMilestoneLink> linkMap, Long userId,
             Milestone milestone) {
-        UserMilestoneLink existing = linkMap.get(milestone.getId());
-        if (existing != null)
-            return existing;
-        return UserMilestoneLink.builder()
+        return linkMap.computeIfAbsent(milestone.getId(), id -> UserMilestoneLink.builder()
                 .user(userRepository.getReferenceById(userId))
                 .milestone(milestone)
-                .build();
+                .build());
     }
 
     private List<MilestoneSet> claimEligibleSetBonuses(Long userId, List<Milestone> newlyCompleted) {

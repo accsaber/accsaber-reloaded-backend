@@ -125,6 +125,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.clanXp = u.clanXp + :xp WHERE u.id = :id")
     void addClanXp(@Param("id") Long id, @Param("xp") Double xp);
 
+    @Query(value = "SELECT id FROM users WHERE id = :id FOR UPDATE", nativeQuery = true)
+    Long lockById(@Param("id") Long id);
+
     @Query("SELECT u.totalXp FROM User u WHERE u.id = :id")
     java.util.Optional<Double> findTotalXpById(@Param("id") Long id);
 

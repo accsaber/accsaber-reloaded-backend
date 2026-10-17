@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.accsaber.backend.model.entity.score.Score;
@@ -26,6 +27,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "user_milestone_links")
+@DynamicUpdate
 @Getter
 @Setter
 @Builder

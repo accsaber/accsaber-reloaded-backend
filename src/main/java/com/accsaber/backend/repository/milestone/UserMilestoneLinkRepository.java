@@ -2,6 +2,7 @@ package com.accsaber.backend.repository.milestone;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 
@@ -67,6 +68,15 @@ public interface UserMilestoneLinkRepository extends JpaRepository<UserMilestone
                         AND uml.milestone.milestoneSet.id = :setId
                         """)
         long countCompletedByUserAndSet(@Param("userId") Long userId, @Param("setId") UUID setId);
+
+        @Query("""
+                        SELECT uml.milestone.id FROM UserMilestoneLink uml
+                        WHERE uml.user.id = :userId
+                        AND uml.completed = true
+                        AND uml.milestone.id IN :milestoneIds
+                        """)
+        Set<UUID> findCompletedMilestoneIds(@Param("userId") Long userId,
+                        @Param("milestoneIds") List<UUID> milestoneIds);
 
         @Query(value = """
                         SELECT COALESCE(SUM(m.xp), 0)
