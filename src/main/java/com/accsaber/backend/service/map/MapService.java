@@ -46,6 +46,7 @@ import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.SortAliases;
+import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
@@ -74,6 +75,7 @@ public class MapService {
     private final MapDifficultyStatisticsService statisticsService;
     private final StaffUserRepository staffUserRepository;
     private final StaffMapVoteRepository voteRepository;
+    private final CampaignDifficultyRepository campaignDifficultyRepository;
     private final com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository estimateRepository;
     private final ScoreIngestionService scoreIngestionService;
     private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
@@ -463,6 +465,10 @@ public class MapService {
                         "A campaign-imported difficulty already exists for this map; promote it instead of importing a new one");
             }
             if (previousVersion.getStatus() != MapDifficultyStatus.RANKED) {
+                if (usedByCampaign(previousVersion)) {
+                    throw new ConflictException(
+                            "The current version of this difficulty is used by a campaign; repoint its campaign nodes before importing new leaderboard IDs");
+                }
                 previousVersion.setActive(false);
                 previousVersion.setLastUpdatedBy(staffId);
                 mapDifficultyRepository.save(previousVersion);
@@ -602,9 +608,18 @@ public class MapService {
     public void deactivate(UUID difficultyId, UUID staffId) {
         MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+        if (usedByCampaign(difficulty)) {
+            difficulty.setBatch(null);
+            applyStatus(difficulty, MapDifficultyStatus.CAMPAIGN, null, staffId);
+            return;
+        }
         difficulty.setActive(false);
         difficulty.setLastUpdatedBy(staffId);
         mapDifficultyRepository.save(difficulty);
+    }
+
+    private boolean usedByCampaign(MapDifficulty difficulty) {
+        return campaignDifficultyRepository.existsByMapDifficulty_IdAndActiveTrue(difficulty.getId());
     }
 
     public MapDifficultyResponse getDifficultyResponse(UUID difficultyId) {

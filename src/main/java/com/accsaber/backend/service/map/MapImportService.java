@@ -199,7 +199,7 @@ public class MapImportService {
         if (existing.isActive()) {
             return existing;
         }
-        if (existing.getStatus() != MapDifficultyStatus.CAMPAIGN
+        if (existing.getStatus() == MapDifficultyStatus.RANKED
                 || mapDifficultyRepository.findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
                         existing.getMap().getId(), existing.getDifficulty(),
                         existing.getCharacteristic()).isPresent()) {
@@ -207,6 +207,8 @@ public class MapImportService {
                     "This leaderboard belongs to a difficulty that was removed from the system");
         }
         existing.setActive(true);
+        existing.setStatus(MapDifficultyStatus.CAMPAIGN);
+        existing.setBatch(null);
         if (existing.getImportedBy() == null) {
             existing.setImportedBy(playerId);
         }

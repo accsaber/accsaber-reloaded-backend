@@ -26,6 +26,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderLeaderboardResponse;
 import com.accsaber.backend.model.dto.platform.beatsaver.BeatSaverMapResponse;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
+import com.accsaber.backend.model.dto.request.map.ImportCampaignMapRequest;
 import com.accsaber.backend.model.dto.request.map.ImportMapFromLeaderboardIdsRequest;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
@@ -237,6 +238,36 @@ class MapImportServiceTest {
                 req.setDifficulty(Difficulty.EXPERT_PLUS);
                 req.setCharacteristic("Standard");
                 return req;
+        }
+
+        @Nested
+        class ResolveCampaignMap {
+
+                @Test
+                void revivesDeactivatedQueueDifficultyAsCampaignImport() {
+                        com.accsaber.backend.model.entity.map.Map map = com.accsaber.backend.model.entity.map.Map
+                                        .builder().id(UUID.randomUUID()).build();
+                        MapDifficulty queued = MapDifficulty.builder()
+                                        .id(UUID.randomUUID())
+                                        .map(map)
+                                        .difficulty(Difficulty.EXPERT_PLUS)
+                                        .characteristic("Standard")
+                                        .status(MapDifficultyStatus.QUEUE)
+                                        .batch(new com.accsaber.backend.model.entity.map.Batch())
+                                        .active(false)
+                                        .build();
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl_123")).thenReturn(Optional.of(queued));
+                        when(mapDifficultyRepository.save(queued)).thenReturn(queued);
+
+                        ImportCampaignMapRequest request = new ImportCampaignMapRequest();
+                        request.setBlLeaderboardId("bl_123");
+                        MapDifficulty resolved = mapImportService.resolveCampaignMap(42L, request, null);
+
+                        assertThat(resolved.isActive()).isTrue();
+                        assertThat(resolved.getStatus()).isEqualTo(MapDifficultyStatus.CAMPAIGN);
+                        assertThat(resolved.getBatch()).isNull();
+                        assertThat(resolved.getImportedBy()).isEqualTo(42L);
+                }
         }
 
         private BeatLeaderLeaderboardResponse buildBlLeaderboard() {

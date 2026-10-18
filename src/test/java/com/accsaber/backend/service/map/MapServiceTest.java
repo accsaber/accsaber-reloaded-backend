@@ -69,6 +69,9 @@ class MapServiceTest {
         private StaffMapVoteRepository voteRepository;
 
         @Mock
+        private com.accsaber.backend.repository.campaign.CampaignDifficultyRepository campaignDifficultyRepository;
+
+        @Mock
         private com.accsaber.backend.repository.map.MapDifficultyComplexityEstimateRepository estimateRepository;
 
         @Mock
@@ -265,6 +268,37 @@ class MapServiceTest {
                         verify(mapRepository, never()).save(any(Map.class));
                 }
 
+        }
+
+        @Nested
+        class Deactivate {
+
+                private final UUID staffId = UUID.randomUUID();
+
+                @Test
+                void demotesToCampaign_whenACampaignNodeUsesIt() {
+                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.QUEUE);
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
+                        when(campaignDifficultyRepository.existsByMapDifficulty_IdAndActiveTrue(diff.getId()))
+                                        .thenReturn(true);
+
+                        mapService.deactivate(diff.getId(), staffId);
+
+                        assertThat(diff.isActive()).isTrue();
+                        assertThat(diff.getStatus()).isEqualTo(MapDifficultyStatus.CAMPAIGN);
+                        verify(campaignScoreGate).refresh();
+                }
+
+                @Test
+                void deactivates_whenNoCampaignUsesIt() {
+                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.QUEUE);
+                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
+
+                        mapService.deactivate(diff.getId(), staffId);
+
+                        assertThat(diff.isActive()).isFalse();
+                        assertThat(diff.getStatus()).isEqualTo(MapDifficultyStatus.QUEUE);
+                }
         }
 
         @Nested
