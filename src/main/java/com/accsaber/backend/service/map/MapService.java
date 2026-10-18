@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -277,7 +278,7 @@ public class MapService {
             Double complexityMin, Double complexityMax, String search, Long excludeUserId,
             boolean active, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
-        Collection<MapDifficultyStatus> statusFilter = resolveStatusFilter(statuses, active);
+        Collection<MapDifficultyStatus> statusFilter = statuses == null || statuses.isEmpty() ? null : statuses;
         Pageable effective = resolveDifficultySort(pageable);
         Page<MapDifficulty> difficulties = hasSearch
                 ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
@@ -376,14 +377,6 @@ public class MapService {
         return complexityService.getHistoryForMap(mapId);
     }
 
-    private Collection<MapDifficultyStatus> resolveStatusFilter(Collection<MapDifficultyStatus> statuses,
-            boolean active) {
-        if (statuses != null && !statuses.isEmpty()) {
-            return statuses;
-        }
-        return active ? null : List.of(MapDifficultyStatus.values());
-    }
-
     @Cacheable(value = "rankedDifficulties")
     public List<RankedDifficultyResponse> findAllRankedDifficulties() {
         return mapDifficultyRepository.findAllRankedWithComplexity().stream()
@@ -415,6 +408,38 @@ public class MapService {
     @Transactional
     public MapDifficultyResponse importMapDifficulty(CreateMapDifficultyRequest request, UUID staffId,
             MapDifficultyStatus status) {
+        MapDifficulty difficulty = findCampaignImport(request)
+                .map(campaignImport -> promoteCampaignImport(campaignImport, request, staffId, status))
+                .orElseGet(() -> createDifficulty(request, staffId, status));
+
+        if (status == MapDifficultyStatus.RANKED) {
+            playlistService.evictAllPlaylists();
+        } else {
+            playlistService.evictAllUnrankedPlaylists();
+        }
+
+        return toDifficultyResponse(difficulty, DifficultyContext.EMPTY);
+    }
+
+    private Optional<MapDifficulty> findCampaignImport(CreateMapDifficultyRequest request) {
+        return Optional.ofNullable(request.getBlLeaderboardId())
+                .flatMap(mapDifficultyRepository::findByBlLeaderboardId)
+                .or(() -> Optional.ofNullable(request.getSsLeaderboardId())
+                        .flatMap(mapDifficultyRepository::findBySsLeaderboardId))
+                .filter(existing -> existing.getStatus() == MapDifficultyStatus.CAMPAIGN);
+    }
+
+    private MapDifficulty promoteCampaignImport(MapDifficulty campaignImport, CreateMapDifficultyRequest request,
+            UUID staffId, MapDifficultyStatus status) {
+        campaignImport.setCategory(categoryRepository.requireActive(request.getCategoryId()));
+        campaignImport.setBatch(resolveBatch(request.getBatchId()));
+        campaignImport.setActive(true);
+        applyStatus(campaignImport, status, resolveRankedAt(request, status), staffId);
+        return campaignImport;
+    }
+
+    private MapDifficulty createDifficulty(CreateMapDifficultyRequest request, UUID staffId,
+            MapDifficultyStatus status) {
         checkLeaderboardIdConflict(request.getBlLeaderboardId(), request.getSsLeaderboardId());
 
         Map map = mapRepository.findBySongHashAndActiveTrue(request.getSongHash())
@@ -444,21 +469,9 @@ public class MapService {
             }
         }
 
-        Category category = categoryRepository.requireActive(request.getCategoryId());
-
-        Batch batch = request.getBatchId() != null
-                ? batchRepository.findById(request.getBatchId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Batch", request.getBatchId()))
-                : null;
-
-        Instant rankedAt = null;
-        if (status == MapDifficultyStatus.RANKED) {
-            rankedAt = request.getRankedAt() != null ? request.getRankedAt() : Instant.now();
-        }
-
         MapDifficulty difficulty = mapDifficultyRepository.save(MapDifficulty.builder()
                 .map(map)
-                .category(category)
+                .category(categoryRepository.requireActive(request.getCategoryId()))
                 .difficulty(request.getDifficulty())
                 .characteristic(request.getCharacteristic())
                 .ssLeaderboardId(request.getSsLeaderboardId())
@@ -467,20 +480,29 @@ public class MapService {
                 .metadata(request.getMetadata())
                 .previousVersion(previousVersion)
                 .status(status)
-                .rankedAt(rankedAt)
-                .batch(batch)
+                .rankedAt(resolveRankedAt(request, status))
+                .batch(resolveBatch(request.getBatchId()))
                 .createdBy(staffId)
                 .active(true)
                 .build());
 
         if (status == MapDifficultyStatus.RANKED) {
             scoreIngestionService.refreshRankedLeaderboardIds();
-            playlistService.evictAllPlaylists();
-        } else {
-            playlistService.evictAllUnrankedPlaylists();
         }
+        return difficulty;
+    }
 
-        return toDifficultyResponse(difficulty, DifficultyContext.EMPTY);
+    private Batch resolveBatch(UUID batchId) {
+        return batchId == null ? null
+                : batchRepository.findById(batchId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Batch", batchId));
+    }
+
+    private static Instant resolveRankedAt(CreateMapDifficultyRequest request, MapDifficultyStatus status) {
+        if (status != MapDifficultyStatus.RANKED) {
+            return null;
+        }
+        return request.getRankedAt() != null ? request.getRankedAt() : Instant.now();
     }
 
     @Transactional
@@ -505,22 +527,27 @@ public class MapService {
                 && complexityService.findActiveComplexity(difficultyId).isEmpty()) {
             throw new ValidationException("Cannot rank a difficulty without an active complexity");
         }
-        difficulty.setStatus(request.getStatus());
-        difficulty.setRankedAt(request.getStatus() == MapDifficultyStatus.RANKED ? Instant.now() : null);
-        difficulty.setLastUpdatedBy(staffId);
-        mapDifficultyRepository.save(difficulty);
-
-        if (oldStatus != request.getStatus()
-                && (oldStatus == MapDifficultyStatus.RANKED || request.getStatus() == MapDifficultyStatus.RANKED)) {
-            scoreIngestionService.refreshRankedLeaderboardIds();
-        }
-        if (oldStatus != request.getStatus()) {
-            campaignScoreGate.refresh();
-        }
+        applyStatus(difficulty, request.getStatus(), Instant.now(), staffId);
 
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         return toDifficultyResponse(difficulty, staffContext(difficulty, complexity, stats));
+    }
+
+    private void applyStatus(MapDifficulty difficulty, MapDifficultyStatus status, Instant rankedAt, UUID staffId) {
+        MapDifficultyStatus oldStatus = difficulty.getStatus();
+        difficulty.setStatus(status);
+        difficulty.setRankedAt(status == MapDifficultyStatus.RANKED ? rankedAt : null);
+        difficulty.setLastUpdatedBy(staffId);
+        mapDifficultyRepository.save(difficulty);
+
+        if (oldStatus == status) {
+            return;
+        }
+        if (oldStatus == MapDifficultyStatus.RANKED || status == MapDifficultyStatus.RANKED) {
+            scoreIngestionService.refreshRankedLeaderboardIds();
+        }
+        campaignScoreGate.refresh();
     }
 
     @Transactional

@@ -242,6 +242,29 @@ class MapServiceTest {
                         verify(mapDifficultyRepository, never()).save(ranked);
                 }
 
+                @Test
+                void promotesCampaignImportInPlace_whenLeaderboardIdMatches() {
+                        Category category = buildCategory();
+                        CreateMapDifficultyRequest request = buildRequestWithLeaderboards(category.getId(),
+                                        "bl-id", null);
+                        MapDifficulty campaignImport = buildDifficulty(buildMap(), null, MapDifficultyStatus.CAMPAIGN);
+                        campaignImport.setActive(false);
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl-id"))
+                                        .thenReturn(Optional.of(campaignImport));
+                        when(categoryRepository.findByIdAndActiveTrue(category.getId()))
+                                        .thenReturn(Optional.of(category));
+
+                        MapDifficultyResponse response = mapService.importMapDifficulty(request, staffId);
+
+                        assertThat(response.getId()).isEqualTo(campaignImport.getId());
+                        assertThat(campaignImport.getStatus()).isEqualTo(MapDifficultyStatus.QUEUE);
+                        assertThat(campaignImport.getCategory()).isEqualTo(category);
+                        assertThat(campaignImport.isActive()).isTrue();
+                        verify(mapDifficultyRepository).save(campaignImport);
+                        verify(campaignScoreGate).refresh();
+                        verify(mapRepository, never()).save(any(Map.class));
+                }
+
         }
 
         @Nested
@@ -379,9 +402,8 @@ class MapServiceTest {
                 }
 
                 @Test
-                void deactivatedListAsksForEveryStatusSoCampaignImportsAreVisible() {
-                        assertThat(capturedStatuses(false, null))
-                                        .containsExactlyInAnyOrder(MapDifficultyStatus.values());
+                void deactivatedListLeavesStatusesNullSoCampaignImportsStayHidden() {
+                        assertThat(capturedStatuses(false, null)).isNull();
                 }
 
                 @Test
