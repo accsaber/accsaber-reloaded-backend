@@ -32,4 +32,8 @@ public class CreateClanRequest {
 
     @Pattern(regexp = "^(#[0-9a-fA-F]{6})?$")
     private String secondaryColor;
+
+    private boolean acceptingRequests = true;
+
+    private boolean pacifist;
 }

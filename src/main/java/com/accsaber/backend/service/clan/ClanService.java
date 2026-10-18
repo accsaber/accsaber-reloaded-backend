@@ -104,6 +104,8 @@ public class ClanService {
                 .tagColor(normalizedColor(request.getTagColor()))
                 .primaryColor(normalizedColor(request.getPrimaryColor()))
                 .secondaryColor(normalizedColor(request.getSecondaryColor()))
+                .acceptingRequests(request.isAcceptingRequests())
+                .pacifistFrom(request.isPacifist() ? pacifistStart() : null)
                 .build());
         roster.seat(clan, founder, ClanRole.founder);
         levelService.grantStartingItems(clan.getId());
@@ -141,13 +143,16 @@ public class ClanService {
             if (warRepository.existsOpenForClan(clanId)) {
                 throw new ConflictException("Finish your clan's wars before turning pacifist");
             }
-            Instant now = Instant.now();
-            clan.setPacifistFrom(standingService.currentSeason().isPresent()
-                    ? now.plus(clanProperties.getPacifistDelay()) : now);
+            clan.setPacifistFrom(pacifistStart());
             coalitionService.leaveAll(clanId);
         }
         clanRepository.saveAndFlush(clan);
         return toResponse(clan);
+    }
+
+    private Instant pacifistStart() {
+        Instant now = Instant.now();
+        return standingService.currentSeason().isPresent() ? now.plus(clanProperties.getPacifistDelay()) : now;
     }
 
     @Transactional
