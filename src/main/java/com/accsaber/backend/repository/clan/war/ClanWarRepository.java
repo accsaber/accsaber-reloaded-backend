@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -154,4 +155,48 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             LIMIT :limit
             """, nativeQuery = true)
     List<UUID> findEndedUnsettled(@Param("limit") int limit);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO clan_war_scored_plays (war_id, score_id) VALUES (:warId, :scoreId)
+            ON CONFLICT DO NOTHING
+            """, nativeQuery = true)
+    int markScored(@Param("warId") UUID warId, @Param("scoreId") UUID scoreId);
+
+    interface UnscoredPlayView {
+        UUID getWarId();
+
+        UUID getScoreId();
+
+        Long getUserId();
+
+        UUID getMapDifficultyId();
+
+        int getScore();
+
+        boolean isPersonalBest();
+
+        Instant getSetAt();
+    }
+
+    @Query(value = """
+            SELECT w.id AS warId, s.id AS scoreId, s.user_id AS userId, s.map_difficulty_id AS mapDifficultyId,
+                   s.score AS score, s.supersedes_reason IS DISTINCT FROM 'Worse score' AS personalBest,
+                   COALESCE(s.time_set, s.created_at) AS setAt
+            FROM clan_wars w
+            JOIN clan_war_participants p ON p.war_id = w.id AND p.left_at IS NULL
+            JOIN clan_war_pool pool ON pool.war_id = w.id
+            JOIN scores s ON s.user_id = p.user_id AND s.map_difficulty_id = pool.map_difficulty_id
+            WHERE w.status = 'active'
+              AND COALESCE(s.time_set, s.created_at) >= GREATEST(w.starts_at, :since)
+              AND s.created_at < :settledBefore
+              AND NOT s.partial
+              AND NOT s.reweight_derivative
+              AND s.supersedes_reason IS DISTINCT FROM 'Campaign attempt'
+              AND NOT EXISTS (SELECT 1 FROM clan_war_scored_plays sp WHERE sp.war_id = w.id AND sp.score_id = s.id)
+            ORDER BY COALESCE(s.time_set, s.created_at)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UnscoredPlayView> findUnscoredPlays(@Param("since") Instant since,
+            @Param("settledBefore") Instant settledBefore, @Param("limit") int limit);
 }

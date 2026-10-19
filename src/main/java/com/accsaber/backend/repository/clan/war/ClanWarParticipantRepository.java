@@ -3,6 +3,7 @@ package com.accsaber.backend.repository.clan.war;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -31,6 +32,9 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
 
     @Query("SELECT p FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.leftAt IS NULL")
     List<ClanWarParticipant> findActiveByWarId(@Param("warId") UUID warId);
+
+    @Query("SELECT p.clan.id FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.user.id = :userId AND p.leftAt IS NULL")
+    Optional<UUID> findOpenClanId(@Param("warId") UUID warId, @Param("userId") Long userId);
 
     @Query(value = """
             SELECT COALESCE(AVG(CASE WHEN EXISTS (

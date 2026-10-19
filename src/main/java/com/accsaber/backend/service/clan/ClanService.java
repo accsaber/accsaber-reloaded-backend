@@ -312,8 +312,7 @@ public class ClanService {
     private ClanResponse toResponse(Clan clan, ListExtras extras) {
         LevelResponse level = levelService.levelOf(clan);
         double standing = standingService.baseStanding(clan) + extras.earned().getOrDefault(clan.getId(), 0.0);
-        return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.getBannerUrl(),
-                clan.isAcceptingRequests(), level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
+        return new ClanResponse(extras.refs().get(clan.getId()), clan.getDescription(), clan.isAcceptingRequests(), level, standing, extras.memberCounts().getOrDefault(clan.getId(), 0L),
                 extras.capacities().at(level.getLevel(), ClanCapacity.member_slots),
                 extras.founders().get(clan.getId()), clan.getPacifistFrom(), clan.getCreatedAt());
     }

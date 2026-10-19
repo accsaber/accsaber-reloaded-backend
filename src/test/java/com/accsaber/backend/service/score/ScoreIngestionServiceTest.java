@@ -88,7 +88,8 @@ class ScoreIngestionServiceTest {
                 noopExecutor.initialize();
                 metricsService = new MetricsService(
                                 new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
-                                noopExecutor, noopExecutor, noopExecutor);
+                                noopExecutor, noopExecutor, noopExecutor,
+                                org.mockito.Mockito.mock(com.accsaber.backend.repository.clan.ClanSeasonRepository.class));
 
                 when(modifierCacheService.getModifierCodeToId()).thenReturn(Map.of("NF", NF_ID));
                 when(duplicateUserService.resolvePrimaryUserId(STEAM_ID)).thenReturn(STEAM_ID);

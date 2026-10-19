@@ -919,6 +919,35 @@ class ClanQueryTest {
                 ChronoUnit.DAYS))).isEqualTo(1.0);
         assertThat(participantRepository.findRecentlyActiveShare(warId, "attack", Instant.now().minus(1,
                 ChronoUnit.DAYS))).isZero();
+        assertThat(participantRepository.findOpenClanId(warId, founder.getId())).contains(owls.getId());
+        assertThat(participantRepository.findOpenClanId(warId, member.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the war play sweep finds pooled plays since the war started until each one is marked scored")
+    void unscoredPlaysUntilMarked() {
+        MapDifficulty pooled = rankedAt(6.0);
+        UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        Instant started = Instant.now().minus(1, ChronoUnit.HOURS);
+        warState(warId, "status = 'active', starts_at = ?1", started);
+        entityManager.createNativeQuery("INSERT INTO clan_war_pool (war_id, map_difficulty_id, source) VALUES "
+                + "(?1, ?2, 'random')").setParameter(1, warId).setParameter(2, pooled.getId()).executeUpdate();
+        entityManager.createNativeQuery("INSERT INTO clan_war_participants (war_id, user_id, clan_id, "
+                + "standing_weight, guard) VALUES (?1, ?2, ?3, 0.5, 100)").setParameter(1, warId)
+                .setParameter(2, founder.getId()).setParameter(3, owls.getId()).executeUpdate();
+        UUID play = score(founder, pooled, 10.0, started.plusSeconds(60));
+        score(founder, pooled, 10.0, started.minusSeconds(60));
+        score(founder, pooled, 10.0, started.plusSeconds(120), true);
+        entityManager.flush();
+        Instant since = Instant.now().minus(1, ChronoUnit.DAYS);
+        Instant settled = Instant.now().plusSeconds(60);
+
+        assertThat(warRepository.findUnscoredPlays(since, settled, 10))
+                .extracting(ClanWarRepository.UnscoredPlayView::getScoreId).containsExactly(play);
+        assertThat(warRepository.markScored(warId, play)).isEqualTo(1);
+        assertThat(warRepository.markScored(warId, play)).isZero();
+        assertThat(warRepository.findUnscoredPlays(since, settled, 10)).isEmpty();
     }
 
     @Test

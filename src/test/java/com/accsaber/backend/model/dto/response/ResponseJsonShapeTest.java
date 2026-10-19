@@ -64,7 +64,7 @@ class ResponseJsonShapeTest {
     private static final Instant T1 = Instant.parse("2026-01-02T03:04:05Z");
     private static final Instant T2 = Instant.parse("2026-02-03T04:05:06Z");
     private static final PublicClanResponse CLAN = new PublicClanResponse(C, "slug", "Clan", "TAG", "#112233",
-            "#445566", "#778899", "icon", List.of());
+            "#445566", "#778899", "icon", "banner", List.of());
     private static final PlayerRef PLAYER = new PlayerRef("76561198000000001", "Player", "avatar", "cdnAvatar",
             "DE", CLAN, null);
     private static final MapDifficultyRef MAP = new MapDifficultyRef(A, B, "Song", "Sub", "Artist", "Mapper",
@@ -251,16 +251,6 @@ class ResponseJsonShapeTest {
         assertThat(json.get("userId").isString()).isTrue();
         assertThat(json.get("userId").asString()).isEqualTo("76561198000000001");
         assertThat(json.get("targetUserId").asString()).isEqualTo("76561198000000002");
-    }
-
-    @Test
-    void clanPageCarriesItsBannerBesideTheNestedRef() {
-        var json = mapper.readTree(mapper.writeValueAsString(new ClanResponse(CLAN, "desc", "banner", true,
-                null, 1, 1, 10, PLAYER, null, Instant.EPOCH)));
-
-        assertThat(json.get("bannerUrl").asString()).isEqualTo("banner");
-        assertThat(json.get("clan").get("iconUrl").asString()).isEqualTo("icon");
-        assertThat(json.get("clan").has("bannerUrl")).isFalse();
     }
 
     @Test

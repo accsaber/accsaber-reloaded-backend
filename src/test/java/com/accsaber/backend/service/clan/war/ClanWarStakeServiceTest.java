@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -210,11 +211,8 @@ class ClanWarStakeServiceTest {
             assertThat(leaving.getStakeRemaining()).isZero();
             assertThat(leaving.getLeftAt()).isNotNull();
             String source = "forfeit:" + war.getId() + ":" + fish.getId();
-            verify(standingService).apply(season.getId(), fish.getId(), -800.0, ClanStandingSource.war_break, source);
-            verify(standingService).apply(season.getId(), stars.getClan().getId(), 600.0,
-                    ClanStandingSource.war_break, source);
-            verify(standingService).apply(season.getId(), genx.getClan().getId(), 200.0,
-                    ClanStandingSource.war_break, source);
+            verify(standingService).applyAll(season.getId(), Map.of(fish.getId(), -800.0, stars.getClan().getId(),
+                    600.0, genx.getClan().getId(), 200.0), ClanStandingSource.war_break, source);
             verify(sideRepository).saveAll(sides);
         }
 

@@ -33,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClanRoster {
 
-    private static final Comparator<UUID> LOCK_ORDER = Comparator
+    public static final Comparator<UUID> LOCK_ORDER = Comparator
             .comparing(UUID::getMostSignificantBits, Long::compareUnsigned)
             .thenComparing(UUID::getLeastSignificantBits, Long::compareUnsigned);
 

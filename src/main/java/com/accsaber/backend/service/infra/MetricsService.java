@@ -1,9 +1,13 @@
 package com.accsaber.backend.service.infra;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+
+import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -13,6 +17,8 @@ import lombok.Getter;
 @Service
 @Getter
 public class MetricsService {
+
+        private static final Duration SEASON_CLOSE_GRACE = Duration.ofMinutes(15);
 
         private final Counter blScoresIngested;
         private final Counter ssScoresIngested;
@@ -24,7 +30,8 @@ public class MetricsService {
         public MetricsService(MeterRegistry registry,
                         Executor taskExecutor,
                         Executor rankingExecutor,
-                        Executor backfillExecutor) {
+                        Executor backfillExecutor,
+                        ClanSeasonRepository clanSeasonRepository) {
 
                 blScoresIngested = Counter.builder("accsaber.scores.ingested")
                                 .tag("platform", "beatleader")
@@ -58,6 +65,9 @@ public class MetricsService {
                 registerExecutorGauges(registry, "task", taskExecutor);
                 registerExecutorGauges(registry, "ranking", rankingExecutor);
                 registerExecutorGauges(registry, "backfill", backfillExecutor);
+
+                registry.gauge("accsaber.clans.seasons.close.overdue", clanSeasonRepository,
+                                repo -> repo.findEndedUnclosedIds(Instant.now().minus(SEASON_CLOSE_GRACE)).size());
         }
 
         private void registerExecutorGauges(MeterRegistry registry, String name, Executor executor) {

@@ -2,6 +2,7 @@ package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -114,11 +115,12 @@ public class ClanWarStakeService {
         if (left > 0 && enemyStake > 0) {
             UUID seasonId = war.getSeason().getId();
             String sourceId = "forfeit:" + war.getId() + ":" + leaving.getClan().getId();
-            standingService.apply(seasonId, leaving.getClan().getId(), -left, ClanStandingSource.war_break, sourceId);
+            Map<UUID, Double> deltas = new HashMap<>();
+            deltas.put(leaving.getClan().getId(), -left);
             for (ClanWarSide enemy : enemies) {
-                standingService.apply(seasonId, enemy.getClan().getId(), left * enemy.getStake() / enemyStake,
-                        ClanStandingSource.war_break, sourceId);
+                deltas.put(enemy.getClan().getId(), left * enemy.getStake() / enemyStake);
             }
+            standingService.applyAll(seasonId, deltas, ClanStandingSource.war_break, sourceId);
         }
         sideRepository.saveAll(sides);
     }

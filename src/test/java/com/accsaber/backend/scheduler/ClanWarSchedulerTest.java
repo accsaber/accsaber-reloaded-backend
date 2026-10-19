@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.service.clan.war.ClanWarCombatService;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
@@ -27,6 +28,8 @@ class ClanWarSchedulerTest {
 
     @Mock
     private ClanWarRepository warRepository;
+    @Mock
+    private ClanWarCombatService combatService;
     @Mock
     private ClanWarPoolService poolService;
     @Mock
@@ -40,7 +43,7 @@ class ClanWarSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new ClanWarScheduler(warRepository, poolService, rosterService, warService, settlementService,
+        scheduler = new ClanWarScheduler(warRepository, combatService, poolService, rosterService, warService, settlementService,
                 new ClanProperties());
     }
 

@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.TransactionStatus;
@@ -54,6 +56,7 @@ import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
@@ -79,6 +82,8 @@ class ClanWarCombatServiceTest {
     private ClanFeed feed;
     @Mock
     private ClanWarRepository warRepository;
+    @Mock
+    private ClanRepository clanRepository;
     @Mock
     private ClanWarSideRepository sideRepository;
     @Mock
@@ -136,7 +141,7 @@ class ClanWarCombatServiceTest {
         rules.setExtraChipChance(0.0);
         ClanWarStakeService stakeService = new ClanWarStakeService(sideRepository, participantRepository,
                 strengthService, standingService, clanProperties);
-        service = new ClanWarCombatService(warRepository, sideRepository, participantRepository, hitRepository,
+        service = new ClanWarCombatService(warRepository, clanRepository, sideRepository, participantRepository, hitRepository,
                 scoreRepository, mapDifficultyRepository, scoreGate, warService, rosterService, stakeService,
                 standingService, levelService, levelUpAwardService, chatChannel, feed, clanProperties,
                 transactionTemplate);
@@ -150,6 +155,7 @@ class ClanWarCombatServiceTest {
         attacker = join(1L, red, 0.5, 50);
         victim = join(11L, blue, 0.5, 50);
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
+        lenient().when(warRepository.markScored(eq(war.getId()), any())).thenReturn(1);
         lenient().when(sideRepository.findByWarId(war.getId())).thenAnswer(inv -> List.of(redSide, blueSide));
         lenient().when(participantRepository.findActiveByWarId(war.getId())).thenAnswer(inv -> List.copyOf(roster));
         lenient().when(participantRepository.findOverallSkills(anyCollection())).thenAnswer(inv -> skills.entrySet()
@@ -186,7 +192,7 @@ class ClanWarCombatServiceTest {
     private ClanWarCombatService.Play play(int score, boolean active, Instant setAt) {
         ScoreResponse response = ScoreResponse.builder().id(UUID.randomUUID()).userId("1").mapDifficultyId(MAP)
                 .score(score).active(active).timeSet(setAt).build();
-        return new ClanWarCombatService.Play(response, 1L, setAt);
+        return ClanWarCombatService.Play.of(response);
     }
 
     private static ClanWarHitRepository.VictimScoreView victimScore(Long userId, int score) {
@@ -262,7 +268,29 @@ class ClanWarCombatServiceTest {
         void aPlaySetBeforeTheWarStartedIsIgnored() {
             service.fight(war.getId(), play(950_000, true, war.getStartsAt().minusSeconds(60)));
 
-            verifyNoInteractions(participantRepository);
+            verify(warRepository, never()).markScored(any(), any());
+            verify(participantRepository, never()).findActiveByWarId(any());
+        }
+
+        @Test
+        void aPlayAlreadyScoredInThisWarNeverStrikesAgain() {
+            scores.put(11L, 900_000);
+            when(warRepository.markScored(eq(war.getId()), any())).thenReturn(0);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).isEmpty();
+        }
+
+        @Test
+        void theAttackersClanIsLockedBeforeTheWar() {
+            when(participantRepository.findOpenClanId(war.getId(), 1L)).thenReturn(Optional.of(red.getId()));
+
+            service.fight(war.getId(), play(950_000, true));
+
+            InOrder order = inOrder(clanRepository, warRepository);
+            order.verify(clanRepository).findByIdAndActiveTrueForUpdate(red.getId());
+            order.verify(warRepository).findByIdForUpdate(war.getId());
         }
     }
 
@@ -484,8 +512,8 @@ class ClanWarCombatServiceTest {
             assertThat(blueSide.getStakeRemaining()).isCloseTo(950.0, within(1e-9));
             assertThat(victim.getBreaksSuffered()).isEqualTo(2);
             String source = breaking.getId().toString();
-            verify(standingService).apply(season.getId(), blue.getId(), -50.0, ClanStandingSource.war_break, source);
-            verify(standingService).apply(season.getId(), red.getId(), 50.0, ClanStandingSource.war_break, source);
+            verify(standingService).applyAll(season.getId(), Map.of(blue.getId(), -50.0, red.getId(), 50.0),
+                    ClanStandingSource.war_break, source);
             verify(levelService).grantXp(red.getId(), new ClanXpAward(150.0, ClanXpSource.war_break, source, true));
             verify(levelUpAwardService).addClanXp(1L, 20.0);
             verify(levelUpAwardService).addClanXp(2L, 180.0);
@@ -536,8 +564,8 @@ class ClanWarCombatServiceTest {
             service.fight(war.getId(), play(950_000, true));
 
             String source = savedHits.getFirst().getId().toString();
-            verify(standingService).apply(season.getId(), blue.getId(), -50.0, ClanStandingSource.war_break, source);
-            verify(standingService).apply(season.getId(), red.getId(), 25.0, ClanStandingSource.war_break, source);
+            verify(standingService).applyAll(season.getId(), Map.of(blue.getId(), -50.0, red.getId(), 25.0),
+                    ClanStandingSource.war_break, source);
             verify(levelService).grantXp(red.getId(), new ClanXpAward(75.0, ClanXpSource.war_break, source, true));
             verify(levelUpAwardService).addClanXp(1L, 10.0);
             verify(levelUpAwardService).addClanXp(2L, 90.0);

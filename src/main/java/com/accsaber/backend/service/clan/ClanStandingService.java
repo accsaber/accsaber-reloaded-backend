@@ -70,6 +70,12 @@ public class ClanStandingService {
         }
     }
 
+    @Transactional
+    public void applyAll(UUID seasonId, Map<UUID, Double> deltas, ClanStandingSource source, String sourceId) {
+        deltas.keySet().stream().sorted(ClanRoster.LOCK_ORDER)
+                .forEach(clanId -> apply(seasonId, clanId, deltas.get(clanId), source, sourceId));
+    }
+
     public double currentStanding(Clan clan) {
         return baseStanding(clan) + earnedInCurrentSeason(List.of(clan.getId())).getOrDefault(clan.getId(), 0.0);
     }

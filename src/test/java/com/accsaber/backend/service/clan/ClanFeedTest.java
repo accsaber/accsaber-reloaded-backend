@@ -143,9 +143,9 @@ class ClanFeedTest {
         Clan first = war.getAttackerClan();
         Clan second = war.getDefenderClan();
         PublicClanResponse firstRef = new PublicClanResponse(first.getId(), null, "A", null, null, null, null, null,
-                List.of());
+                null, List.of());
         PublicClanResponse secondRef = new PublicClanResponse(second.getId(), null, "B", null, null, null, null, null,
-                List.of());
+                null, List.of());
         when(cosmeticService.publicRefs(List.of(second, first)))
                 .thenReturn(Map.of(first.getId(), firstRef, second.getId(), secondRef));
 

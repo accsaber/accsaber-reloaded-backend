@@ -7,10 +7,11 @@ import com.accsaber.backend.model.dto.response.item.ItemResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 
 public record PublicClanResponse(UUID id, String slug, String name, String tag, String tagColor,
-        String primaryColor, String secondaryColor, String iconUrl, List<ItemResponse> equipped) {
+        String primaryColor, String secondaryColor, String iconUrl, String bannerUrl, List<ItemResponse> equipped) {
 
     public static PublicClanResponse of(Clan clan, List<ItemResponse> equipped) {
         return new PublicClanResponse(clan.getId(), clan.getSlug(), clan.getName(), clan.getTag(),
-                clan.getTagColor(), clan.getPrimaryColor(), clan.getSecondaryColor(), clan.getIconUrl(), equipped);
+                clan.getTagColor(), clan.getPrimaryColor(), clan.getSecondaryColor(), clan.getIconUrl(),
+                clan.getBannerUrl(), equipped);
     }
 }

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,7 +14,9 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -21,6 +24,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -168,6 +172,22 @@ class ClanStandingServiceTest {
 
         verify(standingRepository).ensureRow(seasonId, clanId);
         verify(standingRepository).addEarned(seasonId, clanId, -30.0);
+    }
+
+    @Test
+    void severalClansAreLockedInClanLockOrder() {
+        UUID seasonId = UUID.randomUUID();
+        UUID low = new UUID(1L, 0L);
+        UUID high = new UUID(-1L, 0L);
+        Map<UUID, Double> deltas = new LinkedHashMap<>();
+        deltas.put(high, 10.0);
+        deltas.put(low, -10.0);
+
+        service.applyAll(seasonId, deltas, ClanStandingSource.war_break, "hit-1");
+
+        InOrder order = inOrder(standingRepository);
+        order.verify(standingRepository).lockEarned(seasonId, low);
+        order.verify(standingRepository).lockEarned(seasonId, high);
     }
 
     @Test

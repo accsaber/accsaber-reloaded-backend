@@ -1,5 +1,6 @@
 package com.accsaber.backend.scheduler;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
+import com.accsaber.backend.service.clan.war.ClanWarCombatService;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
@@ -26,8 +28,12 @@ import lombok.extern.slf4j.Slf4j;
 public class ClanWarScheduler {
 
     private static final int SETTLEMENT_BATCH = 20;
+    private static final int MISSED_PLAY_BATCH = 500;
+    private static final Duration MISSED_PLAY_LOOKBACK = Duration.ofHours(48);
+    private static final Duration MISSED_PLAY_SETTLE = Duration.ofMinutes(10);
 
     private final ClanWarRepository warRepository;
+    private final ClanWarCombatService combatService;
     private final ClanWarPoolService poolService;
     private final ClanWarRosterService rosterService;
     private final ClanWarService warService;
@@ -44,6 +50,16 @@ public class ClanWarScheduler {
         each(warRepository.findActiveStartedBefore(now.minus(clanProperties.getWar().getMaxDuration())),
                 warService::endAtCap);
         each(warRepository.findEndedUnsettled(SETTLEMENT_BATCH), settlementService::settle);
+    }
+
+    @Scheduled(fixedDelay = 300_000, initialDelay = 120_000)
+    public void scoreMissedPlays() {
+        Instant now = Instant.now();
+        int scored = combatService.scoreMissed(now.minus(MISSED_PLAY_LOOKBACK), now.minus(MISSED_PLAY_SETTLE),
+                MISSED_PLAY_BATCH);
+        if (scored > 0) {
+            log.info("Caught up {} missed clan war plays", scored);
+        }
     }
 
     private void each(List<UUID> warIds, Consumer<UUID> step) {
