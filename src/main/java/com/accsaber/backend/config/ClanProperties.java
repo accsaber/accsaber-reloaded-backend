@@ -36,7 +36,7 @@ public class ClanProperties {
     @Setter
     public static class War {
         private Duration pickWindow = Duration.ofHours(24);
-        private Duration prepDuration = Duration.ofHours(48);
+        private Duration prepDuration = Duration.ofHours(24);
         private int drawAfterQuietDays = 7;
         private double punchDownFloor = 0.5;
         private int poolSize = 10;
