@@ -139,9 +139,8 @@ public class PlaylistController {
         @GetMapping(value = "/clan-war/{warId}", produces = "application/json")
         public ResponseEntity<Map<String, Object>> getClanWarPlaylist(
                         @Parameter(description = "War ID") @PathVariable UUID warId) {
-                ClanWarPoolService.PlaylistSource source = clanWarPoolService.playlistSource(warId);
-                return ResponseEntity.ok(playlistService.generateClanWarPlaylist(source,
-                                syncUrl("/v1/playlists/clan-war/{warId}", warId)));
+                return bplist(playlistService.generateClanWarPlaylist(clanWarPoolService.playlistSource(warId),
+                                syncUrl("/v1/playlists/clan-war/{warId}", warId)), null);
         }
 
         @Operation(summary = "Campaign playlist", description = "The creator has to turn on playlist "

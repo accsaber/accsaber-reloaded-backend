@@ -35,6 +35,7 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
+import com.accsaber.backend.util.Slugs;
 import com.accsaber.backend.service.score.ScoreQueryService;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
@@ -143,9 +144,10 @@ public class PlaylistService {
                 difficulties);
     }
 
-    public Map<String, Object> generateClanWarPlaylist(ClanWarPoolService.PlaylistSource source, String syncUrl) {
-        return playlistAssembler.assemble(source.title(), playlistAssembler.loadCategoryImage(OVERALL_CODE), syncUrl,
-                source.difficulties());
+    public PlaylistFile generateClanWarPlaylist(ClanWarPoolService.PlaylistSource source, String syncUrl) {
+        return new PlaylistFile(playlistAssembler.assemble(source.title(),
+                playlistAssembler.loadCategoryImage(OVERALL_CODE), syncUrl, source.difficulties()),
+                Slugs.slugify(source.title()) + ".bplist");
     }
 
     public PlaylistFile generateCampaignPlaylist(UUID campaignId, String syncUrl) {

@@ -81,8 +81,8 @@ public class ClanWarController {
     }
 
     @Operation(summary = "Get a war",
-            description = "While the defense picks, you only see your own clan's picks. From preparation on everyone "
-                    + "sees all.")
+            description = "While the defense picks, everyone sees the attacker's picks but not its random maps. From "
+                    + "preparation on everyone sees all.")
     @GetMapping("/wars/{warId}")
     public ResponseEntity<ClanWarDetailResponse> war(
             @AuthenticationPrincipal PlayerUserDetails principal,

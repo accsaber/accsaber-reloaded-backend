@@ -43,6 +43,7 @@ import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.score.ScoreQueryService;
 import com.accsaber.backend.service.snipe.SnipeQuery;
 import com.accsaber.backend.service.snipe.SnipeSelection;
@@ -125,6 +126,17 @@ class PlaylistServiceTest {
             verify(playlistAssembler).assemble(eq("AccSaber Campaign: No Icon"),
                     eq("data:image/png;base64,OVERALL"), eq(SYNC_URL), any());
         }
+    }
+
+    @Test
+    void aClanWarPoolDownloadsAsABplistNamedAfterTheWar() {
+        when(playlistAssembler.loadCategoryImage("overall")).thenReturn("data:image/png;base64,OVERALL");
+        when(playlistAssembler.assemble(anyString(), anyString(), anyString(), any())).thenReturn(Map.of());
+
+        var file = playlistService.generateClanWarPlaylist(
+                new ClanWarPoolService.PlaylistSource("AccSaber War: NOW vs LPZ", List.of()), SYNC_URL);
+
+        assertThat(file.filename()).isEqualTo("accsaber-war-now-vs-lpz.bplist");
     }
 
     @Nested

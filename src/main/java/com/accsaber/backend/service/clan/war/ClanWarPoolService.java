@@ -144,8 +144,9 @@ public class ClanWarPoolService {
 
     public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId, Long viewerId) {
         List<ClanWarPoolEntry> entries = poolRepository.findByWarId(war.getId()).stream()
-                .filter(entry -> war.getStatus() != ClanWarStatus.picking || (entry.getPickedByClan() != null
-                        && entry.getPickedByClan().getId().equals(viewerClanId)))
+                .filter(entry -> war.getStatus() != ClanWarStatus.picking
+                        || entry.getSource() == ClanWarPoolSource.pick
+                        || (entry.getPickedByClan() != null && entry.getPickedByClan().getId().equals(viewerClanId)))
                 .toList();
         List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);

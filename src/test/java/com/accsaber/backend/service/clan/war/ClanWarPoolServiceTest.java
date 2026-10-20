@@ -341,19 +341,20 @@ class ClanWarPoolServiceTest {
     }
 
     @Test
-    void whilePickingEachClanOnlySeesItsOwnPicks() {
+    void whilePickingTheAttackersPicksAreOpenButItsRandomFillsAreNot() {
         ClanWar war = war(ClanArena.mixed, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 4, 2, 2));
-        UUID attackerPick = UUID.randomUUID();
-        when(poolRepository.findByWarId(war.getId())).thenReturn(List.of(ClanWarPoolEntry.builder()
-                .mapDifficulty(MapDifficulty.builder().id(attackerPick).build()).pickedByClan(attacker)
-                .source(ClanWarPoolSource.pick).build()));
+        when(poolRepository.findByWarId(war.getId())).thenReturn(List.of(
+                ClanWarPoolEntry.builder().mapDifficulty(MapDifficulty.builder().id(UUID.randomUUID()).build())
+                        .pickedByClan(attacker).source(ClanWarPoolSource.pick).build(),
+                ClanWarPoolEntry.builder().mapDifficulty(MapDifficulty.builder().id(UUID.randomUUID()).build())
+                        .pickedByClan(attacker).source(ClanWarPoolSource.random).build()));
         when(mapService.getDifficultyResponsesPublic(anyCollection())).thenReturn(Map.of());
         when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()))));
 
-        assertThat(service.pool(war, attacker.getId(), null)).hasSize(1);
-        assertThat(service.pool(war, defender.getId(), null)).isEmpty();
-        assertThat(service.pool(war, null, null)).isEmpty();
+        assertThat(service.pool(war, attacker.getId(), null)).hasSize(2);
+        assertThat(service.pool(war, defender.getId(), null)).hasSize(1);
+        assertThat(service.pool(war, null, null)).hasSize(1);
     }
 
     @Test
