@@ -7,6 +7,7 @@ import com.accsaber.backend.model.entity.clan.ClanRole;
 public record ClanMembershipResponse(
         ClanRole role,
         Instant joinedAt,
+        Instant joinCooldownEndsAt,
         boolean online,
         Instant lastPlayedAt,
         double strengthShare,

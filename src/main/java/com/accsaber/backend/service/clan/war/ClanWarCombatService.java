@@ -3,7 +3,6 @@ package com.accsaber.backend.service.clan.war;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,7 +56,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ClanWarCombatService {
 
-    private static final double MIN_SKILL = 1.0;
     private static final double MAX_ACCURACY = 0.999999;
 
     private final ClanWarRepository warRepository;
@@ -71,6 +69,7 @@ public class ClanWarCombatService {
     private final ClanWarService warService;
     private final ClanWarRosterService rosterService;
     private final ClanWarStakeService stakeService;
+    private final ClanWarDamage warDamage;
     private final ClanStandingService standingService;
     private final ClanLevelService levelService;
     private final LevelUpAwardService levelUpAwardService;
@@ -191,9 +190,7 @@ public class ClanWarCombatService {
                 .findActiveScores(difficultyId, fighters).stream()
                 .collect(Collectors.toMap(ClanWarHitRepository.VictimScoreView::getUserId, Function.identity()));
         Integer maxScore = mapDifficultyRepository.findById(difficultyId).map(MapDifficulty::getMaxScore).orElse(null);
-        Set<String> prior = new HashSet<>();
-        hitRepository.findPriorHits(war.getId(), play.userId(), difficultyId).forEach(hit -> prior.add(
-                hit.getVictimScoreId() == null ? missingKey(hit.getVictimId()) : scoreKey(hit.getVictimScoreId(), hit.isChip())));
+        Set<String> prior = ClanWarDamage.priorKeys(hitRepository.findPriorHits(war.getId(), play.userId(), difficultyId));
         return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore, prior);
     }
 
@@ -263,19 +260,19 @@ public class ClanWarCombatService {
 
     private Kind hitKind(Battle battle, ClanWarParticipant enemy) {
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(enemy.getUser().getId());
+        Long enemyId = enemy.getUser().getId();
         if (victimScore == null) {
-            return battle.prior().contains(missingKey(enemy.getUser().getId())) ? null : Kind.MISSING;
+            return ClanWarDamage.hitUsed(battle.prior(), enemyId, null) ? null : Kind.MISSING;
         }
         boolean beaten = victimScore.getScore() < battle.play().score();
-        return beaten && !battle.prior().contains(scoreKey(victimScore.getScoreId(), false)) ? Kind.HIT : null;
+        return beaten && !ClanWarDamage.hitUsed(battle.prior(), enemyId, victimScore.getScoreId()) ? Kind.HIT : null;
     }
 
     private Double chipGap(Battle battle, ClanWarParticipant enemy) {
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(enemy.getUser().getId());
         if (victimScore == null || battle.maxScore() == null || battle.maxScore() <= 0
                 || victimScore.getScore() < battle.play().score()
-                || battle.prior().contains(scoreKey(victimScore.getScoreId(), false))
-                || battle.prior().contains(scoreKey(victimScore.getScoreId(), true))) {
+                || ClanWarDamage.chipUsed(battle.prior(), victimScore.getScoreId())) {
             return null;
         }
         double gap = linear(victimScore.getScore(), battle.maxScore())
@@ -288,7 +285,7 @@ public class ClanWarCombatService {
         ClanWarParticipant attacker = battle.attacker();
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(victim.getUser().getId());
         double damage = Math.min(victim.getGuard(), strike.kind() == Kind.CHIP
-                ? chipDamage(battle, victim, strike.gap())
+                ? warDamage.chip(strike.gap(), skill(battle, attacker), skill(battle, victim))
                 : fullDamage(battle, victim, strike.kind() == Kind.MISSING));
         if (damage <= 0) {
             return false;
@@ -310,8 +307,8 @@ public class ClanWarCombatService {
                 .guardAfter(victim.getGuard())
                 .broke(victim.getGuard() <= 0.0)
                 .build());
-        battle.prior().add(victimScore == null ? missingKey(victim.getUser().getId())
-                : scoreKey(victimScore.getScoreId(), hit.isChip()));
+        battle.prior().add(ClanWarDamage.key(victim.getUser().getId(),
+                victimScore == null ? null : victimScore.getScoreId(), hit.isChip()));
         if (hit.isBroke()) {
             breakGuard(battle, victim, hit, share);
         }
@@ -323,20 +320,9 @@ public class ClanWarCombatService {
     }
 
     private double fullDamage(Battle battle, ClanWarParticipant victim, boolean missingScore) {
-        ClanProperties.War config = clanProperties.getWar();
-        long hitsThisCycle = hitRepository.countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(battle.war().getId(),
-                victim.getUser().getId(), victim.getGuardCycle());
-        double disparity = Math.pow(skill(battle, victim) / skill(battle, battle.attacker()),
-                config.getDisparityExponent());
-        double damage = config.getBaseDamage() * Math.pow(config.getEscalation(), hitsThisCycle) * disparity;
-        return missingScore ? damage * config.getMissingScoreMultiplier() : damage;
-    }
-
-    private double chipDamage(Battle battle, ClanWarParticipant victim, double gap) {
-        ClanProperties.War config = clanProperties.getWar();
-        double closeness = 1.0 - gap / config.getChipWindow();
-        double ratio = Math.min(1.0, skill(battle, battle.attacker()) / skill(battle, victim));
-        return config.getChipDamage() * closeness * Math.pow(ratio, config.getChipSkillExponent());
+        double damage = warDamage.hit(battle.war().getId(), victim.getUser().getId(), skill(battle, battle.attacker()),
+                skill(battle, victim));
+        return missingScore ? damage * clanProperties.getWar().getMissingScoreMultiplier() : damage;
     }
 
     private void breakGuard(Battle battle, ClanWarParticipant victim, ClanWarHit hit, double share) {
@@ -420,7 +406,7 @@ public class ClanWarCombatService {
     }
 
     private static double skill(Battle battle, ClanWarParticipant participant) {
-        return Math.max(battle.skills().getOrDefault(participant.getUser().getId(), 0.0), MIN_SKILL);
+        return ClanWarDamage.skill(battle.skills().getOrDefault(participant.getUser().getId(), 0.0));
     }
 
     static double linear(int score, int maxScore) {
@@ -429,13 +415,5 @@ public class ClanWarCombatService {
 
     static double unit(String key) {
         return (key.hashCode() & 0x7fffffff) / (double) Integer.MAX_VALUE;
-    }
-
-    private static String scoreKey(UUID scoreId, boolean chip) {
-        return (chip ? "chip:" : "hit:") + scoreId;
-    }
-
-    private static String missingKey(Long victimId) {
-        return "missing:" + victimId;
     }
 }

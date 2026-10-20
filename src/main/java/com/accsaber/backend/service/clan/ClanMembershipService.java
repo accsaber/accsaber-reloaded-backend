@@ -87,7 +87,8 @@ public class ClanMembershipService {
         return members.stream().collect(Collectors.toMap(m -> m.getUser().getId(), m -> {
             Long userId = m.getUser().getId();
             ClanMemberRepository.MemberSeasonStatsView row = stats.get(userId);
-            return new ClanMembershipResponse(m.getRole(), m.getJoinedAt(), online.contains(userId),
+            return new ClanMembershipResponse(m.getRole(), m.getJoinedAt(),
+                    m.getJoinedAt().plus(clanProperties.getJoinCooldown()), online.contains(userId),
                     lastPlayed.get(userId), shares.getOrDefault(userId, 0.0),
                     row == null ? 0.0 : row.getPlayXp(),
                     row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks());

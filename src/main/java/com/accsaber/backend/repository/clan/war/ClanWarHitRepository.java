@@ -3,7 +3,9 @@ package com.accsaber.backend.repository.clan.war;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -47,7 +49,25 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
     List<PriorHitView> findPriorHits(@Param("warId") UUID warId, @Param("attackerId") Long attackerId,
             @Param("mapDifficultyId") UUID mapDifficultyId);
 
-    long countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(UUID warId, Long victimId, int victimCycle);
+    interface CycleHitsView {
+        Long getVictimId();
+
+        long getHits();
+    }
+
+    @Query("""
+            SELECT h.victim.id AS victimId, COUNT(h) AS hits
+            FROM ClanWarHit h, ClanWarParticipant p
+            WHERE h.war.id = :warId AND p.war.id = :warId AND p.user.id = h.victim.id
+              AND h.victimCycle = p.guardCycle AND h.chip = false AND h.victim.id IN :victimIds
+            GROUP BY h.victim.id
+            """)
+    List<CycleHitsView> findCycleHits(@Param("warId") UUID warId, @Param("victimIds") Collection<Long> victimIds);
+
+    default Map<Long, Long> cycleHits(UUID warId, Collection<Long> victimIds) {
+        return findCycleHits(warId, victimIds).stream()
+                .collect(Collectors.toMap(CycleHitsView::getVictimId, CycleHitsView::getHits));
+    }
 
     List<ClanWarHit> findByWar_IdAndVictim_IdAndVictimCycle(UUID warId, Long victimId, int victimCycle);
 

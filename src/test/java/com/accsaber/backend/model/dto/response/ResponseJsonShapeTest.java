@@ -24,6 +24,10 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcas
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeMapResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeRulesResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
@@ -149,6 +153,24 @@ class ResponseJsonShapeTest {
                 .progressStatus(UserCampaignStatus.COMPLETED).completedNodes(4).totalNodes(5).build();
 
         assertNestedPlayer(json(entry));
+    }
+
+    @Test
+    void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
+        ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null, 80.0, true,
+                new ClanWarStrikePreviewResponse(30.0, 3, 0, 40.0, 80.0, 2.0,
+                        new ClanWarStrikeMapResponse(null, false, false)), 1.0, 100.0, 0, 0,
+                0.0, T1, null);
+
+        JsonNode preview = json(row).get("strikePreview");
+
+        assertNestedPlayer(json(row));
+        assertThat(preview.get("damage").toString()).isEqualTo("30");
+        assertThat(preview.get("hitsToBreak").asInt()).isEqualTo(3);
+        assertThat(preview.get("disparity").toString()).isEqualTo("2");
+        assertThat(preview.get("onMap").has("targetScore")).isFalse();
+        assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0)).get("guard")
+                .toString()).isEqualTo("100");
     }
 
     @Test

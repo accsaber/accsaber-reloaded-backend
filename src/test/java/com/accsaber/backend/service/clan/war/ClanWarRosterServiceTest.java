@@ -27,10 +27,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
@@ -42,6 +45,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -68,6 +72,8 @@ class ClanWarRosterServiceTest {
     @Mock
     private ClanWarParticipantRepository participantRepository;
     @Mock
+    private ClanWarHitRepository hitRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private ClanStrengthService strengthService;
@@ -93,8 +99,8 @@ class ClanWarRosterServiceTest {
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarRosterService(warRepository, sideRepository, participantRepository, userRepository,
-                strengthService, stakeService, cosmeticService, chatChannel, scoreGate, feed, notifier,
-                clanProperties);
+                strengthService, stakeService, new ClanWarDamage(hitRepository, clanProperties), cosmeticService,
+                chatChannel, scoreGate, feed, notifier, clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.preparing).startsAt(Instant.now().minusSeconds(1))
                 .build();
@@ -238,6 +244,41 @@ class ClanWarRosterServiceTest {
         assertThat(saved().get(1L).getTarget()).isNull();
     }
 
+    @Test
+    void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatIsLeftToSpendOnAMap() {
+        war.setStatus(ClanWarStatus.active);
+        ClanWarParticipant mate = participant(2L, attacker, 0.5);
+        ClanWarParticipant enemy = participant(11L, defender, 1.0);
+        ClanWarParticipant broken = participant(12L, defender, 1.0);
+        broken.setBrokenAt(Instant.now());
+        when(warRepository.findById(war.getId())).thenReturn(Optional.of(war));
+        when(participantRepository.findPageByWarId(war.getId(), PageRequest.of(0, 50)))
+                .thenReturn(new PageImpl<>(List.of(mate, enemy, broken)));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 40), skill(2L, 40), skill(11L, 80), skill(12L, 80)));
+        when(participantRepository.findOpenClanId(war.getId(), 1L)).thenReturn(Optional.of(attacker.getId()));
+        when(hitRepository.findCycleHits(war.getId(), List.of(11L))).thenReturn(List.of());
+        when(hitRepository.cycleHits(war.getId(), List.of(11L))).thenCallRealMethod();
+        UUID map = UUID.randomUUID();
+        UUID enemyScore = UUID.randomUUID();
+        when(hitRepository.findActiveScores(map, List.of(11L))).thenReturn(List.of(victimScore(enemyScore, 11L, 950_000)));
+        when(hitRepository.findPriorHits(war.getId(), 1L, map)).thenReturn(List.of(prior(11L, enemyScore, true)));
+
+        Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), 1L, map, PageRequest.of(0, 50))
+                .stream().collect(Collectors.toMap(row -> Long.valueOf(row.player().id()), Function.identity()));
+
+        assertThat(rows.get(2L).strikePreview()).isNull();
+        assertThat(rows.get(12L).strikePreview()).isNull();
+        assertThat(rows.get(11L).strikePreview()).satisfies(preview -> {
+            assertThat(preview.disparity()).isEqualTo(2.0);
+            assertThat(preview.damage()).isEqualTo(30.0);
+            assertThat(preview.hitsToBreak()).isEqualTo(3);
+            assertThat(preview.onMap().targetScore()).isEqualTo(950_000);
+            assertThat(preview.onMap().hitUsed()).isFalse();
+            assertThat(preview.onMap().chipUsed()).isTrue();
+        });
+    }
+
     @Nested
     class Picks {
 
@@ -302,6 +343,38 @@ class ClanWarRosterServiceTest {
         void onlyFightersCanPick() {
             assertThatThrownBy(() -> service.choose(war.getId(), 99L, 11L)).isInstanceOf(ForbiddenException.class);
         }
+    }
+
+    private static ClanWarHitRepository.VictimScoreView victimScore(UUID scoreId, Long userId, int score) {
+        return new ClanWarHitRepository.VictimScoreView() {
+            public UUID getScoreId() {
+                return scoreId;
+            }
+
+            public Long getUserId() {
+                return userId;
+            }
+
+            public int getScore() {
+                return score;
+            }
+        };
+    }
+
+    private static ClanWarHitRepository.PriorHitView prior(Long victimId, UUID victimScoreId, boolean chip) {
+        return new ClanWarHitRepository.PriorHitView() {
+            public Long getVictimId() {
+                return victimId;
+            }
+
+            public UUID getVictimScoreId() {
+                return victimScoreId;
+            }
+
+            public boolean isChip() {
+                return chip;
+            }
+        };
     }
 
     private static ClanMemberRepository.MemberSkillView skill(Long userId, double value) {

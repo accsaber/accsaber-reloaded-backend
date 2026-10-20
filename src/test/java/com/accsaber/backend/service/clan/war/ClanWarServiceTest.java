@@ -56,7 +56,6 @@ import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarAidRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
@@ -83,8 +82,6 @@ class ClanWarServiceTest {
     private ClanWarRepository warRepository;
     @Mock
     private ClanWarSideRepository sideRepository;
-    @Mock
-    private ClanWarParticipantRepository participantRepository;
     @Mock
     private ClanAllianceRepository allianceRepository;
     @Mock
@@ -114,8 +111,6 @@ class ClanWarServiceTest {
     @Mock
     private ClanWarStakeService stakeService;
     @Mock
-    private ClanWarRosterService rosterService;
-    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private final ClanProperties clanProperties = new ClanProperties();
@@ -129,10 +124,10 @@ class ClanWarServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
-        service = new ClanWarService(warRepository, sideRepository, participantRepository, hitRepository, mapService,
+        service = new ClanWarService(warRepository, sideRepository, hitRepository, mapService,
                 allianceRepository, memberRepository, roster, accessService, levelService, standingService,
-                cosmeticService, poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
-                scoreGate, rosterService, aidRepository, stakeService, eventPublisher, clanProperties);
+                poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
+                scoreGate, aidRepository, stakeService, eventPublisher, clanProperties);
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()),

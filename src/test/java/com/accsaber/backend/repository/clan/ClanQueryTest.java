@@ -882,6 +882,7 @@ class ClanQueryTest {
         UUID warId = war(current, owls, lapiz);
         User lapizStar = user(76561190000000310L, "Lapiz Star");
         seat(lapiz, lapizStar, ClanRole.founder, Instant.now().minus(5, ChronoUnit.DAYS));
+        skill(lapizStar, 70.0);
         warState(warId, "status = 'active', starts_at = ?1", Instant.now().minusSeconds(60));
         entityManager.createNativeQuery("INSERT INTO clan_war_pool (war_id, map_difficulty_id, source) VALUES "
                 + "(?1, ?2, 'random')").setParameter(1, warId).setParameter(2, pooled.getId()).executeUpdate();
@@ -905,15 +906,17 @@ class ClanQueryTest {
         assertThat(warRepository.findActivePoolDifficultyIds()).containsExactly(pooled.getId());
         assertThat(warRepository.findActiveParticipantIds()).containsExactlyInAnyOrder(founder.getId(), lapizStar.getId());
         assertThat(participantRepository.findActiveByWarId(warId)).hasSize(2);
-        assertThat(participantRepository.findOverallSkills(List.of(founder.getId(), lapizStar.getId())))
+        assertThat(participantRepository.findOverallSkills(List.of(founder.getId(), member.getId())))
                 .extracting(ClanMemberRepository.MemberSkillView::getUserId).containsExactly(founder.getId());
+        assertThat(participantRepository.findPageByWarId(warId, PageRequest.of(0, 10)))
+                .extracting(p -> p.getUser().getId())
+                .containsExactly(lapizStar.getId(), founder.getId(), member.getId());
         assertThat(hitRepository.findActiveScores(pooled.getId(), List.of(lapizStar.getId(), founder.getId())))
                 .singleElement().satisfies(view -> {
                     assertThat(view.getUserId()).isEqualTo(lapizStar.getId());
                     assertThat(view.getScore()).isEqualTo(950000);
                 });
-        assertThat(hitRepository.countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(warId, lapizStar.getId(), 0))
-                .isZero();
+        assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
         assertThat(hitRepository.findPageByWarId(warId, null, PageRequest.of(0, 10)).getTotalElements()).isZero();
         assertThat(participantRepository.findRecentlyActiveShare(warId, "defend", Instant.now().minus(1,
                 ChronoUnit.DAYS))).isEqualTo(1.0);
@@ -979,8 +982,11 @@ class ClanQueryTest {
                     .setParameter(6, theirs).setParameter(7, chip).executeUpdate();
         }
 
-        assertThat(hitRepository.countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(warId, lapizStar.getId(), 0))
-                .isEqualTo(1);
+        assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
+                .containsExactly(Map.entry(lapizStar.getId(), 1L));
+        entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
+                .setParameter(1, lapizStar.getId()).executeUpdate();
+        assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
         assertThat(hitRepository.findPriorHits(warId, founder.getId(), map.getId()))
                 .extracting(ClanWarHitRepository.PriorHitView::isChip).containsExactlyInAnyOrder(true, false);
         assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)

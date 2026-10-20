@@ -11,6 +11,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanRivalResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonRewardResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarAidResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRefResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRewardItemResponse;
@@ -80,9 +81,9 @@ public final class ClanMapper {
     }
 
     public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant, PublicClanResponse clan, Double skill,
-            Boolean inBand) {
+            Boolean inBand, ClanWarStrikePreviewResponse strikePreview) {
         return new ClanWarParticipantResponse(ClanRefCache.playerRef(participant.getUser()), clan,
-                ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, inBand,
+                ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, inBand, strikePreview,
                 participant.getStandingWeight(), participant.getGuard(),
                 participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getContribution(),
                 participant.getJoinedAt(), participant.getLeftAt());

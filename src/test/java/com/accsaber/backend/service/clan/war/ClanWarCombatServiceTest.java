@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -143,6 +142,7 @@ class ClanWarCombatServiceTest {
                 strengthService, standingService, clanProperties);
         service = new ClanWarCombatService(warRepository, clanRepository, sideRepository, participantRepository, hitRepository,
                 scoreRepository, mapDifficultyRepository, scoreGate, warService, rosterService, stakeService,
+                new ClanWarDamage(hitRepository, clanProperties),
                 standingService, levelService, levelUpAwardService, chatChannel, feed, clanProperties,
                 transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).season(season).attackerClan(red).defenderClan(blue)
@@ -353,8 +353,7 @@ class ClanWarCombatServiceTest {
                 assertThat(hit.getVictimScore()).isNotNull();
             });
             verify(chatChannel, never()).announce(any(), any());
-            verify(hitRepository, never()).countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(any(), anyLong(),
-                    anyInt());
+            verify(hitRepository, never()).cycleHits(any(), any());
         }
 
         @Test
@@ -405,8 +404,7 @@ class ClanWarCombatServiceTest {
             scores.put(11L, 900_000);
             skills.put(1L, 40.0);
             skills.put(11L, 80.0);
-            when(hitRepository.countByWar_IdAndVictim_IdAndVictimCycleAndChipFalse(war.getId(), 11L, 0))
-                    .thenReturn(2L);
+            when(hitRepository.cycleHits(war.getId(), List.of(11L))).thenReturn(Map.of(11L, 2L));
 
             service.fight(war.getId(), play(950_000, true));
 

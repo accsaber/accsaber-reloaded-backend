@@ -134,8 +134,8 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         WHERE d.map.id IN :mapIds AND d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
-                             OR d.status IN :statuses)
+                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                             OR d.status = :status)
                         """)
         List<MapDifficulty> findByMapIdsWithFilters(
                         @Param("mapIds") List<UUID> mapIds,

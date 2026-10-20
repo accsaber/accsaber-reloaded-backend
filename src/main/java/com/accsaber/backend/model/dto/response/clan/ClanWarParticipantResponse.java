@@ -10,6 +10,7 @@ public record ClanWarParticipantResponse(
         PlayerRef target,
         double skill,
         Boolean inBand,
+        ClanWarStrikePreviewResponse strikePreview,
         double standingWeight,
         double guard,
         int guardCycle,

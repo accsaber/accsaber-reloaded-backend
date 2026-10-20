@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -22,10 +21,8 @@ import com.accsaber.backend.model.dto.ClanArenaSpec;
 import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarTimelinePointResponse;
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
@@ -38,7 +35,6 @@ import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
-import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
@@ -48,13 +44,11 @@ import com.accsaber.backend.repository.clan.ClanAllianceRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarAidRepository;
-import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanMapper;
@@ -74,7 +68,6 @@ public class ClanWarService {
 
     private final ClanWarRepository warRepository;
     private final ClanWarSideRepository sideRepository;
-    private final ClanWarParticipantRepository participantRepository;
     private final ClanWarHitRepository hitRepository;
     private final MapService mapService;
     private final ClanAllianceRepository allianceRepository;
@@ -83,14 +76,12 @@ public class ClanWarService {
     private final ClanAccessService accessService;
     private final ClanLevelService levelService;
     private final ClanStandingService standingService;
-    private final ClanCosmeticService cosmeticService;
     private final ClanWarPoolService poolService;
     private final ClanWarResponses warResponses;
     private final ClanFeed feed;
     private final ClanNotifier notifier;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
-    private final ClanWarRosterService rosterService;
     private final ClanWarAidRepository aidRepository;
     private final ClanWarStakeService stakeService;
     private final ApplicationEventPublisher eventPublisher;
@@ -200,29 +191,6 @@ public class ClanWarService {
         return detail(war, viewerClanId, viewerId);
     }
 
-    public Page<ClanWarParticipantResponse> participants(UUID warId, Long viewerId, Pageable pageable) {
-        if (!warRepository.existsById(warId)) {
-            throw new ResourceNotFoundException("ClanWar", warId);
-        }
-        List<ClanWarSide> sides = sideRepository.findByWarId(warId);
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(
-                sides.stream().map(ClanWarSide::getClan).toList());
-        Page<ClanWarParticipant> page = participantRepository.findPageByWarId(warId, pageable);
-        List<Long> userIds = page.getContent().stream().map(p -> p.getUser().getId()).collect(Collectors.toList());
-        if (viewerId != null) {
-            userIds.add(viewerId);
-        }
-        Map<Long, Double> skills = userIds.isEmpty() ? Map.of() : participantRepository.findOverallSkills(userIds)
-                .stream().collect(Collectors.toMap(ClanMemberRepository.MemberSkillView::getUserId,
-                        ClanMemberRepository.MemberSkillView::getSkill, (a, b) -> a));
-        Double viewerSkill = viewerId == null ? null : skills.getOrDefault(viewerId, 0.0);
-        return page.map(p -> {
-            double skill = skills.getOrDefault(p.getUser().getId(), 0.0);
-            return ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()), skill,
-                    viewerSkill == null ? null : rosterService.inBand(viewerSkill, skill));
-        });
-    }
-
     public Page<ClanWarHitResponse> hits(UUID warId, Long userId, Pageable pageable) {
         if (!warRepository.existsById(warId)) {
             throw new ResourceNotFoundException("ClanWar", warId);
@@ -290,6 +258,6 @@ public class ClanWarService {
                         point.getHits(), point.getBreaks(), point.getStandingMoved()))
                 .toList();
         return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId),
-                timeline);
+                timeline, ClanWarDamage.rules(clanProperties.getWar()));
     }
 }

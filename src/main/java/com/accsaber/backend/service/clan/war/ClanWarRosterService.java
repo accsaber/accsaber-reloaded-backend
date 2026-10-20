@@ -8,6 +8,8 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +19,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.exception.ForbiddenException;
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
+import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
+import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
@@ -53,6 +58,7 @@ public class ClanWarRosterService {
     private final UserRepository userRepository;
     private final ClanStrengthService strengthService;
     private final ClanWarStakeService stakeService;
+    private final ClanWarDamage warDamage;
     private final ClanCosmeticService cosmeticService;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
@@ -125,7 +131,49 @@ public class ClanWarRosterService {
         }
         participantRepository.saveAndFlush(chooser);
         return ClanMapper.toWarParticipantResponse(chooser, cosmeticService.publicRefs(List.of(chooser.getClan()))
-                .get(chooser.getClan().getId()), chooserSkill, null);
+                .get(chooser.getClan().getId()), chooserSkill, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ClanWarParticipantResponse> participants(UUID warId, Long viewerId, UUID mapDifficultyId,
+            Pageable pageable) {
+        ClanWar war = warRepository.findById(warId).orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
+        List<ClanWarSide> sides = sideRepository.findByWarId(warId);
+        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(sides.stream().map(ClanWarSide::getClan).toList());
+        Page<ClanWarParticipant> page = participantRepository.findPageByWarId(warId, pageable);
+        List<Long> userIds = page.getContent().stream().map(p -> p.getUser().getId()).collect(Collectors.toList());
+        if (viewerId != null) {
+            userIds.add(viewerId);
+        }
+        Map<Long, Double> skills = userIds.isEmpty() ? Map.of() : skills(userIds);
+        Double viewerSkill = viewerId == null ? null : skills.getOrDefault(viewerId, 0.0);
+        Map<Long, ClanWarStrikePreviewResponse> previews = strikePreviews(war, sides,
+                new ClanWarDamage.Viewer(warId, viewerId, mapDifficultyId), page.getContent(), skills);
+        return page.map(p -> {
+            double skill = skills.getOrDefault(p.getUser().getId(), 0.0);
+            return ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()), skill,
+                    viewerSkill == null ? null : inBand(viewerSkill, skill), previews.get(p.getUser().getId()));
+        });
+    }
+
+    private Map<Long, ClanWarStrikePreviewResponse> strikePreviews(ClanWar war, List<ClanWarSide> sides,
+            ClanWarDamage.Viewer viewer, List<ClanWarParticipant> rows, Map<Long, Double> skills) {
+        Map<UUID, ClanWarSide> sideByClan = sides.stream()
+                .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
+        ClanWarSide viewerSide = viewer.userId() == null || war.getStatus() != ClanWarStatus.active ? null
+                : participantRepository.findOpenClanId(war.getId(), viewer.userId()).map(sideByClan::get)
+                        .filter(ClanWarSide::fighting).orElse(null);
+        if (viewerSide == null) {
+            return Map.of();
+        }
+        List<ClanWarParticipant> enemies = rows.stream()
+                .filter(p -> p.getLeftAt() == null && p.getBrokenAt() == null)
+                .filter(p -> {
+                    ClanWarSide side = sideByClan.get(p.getClan().getId());
+                    return side.fighting() && side.getTeam() != viewerSide.getTeam();
+                })
+                .toList();
+        return warDamage.previews(viewer, enemies, skills);
     }
 
     public boolean inBand(double chooserSkill, double targetSkill) {

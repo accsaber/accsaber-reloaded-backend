@@ -3,6 +3,7 @@ package com.accsaber.backend.repository.map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,8 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -42,6 +45,8 @@ class MapVersionQueryTest {
     private EntityManager entityManager;
     @Autowired
     private MapRepository mapRepository;
+    @Autowired
+    private MapDifficultyRepository mapDifficultyRepository;
 
     private UUID firstVersion;
     private UUID secondVersion;
@@ -67,6 +72,20 @@ class MapVersionQueryTest {
 
         assertThat(version(Difficulty.EASY, MapDifficultyStatus.RANKED)).isEqualTo(firstVersion);
         assertThat(version(Difficulty.EASY, null)).isEqualTo(queued);
+    }
+
+    @Test
+    @DisplayName("the map list loads its page of maps and their difficulties, war bans filtered")
+    void theMapListLoadsItsPageAndTheirDifficulties() {
+        PageRequest page = PageRequest.of(0, 25,
+                JpaSort.unsafe(Sort.Direction.ASC, "LOWER(songName)").and(Sort.by(Sort.Order.asc("id"))));
+
+        List<UUID> found = mapRepository.findByDifficultyFiltersWithSearch(null, null, "two door", null, page)
+                .map(Map::getId).getContent();
+        assertThat(found).containsExactlyInAnyOrder(firstVersion, secondVersion);
+        assertThat(mapDifficultyRepository.findByMapIdsWithFilters(found, null, null)).hasSize(2);
+        assertThat(mapDifficultyRepository.findByMapIdsWithFilters(found, null, MapDifficultyStatus.QUEUE)).isEmpty();
+        assertThat(mapRepository.findByDifficultyFilters(null, null, true, page).getTotalElements()).isZero();
     }
 
     private UUID version(Difficulty difficulty, MapDifficultyStatus status) {

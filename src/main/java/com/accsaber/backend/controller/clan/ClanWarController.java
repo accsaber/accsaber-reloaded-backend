@@ -210,14 +210,16 @@ public class ClanWarController {
     }
 
     @Operation(summary = "War participants",
-            description = "Players still in first, then by contribution. target is who they picked. inBand tells a "
-                    + "signed in viewer whether they can pick that player.")
+            description = "Players still in first, then by skill. target is who they picked. inBand tells a "
+                    + "signed in viewer whether they can pick that player. strikePreview is the viewer's next hit on an enemy; "
+                    + "mapDifficultyId adds that enemy's score on the map.")
     @GetMapping("/wars/{warId}/participants")
     public ResponseEntity<Page<ClanWarParticipantResponse>> participants(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
+            @RequestParam(required = false) UUID mapDifficultyId,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(warService.participants(warId, principal != null ? principal.getUserId() : null,
-                pageable));
+        return ResponseEntity.ok(rosterService.participants(warId, principal != null ? principal.getUserId() : null,
+                mapDifficultyId, pageable));
     }
 }
