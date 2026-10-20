@@ -785,6 +785,11 @@ class ClanQueryTest {
         assertThat(warRepository.findStartsDue(now)).containsExactly(preparing);
         assertThat(warRepository.findQuietSince(now.minus(7, ChronoUnit.DAYS))).containsExactly(quiet);
         assertThat(warRepository.findQuietSince(now.minus(11, ChronoUnit.DAYS))).isEmpty();
+        assertThat(warRepository.findRetreatsDue(now)).isEmpty();
+        warState(quiet, "retreat_at = ?1", now.minusSeconds(60));
+        warState(preparing, "retreat_at = ?1", now.minusSeconds(60));
+        assertThat(warRepository.findRetreatsDue(now)).containsExactly(quiet);
+        assertThat(warRepository.findRetreatsDue(now.minusSeconds(120))).isEmpty();
         assertThat(warRepository.findOpenIdsBySeasonId(current)).containsExactlyInAnyOrder(picking, preparing, quiet);
         side(preparing, owls, "attack");
         assertThat(warRepository.findOpenIdsLedByClanId(owls.getId())).containsExactlyInAnyOrder(picking, quiet);

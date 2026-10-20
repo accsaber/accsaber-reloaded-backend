@@ -64,5 +64,6 @@ public class ClanProperties {
         private Duration engagementWindow = Duration.ofDays(14);
         private double engagementFull = 0.5;
         private Duration redeclareCooldown = Duration.ofDays(7);
+        private Duration retreatWindow = Duration.ofHours(24);
     }
 }

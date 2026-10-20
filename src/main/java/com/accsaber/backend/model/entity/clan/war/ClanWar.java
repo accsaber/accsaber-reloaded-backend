@@ -89,6 +89,9 @@ public class ClanWar {
     @Column(name = "starts_at")
     private Instant startsAt;
 
+    @Column(name = "retreat_at")
+    private Instant retreatAt;
+
     @Column(name = "ended_at")
     private Instant endedAt;
 

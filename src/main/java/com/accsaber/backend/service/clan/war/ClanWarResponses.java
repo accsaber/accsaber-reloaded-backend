@@ -53,7 +53,7 @@ public class ClanWarResponses {
                 war.getStatus(), war.getOutcome(), ClanRefCache.playerRef(war.getDeclaredBy()),
                 ClanWarTeamResponse.of(war.getAttackerClan().getId(), ClanWarTeam.attack, sides),
                 ClanWarTeamResponse.of(war.getDefenderClan().getId(), ClanWarTeam.defend, sides),
-                war.getDeclaredAt(), war.getPicksDueAt(), war.getStartsAt(), war.getEndedAt());
+                war.getDeclaredAt(), war.getPicksDueAt(), war.getStartsAt(), war.getRetreatAt(), war.getEndedAt());
     }
 
     private static ClanWarSideResponse toWarSideResponse(ClanWarSide side, PublicClanResponse clan) {

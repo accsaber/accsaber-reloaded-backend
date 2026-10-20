@@ -25,6 +25,7 @@ public record ClanWarResponse(
         Instant declaredAt,
         Instant picksDueAt,
         Instant startsAt,
+        Instant retreatAt,
         Instant endedAt) {
     public List<UUID> clanIds() {
         return Stream.of(attack, defend)

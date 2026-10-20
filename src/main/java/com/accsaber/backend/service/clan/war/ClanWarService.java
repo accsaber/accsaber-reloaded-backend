@@ -142,7 +142,17 @@ public class ClanWarService {
         if (war.getStatus() == ClanWarStatus.ended) {
             throw new ConflictException("This war is already over");
         }
-        end(war, ClanWarOutcome.retreated, actor);
+        if (war.getRetreatAt() != null) {
+            throw new ConflictException("Your clan is already retreating");
+        }
+        if (war.getStatus() != ClanWarStatus.active) {
+            end(war, ClanWarOutcome.retreated, actor);
+            return warResponses.of(war);
+        }
+        war.setRetreatAt(Instant.now().plus(clanProperties.getWar().getRetreatWindow()));
+        warRepository.saveAndFlush(war);
+        feed.war(war);
+        notifier.retreating(war, sideRepository.findByWarId(warId));
         return warResponses.of(war);
     }
 

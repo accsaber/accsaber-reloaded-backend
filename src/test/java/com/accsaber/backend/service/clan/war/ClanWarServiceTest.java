@@ -322,15 +322,31 @@ class ClanWarServiceTest {
         }
 
         @Test
-        void theLeadPullsOutAndBothChatsHearIt() {
+        void anActiveWarGivesTheDefenseADayToStrikeBackAndCannotBeCalledTwice() {
             side.setLeadUser(commander);
             rank(ClanRole.commander);
 
             var response = service.retreat(war.getId(), 1L);
 
+            assertThat(response.status()).isEqualTo(ClanWarStatus.active);
+            assertThat(war.getRetreatAt()).isBetween(Instant.now().plus(Duration.ofHours(23)),
+                    Instant.now().plus(Duration.ofHours(24)));
+            assertThat(war.getEndedAt()).isNull();
+            verify(notifier).retreating(war, sideRepository.findByWarId(war.getId()));
+            assertThatThrownBy(() -> service.retreat(war.getId(), 1L)).isInstanceOf(ConflictException.class);
+        }
+
+        @Test
+        void aWarThatHasNotStartedEndsRightAwayAndBothChatsHearIt() {
+            side.setLeadUser(commander);
+            rank(ClanRole.commander);
+            war.setStatus(ClanWarStatus.preparing);
+
+            var response = service.retreat(war.getId(), 1L);
+
             assertThat(response.status()).isEqualTo(ClanWarStatus.ended);
             assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.retreated);
-            assertThat(war.getEndedAt()).isNotNull();
+            assertThat(war.getRetreatAt()).isNull();
             verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_ended, commander, defender, war));
             verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_ended, commander, attacker, war));
         }
@@ -350,7 +366,7 @@ class ClanWarServiceTest {
 
             service.retreat(war.getId(), 1L);
 
-            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.retreated);
+            assertThat(war.getRetreatAt()).isNotNull();
         }
 
         @Test

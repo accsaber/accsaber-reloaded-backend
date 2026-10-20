@@ -1,0 +1,1 @@
+ALTER TABLE clan_wars ADD COLUMN retreat_at TIMESTAMPTZ;

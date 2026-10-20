@@ -13,6 +13,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarAid;
 import com.accsaber.backend.model.entity.clan.war.ClanWarAidDirection;
 import com.accsaber.backend.model.entity.clan.war.ClanWarAidStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.notification.NotificationType;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -77,6 +78,11 @@ public class ClanNotifier {
     public void warStarted(ClanWar war, List<ClanWarSide> sides) {
         everySide(war, sides, side -> "Your war against " + label(war.lead(side.getTeam().opponent()))
                 + " has started");
+    }
+
+    public void retreating(ClanWar war, List<ClanWarSide> sides) {
+        everySide(war, sides.stream().filter(side -> side.getTeam() == ClanWarTeam.defend).toList(),
+                side -> label(war.getAttackerClan()) + " is retreating. Strike back before the war ends");
     }
 
     public void warEnded(ClanWar war, List<ClanWarSide> sides) {

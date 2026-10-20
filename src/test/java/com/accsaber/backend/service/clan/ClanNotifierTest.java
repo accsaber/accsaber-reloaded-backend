@@ -124,6 +124,24 @@ class ClanNotifierTest {
     }
 
     @Test
+    void aRetreatWarnsEveryDefendingClanAndNoAttacker() {
+        ClanWar war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(owls).defenderClan(lapiz).build();
+        when(memberRepository.findOpenUserIds(lapiz.getId())).thenReturn(List.of(2L));
+        when(memberRepository.findOpenUserIds(fish.getId())).thenReturn(List.of(3L));
+
+        notifier.retreating(war, List.of(ClanWarSide.builder().clan(owls).team(ClanWarTeam.attack).build(),
+                ClanWarSide.builder().clan(lapiz).team(ClanWarTeam.defend).build(),
+                ClanWarSide.builder().clan(fish).team(ClanWarTeam.defend).build()));
+
+        String title = "[NOW] Night Owls is retreating. Strike back before the war ends";
+        verify(notificationService).notifyAll(List.of(2L), NotificationType.clan_war, null, title,
+                "/clans/wars/" + war.getId());
+        verify(notificationService).notifyAll(List.of(3L), NotificationType.clan_war, null, title,
+                "/clans/wars/" + war.getId());
+        verify(memberRepository, never()).findOpenUserIds(owls.getId());
+    }
+
+    @Test
     void aStaffDisbandIsAServerNoticeCarryingTheReason() {
         notifier.disbandedByStaff(owls, List.of(1L, 2L), "offensive name");
 

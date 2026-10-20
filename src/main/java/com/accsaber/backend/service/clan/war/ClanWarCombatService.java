@@ -154,6 +154,9 @@ public class ClanWarCombatService {
             return;
         }
         restoreGuard(battle.attacker(), play);
+        if (war.getRetreatAt() != null && battle.team(battle.attacker()) == ClanWarTeam.attack) {
+            return;
+        }
         List<ClanWarParticipant> enemies = enemies(battle);
         if (enemies.isEmpty()) {
             return;

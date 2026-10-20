@@ -436,6 +436,20 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
+        void aRetreatingTeamStopsStrikingButCanStillBeHit() {
+            war.setRetreatAt(Instant.now().plusSeconds(3600));
+            scores.put(1L, 900_000);
+            scores.put(11L, 900_000);
+
+            service.fight(war.getId(), play(950_000, true));
+            assertThat(savedHits).isEmpty();
+
+            service.fight(war.getId(), ClanWarCombatService.Play.of(ScoreResponse.builder().id(UUID.randomUUID())
+                    .userId("11").mapDifficultyId(MAP).score(950_000).active(true).timeSet(Instant.now()).build()));
+            assertThat(savedHits).singleElement().satisfies(hit -> assertThat(hit.getVictim().getId()).isEqualTo(1L));
+        }
+
+        @Test
         void playersOfAClanThatFellAreOutOfTheFight() {
             blueSide.setStakeRemaining(0.0);
             scores.put(11L, 900_000);

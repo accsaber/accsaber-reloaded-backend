@@ -23,11 +23,11 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeMapResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeRulesResponse;
-import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
@@ -48,6 +48,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignCompletionMode;
 import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.staff.StaffRole;
@@ -153,6 +154,17 @@ class ResponseJsonShapeTest {
                 .progressStatus(UserCampaignStatus.COMPLETED).completedNodes(4).totalNodes(5).build();
 
         assertNestedPlayer(json(entry));
+    }
+
+    @Test
+    void aRetreatingWarCarriesWhenItEndsAndAnOpenOneLeavesItOut() {
+        JsonNode retreating = json(new ClanWarResponse(A, null, null, null, ClanWarStatus.active, null, null, null,
+                null, null, null, T1, T2, null));
+        JsonNode open = json(new ClanWarResponse(A, null, null, null, ClanWarStatus.active, null, null, null,
+                null, null, null, T1, null, null));
+
+        assertThat(retreating.get("retreatAt").asString()).isEqualTo("2026-02-03T04:05:06Z");
+        assertThat(open.has("retreatAt")).isFalse();
     }
 
     @Test

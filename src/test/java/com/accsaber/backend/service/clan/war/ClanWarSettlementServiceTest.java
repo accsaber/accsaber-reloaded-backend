@@ -149,6 +149,7 @@ class ClanWarSettlementServiceTest {
         verify(itemAwardService, never()).awardSystem(eq(2L), eq(trophy.getItem().getId()), any(), anyString(),
                 anyString(), anyInt());
         verify(itemAwardService, never()).awardSystem(eq(11L), any(), any(), anyString(), anyString(), anyInt());
+        verify(itemAwardService, never()).awardSystem(eq(3L), any(), any(), anyString(), anyString(), anyInt());
     }
 
     @Test

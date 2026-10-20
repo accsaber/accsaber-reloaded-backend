@@ -117,6 +117,13 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             """)
     List<UUID> findStartsDue(@Param("now") Instant now);
 
+    @Query("""
+            SELECT w.id FROM ClanWar w
+            WHERE w.status = com.accsaber.backend.model.entity.clan.war.ClanWarStatus.active AND w.retreatAt <= :now
+            ORDER BY w.retreatAt
+            """)
+    List<UUID> findRetreatsDue(@Param("now") Instant now);
+
     @Query(value = """
             SELECT w.id FROM clan_wars w
             WHERE w.status = 'active'

@@ -56,6 +56,8 @@ class ClanWarSchedulerTest {
         when(warRepository.findPicksDue(any())).thenReturn(List.of(brokenPick, duePick));
         when(warRepository.findStartsDue(any())).thenReturn(List.of(dueStart));
         when(warRepository.findQuietSince(any())).thenReturn(List.of(quiet));
+        UUID retreated = UUID.randomUUID();
+        when(warRepository.findRetreatsDue(any())).thenReturn(List.of(retreated));
         UUID unsettled = UUID.randomUUID();
         when(warRepository.findEndedUnsettled(20)).thenReturn(List.of(unsettled));
         doThrow(new IllegalStateException("boom")).when(poolService).closePicks(brokenPick);
@@ -65,6 +67,7 @@ class ClanWarSchedulerTest {
         verify(poolService).closePicks(duePick);
         verify(rosterService).start(dueStart);
         verify(warService).end(quiet, ClanWarOutcome.drawn);
+        verify(warService).end(retreated, ClanWarOutcome.retreated);
         verify(settlementService).settle(unsettled);
     }
 }

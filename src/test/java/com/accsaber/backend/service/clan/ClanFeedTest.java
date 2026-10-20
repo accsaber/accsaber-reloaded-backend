@@ -64,7 +64,7 @@ class ClanFeedTest {
     private ClanWarResponse warResponse() {
         ClanWarResponse response = new ClanWarResponse(war.getId(), null, null, null, null, null, null,
                 team(war.getAttackerClan(), ClanWarTeam.attack), team(war.getDefenderClan(), ClanWarTeam.defend),
-                null, null, null, null);
+                null, null, null, null, null);
         when(warResponses.of(war)).thenReturn(response);
         return response;
     }
