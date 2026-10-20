@@ -25,6 +25,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarRewardsResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeMapResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeRulesResponse;
@@ -154,6 +155,18 @@ class ResponseJsonShapeTest {
                 .progressStatus(UserCampaignStatus.COMPLETED).completedNodes(4).totalNodes(5).build();
 
         assertNestedPlayer(json(entry));
+    }
+
+    @Test
+    void warRewardsNestTheClanAndThePlayerWithPlainWholeNumbers() {
+        JsonNode rewards = json(new ClanWarRewardsResponse(List.of(),
+                List.of(new ClanWarRewardsResponse.ClanReward(CLAN, 351.0, List.of())),
+                List.of(new ClanWarRewardsResponse.PlayerReward(PLAYER, CLAN, 85.0, List.of()))));
+
+        assertThat(rewards.get("clans").get(0).get("clan").get("tag").asString()).isEqualTo("TAG");
+        assertThat(rewards.get("clans").get(0).get("clanXp").toString()).isEqualTo("351");
+        assertThat(rewards.get("players").get(0).get("player").get("id").isString()).isTrue();
+        assertThat(rewards.get("players").get(0).get("xp").toString()).isEqualTo("85");
     }
 
     @Test

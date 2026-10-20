@@ -59,7 +59,7 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
     List<ClanMemberRepository.MemberSkillView> findOverallSkills(@Param("userIds") Collection<Long> userIds);
 
     @Query("""
-            SELECT p FROM ClanWarParticipant p
+            SELECT p FROM ClanWarParticipant p JOIN FETCH p.user
             WHERE p.war.id = :warId
             ORDER BY p.contribution DESC, p.joinedAt ASC, p.user.id ASC
             """)

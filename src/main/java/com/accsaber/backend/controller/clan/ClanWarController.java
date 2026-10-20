@@ -33,11 +33,13 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarRewardsResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWarAidStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.clan.war.ClanWarCoalitionService;
 import com.accsaber.backend.service.clan.war.ClanWarPoolService;
+import com.accsaber.backend.service.clan.war.ClanWarRewardService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 
@@ -56,6 +58,7 @@ public class ClanWarController {
     private final ClanWarPoolService poolService;
     private final ClanWarCoalitionService coalitionService;
     private final ClanWarRosterService rosterService;
+    private final ClanWarRewardService rewardService;
 
     @Operation(summary = "List clan wars",
             description = "Newest first. clanId filters to one clan, open=true hides finished wars.")
@@ -128,6 +131,15 @@ public class ClanWarController {
             @RequestParam(required = false) Long userId,
             @PageableDefault(size = 50) Pageable pageable) {
         return ResponseEntity.ok(warService.hits(warId, userId, pageable));
+    }
+
+    @Operation(summary = "War rewards",
+            description = "pool is the reward table. Each clan gets the clan XP it earned in this war and, once its "
+                    + "team won, the clan cosmetics. Each fighter gets the XP they earned and, on the winning team, the "
+                    + "items their contribution rank earns. Participation XP lands when the war is settled.")
+    @GetMapping("/wars/{warId}/rewards")
+    public ResponseEntity<ClanWarRewardsResponse> rewards(@PathVariable UUID warId) {
+        return ResponseEntity.ok(rewardService.rewards(warId));
     }
 
     @Operation(summary = "Ask a clan for help",

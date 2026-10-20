@@ -69,6 +69,24 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
                 .collect(Collectors.toMap(CycleHitsView::getVictimId, CycleHitsView::getHits));
     }
 
+    interface BreakXpView {
+        Long getUserId();
+
+        double getXp();
+    }
+
+    @Query("""
+            SELECT h.attacker.id AS userId, SUM(h.xpAwarded) AS xp
+            FROM ClanWarHit h
+            WHERE h.war.id = :warId AND h.xpAwarded IS NOT NULL
+            GROUP BY h.attacker.id
+            """)
+    List<BreakXpView> findBreakXp(@Param("warId") UUID warId);
+
+    default Map<Long, Double> breakXp(UUID warId) {
+        return findBreakXp(warId).stream().collect(Collectors.toMap(BreakXpView::getUserId, BreakXpView::getXp));
+    }
+
     List<ClanWarHit> findByWar_IdAndVictim_IdAndVictimCycle(UUID warId, Long victimId, int victimCycle);
 
     @Query(value = """

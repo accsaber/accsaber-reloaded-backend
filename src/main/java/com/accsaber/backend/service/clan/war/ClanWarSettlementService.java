@@ -2,6 +2,7 @@ package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,30 +68,46 @@ public class ClanWarSettlementService {
             return;
         }
         List<ClanWarSide> sides = sideRepository.findByWarId(warId);
-        ClanWarTeam winning = winningTeam(war);
-        List<ClanWarSide> winners = sides.stream()
-                .filter(side -> side.getTeam() == winning && side.getLeftAt() == null)
-                .toList();
+        List<ClanWarSide> winners = winners(war, sides);
         Map<ClanWarTeam, Double> engagement = new EnumMap<>(ClanWarTeam.class);
         for (ClanWarTeam team : ClanWarTeam.values()) {
             engagement.put(team, stakeService.engagement(war, team));
         }
         List<ClanWarRewardItem> rewards = winners.isEmpty() ? List.of() : rewardItemRepository.findActiveWithItems();
         if (!winners.isEmpty()) {
-            payWinners(war, winners, rewards, engagement.get(winning.opponent()));
+            payWinners(war, winners, rewards, engagement.get(winningTeam(war).opponent()));
         }
         Map<UUID, ClanWarTeam> teamOf = sides.stream()
                 .collect(Collectors.toMap(side -> side.getClan().getId(), ClanWarSide::getTeam));
-        Set<UUID> winnerClans = winners.stream().map(side -> side.getClan().getId()).collect(Collectors.toSet());
-        int winnerRank = 0;
-        for (ClanWarParticipant participant : participantRepository.findByWarIdInContributionOrder(warId)) {
-            UUID clanId = participant.getClan().getId();
-            boolean earnsItems = winnerClans.contains(clanId) && participant.getContribution() > 0;
-            int rank = earnsItems ? ++winnerRank : 0;
+        List<ClanWarParticipant> participants = participantRepository.findByWarIdInContributionOrder(warId);
+        Map<Long, Integer> ranks = rewardRanks(participants, winners);
+        for (ClanWarParticipant participant : participants) {
             if (participant.getRewardedAt() == null) {
-                pay(war, participant, rewards, rank, engagement.get(teamOf.get(clanId).opponent()));
+                pay(war, participant, rewards, ranks.getOrDefault(participant.getUser().getId(), 0),
+                        engagement.get(teamOf.get(participant.getClan().getId()).opponent()));
             }
         }
+    }
+
+    static List<ClanWarSide> winners(ClanWar war, List<ClanWarSide> sides) {
+        ClanWarTeam winning = winningTeam(war);
+        return sides.stream().filter(side -> side.getTeam() == winning && side.getLeftAt() == null).toList();
+    }
+
+    static Map<Long, Integer> rewardRanks(List<ClanWarParticipant> inContributionOrder, List<ClanWarSide> winners) {
+        Set<UUID> winnerClans = winners.stream().map(side -> side.getClan().getId()).collect(Collectors.toSet());
+        Map<Long, Integer> ranks = new HashMap<>();
+        for (ClanWarParticipant participant : inContributionOrder) {
+            if (winnerClans.contains(participant.getClan().getId()) && participant.getContribution() > 0) {
+                ranks.put(participant.getUser().getId(), ranks.size() + 1);
+            }
+        }
+        return ranks;
+    }
+
+    static boolean paysPlayer(ClanWarRewardItem reward, int rank) {
+        return rank > 0 && !reward.getItem().getType().isClanCosmetic()
+                && (reward.getTopContributors() == null || rank <= reward.getTopContributors());
     }
 
     private void payWinners(ClanWar war, List<ClanWarSide> winners, List<ClanWarRewardItem> rewards,
@@ -120,13 +137,8 @@ public class ClanWarSettlementService {
                 if (xp > 0) {
                     levelUpAwardService.addClanXp(userId, xp);
                 }
-                if (winnerRank == 0) {
-                    return;
-                }
                 rewards.stream()
-                        .filter(reward -> !reward.getItem().getType().isClanCosmetic())
-                        .filter(reward -> reward.getTopContributors() == null
-                                || winnerRank <= reward.getTopContributors())
+                        .filter(reward -> paysPlayer(reward, winnerRank))
                         .forEach(reward -> itemAwardService.awardSystem(userId, reward.getItem().getId(),
                                 ItemSource.clan_war, war.getId().toString(), "Clan war reward: "
                                         + war.getAttackerClan().getTag() + " vs " + war.getDefenderClan().getTag(),

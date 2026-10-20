@@ -2,7 +2,9 @@ package com.accsaber.backend.repository.clan;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +68,35 @@ public interface ClanXpGrantRepository extends JpaRepository<ClanXpGrant, UUID> 
             """, nativeQuery = true)
     List<SourceXpView> sumBySource(@Param("clanId") UUID clanId, @Param("from") Instant from,
             @Param("to") Instant to);
+
+    interface ClanXpView {
+        UUID getClanId();
+
+        double getXp();
+    }
+
+    @Query(value = """
+            SELECT x.clan_id AS clanId, SUM(x.amount) AS xp FROM (
+                SELECT g.clan_id, g.amount
+                FROM clan_war_sides s
+                JOIN clan_xp_grants g ON g.clan_id = s.clan_id AND g.source = 'war_win'
+                 AND g.source_id = CAST(s.war_id AS TEXT)
+                WHERE s.war_id = :warId
+                UNION ALL
+                SELECT g.clan_id, g.amount
+                FROM clan_war_hits h
+                JOIN clan_war_participants p ON p.war_id = h.war_id AND p.user_id = h.attacker_user_id
+                JOIN clan_xp_grants g ON g.clan_id = p.clan_id AND g.source = 'war_break'
+                 AND g.source_id = CAST(h.id AS TEXT)
+                WHERE h.war_id = :warId AND h.broke
+            ) x
+            GROUP BY x.clan_id
+            """, nativeQuery = true)
+    List<ClanXpView> findWarClanXp(@Param("warId") UUID warId);
+
+    default Map<UUID, Double> warClanXp(UUID warId) {
+        return findWarClanXp(warId).stream().collect(Collectors.toMap(ClanXpView::getClanId, ClanXpView::getXp));
+    }
 
     @Modifying(flushAutomatically = true)
     @Query(value = """

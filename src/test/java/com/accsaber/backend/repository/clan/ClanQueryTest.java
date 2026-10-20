@@ -1249,6 +1249,23 @@ class ClanQueryTest {
         assertThat(theirs.getBreaksSuffered()).isEqualTo(1);
         assertThat(nobody.getWarsFought()).isZero();
         assertThat(nobody.getWarXp()).isZero();
+
+        assertThat(hitRepository.breakXp(won)).containsExactly(Map.entry(founder.getId(), 200.0));
+        String hitOf = "SELECT CAST(id AS text) FROM clan_war_hits WHERE attacker_user_id = ?1 AND broke = ?2";
+        String founderBreak = (String) entityManager.createNativeQuery(hitOf).setParameter(1, founder.getId())
+                .setParameter(2, true).getSingleResult();
+        String starBreak = (String) entityManager.createNativeQuery(hitOf).setParameter(1, lapizStar.getId())
+                .setParameter(2, true).getSingleResult();
+        String starHit = (String) entityManager.createNativeQuery(hitOf).setParameter(1, lapizStar.getId())
+                .setParameter(2, false).getSingleResult();
+        grantRepository.insertIfAbsent(owls.getId(), "war_win", won.toString(), 345.0, 1.0, 345.0);
+        grantRepository.insertIfAbsent(owls.getId(), "war_win", picking.toString(), 99.0, 1.0, 99.0);
+        grantRepository.insertIfAbsent(owls.getId(), "war_break", founderBreak, 6.0, 1.0, 6.0);
+        grantRepository.insertIfAbsent(lapiz.getId(), "war_break", starBreak, 3.0, 1.0, 3.0);
+        grantRepository.insertIfAbsent(lapiz.getId(), "war_break", starHit, 50.0, 1.0, 50.0);
+        grantRepository.insertIfAbsent(owls.getId(), "play", founderScore.toString(), 3.0, 1.0, 3.0);
+        assertThat(grantRepository.warClanXp(won))
+                .containsOnly(Map.entry(owls.getId(), 351.0), Map.entry(lapiz.getId(), 3.0));
     }
 
     @Test

@@ -7,6 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,11 +20,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.ClanWarRewardItemRequest;
+import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
+import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
+import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
+import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemType;
+import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRewardItemRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.repository.item.ItemRepository;
+import com.accsaber.backend.service.clan.ClanCosmeticService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanWarRewardServiceTest {
@@ -31,6 +47,18 @@ class ClanWarRewardServiceTest {
     private ClanWarRewardItemRepository rewardItemRepository;
     @Mock
     private ItemRepository itemRepository;
+    @Mock
+    private ClanWarRepository warRepository;
+    @Mock
+    private ClanWarSideRepository sideRepository;
+    @Mock
+    private ClanWarParticipantRepository participantRepository;
+    @Mock
+    private ClanWarHitRepository hitRepository;
+    @Mock
+    private ClanXpGrantRepository xpGrantRepository;
+    @Mock
+    private ClanCosmeticService cosmeticService;
 
     @InjectMocks
     private ClanWarRewardService service;
@@ -86,5 +114,46 @@ class ClanWarRewardServiceTest {
 
         assertThat(reward.isActive()).isFalse();
         verify(rewardItemRepository, never()).delete(any());
+    }
+
+    @Test
+    void anEndedWarShowsWhatEachClanAndEachFighterGotOutOfIt() {
+        Clan red = Clan.builder().id(UUID.randomUUID()).build();
+        Clan blue = Clan.builder().id(UUID.randomUUID()).build();
+        ClanWar war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(red).defenderClan(blue)
+                .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won).build();
+        ClanWarRewardItem everyone = ClanWarRewardItem.builder().id(UUID.randomUUID()).item(crate).quantity(1).build();
+        ClanWarRewardItem topOne = ClanWarRewardItem.builder().id(UUID.randomUUID()).quantity(1).topContributors(1)
+                .item(Item.builder().id(UUID.randomUUID()).type(ItemType.builder().key("badge").build()).build()).build();
+        ClanWarRewardItem cosmetic = ClanWarRewardItem.builder().id(UUID.randomUUID()).quantity(1)
+                .item(Item.builder().id(UUID.randomUUID()).type(ItemType.builder().key("clan_border")
+                        .parentType(ItemType.builder().key("clan_cosmetic").build()).build()).build()).build();
+        when(warRepository.findById(war.getId())).thenReturn(Optional.of(war));
+        when(sideRepository.findByWarId(war.getId())).thenReturn(List.of(
+                ClanWarSide.builder().war(war).clan(red).team(ClanWarTeam.attack).build(),
+                ClanWarSide.builder().war(war).clan(blue).team(ClanWarTeam.defend).build()));
+        when(cosmeticService.publicRefs(any())).thenReturn(Map.of());
+        when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of(everyone, topOne, cosmetic));
+        when(xpGrantRepository.warClanXp(war.getId())).thenReturn(Map.of(red.getId(), 351.0, blue.getId(), 12.0));
+        when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
+                fighter(1L, red, 300, 60.0), fighter(11L, blue, 200, 40.0), fighter(2L, red, 0, 0.0)));
+        when(hitRepository.breakXp(war.getId())).thenReturn(Map.of(1L, 25.0));
+
+        var rewards = service.rewards(war.getId());
+
+        assertThat(rewards.pool()).hasSize(3);
+        assertThat(rewards.clans()).extracting(c -> c.clanXp()).containsExactly(351.0, 12.0);
+        assertThat(rewards.clans().get(0).items()).extracting(r -> r.id()).containsExactly(cosmetic.getId());
+        assertThat(rewards.clans().get(1).items()).isEmpty();
+        assertThat(rewards.players()).extracting(p -> p.xp()).containsExactly(85.0, 40.0, 0.0);
+        assertThat(rewards.players().get(0).items()).extracting(r -> r.id())
+                .containsExactly(everyone.getId(), topOne.getId());
+        assertThat(rewards.players().get(1).items()).isEmpty();
+        assertThat(rewards.players().get(2).items()).isEmpty();
+    }
+
+    private static ClanWarParticipant fighter(Long userId, Clan clan, double contribution, double xpAwarded) {
+        return ClanWarParticipant.builder().user(User.builder().id(userId).build()).clan(clan)
+                .contribution(contribution).xpAwarded(xpAwarded).build();
     }
 }
