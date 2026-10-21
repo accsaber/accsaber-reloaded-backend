@@ -18,6 +18,7 @@ import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.ClanArenaSpec;
+import com.accsaber.backend.model.dto.request.clan.ClanWarHitFilter;
 import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
@@ -201,11 +202,12 @@ public class ClanWarService {
         return detail(war, viewerClanId, viewerId);
     }
 
-    public Page<ClanWarHitResponse> hits(UUID warId, Long userId, Pageable pageable) {
+    public Page<ClanWarHitResponse> hits(UUID warId, ClanWarHitFilter filter, Pageable pageable) {
         if (!warRepository.existsById(warId)) {
             throw new ResourceNotFoundException("ClanWar", warId);
         }
-        Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, userId, pageable);
+        Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, filter.userId(), filter.clanId(),
+                filter.chip(), pageable);
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
                 page.getContent().stream().map(hit -> hit.getMapDifficulty().getId()).toList());
         return page.map(hit -> ClanMapper.toWarHitResponse(hit, difficulties.get(hit.getMapDifficulty().getId())));

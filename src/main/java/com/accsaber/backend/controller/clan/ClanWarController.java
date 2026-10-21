@@ -2,6 +2,7 @@ package com.accsaber.backend.controller.clan;
 
 import java.util.UUID;
 
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.request.clan.ChooseClanWarTargetRequest;
+import com.accsaber.backend.model.dto.request.clan.ClanWarHitFilter;
 import com.accsaber.backend.model.dto.request.clan.OfferClanWarAidRequest;
 import com.accsaber.backend.model.dto.request.clan.RequestClanWarAidRequest;
 import com.accsaber.backend.model.dto.request.clan.ResolveClanWarAidRequest;
@@ -124,13 +127,14 @@ public class ClanWarController {
 
     @Operation(summary = "War hits",
             description = "Newest first. missingScore hits softer, broke marks the hit that emptied a guard. userId "
-                    + "keeps only hits that player dealt or took.")
+                    + "keeps only hits that player dealt or took, clanId only hits that clan's fighters dealt or took, "
+                    + "chip=true only chips and chip=false only full hits.")
     @GetMapping("/wars/{warId}/hits")
     public ResponseEntity<Page<ClanWarHitResponse>> hits(
             @PathVariable UUID warId,
-            @RequestParam(required = false) Long userId,
+            @ParameterObject @ModelAttribute ClanWarHitFilter filter,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(warService.hits(warId, userId, pageable));
+        return ResponseEntity.ok(warService.hits(warId, filter, pageable));
     }
 
     @Operation(summary = "War rewards",

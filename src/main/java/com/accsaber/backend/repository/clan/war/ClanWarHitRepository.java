@@ -80,14 +80,23 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
             JOIN FETCH h.attacker JOIN FETCH h.victim
             WHERE h.war.id = :warId
               AND (:userId IS NULL OR h.attacker.id = :userId OR h.victim.id = :userId)
+              AND (:chip IS NULL OR h.chip = :chip)
+              AND (:clanId IS NULL OR EXISTS (
+                  SELECT 1 FROM ClanWarParticipant p
+                  WHERE p.war = h.war AND p.clan.id = :clanId AND (p.user = h.attacker OR p.user = h.victim)))
             ORDER BY h.createdAt DESC
             """,
             countQuery = """
                     SELECT COUNT(h) FROM ClanWarHit h
                     WHERE h.war.id = :warId
                       AND (:userId IS NULL OR h.attacker.id = :userId OR h.victim.id = :userId)
+                      AND (:chip IS NULL OR h.chip = :chip)
+                      AND (:clanId IS NULL OR EXISTS (
+                          SELECT 1 FROM ClanWarParticipant p
+                          WHERE p.war = h.war AND p.clan.id = :clanId AND (p.user = h.attacker OR p.user = h.victim)))
                     """)
-    Page<ClanWarHit> findPageByWarId(@Param("warId") UUID warId, @Param("userId") Long userId, Pageable pageable);
+    Page<ClanWarHit> findPageByWarId(@Param("warId") UUID warId, @Param("userId") Long userId,
+            @Param("clanId") UUID clanId, @Param("chip") Boolean chip, Pageable pageable);
 
     interface TimelinePointView {
         Instant getAt();

@@ -923,7 +923,7 @@ class ClanQueryTest {
                     assertThat(view.getScore()).isEqualTo(950000);
                 });
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
-        assertThat(hitRepository.findPageByWarId(warId, null, PageRequest.of(0, 10)).getTotalElements()).isZero();
+        assertThat(hitRepository.findPageByWarId(warId, null, null, null, PageRequest.of(0, 10)).getTotalElements()).isZero();
         assertThat(participantRepository.findRecentlyActiveShare(warId, "defend", Instant.now().minus(1,
                 ChronoUnit.DAYS))).isEqualTo(1.0);
         assertThat(participantRepository.findRecentlyActiveShare(warId, "attack", Instant.now().minus(1,
@@ -987,6 +987,15 @@ class ClanQueryTest {
                     .setParameter(3, lapizStar.getId()).setParameter(4, map.getId()).setParameter(5, mine)
                     .setParameter(6, theirs).setParameter(7, chip).executeUpdate();
         }
+        PageRequest page = PageRequest.of(0, 10);
+        assertThat(hitRepository.findPageByWarId(warId, null, null, true, page)).singleElement()
+                .satisfies(found -> assertThat(found.isChip()).isTrue());
+        assertThat(hitRepository.findPageByWarId(warId, null, null, false, page)).singleElement()
+                .satisfies(found -> assertThat(found.isChip()).isFalse());
+        assertThat(hitRepository.findPageByWarId(warId, null, lapiz.getId(), null, page).getTotalElements())
+                .isEqualTo(2);
+        UUID outsider = clan("Rivals", "RIV", "rivals").getId();
+        assertThat(hitRepository.findPageByWarId(warId, null, outsider, null, page).getTotalElements()).isZero();
 
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
                 .containsExactly(Map.entry(lapizStar.getId(), 1L));
