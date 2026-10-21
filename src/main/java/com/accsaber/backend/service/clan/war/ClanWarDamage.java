@@ -77,8 +77,10 @@ class ClanWarDamage {
     }
 
     double hitDamage(long hitsThisCycle, double attackerSkill, double victimSkill, boolean missingScore) {
-        double damage = hit(hitsThisCycle, disparity(attackerSkill, victimSkill));
-        return missingScore ? damage * clanProperties.getWar().getMissingScoreMultiplier() : damage;
+        if (missingScore) {
+            return hit(hitsThisCycle, 1.0) * clanProperties.getWar().getMissingScoreMultiplier();
+        }
+        return hit(hitsThisCycle, disparity(attackerSkill, victimSkill));
     }
 
     double chip(double gap, double attackerSkill, double victimSkill) {

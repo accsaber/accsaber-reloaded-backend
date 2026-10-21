@@ -2,6 +2,7 @@ package com.accsaber.backend.service.player;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerRespon
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.media.CdnSyncService;
 
 import lombok.RequiredArgsConstructor;
@@ -24,11 +26,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PlayerImportService {
 
+        private static final Duration INACTIVE_AFTER = Duration.ofDays(90);
+
         private final BeatLeaderClient beatLeaderClient;
         private final ScoreSaberClient scoreSaberClient;
         private final UserService userService;
         private final UserSettingsService userSettingsService;
         private final CdnSyncService cdnSyncService;
+        private final ScoreRepository scoreRepository;
 
         public User ensurePlayerExists(Long userId) {
                 Optional<User> existing = userService.findOptionalByUserId(userId);
@@ -102,18 +107,26 @@ public class PlayerImportService {
                                                 .or(() -> ssProfile.map(ScoreSaberPlayerResponse::getCountry))
                                                 .orElse(null);
 
-                boolean playerInactive = blProfile.isPresent()
-                                ? blProfile
-                                                .map(BeatLeaderPlayerResponse::getScoreStats)
-                                                .map(BeatLeaderPlayerResponse.ScoreStats::getLastScoreTime)
-                                                .map(epoch -> Instant.ofEpochSecond(epoch)
-                                                                .isBefore(Instant.now().minus(Duration.ofDays(90))))
-                                                .orElse(true)
-                                : ssProfile.map(ScoreSaberPlayerResponse::isInactive).orElse(true);
+                Instant inactiveBefore = Instant.now().minus(INACTIVE_AFTER);
+                boolean playerInactive = !playedHereSince(userId, inactiveBefore)
+                                && (blProfile.isPresent()
+                                                ? blProfile
+                                                                .map(BeatLeaderPlayerResponse::getScoreStats)
+                                                                .map(BeatLeaderPlayerResponse.ScoreStats::getLastScoreTime)
+                                                                .map(epoch -> Instant.ofEpochSecond(epoch)
+                                                                                .isBefore(inactiveBefore))
+                                                                .orElse(true)
+                                                : ssProfile.map(ScoreSaberPlayerResponse::isInactive).orElse(true));
                 userService.updateProfile(userId, name, null, country, playerInactive);
                 if (avatarUrl != null) {
                         cdnSyncService.mirrorUserAvatarIfChanged(userId, avatarUrl);
                 }
                 log.debug("Refreshed profile for player {}", userId);
+        }
+
+        private boolean playedHereSince(Long userId, Instant since) {
+                return scoreRepository.findLastScoreTimes(List.of(userId)).stream()
+                                .map(ScoreRepository.LastPlayedView::getLastPlayedAt)
+                                .anyMatch(at -> at != null && at.isAfter(since));
         }
 }

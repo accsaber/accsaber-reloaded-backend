@@ -1,5 +1,6 @@
 package com.accsaber.backend.service.clan.war;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
@@ -73,7 +74,10 @@ public class ClanWarRosterService {
 
     public void prepare(ClanWar war) {
         war.setStatus(ClanWarStatus.preparing);
-        war.setStartsAt(Instant.now().plus(clanProperties.getWar().getPrepDuration()));
+        ClanProperties.War config = clanProperties.getWar();
+        Duration prep = war.getPicksDueAt() == null ? config.getPrepDuration().plus(config.getPickWindow())
+                : config.getPrepDuration();
+        war.setStartsAt(Instant.now().plus(prep));
         warRepository.saveAndFlush(war);
         List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
         sync(war, sides);

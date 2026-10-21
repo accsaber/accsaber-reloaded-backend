@@ -2,6 +2,7 @@ package com.accsaber.backend.service.clan.war;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -11,7 +12,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -164,6 +167,7 @@ class ClanWarRosterServiceTest {
     @Test
     void lockingThePoolEnrolsBothTeamsBeforeTheWarStarts() {
         war.setStatus(ClanWarStatus.picking);
+        war.setPicksDueAt(Instant.now());
         war.setStartsAt(null);
         teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
                 List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
@@ -171,12 +175,24 @@ class ClanWarRosterServiceTest {
         service.prepare(war);
 
         assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
-        assertThat(war.getStartsAt()).isAfter(Instant.now());
+        assertThat(war.getStartsAt()).isCloseTo(Instant.now().plus(Duration.ofHours(24)), within(1, ChronoUnit.MINUTES));
         assertThat(saved()).containsOnlyKeys(1L, 11L);
         verify(stakeService, never()).rebalance(any());
         verify(feed).war(war);
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_preparing, null, defender, war));
         verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_preparing, null, attacker, war));
+    }
+
+    @Test
+    void aWarWithNoPickPhaseGetsThePickWindowAddedToItsPrep() {
+        war.setStatus(ClanWarStatus.picking);
+        war.setPicksDueAt(null);
+        teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
+                List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
+
+        service.prepare(war);
+
+        assertThat(war.getStartsAt()).isCloseTo(Instant.now().plus(Duration.ofHours(48)), within(1, ChronoUnit.MINUTES));
     }
 
     @Test

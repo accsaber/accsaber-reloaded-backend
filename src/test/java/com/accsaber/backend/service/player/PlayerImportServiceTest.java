@@ -9,6 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
@@ -24,6 +27,7 @@ import com.accsaber.backend.exception.ConflictException;
 import com.accsaber.backend.model.dto.platform.beatleader.BeatLeaderPlayerResponse;
 import com.accsaber.backend.model.dto.platform.scoresaber.ScoreSaberPlayerResponse;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.media.CdnSyncService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +49,9 @@ class PlayerImportServiceTest {
 
     @Mock
     private CdnSyncService cdnSyncService;
+
+    @Mock
+    private ScoreRepository scoreRepository;
 
     @InjectMocks
     private PlayerImportService playerImportService;
@@ -162,6 +169,25 @@ class PlayerImportServiceTest {
 
             verify(userService).updateProfile(STEAM_ID, "UpdatedName", null, "CA", false);
             verify(cdnSyncService).mirrorUserAvatarIfChanged(STEAM_ID, "https://ss.com/new.png");
+        }
+
+        @Test
+        void staysActive_whenPlatformStaleButPlayedHereRecently() {
+            BeatLeaderPlayerResponse blPlayer = new BeatLeaderPlayerResponse();
+            blPlayer.setName("BLPlayer");
+            blPlayer.setCountry("DE");
+            BeatLeaderPlayerResponse.ScoreStats stats = new BeatLeaderPlayerResponse.ScoreStats();
+            stats.setLastScoreTime(Instant.now().minus(Duration.ofDays(100)).getEpochSecond());
+            blPlayer.setScoreStats(stats);
+            when(beatLeaderClient.getPlayer(String.valueOf(STEAM_ID))).thenReturn(Optional.of(blPlayer));
+
+            ScoreRepository.LastPlayedView lastPlayed = org.mockito.Mockito.mock(ScoreRepository.LastPlayedView.class);
+            when(lastPlayed.getLastPlayedAt()).thenReturn(Instant.now().minus(Duration.ofDays(7)));
+            when(scoreRepository.findLastScoreTimes(List.of(STEAM_ID))).thenReturn(List.of(lastPlayed));
+
+            playerImportService.refreshPlayerProfile(STEAM_ID);
+
+            verify(userService).updateProfile(STEAM_ID, "BLPlayer", null, "DE", false);
         }
 
         @Test

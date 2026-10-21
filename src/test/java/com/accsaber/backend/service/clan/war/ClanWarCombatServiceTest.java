@@ -432,6 +432,16 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
+        void aSkillGapNeverScalesAHitOnSomeoneWithNoScore() {
+            skills.put(1L, 1.0);
+            skills.put(11L, 100.0);
+
+            service.fight(war.getId(), play(950_000, false));
+
+            assertThat(savedHits).singleElement().extracting(ClanWarHit::getDamage).isEqualTo(12.5);
+        }
+
+        @Test
         void fullHitsEscalateOnFullHitsOnlyAndSkillGapsScaleThem() {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
