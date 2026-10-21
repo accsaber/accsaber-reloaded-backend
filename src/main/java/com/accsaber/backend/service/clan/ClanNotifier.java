@@ -141,7 +141,7 @@ public class ClanNotifier {
     }
 
     private static String clanLink(Clan clan) {
-        return "/clans/" + clan.getSlug();
+        return "/clans/" + clan.getId();
     }
 
     private static String warLink(ClanWar war) {

@@ -58,7 +58,7 @@ class ClanNotifierTest {
                 .direction(ClanJoinDirection.invite).build());
 
         verify(notificationService).notify(2L, NotificationType.clan_membership, 1L,
-                "[NOW] Night Owls invited you to join", "/clans/night-owls");
+                "[NOW] Night Owls invited you to join", "/clans/" + owls.getId());
     }
 
     @Test
@@ -71,7 +71,7 @@ class ClanNotifierTest {
                 .direction(ClanJoinDirection.request).build());
 
         verify(notificationService).notifyAll(List.of(1L, 4L), NotificationType.clan_membership, 3L,
-                "Lapiz asked to join [NOW] Night Owls", "/clans/night-owls");
+                "Lapiz asked to join [NOW] Night Owls", "/clans/" + owls.getId());
     }
 
     @Test
@@ -83,7 +83,7 @@ class ClanNotifierTest {
         notifier.allianceChanged(alliance, lapiz, founder, "ended");
 
         verify(notificationService).notify(2L, NotificationType.clan_alliance, 1L,
-                "[NOW] Night Owls ended your alliance", "/clans/el-lapiz");
+                "[NOW] Night Owls ended your alliance", "/clans/" + lapiz.getId());
     }
 
     @Test
