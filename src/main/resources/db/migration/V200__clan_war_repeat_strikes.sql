@@ -1,0 +1,2 @@
+DROP INDEX uq_clan_war_hits_victim_score;
+DROP INDEX uq_clan_war_hits_missing_score;

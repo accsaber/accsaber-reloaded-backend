@@ -2,12 +2,10 @@ package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -96,7 +94,7 @@ public class ClanWarCombatService {
 
     private record Battle(ClanWar war, List<ClanWarSide> sides, Map<UUID, ClanWarSide> sideByClan,
             Map<Long, ClanWarParticipant> roster, ClanWarParticipant attacker, Play play, Map<Long, Double> skills,
-            Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore, Set<String> prior,
+            Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore,
             Map<Long, Long> cycleHits) {
 
         ClanWarTeam team(ClanWarParticipant participant) {
@@ -190,9 +188,7 @@ public class ClanWarCombatService {
                 .findActiveScores(List.of(difficultyId), fighters).stream()
                 .collect(Collectors.toMap(ClanWarHitRepository.VictimScoreView::getUserId, Function.identity()));
         Integer maxScore = mapDifficultyRepository.findById(difficultyId).map(MapDifficulty::getMaxScore).orElse(null);
-        Set<String> prior = ClanWarDamage.priorKeysByMap(hitRepository.findPriorHits(war.getId(), play.userId()))
-                .getOrDefault(difficultyId, new HashSet<>());
-        return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore, prior,
+        return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore,
                 hitRepository.cycleHits(war.getId(), fighters));
     }
 
@@ -255,19 +251,16 @@ public class ClanWarCombatService {
 
     private Kind hitKind(Battle battle, ClanWarParticipant enemy) {
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(enemy.getUser().getId());
-        Long enemyId = enemy.getUser().getId();
         if (victimScore == null) {
-            return ClanWarDamage.hitUsed(battle.prior(), enemyId, null) ? null : Kind.MISSING;
+            return Kind.MISSING;
         }
-        boolean beaten = victimScore.getScore() < battle.play().score();
-        return beaten && !ClanWarDamage.hitUsed(battle.prior(), enemyId, victimScore.getScoreId()) ? Kind.HIT : null;
+        return victimScore.getScore() < battle.play().score() ? Kind.HIT : null;
     }
 
     private Double chipGap(Battle battle, ClanWarParticipant enemy) {
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(enemy.getUser().getId());
         if (victimScore == null || battle.maxScore() == null || battle.maxScore() <= 0
-                || victimScore.getScore() < battle.play().score()
-                || ClanWarDamage.chipUsed(battle.prior(), victimScore.getScoreId())) {
+                || victimScore.getScore() < battle.play().score()) {
             return null;
         }
         double gap = linear(victimScore.getScore(), battle.maxScore())
@@ -300,8 +293,6 @@ public class ClanWarCombatService {
                 .guardAfter(victim.getGuard())
                 .broke(victim.getGuard() <= 0.0)
                 .build());
-        battle.prior().add(ClanWarDamage.key(victim.getUser().getId(),
-                victimScore == null ? null : victimScore.getScoreId(), hit.isChip()));
         if (hit.isBroke()) {
             breakGuard(battle, victim, hit, share);
         }

@@ -184,7 +184,7 @@ class ResponseJsonShapeTest {
     void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
         ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null, 80.0, true,
                 new ClanWarStrikePreviewResponse(30.0, 3, 0, 40.0, 80.0, 2.0,
-                        new ClanWarStrikeMapResponse(null, false, false)), 1.0, 100.0, 0, 0,
+                        new ClanWarStrikeMapResponse(null)), 1.0, 100.0, 0, 0,
                 0.0, T1, null);
 
         JsonNode preview = json(row).get("strikePreview");
@@ -194,6 +194,7 @@ class ResponseJsonShapeTest {
         assertThat(preview.get("hitsToBreak").asInt()).isEqualTo(3);
         assertThat(preview.get("disparity").toString()).isEqualTo("2");
         assertThat(preview.get("onMap").has("targetScore")).isFalse();
+        assertThat(preview.get("onMap").has("hitUsed")).isFalse();
         assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0)).get("guard")
                 .toString()).isEqualTo("100");
     }

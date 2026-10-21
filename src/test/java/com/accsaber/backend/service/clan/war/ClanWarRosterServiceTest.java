@@ -289,17 +289,15 @@ class ClanWarRosterServiceTest {
                 .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
         when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, 2L));
         UUID open = UUID.randomUUID();
-        UUID spent = UUID.randomUUID();
-        UUID wornScore = UUID.randomUUID();
+        UUID played = UUID.randomUUID();
         when(hitRepository.findActiveScores(anyCollection(), anyCollection()))
-                .thenReturn(List.of(victimScore(spent, wornScore, 12L, 900_000)));
-        when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(spent, 12L, wornScore, false)));
+                .thenReturn(List.of(victimScore(played, UUID.randomUUID(), 12L, 900_000)));
 
-        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(open, spent));
+        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(open, played));
 
         assertThat(pairings.get(open).target().getId()).isEqualTo(12L);
         assertThat(pairings.get(open).picked()).isFalse();
-        assertThat(pairings.get(spent).target().getId()).isEqualTo(11L);
+        assertThat(pairings.get(played).target().getId()).isEqualTo(12L);
     }
 
     @Test
@@ -320,7 +318,6 @@ class ClanWarRosterServiceTest {
         UUID enemyScore = UUID.randomUUID();
         when(hitRepository.findActiveScores(List.of(map), List.of(11L)))
                 .thenReturn(List.of(victimScore(map, enemyScore, 11L, 950_000)));
-        when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(map, 11L, enemyScore, true)));
 
         Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), 1L, map, PageRequest.of(0, 50))
                 .stream().collect(Collectors.toMap(row -> Long.valueOf(row.player().id()), Function.identity()));
@@ -332,8 +329,6 @@ class ClanWarRosterServiceTest {
             assertThat(preview.damage()).isEqualTo(30.0);
             assertThat(preview.hitsToBreak()).isEqualTo(3);
             assertThat(preview.onMap().targetScore()).isEqualTo(950_000);
-            assertThat(preview.onMap().hitUsed()).isFalse();
-            assertThat(preview.onMap().chipUsed()).isTrue();
         });
     }
 
@@ -418,26 +413,6 @@ class ClanWarRosterServiceTest {
 
             public int getScore() {
                 return score;
-            }
-        };
-    }
-
-    private static ClanWarHitRepository.PriorHitView prior(UUID map, Long victimId, UUID victimScoreId, boolean chip) {
-        return new ClanWarHitRepository.PriorHitView() {
-            public UUID getMapDifficultyId() {
-                return map;
-            }
-
-            public Long getVictimId() {
-                return victimId;
-            }
-
-            public UUID getVictimScoreId() {
-                return victimScoreId;
-            }
-
-            public boolean isChip() {
-                return chip;
             }
         };
     }

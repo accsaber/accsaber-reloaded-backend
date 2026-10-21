@@ -398,15 +398,16 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void theSameEnemyScoreIsOnlyHitOnceAndThePlayMovesOnToTheNextOne() {
-            join(12L, blue, 0.5, 50);
+        void theSameEnemyScoreCanBeHitAgainByTheNextPlay() {
             scores.put(11L, 900_000);
-            scores.put(12L, 940_000);
-            when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(12L, 940_000, false)));
 
             service.fight(war.getId(), play(950_000, true));
+            service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits).singleElement().extracting(hit -> hit.getVictim().getId()).isEqualTo(11L);
+            assertThat(savedHits).hasSize(2).allSatisfy(hit -> {
+                assertThat(hit.getVictim().getId()).isEqualTo(11L);
+                assertThat(hit.isChip()).isFalse();
+            });
         }
 
         @Test
@@ -645,26 +646,5 @@ class ClanWarCombatServiceTest {
             assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0);
             assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
         }
-    }
-
-    private static ClanWarHitRepository.PriorHitView prior(Long victimId, int score, boolean chip) {
-        UUID scoreId = new UUID(victimId, score);
-        return new ClanWarHitRepository.PriorHitView() {
-            public UUID getMapDifficultyId() {
-                return MAP;
-            }
-
-            public Long getVictimId() {
-                return victimId;
-            }
-
-            public UUID getVictimScoreId() {
-                return scoreId;
-            }
-
-            public boolean isChip() {
-                return chip;
-            }
-        };
     }
 }

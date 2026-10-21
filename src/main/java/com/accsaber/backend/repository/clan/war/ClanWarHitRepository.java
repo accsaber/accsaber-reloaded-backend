@@ -35,24 +35,6 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
     List<VictimScoreView> findActiveScores(@Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds,
             @Param("userIds") Collection<Long> userIds);
 
-    interface PriorHitView {
-        UUID getMapDifficultyId();
-
-        Long getVictimId();
-
-        UUID getVictimScoreId();
-
-        boolean isChip();
-    }
-
-    @Query(value = """
-            SELECT h.map_difficulty_id AS mapDifficultyId, h.victim_user_id AS victimId,
-                   h.victim_score_id AS victimScoreId, h.chip AS chip
-            FROM clan_war_hits h
-            WHERE h.war_id = :warId AND h.attacker_user_id = :attackerId
-            """, nativeQuery = true)
-    List<PriorHitView> findPriorHits(@Param("warId") UUID warId, @Param("attackerId") Long attackerId);
-
     interface CycleHitsView {
         Long getVictimId();
 

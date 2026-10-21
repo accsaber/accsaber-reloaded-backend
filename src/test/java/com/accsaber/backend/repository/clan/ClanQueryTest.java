@@ -993,13 +993,9 @@ class ClanQueryTest {
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
-        assertThat(hitRepository.findPriorHits(warId, founder.getId()))
-                .allSatisfy(prior -> assertThat(prior.getMapDifficultyId()).isEqualTo(map.getId()))
-                .extracting(ClanWarHitRepository.PriorHitView::isChip).containsExactlyInAnyOrder(true, false);
-        assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)
+        assertThat(entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
-                .setParameter(5, mine).setParameter(6, theirs).setParameter(7, true).executeUpdate())
-                .isInstanceOf(PersistenceException.class);
+                .setParameter(5, mine).setParameter(6, theirs).setParameter(7, true).executeUpdate()).isEqualTo(1);
     }
 
     @Test
