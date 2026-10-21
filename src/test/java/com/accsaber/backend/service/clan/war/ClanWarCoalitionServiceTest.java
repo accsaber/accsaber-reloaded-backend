@@ -296,14 +296,14 @@ class ClanWarCoalitionServiceTest {
         }
 
         @Test
-        void beforeTheWarStartsJoiningWaitsForTheRosterAtStart() {
+        void anAllyAcceptedDuringPreparationJoinsTheRosterStraightAway() {
             war.setStatus(ClanWarStatus.preparing);
             ClanWarAid aid = aid(ClanWarAidDirection.request, ClanWarTeam.defend);
 
             service.resolve(aid.getId(), 1L, ClanWarAidStatus.accepted);
 
             verify(stakeService).rebalance(any());
-            verify(rosterService, never()).sync(any(), any());
+            verify(rosterService).sync(eq(war), any());
         }
 
         @Test

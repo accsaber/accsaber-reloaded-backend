@@ -94,7 +94,8 @@ class ClanWarSettlementServiceTest {
                 rewardItemRepository, clanItemRepository, levelService, levelUpAwardService, itemAwardService,
                 clanProperties, transactionTemplate);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(red).defenderClan(blue)
-                .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won).endedAt(Instant.now()).build();
+                .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won)
+                .startsAt(Instant.now().minusSeconds(86_400)).endedAt(Instant.now()).build();
         sides.add(ClanWarSide.builder().war(war).clan(red).team(ClanWarTeam.attack).stake(3000).build());
         sides.add(ClanWarSide.builder().war(war).clan(blue).team(ClanWarTeam.defend).stake(3000).build());
         lenient().when(sideRepository.findByWarId(war.getId())).thenReturn(sides);
@@ -207,6 +208,21 @@ class ClanWarSettlementServiceTest {
         verify(levelService, never()).grantXp(any(), any());
         verify(rewardItemRepository, never()).findActiveWithItems();
         verify(levelUpAwardService).addClanXp(1L, 20.0);
+    }
+
+    @Test
+    void aWarThatEndedDuringPreparationPaysNoWinnings() {
+        blue.setActive(false);
+        war.setOutcome(ClanWarOutcome.forfeited);
+        war.setStartsAt(Instant.now().plusSeconds(3600));
+        when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
+                participant(1L, red, 0), participant(11L, blue, 0)));
+
+        service.settle(war.getId());
+
+        verify(levelService, never()).grantXp(any(), any());
+        verify(rewardItemRepository, never()).findActiveWithItems();
+        verify(levelUpAwardService, never()).addClanXp(anyLong(), anyDouble());
     }
 
     @Test

@@ -55,7 +55,6 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
-import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.map.MapService;
 
@@ -63,7 +62,7 @@ import com.accsaber.backend.service.map.MapService;
 class ClanWarPoolServiceTest {
 
     @Mock
-    private ClanFeed feed;
+    private ClanWarRosterService rosterService;
     @Mock
     private ScoreRepository scoreRepository;
     @Mock
@@ -94,7 +93,7 @@ class ClanWarPoolServiceTest {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         clanProperties.getWar().setMaxUnderdogShare(0.7);
         service = new ClanWarPoolService(warRepository, sideRepository, poolRepository, categoryRepository,
-                mapDifficultyRepository, accessService, cosmeticService, mapService, scoreRepository, feed, clanProperties);
+                mapDifficultyRepository, accessService, cosmeticService, mapService, scoreRepository, rosterService, clanProperties);
         lenient().when(mapDifficultyRepository.getReferenceById(any()))
                 .thenAnswer(inv -> MapDifficulty.builder().id(inv.getArgument(0)).build());
     }
@@ -188,9 +187,7 @@ class ClanWarPoolServiceTest {
             service.seed(war, List.of());
 
             verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null);
-            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
-            assertThat(war.getStartsAt()).isAfter(Instant.now());
-            verify(feed).war(war);
+            verify(rosterService).prepare(war);
         }
 
         @Test
@@ -220,7 +217,7 @@ class ClanWarPoolServiceTest {
                 assertThat(entry.getPickedByClan()).isSameAs(attacker);
             });
             assertThat(war.getStatus()).isEqualTo(ClanWarStatus.picking);
-            verify(feed, never()).war(any());
+            verify(rosterService, never()).prepare(any());
         }
 
         @Test
@@ -269,7 +266,7 @@ class ClanWarPoolServiceTest {
             verify(poolRepository).insertRandom(war.getId(), defender.getId(), "replacement", 1, null, null, null);
             assertThat(side.getPicksSubmittedAt()).isNotNull();
             assertThat(side.getLeadUser()).isSameAs(officer);
-            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+            verify(rosterService).prepare(war);
         }
 
         @Test
@@ -291,7 +288,7 @@ class ClanWarPoolServiceTest {
             service.submitPicks(war.getId(), 3L, ids(2), true);
 
             assertThat(war.getRuleset()).isEqualTo(ClanRuleset.berserker);
-            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+            verify(rosterService).prepare(war);
         }
 
         @Test
@@ -303,7 +300,7 @@ class ClanWarPoolServiceTest {
             service.submitPicks(war.getId(), 3L, List.of(), false);
 
             assertThat(war.getRuleset()).isEqualTo(ClanRuleset.duel);
-            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+            verify(rosterService).prepare(war);
         }
 
         @Test
@@ -324,7 +321,7 @@ class ClanWarPoolServiceTest {
             service.closePicks(war.getId());
 
             verify(poolRepository).insertRandom(war.getId(), null, "random", 3, null, null, null);
-            assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+            verify(rosterService).prepare(war);
             assertThat(war.getRuleset()).isEqualTo(ClanRuleset.duel);
         }
 

@@ -19,7 +19,6 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
-import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -56,7 +55,7 @@ public class ClanWarRewardService {
         List<ClanWarSide> sides = sideRepository.findByWarId(warId);
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(sides.stream().map(ClanWarSide::getClan).toList());
         List<ClanWarRewardItem> pool = rewardItemRepository.findActiveWithItems();
-        List<ClanWarSide> winners = war.getStatus() == ClanWarStatus.ended
+        List<ClanWarSide> winners = war.fought()
                 ? ClanWarSettlementService.winners(war, sides) : List.of();
         Set<UUID> winnerClans = winners.stream().map(side -> side.getClan().getId()).collect(Collectors.toSet());
         Map<UUID, Double> clanXp = xpGrantRepository.warClanXp(warId);

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -121,7 +122,8 @@ class ClanWarRewardServiceTest {
         Clan red = Clan.builder().id(UUID.randomUUID()).build();
         Clan blue = Clan.builder().id(UUID.randomUUID()).build();
         ClanWar war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(red).defenderClan(blue)
-                .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won).build();
+                .status(ClanWarStatus.ended).outcome(ClanWarOutcome.attacker_won)
+                .startsAt(Instant.now().minusSeconds(86_400)).endedAt(Instant.now()).build();
         ClanWarRewardItem everyone = ClanWarRewardItem.builder().id(UUID.randomUUID()).item(crate).quantity(1).build();
         ClanWarRewardItem topOne = ClanWarRewardItem.builder().id(UUID.randomUUID()).quantity(1).topContributors(1)
                 .item(Item.builder().id(UUID.randomUUID()).type(ItemType.builder().key("badge").build()).build()).build();

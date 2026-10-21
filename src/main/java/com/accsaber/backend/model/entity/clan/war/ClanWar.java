@@ -95,6 +95,14 @@ public class ClanWar {
     @Column(name = "ended_at")
     private Instant endedAt;
 
+    public boolean rostered() {
+        return status == ClanWarStatus.preparing || status == ClanWarStatus.active;
+    }
+
+    public boolean fought() {
+        return startsAt != null && endedAt != null && !endedAt.isBefore(startsAt);
+    }
+
     public List<Clan> leads() {
         return List.of(attackerClan, defenderClan);
     }

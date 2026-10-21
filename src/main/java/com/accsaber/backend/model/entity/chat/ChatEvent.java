@@ -10,6 +10,7 @@ public enum ChatEvent {
     rivaled_by,
     war_declared,
     war_received,
+    war_preparing,
     war_started,
     war_hit,
     war_break,

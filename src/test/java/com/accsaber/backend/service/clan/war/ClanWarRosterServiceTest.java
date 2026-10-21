@@ -127,7 +127,7 @@ class ClanWarRosterServiceTest {
     }
 
     private void resync() {
-        when(warRepository.findActiveIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        when(warRepository.findRosteredIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
         service.onMembershipChanged(new ClanMembershipChangedEvent(attacker.getId()));
     }
 
@@ -158,6 +158,40 @@ class ClanWarRosterServiceTest {
         verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_started, null, attacker, war));
         verify(feed).war(war);
         verify(notifier).warStarted(war, sides);
+    }
+
+    @Test
+    void lockingThePoolEnrolsBothTeamsBeforeTheWarStarts() {
+        war.setStatus(ClanWarStatus.picking);
+        war.setStartsAt(null);
+        teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
+                List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
+
+        service.prepare(war);
+
+        assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
+        assertThat(war.getStartsAt()).isAfter(Instant.now());
+        assertThat(saved()).containsOnlyKeys(1L, 11L);
+        verify(stakeService, never()).rebalance(any());
+        verify(feed).war(war);
+        verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_preparing, null, defender, war));
+        verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_preparing, null, attacker, war));
+    }
+
+    @Test
+    void theRosterKeepsFollowingTheClansDuringPreparation() {
+        war.setStartsAt(Instant.now().plusSeconds(3600));
+        when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(participant(1L, attacker, 1.0),
+                participant(11L, defender, 1.0)));
+        teams(List.of(new MemberStrength(attacker.getId(), 2L, 90, 1.0)),
+                List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
+
+        resync();
+
+        Map<Long, ClanWarParticipant> participants = saved();
+        assertThat(participants.get(1L).getLeftAt()).isNotNull();
+        assertThat(participants.get(2L).getLeftAt()).isNull();
+        assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
     }
 
     @Test
@@ -195,7 +229,7 @@ class ClanWarRosterServiceTest {
         stayer.setGuard(40);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
         enemy.setTarget(leaver.getUser());
-        when(warRepository.findActiveIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        when(warRepository.findRosteredIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
         when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(leaver, stayer, enemy));
         teams(List.of(new MemberStrength(attacker.getId(), 4L, 95, 0.8),
                 new MemberStrength(attacker.getId(), 2L, 60, 0.2)),
@@ -245,8 +279,7 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatIsLeftToSpendOnAMap() {
-        war.setStatus(ClanWarStatus.active);
+    void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatIsLeftToSpendOnAMapAlreadyInPreparation() {
         ClanWarParticipant mate = participant(2L, attacker, 0.5);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
         ClanWarParticipant broken = participant(12L, defender, 1.0);
@@ -287,7 +320,6 @@ class ClanWarRosterServiceTest {
 
         @BeforeEach
         void twoFighters() {
-            war.setStatus(ClanWarStatus.active);
             chooser = participant(1L, attacker, 1.0);
             enemy = participant(11L, defender, 1.0);
             lenient().when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(chooser, enemy));

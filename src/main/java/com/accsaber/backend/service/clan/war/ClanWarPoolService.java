@@ -40,7 +40,6 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
-import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
@@ -63,7 +62,7 @@ public class ClanWarPoolService {
     private final ClanCosmeticService cosmeticService;
     private final MapService mapService;
     private final ScoreRepository scoreRepository;
-    private final ClanFeed feed;
+    private final ClanWarRosterService rosterService;
     private final ClanProperties clanProperties;
 
     public record PlaylistSource(String title, List<MapDifficulty> difficulties) {
@@ -252,9 +251,6 @@ public class ClanWarPoolService {
         if (!berserkerAccepted) {
             war.setRuleset(ClanRuleset.duel);
         }
-        war.setStatus(ClanWarStatus.preparing);
-        war.setStartsAt(Instant.now().plus(clanProperties.getWar().getPrepDuration()));
-        warRepository.saveAndFlush(war);
-        feed.war(war);
+        rosterService.prepare(war);
     }
 }

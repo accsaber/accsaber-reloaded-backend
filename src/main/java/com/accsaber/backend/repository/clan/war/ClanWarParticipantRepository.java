@@ -94,7 +94,8 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
     @Query(value = """
             SELECT
                 (SELECT COUNT(*) FROM clan_war_participants p JOIN clan_wars w ON w.id = p.war_id
-                 WHERE p.user_id = :userId AND w.status IN ('active', 'ended')) AS warsFought,
+                 WHERE p.user_id = :userId
+                   AND (w.status = 'active' OR (w.status = 'ended' AND w.ended_at >= w.starts_at))) AS warsFought,
                 (SELECT COUNT(*) FROM clan_war_participants p JOIN clan_wars w ON w.id = p.war_id
                  JOIN clan_war_sides sd ON sd.war_id = p.war_id AND sd.clan_id = p.clan_id
                  WHERE p.user_id = :userId

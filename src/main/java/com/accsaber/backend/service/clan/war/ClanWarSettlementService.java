@@ -68,7 +68,7 @@ public class ClanWarSettlementService {
             return;
         }
         List<ClanWarSide> sides = sideRepository.findByWarId(warId);
-        List<ClanWarSide> winners = winners(war, sides);
+        List<ClanWarSide> winners = war.fought() ? winners(war, sides) : List.of();
         Map<ClanWarTeam, Double> engagement = new EnumMap<>(ClanWarTeam.class);
         for (ClanWarTeam team : ClanWarTeam.values()) {
             engagement.put(team, stakeService.engagement(war, team));

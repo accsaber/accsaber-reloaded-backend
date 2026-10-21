@@ -66,6 +66,16 @@ public class ClanWarRosterService {
     private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
 
+    public void prepare(ClanWar war) {
+        war.setStatus(ClanWarStatus.preparing);
+        war.setStartsAt(Instant.now().plus(clanProperties.getWar().getPrepDuration()));
+        warRepository.saveAndFlush(war);
+        List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
+        sync(war, sides);
+        feed.war(war);
+        announce(war, sides, ChatEvent.war_preparing);
+    }
+
     @Transactional
     public void start(UUID warId) {
         ClanWar war = warRepository.findByIdForUpdate(warId).orElse(null);
@@ -79,9 +89,13 @@ public class ClanWarRosterService {
         sync(war, sides);
         feed.war(war);
         notifier.warStarted(war, sides);
+        announce(war, sides, ChatEvent.war_started);
+    }
+
+    private void announce(ClanWar war, List<ClanWarSide> sides, ChatEvent event) {
         for (ClanWarSide side : sides) {
             if (side.getLeftAt() == null) {
-                chatChannel.announce(side.getClan(), ChatNotice.ofWar(ChatEvent.war_started, null,
+                chatChannel.announce(side.getClan(), ChatNotice.ofWar(event, null,
                         war.lead(side.getTeam().opponent()), war));
             }
         }
@@ -90,12 +104,12 @@ public class ClanWarRosterService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onMembershipChanged(ClanMembershipChangedEvent event) {
-        warRepository.findActiveIdsByClanId(event.clanId()).forEach(this::resync);
+        warRepository.findRosteredIdsByClanId(event.clanId()).forEach(this::resync);
     }
 
     private void resync(UUID warId) {
         warRepository.findByIdForUpdate(warId)
-                .filter(war -> war.getStatus() == ClanWarStatus.active)
+                .filter(ClanWar::rostered)
                 .ifPresent(war -> sync(war, sideRepository.findByWarId(warId)));
     }
 
@@ -160,7 +174,7 @@ public class ClanWarRosterService {
             ClanWarDamage.Viewer viewer, List<ClanWarParticipant> rows, Map<Long, Double> skills) {
         Map<UUID, ClanWarSide> sideByClan = sides.stream()
                 .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
-        ClanWarSide viewerSide = viewer.userId() == null || war.getStatus() != ClanWarStatus.active ? null
+        ClanWarSide viewerSide = viewer.userId() == null || !war.rostered() ? null
                 : participantRepository.findOpenClanId(war.getId(), viewer.userId()).map(sideByClan::get)
                         .filter(ClanWarSide::fighting).orElse(null);
         if (viewerSide == null) {

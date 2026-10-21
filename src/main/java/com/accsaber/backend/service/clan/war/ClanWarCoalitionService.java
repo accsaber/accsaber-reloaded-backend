@@ -161,7 +161,7 @@ public class ClanWarCoalitionService {
                 standingService.currentStanding(helper)));
         List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
         stakeService.rebalance(sides);
-        if (war.getStatus() == ClanWarStatus.active) {
+        if (war.rostered()) {
             rosterService.sync(war, sides);
         }
         announce(war, sides, ChatEvent.war_ally_joined, actor, helper);
@@ -182,7 +182,7 @@ public class ClanWarCoalitionService {
                 .orElseThrow(() -> new ValidationException("clanId", "is not fighting in this war"));
         Clan helper = leaving.getClan();
         stakeService.forfeit(war, sides, leaving);
-        if (war.getStatus() == ClanWarStatus.active) {
+        if (war.rostered()) {
             rosterService.sync(war, sides);
         }
         announce(war, sides, ChatEvent.war_ally_left, actor, helper);

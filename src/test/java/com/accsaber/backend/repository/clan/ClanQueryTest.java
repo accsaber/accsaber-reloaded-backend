@@ -794,7 +794,7 @@ class ClanQueryTest {
         side(preparing, owls, "attack");
         assertThat(warRepository.findOpenIdsLedByClanId(owls.getId())).containsExactlyInAnyOrder(picking, quiet);
         assertThat(warRepository.existsOpenForClan(owls.getId())).isTrue();
-        assertThat(warRepository.findActiveIdsByClanId(owls.getId())).containsExactly(quiet);
+        assertThat(warRepository.findRosteredIdsByClanId(owls.getId())).containsExactlyInAnyOrder(quiet, preparing);
         assertThat(warRepository.findActiveStartedBefore(now.minus(9, ChronoUnit.DAYS))).containsExactly(quiet);
         assertThat(warRepository.findActiveStartedBefore(now.minus(11, ChronoUnit.DAYS))).isEmpty();
         assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
@@ -1206,7 +1206,14 @@ class ClanQueryTest {
         entityManager.createNativeQuery(participant).setParameter(1, picking).setParameter(2, founder.getId())
                 .setParameter(3, owls.getId()).setParameter(4, 5.0).setParameter(5, null).setParameter(6, null)
                 .executeUpdate();
-        warState(won, "status = 'ended', outcome = 'attacker_won', ended_at = ?1", Instant.now());
+        warState(won, "status = 'ended', outcome = 'attacker_won', ended_at = ?1, starts_at = CAST(?1 AS timestamptz) - INTERVAL '1 day'",
+                Instant.now());
+        UUID calledOff = war(current, owls, lapiz);
+        entityManager.createNativeQuery(participant).setParameter(1, calledOff).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, 0.0).setParameter(5, 0.0)
+                .setParameter(6, Instant.now()).executeUpdate();
+        warState(calledOff, "status = 'ended', outcome = 'retreated', ended_at = ?1, starts_at = CAST(?1 AS timestamptz) + INTERVAL '1 day'",
+                Instant.now());
         score(founder, difficulty, 0.0, Instant.now());
         score(lapizStar, difficulty, 0.0, Instant.now());
         entityManager.flush();
