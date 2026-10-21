@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -71,15 +72,16 @@ public class ClanWarStakeService {
                 .sum();
     }
 
+    public double breakAmount(List<ClanWarSide> sides, ClanWarSide victimSide, ClanWarParticipant victim) {
+        ClanProperties.War config = clanProperties.getWar();
+        double moved = fullTeamStake(sides, victimSide.getTeam()) * config.getBreakShare() * victim.getStandingWeight()
+                * Math.pow(config.getBreakDecay(), victim.getBreaksSuffered()) * risk(victimSide);
+        return Math.min(victimSide.getStakeRemaining(), Math.max(0.0, moved));
+    }
+
     public double risk(ClanWarSide side) {
         return side.getWar().leadTeamOf(side.getClan().getId()) != null ? 1.0
                 : clanProperties.getWar().getAllyStakeShare();
-    }
-
-    public double debit(ClanWarSide side, double amount) {
-        double applied = Math.min(side.getStakeRemaining(), Math.max(0.0, amount));
-        side.setStakeRemaining(side.getStakeRemaining() - applied);
-        return applied;
     }
 
     public boolean lost(List<ClanWarSide> sides, ClanWarTeam team) {

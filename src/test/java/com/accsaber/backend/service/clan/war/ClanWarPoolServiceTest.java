@@ -355,7 +355,7 @@ class ClanWarPoolServiceTest {
     }
 
     @Test
-    void poolRowsCarryTheViewersBestAndNothingForAnonymous() {
+    void poolRowsCarryTheViewersBestAndEachMapsPairing() {
         ClanWar war = war(ClanArena.mixed, ClanWarStatus.active, new ClanArenaSpec(null, null, null, 4, 2, 2));
         MapDifficulty played = MapDifficulty.builder().id(UUID.randomUUID()).maxScore(1_000_000).build();
         MapDifficulty unplayed = MapDifficulty.builder().id(UUID.randomUUID()).maxScore(1_000_000).build();
@@ -364,22 +364,30 @@ class ClanWarPoolServiceTest {
                 ClanWarPoolEntry.builder().mapDifficulty(unplayed).source(ClanWarPoolSource.random).build()));
         when(mapService.getDifficultyResponsesPublic(anyCollection())).thenReturn(Map.of());
         when(cosmeticService.publicRefs(anyCollection())).thenReturn(Map.of());
-        when(scoreRepository.findActiveByUserAndMapDifficultyIdIn(eq(7L), anyCollection())).thenReturn(List.of(
-                Score.builder().id(UUID.randomUUID()).mapDifficulty(played).score(985_000).scoreNoMods(985_000)
-                        .ap(412.5).weightedAp(400.0).rank(3).timeSet(Instant.now()).build()));
+        User near = User.builder().id(8L).name("Near").build();
+        User low = User.builder().id(9L).name("Low").build();
+        when(rosterService.pairings(war, 7L, List.of(played.getId(), unplayed.getId()))).thenReturn(Map.of(
+                played.getId(), new ClanWarRosterService.Pairing(near, false),
+                unplayed.getId(), new ClanWarRosterService.Pairing(low, true)));
+        when(scoreRepository.findActiveByUsersAndMapDifficultyIdIn(anyCollection(), anyCollection())).thenReturn(List.of(
+                score(7L, played, 985_000), score(8L, played, 990_000), score(9L, played, 980_000),
+                score(9L, unplayed, 970_000)));
 
         var rows = service.pool(war, null, 7L);
 
-        assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).viewerScore()).satisfies(best -> {
-            assertThat(best.getScore()).isEqualTo(985_000);
-            assertThat(best.getAccuracy()).isEqualTo(0.985);
-            assertThat(best.getAp()).isEqualTo(412.5);
-            assertThat(best.getRank()).isEqualTo(3);
-        });
+        assertThat(rows.get(0).viewerScore().getAccuracy()).isEqualTo(0.985);
+        assertThat(rows.get(0).target().name()).isEqualTo("Near");
+        assertThat(rows.get(0).targetScore().getScore()).isEqualTo(990_000);
+        assertThat(rows.get(0).targetPicked()).isFalse();
         assertThat(rows.get(1).viewerScore()).isNull();
-        assertThat(service.pool(war, null, null)).extracting(r -> r.viewerScore()).containsOnlyNulls();
-        verify(scoreRepository).findActiveByUserAndMapDifficultyIdIn(any(), anyCollection());
+        assertThat(rows.get(1).target().name()).isEqualTo("Low");
+        assertThat(rows.get(1).targetScore().getScore()).isEqualTo(970_000);
+        assertThat(rows.get(1).targetPicked()).isTrue();
+    }
+
+    private static Score score(Long userId, MapDifficulty difficulty, int value) {
+        return Score.builder().id(UUID.randomUUID()).user(User.builder().id(userId).build()).mapDifficulty(difficulty)
+                .score(value).scoreNoMods(value).ap(400.0).weightedAp(380.0).rank(3).timeSet(Instant.now()).build();
     }
 
     @Test

@@ -1,11 +1,13 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarPoolSource;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.model.entity.score.Score;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarPoolEntryRepository;
@@ -41,6 +44,7 @@ import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanPermission;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.util.CampaignScoreMetrics;
 
@@ -150,28 +154,46 @@ public class ClanWarPoolService {
         List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.leads());
-        Map<UUID, MyScoreSummary> viewerScores = viewerScores(viewerId, difficultyIds);
-        return entries.stream()
-                .map(entry -> new ClanWarPoolEntryResponse(difficulties.get(entry.getMapDifficulty().getId()),
-                        entry.getPickedByClan() == null ? null : clans.get(entry.getPickedByClan().getId()),
-                        entry.getSource(), viewerScores.get(entry.getMapDifficulty().getId())))
-                .toList();
+        Map<UUID, ClanWarRosterService.Pairing> pairings = rosterService.pairings(war, viewerId, difficultyIds);
+        Map<UUID, Map<Long, Score>> scores = scores(viewerId, pairings.values(), difficultyIds);
+        return entries.stream().map(entry -> {
+            UUID difficultyId = entry.getMapDifficulty().getId();
+            Map<Long, Score> onMap = scores.getOrDefault(difficultyId, Map.of());
+            ClanWarRosterService.Pairing pairing = pairings.get(difficultyId);
+            User target = pairing == null ? null : pairing.target();
+            return new ClanWarPoolEntryResponse(difficulties.get(difficultyId),
+                    entry.getPickedByClan() == null ? null : clans.get(entry.getPickedByClan().getId()),
+                    entry.getSource(), summary(viewerId == null ? null : onMap.get(viewerId)),
+                    target == null ? null : ClanRefCache.playerRef(target),
+                    summary(target == null ? null : onMap.get(target.getId())), pairing != null && pairing.picked());
+        }).toList();
     }
 
-    private Map<UUID, MyScoreSummary> viewerScores(Long viewerId, List<UUID> difficultyIds) {
-        if (viewerId == null || difficultyIds.isEmpty()) {
+    private Map<UUID, Map<Long, Score>> scores(Long viewerId, Collection<ClanWarRosterService.Pairing> pairings,
+            List<UUID> difficultyIds) {
+        Set<Long> userIds = pairings.stream().map(pairing -> pairing.target().getId())
+                .collect(Collectors.toCollection(HashSet::new));
+        if (viewerId != null) {
+            userIds.add(viewerId);
+        }
+        if (userIds.isEmpty() || difficultyIds.isEmpty()) {
             return Map.of();
         }
-        return scoreRepository.findActiveByUserAndMapDifficultyIdIn(viewerId, difficultyIds).stream()
-                .collect(Collectors.toMap(score -> score.getMapDifficulty().getId(), score -> MyScoreSummary.builder()
-                        .id(score.getId())
-                        .score(score.getScore())
-                        .accuracy(CampaignScoreMetrics.accuracy(score))
-                        .ap(score.getAp())
-                        .weightedAp(score.getWeightedAp())
-                        .rank(score.getRank())
-                        .timeSet(score.getTimeSet())
-                        .build(), (first, second) -> first));
+        return scoreRepository.findActiveByUsersAndMapDifficultyIdIn(userIds, difficultyIds).stream()
+                .collect(Collectors.groupingBy(score -> score.getMapDifficulty().getId(),
+                        Collectors.toMap(score -> score.getUser().getId(), Function.identity(), (first, second) -> first)));
+    }
+
+    private static MyScoreSummary summary(Score score) {
+        return score == null ? null : MyScoreSummary.builder()
+                .id(score.getId())
+                .score(score.getScore())
+                .accuracy(CampaignScoreMetrics.accuracy(score))
+                .ap(score.getAp())
+                .weightedAp(score.getWeightedAp())
+                .rank(score.getRank())
+                .timeSet(score.getTimeSet())
+                .build();
     }
 
     public PlaylistSource playlistSource(UUID warId) {

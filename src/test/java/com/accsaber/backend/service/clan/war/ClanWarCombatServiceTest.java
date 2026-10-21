@@ -160,7 +160,7 @@ class ClanWarCombatServiceTest {
         lenient().when(participantRepository.findActiveByWarId(war.getId())).thenAnswer(inv -> List.copyOf(roster));
         lenient().when(participantRepository.findOverallSkills(anyCollection())).thenAnswer(inv -> skills.entrySet()
                 .stream().map(entry -> skill(entry.getKey(), entry.getValue())).toList());
-        lenient().when(hitRepository.findActiveScores(eq(MAP), anyCollection())).thenAnswer(inv -> scores.entrySet()
+        lenient().when(hitRepository.findActiveScores(eq(List.of(MAP)), anyCollection())).thenAnswer(inv -> scores.entrySet()
                 .stream().map(entry -> victimScore(entry.getKey(), entry.getValue())).toList());
         lenient().when(participantRepository.findRecentlyActiveShare(any(), any(), any())).thenReturn(1.0);
         lenient().when(mapDifficultyRepository.findById(MAP))
@@ -200,6 +200,10 @@ class ClanWarCombatServiceTest {
         return new ClanWarHitRepository.VictimScoreView() {
             public UUID getScoreId() {
                 return scoreId;
+            }
+
+            public UUID getMapDifficultyId() {
+                return MAP;
             }
 
             public Long getUserId() {
@@ -298,23 +302,41 @@ class ClanWarCombatServiceTest {
     class Duels {
 
         @Test
-        void aPlayHitsTheHighestEnemyScoreItBeats() {
-            join(12L, blue, 0.5, 50);
-            scores.put(11L, 900_000);
-            scores.put(12L, 940_000);
+        void autoHitsWhereThePlayDealsTheMostDamageNotTheClosestScore() {
+            join(12L, blue, 0.5, 49);
+            scores.put(11L, 940_000);
+            scores.put(12L, 900_000);
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, 3L));
 
             service.fight(war.getId(), play(950_000, true));
 
+            double damage = 25.0 * Math.pow(1.5, 3) * 49.0 / 50.0;
             assertThat(savedHits).singleElement().satisfies(hit -> {
                 assertThat(hit.getVictim().getId()).isEqualTo(12L);
-                assertThat(hit.getDamage()).isEqualTo(25.0);
+                assertThat(hit.getDamage()).isCloseTo(damage, within(1e-9));
                 assertThat(hit.isChip()).isFalse();
             });
-            assertThat(attacker.getContribution()).isEqualTo(25.0);
+            assertThat(attacker.getContribution()).isCloseTo(damage, within(1e-9));
             ChatNotice notice = new ChatNotice(ChatEvent.war_hit, attacker.getUser(), roster.get(2).getUser(), null,
                     war);
             verify(chatChannel).announce(red, notice);
             verify(chatChannel).announce(blue, notice);
+        }
+
+        @Test
+        void autoTakesABreakOverMoreDamageOnSomeoneElse() {
+            ClanWarParticipant low = join(12L, blue, 0.5, 50);
+            low.setGuard(10.0);
+            scores.put(11L, 900_000);
+            scores.put(12L, 900_000);
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, 2L));
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst()).satisfies(hit -> {
+                assertThat(hit.getVictim().getId()).isEqualTo(12L);
+                assertThat(hit.isBroke()).isTrue();
+            });
         }
 
         @Test
@@ -353,7 +375,6 @@ class ClanWarCombatServiceTest {
                 assertThat(hit.getVictimScore()).isNotNull();
             });
             verify(chatChannel, never()).announce(any(), any());
-            verify(hitRepository, never()).cycleHits(any(), any());
         }
 
         @Test
@@ -381,7 +402,7 @@ class ClanWarCombatServiceTest {
             join(12L, blue, 0.5, 50);
             scores.put(11L, 900_000);
             scores.put(12L, 940_000);
-            when(hitRepository.findPriorHits(war.getId(), 1L, MAP)).thenReturn(List.of(prior(12L, 940_000, false)));
+            when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(12L, 940_000, false)));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -404,7 +425,7 @@ class ClanWarCombatServiceTest {
             scores.put(11L, 900_000);
             skills.put(1L, 40.0);
             skills.put(11L, 80.0);
-            when(hitRepository.cycleHits(war.getId(), List.of(11L))).thenReturn(Map.of(11L, 2L));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, 2L));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -460,12 +481,12 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aBrokenPlayerWhoSetsAPersonalBestGetsTheirGuardBack() {
+        void aBrokenPlayerGetsTheirGuardBackFromAPoolPlayThatIsNotAPersonalBest() {
             attacker.setGuard(0.0);
             attacker.setBrokenAt(Instant.now().minusSeconds(600));
             scores.put(11L, 999_000);
 
-            service.fight(war.getId(), play(950_000, true));
+            service.fight(war.getId(), play(950_000, false));
 
             assertThat(attacker.getGuard()).isEqualTo(100.0);
             assertThat(attacker.getGuardCycle()).isEqualTo(1);
@@ -629,6 +650,10 @@ class ClanWarCombatServiceTest {
     private static ClanWarHitRepository.PriorHitView prior(Long victimId, int score, boolean chip) {
         UUID scoreId = new UUID(victimId, score);
         return new ClanWarHitRepository.PriorHitView() {
+            public UUID getMapDifficultyId() {
+                return MAP;
+            }
+
             public Long getVictimId() {
                 return victimId;
             }

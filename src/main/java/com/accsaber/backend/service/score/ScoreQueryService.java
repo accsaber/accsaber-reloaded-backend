@@ -212,7 +212,7 @@ public class ScoreQueryService {
                 .toList();
         Map<UUID, Score> myByDifficulty = difficultyIds.isEmpty()
                 ? Map.of()
-                : scoreRepository.findActiveByUserAndMapDifficultyIdIn(viewerUserId, difficultyIds)
+                : scoreRepository.findActiveByUsersAndMapDifficultyIdIn(List.of(viewerUserId), difficultyIds)
                         .stream()
                         .collect(Collectors.toMap(
                                 vs -> vs.getMapDifficulty().getId(),

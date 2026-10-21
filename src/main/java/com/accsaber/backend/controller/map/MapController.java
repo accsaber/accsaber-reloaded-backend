@@ -25,6 +25,7 @@ import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.infra.CategoryService;
 import com.accsaber.backend.service.map.MapDifficultyStatisticsService;
 import com.accsaber.backend.service.map.MapService;
@@ -47,6 +48,7 @@ public class MapController {
     private final MapDifficultyStatisticsService statisticsService;
     private final UserRelationService userRelationService;
     private final CategoryService categoryService;
+    private final ClanWarRosterService clanWarRosterService;
 
     @Operation(summary = "List maps", description = "Category takes a UUID or code like true_acc. Search covers song "
             + "name, song author and mapper.")
@@ -137,17 +139,20 @@ public class MapController {
     }
 
     @Operation(summary = "Difficulty leaderboard", description = "Relation filter needs a player "
-            + "token. maxStreak115, playCount and lastPlayedAt count every attempt.")
+            + "token. warId keeps only that clan war's fighters and wins over relation. maxStreak115, playCount and "
+            + "lastPlayedAt count every attempt.")
     @GetMapping("/difficulties/{difficultyId}/scores")
     public ResponseEntity<Page<ScoreResponse>> getDifficultyLeaderboard(
             @PathVariable UUID difficultyId,
             @RequestParam(required = false) String country,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) UserRelationType relation,
+            @RequestParam(required = false) UUID warId,
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PageableDefault(size = 20, sort = "score", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(scoreQueryService.findLeaderboardByMapDifficulty(difficultyId, country, search,
-                userRelationService.resolveRelationFilter(relation, principal), pageable));
+                warId != null ? clanWarRosterService.fighterIds(warId)
+                        : userRelationService.resolveRelationFilter(relation, principal), pageable));
     }
 
     @Operation(summary = "Scores around a player", description = "Four above and five below by default. Looked up by "

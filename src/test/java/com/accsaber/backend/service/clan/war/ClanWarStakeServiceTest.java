@@ -27,6 +27,7 @@ import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanStandingSource;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -156,12 +157,11 @@ class ClanWarStakeServiceTest {
         }
 
         @Test
-        void aDebitNeverTakesMoreThanTheSliceHasLeft() {
+        void aBreakNeverTakesMoreThanTheSliceHasLeft() {
             ClanWarSide side = side(genx, ClanWarTeam.defend, 1000, 30);
+            ClanWarParticipant victim = ClanWarParticipant.builder().standingWeight(1.0).build();
 
-            assertThat(service.debit(side, 50.0)).isEqualTo(30.0);
-            assertThat(side.getStakeRemaining()).isZero();
-            assertThat(side.fallen()).isTrue();
+            assertThat(service.breakAmount(List.of(side), side, victim)).isEqualTo(30.0);
         }
 
         @Test

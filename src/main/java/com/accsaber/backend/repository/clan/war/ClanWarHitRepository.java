@@ -20,20 +20,24 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
     interface VictimScoreView {
         UUID getScoreId();
 
+        UUID getMapDifficultyId();
+
         Long getUserId();
 
         int getScore();
     }
 
     @Query(value = """
-            SELECT s.id AS scoreId, s.user_id AS userId, s.score AS score
+            SELECT s.id AS scoreId, s.map_difficulty_id AS mapDifficultyId, s.user_id AS userId, s.score AS score
             FROM scores s
-            WHERE s.map_difficulty_id = :mapDifficultyId AND s.active AND s.user_id IN (:userIds)
+            WHERE s.map_difficulty_id IN (:mapDifficultyIds) AND s.active AND s.user_id IN (:userIds)
             """, nativeQuery = true)
-    List<VictimScoreView> findActiveScores(@Param("mapDifficultyId") UUID mapDifficultyId,
+    List<VictimScoreView> findActiveScores(@Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds,
             @Param("userIds") Collection<Long> userIds);
 
     interface PriorHitView {
+        UUID getMapDifficultyId();
+
         Long getVictimId();
 
         UUID getVictimScoreId();
@@ -42,12 +46,12 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
     }
 
     @Query(value = """
-            SELECT h.victim_user_id AS victimId, h.victim_score_id AS victimScoreId, h.chip AS chip
+            SELECT h.map_difficulty_id AS mapDifficultyId, h.victim_user_id AS victimId,
+                   h.victim_score_id AS victimScoreId, h.chip AS chip
             FROM clan_war_hits h
-            WHERE h.war_id = :warId AND h.attacker_user_id = :attackerId AND h.map_difficulty_id = :mapDifficultyId
+            WHERE h.war_id = :warId AND h.attacker_user_id = :attackerId
             """, nativeQuery = true)
-    List<PriorHitView> findPriorHits(@Param("warId") UUID warId, @Param("attackerId") Long attackerId,
-            @Param("mapDifficultyId") UUID mapDifficultyId);
+    List<PriorHitView> findPriorHits(@Param("warId") UUID warId, @Param("attackerId") Long attackerId);
 
     interface CycleHitsView {
         Long getVictimId();

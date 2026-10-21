@@ -1,12 +1,15 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -16,6 +19,8 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeMapResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeRulesResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
+import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository.PriorHitView;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository.VictimScoreView;
@@ -28,10 +33,40 @@ class ClanWarDamage {
 
     private static final double MIN_SKILL = 1.0;
 
+    static final Comparator<Strike> BEST = Comparator.comparing(Strike::breaks)
+            .thenComparingDouble(strike -> strike.breaks() ? strike.standing() : strike.damage());
+
     private final ClanWarHitRepository hitRepository;
     private final ClanProperties clanProperties;
 
+    enum Kind {
+        HIT, MISSING, CHIP
+    }
+
+    record Strike(ClanWarParticipant victim, Kind kind, double damage, double standing) {
+
+        boolean breaks() {
+            return damage >= victim.getGuard();
+        }
+    }
+
     record Viewer(UUID warId, Long userId, UUID mapDifficultyId) {
+    }
+
+    record Field(UUID warId, Long attackerId, List<ClanWarParticipant> enemies, Map<Long, Double> skills,
+            ToDoubleFunction<ClanWarParticipant> standing) {
+    }
+
+    static List<ClanWarParticipant> enemies(Collection<ClanWarParticipant> roster, Map<UUID, ClanWarSide> sideByClan,
+            ClanWarTeam team) {
+        return roster.stream()
+                .filter(p -> p.getLeftAt() == null && p.getBrokenAt() == null)
+                .filter(p -> {
+                    ClanWarSide side = sideByClan.get(p.getClan().getId());
+                    return side.fighting() && side.getTeam() != team;
+                })
+                .sorted(Comparator.comparing(p -> p.getUser().getId()))
+                .toList();
     }
 
     static double skill(double raw) {
@@ -48,9 +83,10 @@ class ClanWarDamage {
         return victimScoreId == null ? "missing:" + victimId : (chip ? "chip:" : "hit:") + victimScoreId;
     }
 
-    static Set<String> priorKeys(List<PriorHitView> hits) {
-        return hits.stream().map(hit -> key(hit.getVictimId(), hit.getVictimScoreId(), hit.isChip()))
-                .collect(Collectors.toCollection(HashSet::new));
+    static Map<UUID, Set<String>> priorKeysByMap(List<PriorHitView> hits) {
+        return hits.stream().collect(Collectors.groupingBy(PriorHitView::getMapDifficultyId,
+                Collectors.mapping(hit -> key(hit.getVictimId(), hit.getVictimScoreId(), hit.isChip()),
+                        Collectors.toCollection(HashSet::new))));
     }
 
     static boolean hitUsed(Set<String> prior, Long victimId, UUID victimScoreId) {
@@ -61,9 +97,9 @@ class ClanWarDamage {
         return prior.contains(key(null, victimScoreId, false)) || prior.contains(key(null, victimScoreId, true));
     }
 
-    double hit(UUID warId, Long victimId, double attackerSkill, double victimSkill) {
-        long hitsThisCycle = hitRepository.cycleHits(warId, List.of(victimId)).getOrDefault(victimId, 0L);
-        return hit(hitsThisCycle, disparity(attackerSkill, victimSkill));
+    double hitDamage(long hitsThisCycle, double attackerSkill, double victimSkill, boolean missingScore) {
+        double damage = hit(hitsThisCycle, disparity(attackerSkill, victimSkill));
+        return missingScore ? damage * clanProperties.getWar().getMissingScoreMultiplier() : damage;
     }
 
     double chip(double gap, double attackerSkill, double victimSkill) {
@@ -71,6 +107,44 @@ class ClanWarDamage {
         double closeness = 1.0 - gap / config.getChipWindow();
         double ratio = Math.min(1.0, skill(attackerSkill) / skill(victimSkill));
         return config.getChipDamage() * closeness * Math.pow(ratio, config.getChipSkillExponent());
+    }
+
+    Map<UUID, ClanWarParticipant> bestPairings(Field field, Collection<UUID> difficultyIds) {
+        List<Long> enemyIds = field.enemies().stream().map(enemy -> enemy.getUser().getId()).toList();
+        Map<Long, Long> cycleHits = hitRepository.cycleHits(field.warId(), enemyIds);
+        Map<UUID, Set<String>> prior = priorKeysByMap(hitRepository.findPriorHits(field.warId(), field.attackerId()));
+        Map<UUID, Map<Long, VictimScoreView>> scores = hitRepository.findActiveScores(difficultyIds, enemyIds).stream()
+                .collect(Collectors.groupingBy(VictimScoreView::getMapDifficultyId,
+                        Collectors.toMap(VictimScoreView::getUserId, Function.identity())));
+        Map<UUID, ClanWarParticipant> best = new HashMap<>();
+        for (UUID difficultyId : difficultyIds) {
+            Strike strike = bestOn(field, scores.getOrDefault(difficultyId, Map.of()),
+                    prior.getOrDefault(difficultyId, Set.of()), cycleHits);
+            if (strike != null) {
+                best.put(difficultyId, strike.victim());
+            }
+        }
+        return best;
+    }
+
+    private Strike bestOn(Field field, Map<Long, VictimScoreView> onMap, Set<String> used, Map<Long, Long> cycleHits) {
+        double attackerSkill = field.skills().getOrDefault(field.attackerId(), 0.0);
+        Strike best = null;
+        for (ClanWarParticipant enemy : field.enemies()) {
+            Long enemyId = enemy.getUser().getId();
+            VictimScoreView score = onMap.get(enemyId);
+            if (hitUsed(used, enemyId, score == null ? null : score.getScoreId())) {
+                continue;
+            }
+            Strike strike = new Strike(enemy, score == null ? Kind.MISSING : Kind.HIT,
+                    hitDamage(cycleHits.getOrDefault(enemyId, 0L), attackerSkill,
+                            field.skills().getOrDefault(enemyId, 0.0), score == null),
+                    field.standing().applyAsDouble(enemy));
+            if (best == null || BEST.compare(strike, best) > 0) {
+                best = strike;
+            }
+        }
+        return best;
     }
 
     Map<Long, ClanWarStrikePreviewResponse> previews(Viewer viewer, Collection<ClanWarParticipant> victims,
@@ -96,10 +170,10 @@ class ClanWarDamage {
         if (viewer.mapDifficultyId() == null) {
             return Map.of();
         }
-        Map<Long, VictimScoreView> scores = hitRepository.findActiveScores(viewer.mapDifficultyId(), victimIds)
+        Map<Long, VictimScoreView> scores = hitRepository.findActiveScores(List.of(viewer.mapDifficultyId()), victimIds)
                 .stream().collect(Collectors.toMap(VictimScoreView::getUserId, Function.identity()));
-        Set<String> prior = priorKeys(hitRepository.findPriorHits(viewer.warId(), viewer.userId(),
-                viewer.mapDifficultyId()));
+        Set<String> prior = priorKeysByMap(hitRepository.findPriorHits(viewer.warId(), viewer.userId()))
+                .getOrDefault(viewer.mapDifficultyId(), Set.of());
         return victimIds.stream().collect(Collectors.toMap(Function.identity(), victimId -> {
             VictimScoreView score = scores.get(victimId);
             UUID scoreId = score == null ? null : score.getScoreId();

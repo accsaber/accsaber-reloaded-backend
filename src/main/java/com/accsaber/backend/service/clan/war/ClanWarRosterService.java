@@ -1,13 +1,16 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -187,14 +191,44 @@ public class ClanWarRosterService {
         if (viewerSide == null) {
             return Map.of();
         }
-        List<ClanWarParticipant> enemies = rows.stream()
-                .filter(p -> p.getLeftAt() == null && p.getBrokenAt() == null)
-                .filter(p -> {
-                    ClanWarSide side = sideByClan.get(p.getClan().getId());
-                    return side.fighting() && side.getTeam() != viewerSide.getTeam();
-                })
+        return warDamage.previews(viewer, ClanWarDamage.enemies(rows, sideByClan, viewerSide.getTeam()), skills);
+    }
+
+    public List<Long> fighterIds(UUID warId) {
+        return participantRepository.findOpenUserIds(warId);
+    }
+
+    public record Pairing(User target, boolean picked) {
+    }
+
+    public Map<UUID, Pairing> pairings(ClanWar war, Long viewerId, Collection<UUID> difficultyIds) {
+        if (viewerId == null || difficultyIds.isEmpty() || !war.rostered() || war.getRuleset() != ClanRuleset.duel) {
+            return Map.of();
+        }
+        List<ClanWarParticipant> roster = participantRepository.findActiveByWarId(war.getId());
+        List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
+        Map<UUID, ClanWarSide> sideByClan = sides.stream()
+                .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
+        ClanWarParticipant viewer = roster.stream().filter(p -> p.getUser().getId().equals(viewerId)).findFirst()
+                .orElse(null);
+        ClanWarSide viewerSide = viewer == null ? null : sideByClan.get(viewer.getClan().getId());
+        if (viewerSide == null || !viewerSide.fighting()) {
+            return Map.of();
+        }
+        List<ClanWarParticipant> enemies = ClanWarDamage.enemies(roster, sideByClan, viewerSide.getTeam());
+        Long pickedId = viewer.getTarget() == null ? null : viewer.getTarget().getId();
+        Optional<User> picked = enemies.stream().map(ClanWarParticipant::getUser)
+                .filter(user -> user.getId().equals(pickedId)).findFirst();
+        if (picked.isPresent()) {
+            return difficultyIds.stream()
+                    .collect(Collectors.toMap(Function.identity(), id -> new Pairing(picked.get(), true)));
+        }
+        List<Long> fighters = Stream.concat(enemies.stream().map(p -> p.getUser().getId()), Stream.of(viewerId))
                 .toList();
-        return warDamage.previews(viewer, enemies, skills);
+        ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewerId, enemies, skills(fighters),
+                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy));
+        return warDamage.bestPairings(field, difficultyIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> new Pairing(entry.getValue().getUser(), false)));
     }
 
     public boolean inBand(double chooserSkill, double targetSkill) {

@@ -32,8 +32,11 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
             countQuery = "SELECT COUNT(p) FROM ClanWarParticipant p WHERE p.war.id = :warId")
     Page<ClanWarParticipant> findPageByWarId(@Param("warId") UUID warId, Pageable pageable);
 
-    @Query("SELECT p FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.leftAt IS NULL")
+    @Query("SELECT p FROM ClanWarParticipant p JOIN FETCH p.user WHERE p.war.id = :warId AND p.leftAt IS NULL")
     List<ClanWarParticipant> findActiveByWarId(@Param("warId") UUID warId);
+
+    @Query("SELECT p.user.id FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.leftAt IS NULL")
+    List<Long> findOpenUserIds(@Param("warId") UUID warId);
 
     @Query("SELECT p.clan.id FROM ClanWarParticipant p WHERE p.war.id = :warId AND p.user.id = :userId AND p.leftAt IS NULL")
     Optional<UUID> findOpenClanId(@Param("warId") UUID warId, @Param("userId") Long userId);

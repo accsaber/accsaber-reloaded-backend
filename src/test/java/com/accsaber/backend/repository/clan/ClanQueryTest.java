@@ -910,14 +910,16 @@ class ClanQueryTest {
         assertThat(warRepository.findActivePoolDifficultyIds()).containsExactly(pooled.getId());
         assertThat(warRepository.findActiveParticipantIds()).containsExactlyInAnyOrder(founder.getId(), lapizStar.getId());
         assertThat(participantRepository.findActiveByWarId(warId)).hasSize(2);
+        assertThat(participantRepository.findOpenUserIds(warId)).hasSize(2);
         assertThat(participantRepository.findOverallSkills(List.of(founder.getId(), member.getId())))
                 .extracting(ClanMemberRepository.MemberSkillView::getUserId).containsExactly(founder.getId());
         assertThat(participantRepository.findPageByWarId(warId, PageRequest.of(0, 10)))
                 .extracting(p -> p.getUser().getId())
                 .containsExactly(lapizStar.getId(), founder.getId(), member.getId());
-        assertThat(hitRepository.findActiveScores(pooled.getId(), List.of(lapizStar.getId(), founder.getId())))
+        assertThat(hitRepository.findActiveScores(List.of(pooled.getId()), List.of(lapizStar.getId(), founder.getId())))
                 .singleElement().satisfies(view -> {
                     assertThat(view.getUserId()).isEqualTo(lapizStar.getId());
+                    assertThat(view.getMapDifficultyId()).isEqualTo(pooled.getId());
                     assertThat(view.getScore()).isEqualTo(950000);
                 });
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
@@ -991,7 +993,8 @@ class ClanQueryTest {
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
-        assertThat(hitRepository.findPriorHits(warId, founder.getId(), map.getId()))
+        assertThat(hitRepository.findPriorHits(warId, founder.getId()))
+                .allSatisfy(prior -> assertThat(prior.getMapDifficultyId()).isEqualTo(map.getId()))
                 .extracting(ClanWarHitRepository.PriorHitView::isChip).containsExactlyInAnyOrder(true, false);
         assertThatThrownBy(() -> entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())

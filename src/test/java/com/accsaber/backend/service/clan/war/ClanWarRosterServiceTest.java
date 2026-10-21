@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -279,6 +280,29 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
+    void withNoPickEachMapPairsWithTheEnemyThePlayWouldHurtMost() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant fresh = participant(11L, defender, 0.5);
+        ClanWarParticipant worn = participant(12L, defender, 0.5);
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, fresh, worn));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, 2L));
+        UUID open = UUID.randomUUID();
+        UUID spent = UUID.randomUUID();
+        UUID wornScore = UUID.randomUUID();
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection()))
+                .thenReturn(List.of(victimScore(spent, wornScore, 12L, 900_000)));
+        when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(spent, 12L, wornScore, false)));
+
+        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(open, spent));
+
+        assertThat(pairings.get(open).target().getId()).isEqualTo(12L);
+        assertThat(pairings.get(open).picked()).isFalse();
+        assertThat(pairings.get(spent).target().getId()).isEqualTo(11L);
+    }
+
+    @Test
     void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatIsLeftToSpendOnAMapAlreadyInPreparation() {
         ClanWarParticipant mate = participant(2L, attacker, 0.5);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
@@ -294,8 +318,9 @@ class ClanWarRosterServiceTest {
         when(hitRepository.cycleHits(war.getId(), List.of(11L))).thenCallRealMethod();
         UUID map = UUID.randomUUID();
         UUID enemyScore = UUID.randomUUID();
-        when(hitRepository.findActiveScores(map, List.of(11L))).thenReturn(List.of(victimScore(enemyScore, 11L, 950_000)));
-        when(hitRepository.findPriorHits(war.getId(), 1L, map)).thenReturn(List.of(prior(11L, enemyScore, true)));
+        when(hitRepository.findActiveScores(List.of(map), List.of(11L)))
+                .thenReturn(List.of(victimScore(map, enemyScore, 11L, 950_000)));
+        when(hitRepository.findPriorHits(war.getId(), 1L)).thenReturn(List.of(prior(map, 11L, enemyScore, true)));
 
         Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), 1L, map, PageRequest.of(0, 50))
                 .stream().collect(Collectors.toMap(row -> Long.valueOf(row.player().id()), Function.identity()));
@@ -377,10 +402,14 @@ class ClanWarRosterServiceTest {
         }
     }
 
-    private static ClanWarHitRepository.VictimScoreView victimScore(UUID scoreId, Long userId, int score) {
+    private static ClanWarHitRepository.VictimScoreView victimScore(UUID map, UUID scoreId, Long userId, int score) {
         return new ClanWarHitRepository.VictimScoreView() {
             public UUID getScoreId() {
                 return scoreId;
+            }
+
+            public UUID getMapDifficultyId() {
+                return map;
             }
 
             public Long getUserId() {
@@ -393,8 +422,12 @@ class ClanWarRosterServiceTest {
         };
     }
 
-    private static ClanWarHitRepository.PriorHitView prior(Long victimId, UUID victimScoreId, boolean chip) {
+    private static ClanWarHitRepository.PriorHitView prior(UUID map, Long victimId, UUID victimScoreId, boolean chip) {
         return new ClanWarHitRepository.PriorHitView() {
+            public UUID getMapDifficultyId() {
+                return map;
+            }
+
             public Long getVictimId() {
                 return victimId;
             }

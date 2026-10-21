@@ -405,12 +405,12 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
 
         @Query("""
                         SELECT s FROM Score s
-                        WHERE s.user.id = :userId
+                        WHERE s.user.id IN :userIds
                         AND s.mapDifficulty.id IN :mapDifficultyIds
                         AND s.active = true
                         """)
-        List<Score> findActiveByUserAndMapDifficultyIdIn(
-                        @Param("userId") Long userId,
+        List<Score> findActiveByUsersAndMapDifficultyIdIn(
+                        @Param("userIds") Collection<Long> userIds,
                         @Param("mapDifficultyIds") Collection<UUID> mapDifficultyIds);
 
         @Query("""

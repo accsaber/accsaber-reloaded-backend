@@ -1,11 +1,12 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -46,6 +47,8 @@ import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.service.clan.ClanXpAward;
+import com.accsaber.backend.service.clan.war.ClanWarDamage.Kind;
+import com.accsaber.backend.service.clan.war.ClanWarDamage.Strike;
 import com.accsaber.backend.service.item.LevelUpAwardService;
 
 import lombok.RequiredArgsConstructor;
@@ -78,29 +81,23 @@ public class ClanWarCombatService {
     private final ClanProperties clanProperties;
     private final TransactionTemplate transactionTemplate;
 
-    record Play(UUID scoreId, Long userId, UUID mapDifficultyId, int score, boolean personalBest, Instant setAt) {
+    record Play(UUID scoreId, Long userId, UUID mapDifficultyId, int score, Instant setAt) {
 
         static Play of(ScoreResponse score) {
             return new Play(score.getId(), Long.valueOf(score.getUserId()), score.getMapDifficultyId(),
-                    score.getScore(), score.isActive(), score.getTimeSet() != null ? score.getTimeSet() : Instant.now());
+                    score.getScore(), score.getTimeSet() != null ? score.getTimeSet() : Instant.now());
         }
 
         static Play of(ClanWarRepository.UnscoredPlayView row) {
             return new Play(row.getScoreId(), row.getUserId(), row.getMapDifficultyId(), row.getScore(),
-                    row.isPersonalBest(), row.getSetAt());
+                    row.getSetAt());
         }
-    }
-
-    enum Kind {
-        HIT, MISSING, CHIP
-    }
-
-    record Strike(ClanWarParticipant victim, Kind kind, Double gap) {
     }
 
     private record Battle(ClanWar war, List<ClanWarSide> sides, Map<UUID, ClanWarSide> sideByClan,
             Map<Long, ClanWarParticipant> roster, ClanWarParticipant attacker, Play play, Map<Long, Double> skills,
-            Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore, Set<String> prior) {
+            Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore, Set<String> prior,
+            Map<Long, Long> cycleHits) {
 
         ClanWarTeam team(ClanWarParticipant participant) {
             return sideByClan.get(participant.getClan().getId()).getTeam();
@@ -165,7 +162,7 @@ public class ClanWarCombatService {
             for (ClanWarParticipant enemy : enemies) {
                 Kind kind = hitKind(battle, enemy);
                 if (kind != null && war.getStatus() == ClanWarStatus.active) {
-                    strike(battle, new Strike(enemy, kind, null));
+                    strike(battle, hit(battle, enemy, kind));
                 }
             }
             return;
@@ -190,26 +187,24 @@ public class ClanWarCombatService {
                 .collect(Collectors.toMap(ClanMemberRepository.MemberSkillView::getUserId,
                         ClanMemberRepository.MemberSkillView::getSkill));
         Map<Long, ClanWarHitRepository.VictimScoreView> victimScores = hitRepository
-                .findActiveScores(difficultyId, fighters).stream()
+                .findActiveScores(List.of(difficultyId), fighters).stream()
                 .collect(Collectors.toMap(ClanWarHitRepository.VictimScoreView::getUserId, Function.identity()));
         Integer maxScore = mapDifficultyRepository.findById(difficultyId).map(MapDifficulty::getMaxScore).orElse(null);
-        Set<String> prior = ClanWarDamage.priorKeys(hitRepository.findPriorHits(war.getId(), play.userId(), difficultyId));
-        return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore, prior);
+        Set<String> prior = ClanWarDamage.priorKeysByMap(hitRepository.findPriorHits(war.getId(), play.userId()))
+                .getOrDefault(difficultyId, new HashSet<>());
+        return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore, prior,
+                hitRepository.cycleHits(war.getId(), fighters));
     }
 
     private List<ClanWarParticipant> enemies(Battle battle) {
-        ClanWarTeam own = battle.team(battle.attacker());
-        return battle.roster().values().stream()
-                .filter(p -> battle.team(p) != own && p.getBrokenAt() == null)
-                .sorted(Comparator.comparing(p -> p.getUser().getId()))
-                .toList();
+        return ClanWarDamage.enemies(battle.roster().values(), battle.sideByClan(), battle.team(battle.attacker()));
     }
 
     private void duel(Battle battle, List<ClanWarParticipant> enemies) {
-        Strike primary = picked(battle, enemies);
-        if (primary == null) {
-            primary = closest(battle, enemies);
-        }
+        Strike primary = picked(battle, enemies)
+                .or(() -> enemies.stream().map(enemy -> option(battle, enemy)).filter(Objects::nonNull)
+                        .max(ClanWarDamage.BEST))
+                .orElse(null);
         if (primary == null || !strike(battle, primary) || battle.war().getStatus() != ClanWarStatus.active) {
             return;
         }
@@ -219,7 +214,7 @@ public class ClanWarCombatService {
         }
         ClanWarParticipant first = primary.victim();
         List<Strike> above = enemies.stream()
-                .filter(enemy -> enemy != first && enemy.getBrokenAt() == null)
+                .filter(enemy -> enemy != first)
                 .map(enemy -> chip(battle, enemy))
                 .filter(Objects::nonNull)
                 .toList();
@@ -228,37 +223,34 @@ public class ClanWarCombatService {
         }
     }
 
-    private Strike picked(Battle battle, List<ClanWarParticipant> enemies) {
+    private Optional<Strike> picked(Battle battle, List<ClanWarParticipant> enemies) {
         if (battle.attacker().getTarget() == null) {
-            return null;
+            return Optional.empty();
         }
         Long targetId = battle.attacker().getTarget().getId();
-        ClanWarParticipant target = enemies.stream().filter(e -> e.getUser().getId().equals(targetId)).findFirst()
-                .orElse(null);
-        if (target == null) {
-            return null;
-        }
-        Kind kind = hitKind(battle, target);
-        return kind != null ? new Strike(target, kind, null) : chip(battle, target);
+        return enemies.stream().filter(e -> e.getUser().getId().equals(targetId)).findFirst()
+                .map(target -> option(battle, target));
     }
 
-    private Strike closest(Battle battle, List<ClanWarParticipant> enemies) {
-        Comparator<Strike> byScore = Comparator.comparingInt(strike -> scoreOf(battle, strike.victim()));
-        return enemies.stream()
-                .map(enemy -> {
-                    Kind kind = hitKind(battle, enemy);
-                    return kind == null ? null : new Strike(enemy, kind, null);
-                })
-                .filter(Objects::nonNull)
-                .max(byScore)
-                .or(() -> enemies.stream().map(enemy -> chip(battle, enemy)).filter(Objects::nonNull)
-                        .min(byScore))
-                .orElse(null);
+    private Strike option(Battle battle, ClanWarParticipant enemy) {
+        Kind kind = hitKind(battle, enemy);
+        return kind != null ? hit(battle, enemy, kind) : chip(battle, enemy);
+    }
+
+    private Strike hit(Battle battle, ClanWarParticipant enemy, Kind kind) {
+        double damage = warDamage.hitDamage(battle.cycleHits().getOrDefault(enemy.getUser().getId(), 0L),
+                skill(battle, battle.attacker()), skill(battle, enemy), kind == Kind.MISSING);
+        return new Strike(enemy, kind, damage, standing(battle, enemy));
     }
 
     private Strike chip(Battle battle, ClanWarParticipant enemy) {
         Double gap = chipGap(battle, enemy);
-        return gap == null ? null : new Strike(enemy, Kind.CHIP, gap);
+        return gap == null ? null : new Strike(enemy, Kind.CHIP,
+                warDamage.chip(gap, skill(battle, battle.attacker()), skill(battle, enemy)), standing(battle, enemy));
+    }
+
+    private double standing(Battle battle, ClanWarParticipant enemy) {
+        return stakeService.breakAmount(battle.sides(), battle.sideByClan().get(enemy.getClan().getId()), enemy);
     }
 
     private Kind hitKind(Battle battle, ClanWarParticipant enemy) {
@@ -287,9 +279,7 @@ public class ClanWarCombatService {
         ClanWarParticipant victim = strike.victim();
         ClanWarParticipant attacker = battle.attacker();
         ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(victim.getUser().getId());
-        double damage = Math.min(victim.getGuard(), strike.kind() == Kind.CHIP
-                ? warDamage.chip(strike.gap(), skill(battle, attacker), skill(battle, victim))
-                : fullDamage(battle, victim, strike.kind() == Kind.MISSING));
+        double damage = Math.min(victim.getGuard(), strike.damage());
         if (damage <= 0) {
             return false;
         }
@@ -322,21 +312,13 @@ public class ClanWarCombatService {
         return true;
     }
 
-    private double fullDamage(Battle battle, ClanWarParticipant victim, boolean missingScore) {
-        double damage = warDamage.hit(battle.war().getId(), victim.getUser().getId(), skill(battle, battle.attacker()),
-                skill(battle, victim));
-        return missingScore ? damage * clanProperties.getWar().getMissingScoreMultiplier() : damage;
-    }
-
     private void breakGuard(Battle battle, ClanWarParticipant victim, ClanWarHit hit, double share) {
         ClanProperties.War config = clanProperties.getWar();
         ClanWar war = battle.war();
         ClanWarSide victimSide = battle.sideByClan().get(victim.getClan().getId());
         ClanWarTeam victimTeam = victimSide.getTeam();
-        double moved = stakeService.fullTeamStake(battle.sides(), victimTeam) * config.getBreakShare()
-                * victim.getStandingWeight() * Math.pow(config.getBreakDecay(), victim.getBreaksSuffered())
-                * stakeService.risk(victimSide);
-        double applied = stakeService.debit(victimSide, moved);
+        double applied = stakeService.breakAmount(battle.sides(), victimSide, victim);
+        victimSide.setStakeRemaining(victimSide.getStakeRemaining() - applied);
         hit.setStandingMoved(applied);
         victim.setBreaksSuffered(victim.getBreaksSuffered() + 1);
         victim.setBrokenAt(Instant.now());
@@ -389,7 +371,7 @@ public class ClanWarCombatService {
     }
 
     private void restoreGuard(ClanWarParticipant attacker, Play play) {
-        if (attacker.getBrokenAt() == null || !play.personalBest() || !play.setAt().isAfter(attacker.getBrokenAt())) {
+        if (attacker.getBrokenAt() == null || !play.setAt().isAfter(attacker.getBrokenAt())) {
             return;
         }
         attacker.setGuard(clanProperties.getWar().getGuard());
@@ -401,11 +383,6 @@ public class ClanWarCombatService {
         ChatNotice notice = new ChatNotice(event, attacker.getUser(), victim.getUser(), null, war);
         chatChannel.announce(attacker.getClan(), notice);
         chatChannel.announce(victim.getClan(), notice);
-    }
-
-    private static int scoreOf(Battle battle, ClanWarParticipant enemy) {
-        ClanWarHitRepository.VictimScoreView victimScore = battle.victimScores().get(enemy.getUser().getId());
-        return victimScore == null ? -1 : victimScore.getScore();
     }
 
     private static double skill(Battle battle, ClanWarParticipant participant) {

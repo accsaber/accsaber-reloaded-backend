@@ -84,7 +84,6 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             ORDER BY w.id
             """)
     List<UUID> findRosteredIds(@Param("clanId") UUID clanId);
-
     @Query("""
             SELECT COUNT(w) > 0 FROM ClanWar w
             WHERE EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL)
@@ -184,15 +183,12 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
 
         int getScore();
 
-        boolean isPersonalBest();
-
         Instant getSetAt();
     }
 
     @Query(value = """
             SELECT w.id AS warId, s.id AS scoreId, s.user_id AS userId, s.map_difficulty_id AS mapDifficultyId,
-                   s.score AS score, s.supersedes_reason IS DISTINCT FROM 'Worse score' AS personalBest,
-                   COALESCE(s.time_set, s.created_at) AS setAt
+                   s.score AS score, COALESCE(s.time_set, s.created_at) AS setAt
             FROM clan_wars w
             JOIN clan_war_participants p ON p.war_id = w.id AND p.left_at IS NULL
             JOIN clan_war_pool pool ON pool.war_id = w.id
