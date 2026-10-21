@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,11 +27,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PresenceChangedEvent;
 import com.accsaber.backend.repository.clan.ClanEquippedItemRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.player.UserSettingsService;
 import com.accsaber.backend.websocket.server.ClanChatWebSocketHandler;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 
@@ -46,6 +49,8 @@ class ClanPresenceServiceTest {
     private NotificationWebSocketHandler notificationHandler;
     @Mock
     private ClanChatWebSocketHandler chatHandler;
+    @Mock
+    private UserSettingsService settingsService;
 
     private final Clan owls = Clan.builder().id(new UUID(1L, 1L)).name("Night Owls").tag("NOW").build();
     private final ClanMemberRepository memberRepository = mock(ClanMemberRepository.class);
@@ -59,7 +64,9 @@ class ClanPresenceServiceTest {
         when(memberRepository.findAllOpenInActiveClans()).thenReturn(List.of(
                 ClanMember.builder().clan(owls).user(User.builder().id(MEMBER).build()).build()));
         cache.reload();
-        service = new ClanPresenceService(userRepository, notificationHandler, chatHandler);
+        service = new ClanPresenceService(userRepository, notificationHandler, chatHandler, settingsService);
+        lenient().when(settingsService.get(MEMBER, UserSettingKey.PRIVACY_SHOW_ONLINE_STATUS, Boolean.class))
+                .thenReturn(true);
         lenient().when(userRepository.findByIdAndActiveTrue(MEMBER))
                 .thenReturn(Optional.of(User.builder().id(MEMBER).name("Owl").build()));
     }
@@ -111,5 +118,18 @@ class ClanPresenceServiceTest {
         ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
         verify(chatHandler).broadcast(eq(owls.getId()), json.capture());
         assertThat(json.getValue()).contains("\"online\":false");
+    }
+
+    @Test
+    void aPlayerWhoDidNotOptInStaysHidden() {
+        when(settingsService.get(MEMBER, UserSettingKey.PRIVACY_SHOW_ONLINE_STATUS, Boolean.class)).thenReturn(false);
+        when(notificationHandler.onlineAmong(List.of(MEMBER, CLANLESS))).thenReturn(Set.of(MEMBER, CLANLESS));
+        when(settingsService.getMany(Set.of(MEMBER, CLANLESS), UserSettingKey.PRIVACY_SHOW_ONLINE_STATUS,
+                Boolean.class)).thenReturn(Map.of(MEMBER, false, CLANLESS, true));
+
+        service.onPresenceChanged(new PresenceChangedEvent(MEMBER, true));
+
+        verify(chatHandler, never()).broadcast(any(), any());
+        assertThat(service.visibleOnline(List.of(MEMBER, CLANLESS))).containsExactly(CLANLESS);
     }
 }

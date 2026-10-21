@@ -49,7 +49,6 @@ import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 
 @ExtendWith(MockitoExtension.class)
 class ClanMembershipServiceTest {
@@ -79,7 +78,7 @@ class ClanMembershipServiceTest {
     @Mock
     private ClanService clanService;
     @Mock
-    private NotificationWebSocketHandler notificationHandler;
+    private ClanPresenceService presenceService;
     @Mock
     private ClanChatChannel chatChannel;
     @Mock
@@ -96,10 +95,10 @@ class ClanMembershipServiceTest {
     void setUp() {
         lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
-                scoreRepository, userRepository, roster, accessService, levelService, clanService, notificationHandler,
+                scoreRepository, userRepository, roster, accessService, levelService, clanService, presenceService,
                 chatChannel, notifier, clanProperties, seasonRepository, strengthService);
         lenient().when(roster.lock(CLAN_ID)).thenReturn(clan);
-        lenient().when(notificationHandler.onlineAmong(anyCollection())).thenReturn(Set.of());
+        lenient().when(presenceService.visibleOnline(anyCollection())).thenReturn(Set.of());
     }
 
     private User user(long id) {

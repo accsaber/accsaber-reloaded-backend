@@ -43,8 +43,9 @@ public class ClanMemberController {
     private final ClanJoinRequestService joinRequestService;
 
     @Operation(summary = "Clan members",
-            description = "Founder first, then by rank, earliest joins first. online means the site is open right "
-                    + "now, lastPlayedAt is their newest score.")
+            description = "Founder first, then by rank, earliest joins first. online means the site is open right now"
+                    + " and the player opted in to showing it, "
+                    + "lastPlayedAt is their newest score.")
     @GetMapping("/{clanId}/members")
     public ResponseEntity<Page<PlayerRef>> members(
             @PathVariable UUID clanId,

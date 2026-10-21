@@ -10,6 +10,7 @@ public enum UserSettingKey {
 
     PRIVACY_FOLLOWING_VISIBILITY("privacy.followingVisibility", Visibility.class, Visibility.PUBLIC, true),
     PRIVACY_RIVALS_VISIBILITY("privacy.rivalsVisibility", Visibility.class, Visibility.PUBLIC, true),
+    PRIVACY_SHOW_ONLINE_STATUS("privacy.showOnlineStatus", Boolean.class, false, false),
 
     APPEARANCE_THEME("appearance.theme", String.class, "system", false),
     APPEARANCE_COLOR_SCHEME("appearance.colorScheme", String.class, "default", false),

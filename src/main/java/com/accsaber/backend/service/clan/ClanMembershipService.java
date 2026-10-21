@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
@@ -40,7 +41,6 @@ import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
-import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 
 import lombok.RequiredArgsConstructor;
 
@@ -59,7 +59,7 @@ public class ClanMembershipService {
     private final ClanAccessService accessService;
     private final ClanLevelService levelService;
     private final ClanService clanService;
-    private final NotificationWebSocketHandler notificationHandler;
+    private final ClanPresenceService presenceService;
     private final ClanChatChannel chatChannel;
     private final ClanNotifier notifier;
     private final ClanProperties clanProperties;
@@ -78,18 +78,19 @@ public class ClanMembershipService {
         if (userIds.isEmpty()) {
             return Map.of();
         }
-        Set<Long> online = notificationHandler.onlineAmong(userIds);
+        Set<Long> online = presenceService.visibleOnline(userIds);
         Map<Long, Instant> lastPlayed = lastPlayedAt(userIds);
-        Map<Long, Double> shares = strengthService.memberStrengths(clan.getId()).stream()
-                .collect(Collectors.toMap(ClanStrengthService.MemberStrength::userId,
-                        ClanStrengthService.MemberStrength::share));
+        Map<Long, ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(clan.getId()).stream()
+                .collect(Collectors.toMap(ClanStrengthService.MemberStrength::userId, Function.identity()));
         Map<Long, ClanMemberRepository.MemberSeasonStatsView> stats = seasonStats(clan.getId(), userIds);
         return members.stream().collect(Collectors.toMap(m -> m.getUser().getId(), m -> {
             Long userId = m.getUser().getId();
             ClanMemberRepository.MemberSeasonStatsView row = stats.get(userId);
+            ClanStrengthService.MemberStrength strength = strengths.get(userId);
             return new ClanMembershipResponse(m.getRole(), m.getJoinedAt(),
                     m.getJoinedAt().plus(clanProperties.getJoinCooldown()), online.contains(userId),
-                    lastPlayed.get(userId), shares.getOrDefault(userId, 0.0),
+                    lastPlayed.get(userId), strength == null ? 0.0 : strength.share(),
+                    strength == null ? 0.0 : strength.skill(),
                     row == null ? 0.0 : row.getPlayXp(),
                     row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks());
         }));

@@ -2,9 +2,12 @@ package com.accsaber.backend.service.clan;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,8 +16,10 @@ import org.springframework.stereotype.Service;
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
 import com.accsaber.backend.model.dto.response.clan.ClanPresenceBroadcast;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PresenceChangedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.player.UserSettingsService;
 import com.accsaber.backend.websocket.server.ClanChatWebSocketHandler;
 import com.accsaber.backend.websocket.server.NotificationWebSocketHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,6 +42,7 @@ public class ClanPresenceService {
     private final UserRepository userRepository;
     private final NotificationWebSocketHandler notificationHandler;
     private final ClanChatWebSocketHandler chatHandler;
+    private final UserSettingsService settingsService;
 
     @EventListener
     public void onPresenceChanged(PresenceChangedEvent event) {
@@ -65,9 +71,19 @@ public class ClanPresenceService {
         });
     }
 
+    public Set<Long> visibleOnline(Collection<Long> userIds) {
+        Set<Long> online = notificationHandler.onlineAmong(userIds);
+        if (online.isEmpty()) {
+            return online;
+        }
+        Map<Long, Boolean> optedIn = settingsService.getMany(online, UserSettingKey.PRIVACY_SHOW_ONLINE_STATUS,
+                Boolean.class);
+        return online.stream().filter(optedIn::get).collect(Collectors.toSet());
+    }
+
     private void announce(Long userId, boolean online) {
         PublicClanResponse clan = ClanRefCache.forUser(userId);
-        if (clan == null) {
+        if (clan == null || !settingsService.get(userId, UserSettingKey.PRIVACY_SHOW_ONLINE_STATUS, Boolean.class)) {
             return;
         }
         userRepository.findByIdAndActiveTrue(userId).ifPresent(user -> {

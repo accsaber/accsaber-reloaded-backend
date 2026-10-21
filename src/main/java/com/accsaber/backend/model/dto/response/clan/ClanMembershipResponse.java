@@ -11,6 +11,7 @@ public record ClanMembershipResponse(
         boolean online,
         Instant lastPlayedAt,
         double strengthShare,
+        double skill,
         double seasonPlayXp,
         long seasonHits,
         long seasonBreaks) {
