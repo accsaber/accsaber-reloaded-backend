@@ -794,8 +794,7 @@ class ClanQueryTest {
         side(preparing, owls, "attack");
         assertThat(warRepository.findOpenIdsLedByClanId(owls.getId())).containsExactlyInAnyOrder(picking, quiet);
         assertThat(warRepository.existsOpenForClan(owls.getId())).isTrue();
-        assertThat(warRepository.findRosteredIdsByClanId(owls.getId())).containsExactlyInAnyOrder(quiet, preparing);
-        assertThat(warRepository.findActiveStartedBefore(now.minus(9, ChronoUnit.DAYS))).containsExactly(quiet);
+        assertThat(warRepository.findRosteredIds(owls.getId())).containsExactlyInAnyOrder(quiet, preparing);        assertThat(warRepository.findActiveStartedBefore(now.minus(9, ChronoUnit.DAYS))).containsExactly(quiet);
         assertThat(warRepository.findActiveStartedBefore(now.minus(11, ChronoUnit.DAYS))).isEmpty();
         assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
         assertThat(sideRepository.existsOpenAllySide(owls.getId())).isTrue();

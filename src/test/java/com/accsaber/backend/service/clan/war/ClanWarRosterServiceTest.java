@@ -127,7 +127,7 @@ class ClanWarRosterServiceTest {
     }
 
     private void resync() {
-        when(warRepository.findRosteredIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        when(warRepository.findRosteredIds(attacker.getId())).thenReturn(List.of(war.getId()));
         service.onMembershipChanged(new ClanMembershipChangedEvent(attacker.getId()));
     }
 
@@ -229,7 +229,7 @@ class ClanWarRosterServiceTest {
         stayer.setGuard(40);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
         enemy.setTarget(leaver.getUser());
-        when(warRepository.findRosteredIdsByClanId(attacker.getId())).thenReturn(List.of(war.getId()));
+        when(warRepository.findRosteredIds(attacker.getId())).thenReturn(List.of(war.getId()));
         when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(leaver, stayer, enemy));
         teams(List.of(new MemberStrength(attacker.getId(), 4L, 95, 0.8),
                 new MemberStrength(attacker.getId(), 2L, 60, 0.2)),

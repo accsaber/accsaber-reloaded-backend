@@ -18,6 +18,7 @@ import com.accsaber.backend.model.dto.response.admin.JobTypeResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.service.clan.ClanRoster;
+import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.item.ItemSerialResequenceService;
 import com.accsaber.backend.service.map.ComplexityEstimateService;
 import com.accsaber.backend.service.media.CdnSyncService;
@@ -52,6 +53,7 @@ public class AdminJobService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final ComplexityEstimateService complexityEstimateService;
     private final ClanRoster clanRoster;
+    private final ClanWarRosterService clanWarRosterService;
 
     public List<JobTypeResponse> catalogue() {
         return Arrays.stream(JobType.values()).map(JobTypeResponse::from).toList();
@@ -140,6 +142,7 @@ public class AdminJobService {
                     : itemSerialResequenceService.resequenceAll();
 
             case WAIVE_CLAN_JOIN_COOLDOWN -> clanRoster.waiveCooldown(request.getUserId());
+            case RESYNC_CLAN_WAR_ROSTERS -> clanWarRosterService.resyncAll();
             case REGENERATE_SONG_SUGGEST -> songSuggestService.regenerateAsync();
             case REFRESH_COMPLEXITY_ESTIMATES -> complexityEstimateService.refreshAllAsync();
         };

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -104,7 +105,13 @@ public class ClanWarRosterService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onMembershipChanged(ClanMembershipChangedEvent event) {
-        warRepository.findRosteredIdsByClanId(event.clanId()).forEach(this::resync);
+        warRepository.findRosteredIds(event.clanId()).forEach(this::resync);
+    }
+
+    @Transactional
+    public CompletableFuture<Void> resyncAll() {
+        warRepository.findRosteredIds(null).forEach(this::resync);
+        return CompletableFuture.completedFuture(null);
     }
 
     private void resync(UUID warId) {

@@ -77,11 +77,13 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
 
     @Query("""
             SELECT w.id FROM ClanWar w
-            WHERE EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL)
+            WHERE (:clanId IS NULL
+                   OR EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL))
               AND w.status IN (com.accsaber.backend.model.entity.clan.war.ClanWarStatus.preparing,
                                com.accsaber.backend.model.entity.clan.war.ClanWarStatus.active)
+            ORDER BY w.id
             """)
-    List<UUID> findRosteredIdsByClanId(@Param("clanId") UUID clanId);
+    List<UUID> findRosteredIds(@Param("clanId") UUID clanId);
 
     @Query("""
             SELECT COUNT(w) > 0 FROM ClanWar w

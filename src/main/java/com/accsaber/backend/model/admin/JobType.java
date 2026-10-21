@@ -131,6 +131,10 @@ public enum JobType {
             "Lets a player who left a clan join another one right away, skipping the rest of their 14 days.",
             JobField.required("userId", JobFieldKind.USER, "Player", RunJobRequest::getUserId)),
 
+    RESYNC_CLAN_WAR_ROSTERS(JobGroup.MISC, "Resync clan war rosters",
+            "Rebuilds the fighter list of every war in prep or in progress from the clans as they are right now."
+                    + " Use it when a war is missing fighters or shows people who already left."),
+
     REGENERATE_SONG_SUGGEST(JobGroup.MISC, "Regenerate song suggestions",
             "Rebuilds the song suggestion data from current scores.");
 
