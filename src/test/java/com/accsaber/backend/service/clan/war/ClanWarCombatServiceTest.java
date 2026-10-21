@@ -231,7 +231,7 @@ class ClanWarCombatServiceTest {
     private static double chip(int victimScore, int playScore, double ratio) {
         double gap = ClanWarCombatService.linear(victimScore, MAX_SCORE) - ClanWarCombatService.linear(playScore,
                 MAX_SCORE);
-        return 3.0 * (1.0 - gap / 0.3) * ratio * ratio;
+        return Math.max(1.0, 3.0 * (1.0 - gap / 0.3) * ratio * ratio);
     }
 
     @Nested
@@ -379,13 +379,24 @@ class ClanWarCombatServiceTest {
 
         @Test
         void aWeakerPlayerChipsLess() {
+            skills.put(1L, 60.0);
+            skills.put(11L, 80.0);
+            scores.put(11L, 960_000);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(chip(960_000, 950_000, 0.75), within(1e-9));
+        }
+
+        @Test
+        void aChipNeverDealsLessThanOneDamage() {
             skills.put(1L, 40.0);
             skills.put(11L, 80.0);
             scores.put(11L, 960_000);
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(chip(960_000, 950_000, 0.5), within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isEqualTo(1.0);
         }
 
         @Test

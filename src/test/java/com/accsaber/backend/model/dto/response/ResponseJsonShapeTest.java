@@ -195,7 +195,7 @@ class ResponseJsonShapeTest {
         assertThat(preview.get("disparity").toString()).isEqualTo("2");
         assertThat(preview.get("onMap").has("targetScore")).isFalse();
         assertThat(preview.get("onMap").has("hitUsed")).isFalse();
-        assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0)).get("guard")
+        assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0, 1.0)).get("guard")
                 .toString()).isEqualTo("100");
     }
 

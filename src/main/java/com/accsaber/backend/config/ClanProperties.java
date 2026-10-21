@@ -57,6 +57,7 @@ public class ClanProperties {
         private double chipDamage = 3.0;
         private double chipWindow = 0.3;
         private double chipSkillExponent = 2.0;
+        private double minChipDamage = 1.0;
         private double extraChipChance = 0.25;
         private double targetBand = 0.8;
         private double allyStakeShare = 0.3;

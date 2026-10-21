@@ -8,5 +8,6 @@ public record ClanWarStrikeRulesResponse(
         double missingScoreMultiplier,
         double chipDamage,
         double chipWindow,
-        double chipSkillExponent) {
+        double chipSkillExponent,
+        double minChipDamage) {
 }

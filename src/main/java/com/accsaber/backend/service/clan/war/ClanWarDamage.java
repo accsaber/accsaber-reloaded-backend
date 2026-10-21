@@ -73,7 +73,7 @@ class ClanWarDamage {
     static ClanWarStrikeRulesResponse rules(ClanProperties.War config) {
         return new ClanWarStrikeRulesResponse(config.getGuard(), config.getBaseDamage(), config.getEscalation(),
                 config.getDisparityExponent(), config.getMissingScoreMultiplier(), config.getChipDamage(),
-                config.getChipWindow(), config.getChipSkillExponent());
+                config.getChipWindow(), config.getChipSkillExponent(), config.getMinChipDamage());
     }
 
     double hitDamage(long hitsThisCycle, double attackerSkill, double victimSkill, boolean missingScore) {
@@ -85,7 +85,8 @@ class ClanWarDamage {
         ClanProperties.War config = clanProperties.getWar();
         double closeness = 1.0 - gap / config.getChipWindow();
         double ratio = Math.min(1.0, skill(attackerSkill) / skill(victimSkill));
-        return config.getChipDamage() * closeness * Math.pow(ratio, config.getChipSkillExponent());
+        return Math.max(config.getMinChipDamage(),
+                config.getChipDamage() * closeness * Math.pow(ratio, config.getChipSkillExponent()));
     }
 
     Map<UUID, ClanWarParticipant> bestPairings(Field field, Collection<UUID> difficultyIds) {
