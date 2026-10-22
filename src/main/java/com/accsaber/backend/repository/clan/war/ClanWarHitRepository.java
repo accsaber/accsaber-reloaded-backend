@@ -39,10 +39,19 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
         Long getVictimId();
 
         long getHits();
+
+        long getMissing();
+    }
+
+    record Streak(long hits, long missing) {
+
+        public static final Streak NONE = new Streak(0, 0);
     }
 
     @Query("""
-            SELECT h.victim.id AS victimId, COUNT(h) AS hits
+            SELECT h.victim.id AS victimId,
+                   SUM(CASE WHEN h.victimScore IS NULL THEN 0 ELSE 1 END) AS hits,
+                   SUM(CASE WHEN h.victimScore IS NULL THEN 1 ELSE 0 END) AS missing
             FROM ClanWarHit h, ClanWarParticipant p
             WHERE h.war.id = :warId AND p.war.id = :warId AND p.user.id = h.victim.id
               AND h.victimCycle = p.guardCycle AND h.chip = false AND h.victim.id IN :victimIds
@@ -50,9 +59,9 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
             """)
     List<CycleHitsView> findCycleHits(@Param("warId") UUID warId, @Param("victimIds") Collection<Long> victimIds);
 
-    default Map<Long, Long> cycleHits(UUID warId, Collection<Long> victimIds) {
-        return findCycleHits(warId, victimIds).stream()
-                .collect(Collectors.toMap(CycleHitsView::getVictimId, CycleHitsView::getHits));
+    default Map<Long, Streak> cycleHits(UUID warId, Collection<Long> victimIds) {
+        return findCycleHits(warId, victimIds).stream().collect(Collectors.toMap(CycleHitsView::getVictimId,
+                view -> new Streak(view.getHits(), view.getMissing())));
     }
 
     interface BreakXpView {

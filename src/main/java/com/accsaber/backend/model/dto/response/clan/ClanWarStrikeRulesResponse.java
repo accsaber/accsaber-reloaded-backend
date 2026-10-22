@@ -9,5 +9,6 @@ public record ClanWarStrikeRulesResponse(
         double chipDamage,
         double chipWindow,
         double chipSkillExponent,
-        double minChipDamage) {
+        double minChipDamage,
+        double missingScoreEscalation) {
 }

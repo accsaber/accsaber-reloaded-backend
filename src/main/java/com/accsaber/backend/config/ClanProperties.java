@@ -45,7 +45,8 @@ public class ClanProperties {
         private double baseDamage = 15.0;
         private double escalation = 1.5;
         private double disparityExponent = 1.0;
-        private double missingScoreMultiplier = 0.2;
+        private double missingScoreMultiplier = 0.3;
+        private double missingScoreEscalation = 1.25;
         private double breakShare = 0.5;
         private double breakDecay = 0.75;
         private double breakContribution = 50.0;

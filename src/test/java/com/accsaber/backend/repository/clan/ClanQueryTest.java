@@ -997,8 +997,13 @@ class ClanQueryTest {
         UUID outsider = clan("Rivals", "RIV", "rivals").getId();
         assertThat(hitRepository.findPageByWarId(warId, null, outsider, null, page).getTotalElements()).isZero();
 
+        entityManager.createNativeQuery("INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, "
+                + "victim_cycle, map_difficulty_id, attacker_score_id, chip, damage, guard_after) "
+                + "VALUES (?1, ?2, ?3, 0, ?4, ?5, false, 4, 91)").setParameter(1, warId)
+                .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
+                .setParameter(5, mine).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
-                .containsExactly(Map.entry(lapizStar.getId(), 1L));
+                .containsExactly(Map.entry(lapizStar.getId(), new ClanWarHitRepository.Streak(1, 1)));
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();

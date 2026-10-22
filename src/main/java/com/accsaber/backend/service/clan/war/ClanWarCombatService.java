@@ -95,7 +95,7 @@ public class ClanWarCombatService {
     private record Battle(ClanWar war, List<ClanWarSide> sides, Map<UUID, ClanWarSide> sideByClan,
             Map<Long, ClanWarParticipant> roster, ClanWarParticipant attacker, Play play, Map<Long, Double> skills,
             Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore,
-            Map<Long, Long> cycleHits) {
+            Map<Long, ClanWarHitRepository.Streak> cycleHits) {
 
         ClanWarTeam team(ClanWarParticipant participant) {
             return sideByClan.get(participant.getClan().getId()).getTeam();
@@ -234,7 +234,7 @@ public class ClanWarCombatService {
     }
 
     private Strike hit(Battle battle, ClanWarParticipant enemy, Kind kind) {
-        double damage = warDamage.hitDamage(battle.cycleHits().getOrDefault(enemy.getUser().getId(), 0L),
+        double damage = warDamage.hitDamage(battle.cycleHits().getOrDefault(enemy.getUser().getId(), ClanWarHitRepository.Streak.NONE),
                 skill(battle, battle.attacker()), skill(battle, enemy), kind == Kind.MISSING);
         return new Strike(enemy, kind, damage, standing(battle, enemy));
     }

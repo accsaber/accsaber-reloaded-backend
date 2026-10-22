@@ -57,6 +57,7 @@ import com.accsaber.backend.model.event.ScoreSubmittedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository.Streak;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
@@ -306,7 +307,7 @@ class ClanWarCombatServiceTest {
             join(12L, blue, 0.5, 49);
             scores.put(11L, 940_000);
             scores.put(12L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, 3L));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new Streak(3, 0)));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -329,7 +330,7 @@ class ClanWarCombatServiceTest {
             low.setGuard(10.0);
             scores.put(11L, 900_000);
             scores.put(12L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, 2L));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0)));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -447,11 +448,22 @@ class ClanWarCombatServiceTest {
             scores.put(11L, 900_000);
             skills.put(1L, 40.0);
             skills.put(11L, 80.0);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, 2L));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0)));
 
             service.fight(war.getId(), play(950_000, true));
 
             assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.5 * 2.0, within(1e-9));
+        }
+
+        @Test
+        void hitsOnSomeoneWithNoScoreEscalateTheStreakByTheSmallerStep() {
+            victim.setGuard(500.0);
+            scores.put(11L, 900_000);
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(1, 2)));
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.25 * 1.25, within(1e-9));
         }
 
         @Test
