@@ -143,8 +143,7 @@ public class ClanWarRosterService {
         if (chooser == null) {
             throw new ForbiddenException("You are not fighting in this war");
         }
-        Map<Long, Double> skills = skills(targetUserId == null ? List.of(playerId) : List.of(playerId, targetUserId));
-        double chooserSkill = skills.getOrDefault(playerId, 0.0);
+        double chooserSkill = skills(List.of(playerId)).getOrDefault(playerId, 0.0);
         if (targetUserId == null) {
             chooser.setTarget(null);
         } else {
@@ -153,14 +152,11 @@ public class ClanWarRosterService {
             if (target == null || teams.get(target.getClan().getId()) == teams.get(chooser.getClan().getId())) {
                 throw new ValidationException("userId", "must be an enemy still fighting in this war");
             }
-            if (!inBand(chooserSkill, skills.getOrDefault(targetUserId, 0.0))) {
-                throw new ValidationException("userId", "is too far below your skill to pick as a target");
-            }
             chooser.setTarget(target.getUser());
         }
         participantRepository.saveAndFlush(chooser);
         return ClanMapper.toWarParticipantResponse(chooser, cosmeticService.publicRefs(List.of(chooser.getClan()))
-                .get(chooser.getClan().getId()), chooserSkill, null, null);
+                .get(chooser.getClan().getId()), chooserSkill, null);
     }
 
     @Transactional(readOnly = true)
@@ -175,14 +171,10 @@ public class ClanWarRosterService {
             userIds.add(viewerId);
         }
         Map<Long, Double> skills = userIds.isEmpty() ? Map.of() : skills(userIds);
-        Double viewerSkill = viewerId == null ? null : skills.getOrDefault(viewerId, 0.0);
         Map<Long, ClanWarStrikePreviewResponse> previews = strikePreviews(war, sides,
                 new ClanWarDamage.Viewer(warId, viewerId, mapDifficultyId), page.getContent(), skills);
-        return page.map(p -> {
-            double skill = skills.getOrDefault(p.getUser().getId(), 0.0);
-            return ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()), skill,
-                    viewerSkill == null ? null : inBand(viewerSkill, skill), previews.get(p.getUser().getId()));
-        });
+        return page.map(p -> ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()),
+                skills.getOrDefault(p.getUser().getId(), 0.0), previews.get(p.getUser().getId())));
     }
 
     private Map<Long, ClanWarStrikePreviewResponse> strikePreviews(ClanWar war, List<ClanWarSide> sides,
@@ -235,10 +227,6 @@ public class ClanWarRosterService {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> new Pairing(entry.getValue().getUser(), false)));
     }
 
-    public boolean inBand(double chooserSkill, double targetSkill) {
-        return targetSkill >= clanProperties.getWar().getTargetBand() * chooserSkill;
-    }
-
     public void sync(ClanWar war, List<ClanWarSide> sides) {
         Map<UUID, ClanWarTeam> teams = teams(sides);
         Map<Long, MemberStrength> roster = new HashMap<>();
@@ -273,22 +261,19 @@ public class ClanWarRosterService {
                         .build());
             }
         }
-        clearIllegalTargets(existing, teams, roster);
+        clearIllegalTargets(existing, teams);
         participantRepository.saveAll(existing.values());
         scoreGate.refreshAfterCommit();
     }
 
-    private void clearIllegalTargets(Map<Long, ClanWarParticipant> participants, Map<UUID, ClanWarTeam> teams,
-            Map<Long, MemberStrength> roster) {
+    private void clearIllegalTargets(Map<Long, ClanWarParticipant> participants, Map<UUID, ClanWarTeam> teams) {
         for (ClanWarParticipant participant : participants.values()) {
             if (participant.getTarget() == null) {
                 continue;
             }
             ClanWarParticipant target = participants.get(participant.getTarget().getId());
             boolean legal = participant.getLeftAt() == null && target != null && target.getLeftAt() == null
-                    && teams.get(target.getClan().getId()) != teams.get(participant.getClan().getId())
-                    && inBand(roster.get(participant.getUser().getId()).skill(),
-                            roster.get(target.getUser().getId()).skill());
+                    && teams.get(target.getClan().getId()) != teams.get(participant.getClan().getId());
             if (!legal) {
                 participant.setTarget(null);
             }

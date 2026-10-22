@@ -81,9 +81,9 @@ public final class ClanMapper {
     }
 
     public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant, PublicClanResponse clan, Double skill,
-            Boolean inBand, ClanWarStrikePreviewResponse strikePreview) {
+            ClanWarStrikePreviewResponse strikePreview) {
         return new ClanWarParticipantResponse(ClanRefCache.playerRef(participant.getUser()), clan,
-                ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, inBand, strikePreview,
+                ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, strikePreview,
                 participant.getStandingWeight(), participant.getGuard(),
                 participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getContribution(),
                 participant.getJoinedAt(), participant.getLeftAt());

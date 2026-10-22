@@ -226,8 +226,8 @@ public class ClanWarController {
     }
 
     @Operation(summary = "War participants",
-            description = "Players still in first, then by skill. target is who they picked. inBand tells a "
-                    + "signed in viewer whether they can pick that player. strikePreview is the viewer's next hit on an enemy; "
+            description = "Players still in first, then by skill. target is who they picked. "
+                    + "strikePreview is the viewer's next hit on an enemy; "
                     + "mapDifficultyId adds that enemy's score on the map.")
     @GetMapping("/wars/{warId}/participants")
     public ResponseEntity<Page<ClanWarParticipantResponse>> participants(

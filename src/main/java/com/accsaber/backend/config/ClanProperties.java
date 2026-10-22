@@ -45,7 +45,7 @@ public class ClanProperties {
         private double baseDamage = 15.0;
         private double escalation = 1.5;
         private double disparityExponent = 1.0;
-        private double missingScoreMultiplier = 0.35;
+        private double missingScoreMultiplier = 0.2;
         private double breakShare = 0.5;
         private double breakDecay = 0.75;
         private double breakContribution = 50.0;
@@ -59,7 +59,6 @@ public class ClanProperties {
         private double chipSkillExponent = 2.0;
         private double minChipDamage = 1.0;
         private double extraChipChance = 0.25;
-        private double targetBand = 0.8;
         private double allyStakeShare = 0.3;
         private Duration maxDuration = Duration.ofDays(28);
         private Duration engagementWindow = Duration.ofDays(14);

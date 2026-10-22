@@ -281,18 +281,18 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void aPickTooFarBelowTheChooserIsDroppedOnTheNextSync() {
+    void aPickFarBelowTheChooserSurvivesTheNextSync() {
         war.setStatus(ClanWarStatus.active);
         ClanWarParticipant chooser = participant(1L, attacker, 1.0);
         ClanWarParticipant weak = participant(11L, defender, 1.0);
         chooser.setTarget(weak.getUser());
         when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(chooser, weak));
         teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
-                List.of(new MemberStrength(defender.getId(), 11L, 50, 1.0)));
+                List.of(new MemberStrength(defender.getId(), 11L, 10, 1.0)));
 
         resync();
 
-        assertThat(saved().get(1L).getTarget()).isNull();
+        assertThat(saved().get(1L).getTarget()).isSameAs(weak.getUser());
     }
 
     @Test
@@ -362,35 +362,14 @@ class ClanWarRosterServiceTest {
             lenient().when(participantRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         }
 
-        private void skills(double chooserSkill, double enemySkill) {
+        @Test
+        void aPlayerCanPickAnEnemyFarBelowThem() {
             when(participantRepository.findOverallSkills(anyCollection())).thenReturn(List.of(
-                    skill(1L, chooserSkill), skill(11L, enemySkill)));
-        }
-
-        @Test
-        void aPlayerCanPickAnEnemyInsideTheirBand() {
-            skills(80, 70);
+                    skill(1L, 80), skill(11L, 5)));
 
             service.choose(war.getId(), 1L, 11L);
 
             assertThat(chooser.getTarget()).isSameAs(enemy.getUser());
-        }
-
-        @Test
-        void pickingUpwardIsAlwaysAllowed() {
-            skills(40, 95);
-
-            service.choose(war.getId(), 1L, 11L);
-
-            assertThat(chooser.getTarget()).isSameAs(enemy.getUser());
-        }
-
-        @Test
-        void aPlayerCannotPickAnEnemyFarBelowThem() {
-            skills(80, 40);
-
-            assertThatThrownBy(() -> service.choose(war.getId(), 1L, 11L)).isInstanceOf(ValidationException.class);
-            assertThat(chooser.getTarget()).isNull();
         }
 
         @Test
