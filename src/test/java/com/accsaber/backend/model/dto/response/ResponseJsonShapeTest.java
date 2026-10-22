@@ -160,11 +160,12 @@ class ResponseJsonShapeTest {
     @Test
     void warRewardsNestTheClanAndThePlayerWithPlainWholeNumbers() {
         JsonNode rewards = json(new ClanWarRewardsResponse(List.of(),
-                List.of(new ClanWarRewardsResponse.ClanReward(CLAN, 351.0, List.of())),
+                List.of(new ClanWarRewardsResponse.ClanReward(CLAN, 351.0, 1000.0, List.of())),
                 List.of(new ClanWarRewardsResponse.PlayerReward(PLAYER, CLAN, 85.0, List.of()))));
 
         assertThat(rewards.get("clans").get(0).get("clan").get("tag").asString()).isEqualTo("TAG");
         assertThat(rewards.get("clans").get(0).get("clanXp").toString()).isEqualTo("351");
+        assertThat(rewards.get("clans").get(0).get("standing").toString()).isEqualTo("1000");
         assertThat(rewards.get("players").get(0).get("player").get("id").isString()).isTrue();
         assertThat(rewards.get("players").get(0).get("xp").toString()).isEqualTo("85");
     }
@@ -183,7 +184,7 @@ class ResponseJsonShapeTest {
     @Test
     void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
         ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null, 80.0,
-                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 40.0, 80.0, 2.0,
+                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 0, 40.0, 80.0, 2.0,
                         new ClanWarStrikeMapResponse(null)), 1.0, 100.0, 0, 0,
                 0.0, T1, null);
 
@@ -195,7 +196,7 @@ class ResponseJsonShapeTest {
         assertThat(preview.get("disparity").toString()).isEqualTo("2");
         assertThat(preview.get("onMap").has("targetScore")).isFalse();
         assertThat(preview.get("onMap").has("hitUsed")).isFalse();
-        assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0, 1.0, 1.25)).get("guard")
+        assertThat(json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0, 1.0, 1.25, 1.05)).get("guard")
                 .toString()).isEqualTo("100");
     }
 

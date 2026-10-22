@@ -127,6 +127,22 @@ public class ClanWarStakeService {
         sideRepository.saveAll(sides);
     }
 
+    public Map<UUID, Double> winShares(List<ClanWarSide> winners) {
+        double total = winners.stream().mapToDouble(ClanWarSide::getStake).sum();
+        return winners.stream().collect(Collectors.toMap(side -> side.getClan().getId(),
+                side -> total > 0 ? side.getStake() / total : 1.0 / winners.size()));
+    }
+
+    public void awardWin(ClanWar war, List<ClanWarSide> winners, double engagement) {
+        double standing = clanProperties.getWar().getWinStanding() * engagement;
+        if (standing <= 0) {
+            return;
+        }
+        Map<UUID, Double> deltas = new HashMap<>();
+        winShares(winners).forEach((clanId, share) -> deltas.put(clanId, standing * share));
+        standingService.applyAll(war.getSeason().getId(), deltas, ClanStandingSource.war_win, war.getId().toString());
+    }
+
     private Map<ClanWarTeam, List<ClanWarSide>> fightingByTeam(List<ClanWarSide> sides) {
         Map<ClanWarTeam, List<ClanWarSide>> byTeam = new EnumMap<>(ClanWarTeam.class);
         for (ClanWarTeam team : ClanWarTeam.values()) {

@@ -19,6 +19,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
+import com.accsaber.backend.repository.clan.ClanStandingEventRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -44,6 +45,7 @@ public class ClanWarRewardService {
     private final ClanWarParticipantRepository participantRepository;
     private final ClanWarHitRepository hitRepository;
     private final ClanXpGrantRepository xpGrantRepository;
+    private final ClanStandingEventRepository standingEventRepository;
     private final ClanCosmeticService cosmeticService;
 
     public List<ClanWarRewardItemResponse> list() {
@@ -59,12 +61,14 @@ public class ClanWarRewardService {
                 ? ClanWarSettlementService.winners(war, sides) : List.of();
         Set<UUID> winnerClans = winners.stream().map(side -> side.getClan().getId()).collect(Collectors.toSet());
         Map<UUID, Double> clanXp = xpGrantRepository.warClanXp(warId);
+        Map<UUID, Double> standing = standingEventRepository.warStanding(warId);
         List<ClanWarRewardItemResponse> cosmetics = pool.stream()
                 .filter(reward -> reward.getItem().getType().isClanCosmetic())
                 .map(ClanMapper::toWarRewardItemResponse).toList();
         List<ClanWarRewardsResponse.ClanReward> clanRewards = sides.stream()
                 .map(side -> new ClanWarRewardsResponse.ClanReward(clans.get(side.getClan().getId()),
                         clanXp.getOrDefault(side.getClan().getId(), 0.0),
+                        standing.getOrDefault(side.getClan().getId(), 0.0),
                         winnerClans.contains(side.getClan().getId()) ? cosmetics : List.of()))
                 .toList();
         List<ClanWarParticipant> participants = participantRepository.findByWarIdInContributionOrder(warId);

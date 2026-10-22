@@ -75,7 +75,7 @@ class ClanWarDamage {
         return new ClanWarStrikeRulesResponse(config.getGuard(), config.getBaseDamage(), config.getEscalation(),
                 config.getDisparityExponent(), config.getMissingScoreMultiplier(), config.getChipDamage(),
                 config.getChipWindow(), config.getChipSkillExponent(), config.getMinChipDamage(),
-                config.getMissingScoreEscalation());
+                config.getMissingScoreEscalation(), config.getChipEscalation());
     }
 
     double hitDamage(Streak streak, double attackerSkill, double victimSkill, boolean missingScore) {
@@ -141,7 +141,7 @@ class ClanWarDamage {
             double disparity = disparity(attackerSkill, victimSkill);
             Streak streak = cycleHits.getOrDefault(victimId, Streak.NONE);
             return new ClanWarStrikePreviewResponse(hit(streak, disparity), hitsToBreak(victim.getGuard(), streak,
-                    disparity), streak.hits(), streak.missing(), skill(attackerSkill), skill(victimSkill), disparity, onMap.get(victimId));
+                    disparity), streak.hits(), streak.missing(), streak.chips(), skill(attackerSkill), skill(victimSkill), disparity, onMap.get(victimId));
         }));
     }
 
@@ -160,7 +160,7 @@ class ClanWarDamage {
     private int hitsToBreak(double guard, Streak streak, double disparity) {
         int hits = 0;
         for (double left = guard; left > 0; hits++) {
-            left -= hit(new Streak(streak.hits() + hits, streak.missing()), disparity);
+            left -= hit(new Streak(streak.hits() + hits, streak.missing(), streak.chips()), disparity);
         }
         return hits;
     }
@@ -172,6 +172,7 @@ class ClanWarDamage {
     private double hit(Streak streak, double disparity) {
         ClanProperties.War config = clanProperties.getWar();
         return config.getBaseDamage() * Math.pow(config.getEscalation(), streak.hits())
-                * Math.pow(config.getMissingScoreEscalation(), streak.missing()) * disparity;
+                * Math.pow(config.getMissingScoreEscalation(), streak.missing())
+                * Math.pow(config.getChipEscalation(), streak.chips()) * disparity;
     }
 }

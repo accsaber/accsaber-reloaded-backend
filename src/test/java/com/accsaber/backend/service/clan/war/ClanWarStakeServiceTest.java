@@ -217,6 +217,17 @@ class ClanWarStakeServiceTest {
         }
 
         @Test
+        void aWinPaysBonusStandingSplitBySliceAndScaledByTheLosersEngagement() {
+            ClanWarSide stars = side(ClanWarStakeServiceTest.this.stars, ClanWarTeam.attack, 6000, 1000);
+            ClanWarSide genx = side(ClanWarStakeServiceTest.this.genx, ClanWarTeam.attack, 2000, 0);
+
+            service.awardWin(war, List.of(stars, genx), 0.5);
+
+            verify(standingService).applyAll(season.getId(), Map.of(stars.getClan().getId(), 375.0,
+                    genx.getClan().getId(), 125.0), ClanStandingSource.war_win, war.getId().toString());
+        }
+
+        @Test
         void aClanWithNothingLeftHandsNothingOver() {
             ClanWarSide leaving = side(fish, ClanWarTeam.defend, 2000, 0);
 

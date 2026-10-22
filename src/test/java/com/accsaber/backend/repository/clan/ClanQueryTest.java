@@ -960,7 +960,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("a chip and a full hit on the same score both fit, and only full hits count toward escalation")
+    @DisplayName("a chip and a full hit on the same score both fit, and each kind counts toward its own escalation")
     void chipsSitBesideFullHits() {
         MapDifficulty map = rankedAt(6.0);
         UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
@@ -1003,7 +1003,7 @@ class ClanQueryTest {
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
                 .setParameter(5, mine).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
-                .containsExactly(Map.entry(lapizStar.getId(), new ClanWarHitRepository.Streak(1, 1)));
+                .containsExactly(Map.entry(lapizStar.getId(), new ClanWarHitRepository.Streak(1, 1, 1)));
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
@@ -1285,6 +1285,17 @@ class ClanQueryTest {
         grantRepository.insertIfAbsent(owls.getId(), "play", founderScore.toString(), 3.0, 1.0, 3.0);
         assertThat(grantRepository.warClanXp(won))
                 .containsOnly(Map.entry(owls.getId(), 351.0), Map.entry(lapiz.getId(), 3.0));
+
+        standingEventRepository.insertIfAbsent(current, owls.getId(), 1000.0, "war_win", won.toString());
+        standingEventRepository.insertIfAbsent(current, owls.getId(), 500.0, "war_win", picking.toString());
+        standingEventRepository.insertIfAbsent(current, owls.getId(), 12.5, "war_break", founderBreak);
+        standingEventRepository.insertIfAbsent(current, lapiz.getId(), -12.5, "war_break", founderBreak);
+        standingEventRepository.insertIfAbsent(current, lapiz.getId(), 4.0, "war_break", starHit);
+        standingEventRepository.insertIfAbsent(current, lapiz.getId(), -30.0, "war_break",
+                "forfeit:" + won + ":" + lapiz.getId());
+        standingEventRepository.insertIfAbsent(current, owls.getId(), 7.0, "mission", won.toString());
+        assertThat(standingEventRepository.warStanding(won))
+                .containsOnly(Map.entry(owls.getId(), 1012.5), Map.entry(lapiz.getId(), -42.5));
     }
 
     @Test

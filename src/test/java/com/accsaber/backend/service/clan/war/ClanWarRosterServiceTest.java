@@ -303,7 +303,7 @@ class ClanWarRosterServiceTest {
         when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, fresh, worn));
         when(participantRepository.findOverallSkills(anyCollection()))
                 .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
-        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0)));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, 0)));
         UUID open = UUID.randomUUID();
         UUID played = UUID.randomUUID();
         when(hitRepository.findActiveScores(anyCollection(), anyCollection()))

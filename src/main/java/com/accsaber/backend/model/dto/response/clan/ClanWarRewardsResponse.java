@@ -9,7 +9,8 @@ public record ClanWarRewardsResponse(
         List<ClanReward> clans,
         List<PlayerReward> players) {
 
-    public record ClanReward(PublicClanResponse clan, double clanXp, List<ClanWarRewardItemResponse> items) {
+    public record ClanReward(PublicClanResponse clan, double clanXp, double standing,
+            List<ClanWarRewardItemResponse> items) {
     }
 
     public record PlayerReward(PlayerRef player, PublicClanResponse clan, double xp,

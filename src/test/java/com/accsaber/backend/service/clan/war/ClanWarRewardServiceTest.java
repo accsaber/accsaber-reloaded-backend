@@ -32,6 +32,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.repository.clan.ClanStandingEventRepository;
 import com.accsaber.backend.repository.clan.ClanXpGrantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
@@ -58,6 +59,8 @@ class ClanWarRewardServiceTest {
     private ClanWarHitRepository hitRepository;
     @Mock
     private ClanXpGrantRepository xpGrantRepository;
+    @Mock
+    private ClanStandingEventRepository standingEventRepository;
     @Mock
     private ClanCosmeticService cosmeticService;
 
@@ -137,6 +140,7 @@ class ClanWarRewardServiceTest {
         when(cosmeticService.publicRefs(any())).thenReturn(Map.of());
         when(rewardItemRepository.findActiveWithItems()).thenReturn(List.of(everyone, topOne, cosmetic));
         when(xpGrantRepository.warClanXp(war.getId())).thenReturn(Map.of(red.getId(), 351.0, blue.getId(), 12.0));
+        when(standingEventRepository.warStanding(war.getId())).thenReturn(Map.of(red.getId(), 1240.0, blue.getId(), -240.0));
         when(participantRepository.findByWarIdInContributionOrder(war.getId())).thenReturn(List.of(
                 fighter(1L, red, 300, 60.0), fighter(11L, blue, 200, 40.0), fighter(2L, red, 0, 0.0)));
         when(hitRepository.breakXp(war.getId())).thenReturn(Map.of(1L, 25.0));
@@ -145,6 +149,7 @@ class ClanWarRewardServiceTest {
 
         assertThat(rewards.pool()).hasSize(3);
         assertThat(rewards.clans()).extracting(c -> c.clanXp()).containsExactly(351.0, 12.0);
+        assertThat(rewards.clans()).extracting(c -> c.standing()).containsExactly(1240.0, -240.0);
         assertThat(rewards.clans().get(0).items()).extracting(r -> r.id()).containsExactly(cosmetic.getId());
         assertThat(rewards.clans().get(1).items()).isEmpty();
         assertThat(rewards.players()).extracting(p -> p.xp()).containsExactly(85.0, 40.0, 0.0);

@@ -112,13 +112,10 @@ public class ClanWarSettlementService {
 
     private void payWinners(ClanWar war, List<ClanWarSide> winners, List<ClanWarRewardItem> rewards,
             double engagement) {
-        double total = winners.stream().mapToDouble(ClanWarSide::getStake).sum();
         String sourceId = war.getId().toString();
-        for (ClanWarSide side : winners) {
-            double share = total > 0 ? side.getStake() / total : 1.0 / winners.size();
-            levelService.grantXp(side.getClan().getId(), new ClanXpAward(
-                    clanProperties.getWar().getWinClanXp() * share * engagement, ClanXpSource.war_win, sourceId, true));
-        }
+        stakeService.winShares(winners).forEach((clanId, share) -> levelService.grantXp(clanId, new ClanXpAward(
+                clanProperties.getWar().getWinClanXp() * share * engagement, ClanXpSource.war_win, sourceId, true)));
+        stakeService.awardWin(war, winners, engagement);
         transactionTemplate.executeWithoutResult(status -> rewards.stream()
                 .filter(reward -> reward.getItem().getType().isClanCosmetic())
                 .forEach(reward -> winners.forEach(side -> clanItemRepository.grantItem(side.getClan().getId(),

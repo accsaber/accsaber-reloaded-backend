@@ -47,12 +47,14 @@ public class ClanProperties {
         private double disparityExponent = 1.0;
         private double missingScoreMultiplier = 0.3;
         private double missingScoreEscalation = 1.2;
+        private double chipEscalation = 1.05;
         private double breakShare = 0.5;
         private double breakDecay = 0.75;
         private double breakContribution = 50.0;
         private double breakXp = 50.0;
         private double breakClanXp = 6.0;
         private double winClanXp = 345.0;
+        private double winStanding = 1000.0;
         private double xpPerContribution = 0.2;
         private double warSizeExponent = 0.6;
         private double chipDamage = 3.0;

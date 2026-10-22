@@ -100,6 +100,7 @@ class ClanWarSettlementServiceTest {
         sides.add(ClanWarSide.builder().war(war).clan(blue).team(ClanWarTeam.defend).stake(3000).build());
         lenient().when(sideRepository.findByWarId(war.getId())).thenReturn(sides);
         lenient().when(stakeService.engagement(any(), any())).thenReturn(1.0);
+        lenient().when(stakeService.winShares(any())).thenCallRealMethod();
         lenient().when(warRepository.findWithRefsById(war.getId())).thenReturn(Optional.of(war));
         lenient().doAnswer(inv -> {
             inv.<Consumer<TransactionStatus>>getArgument(0).accept(null);
@@ -193,6 +194,7 @@ class ClanWarSettlementServiceTest {
 
         verify(levelService).grantXp(red.getId(), new ClanXpAward(500.0, ClanXpSource.war_win,
                 war.getId().toString(), true));
+        verify(stakeService).awardWin(war, List.of(sides.get(0)), 0.5);
         verify(levelUpAwardService).addClanXp(1L, 75.0);
         verify(levelUpAwardService).addClanXp(11L, 100.0);
     }
@@ -206,6 +208,7 @@ class ClanWarSettlementServiceTest {
         service.settle(war.getId());
 
         verify(levelService, never()).grantXp(any(), any());
+        verify(stakeService, never()).awardWin(any(), any(), anyDouble());
         verify(rewardItemRepository, never()).findActiveWithItems();
         verify(levelUpAwardService).addClanXp(1L, 20.0);
     }
