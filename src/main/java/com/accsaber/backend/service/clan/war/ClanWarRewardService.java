@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.clan.ClanWarRewardItemRequest;
@@ -47,6 +48,7 @@ public class ClanWarRewardService {
     private final ClanXpGrantRepository xpGrantRepository;
     private final ClanStandingEventRepository standingEventRepository;
     private final ClanCosmeticService cosmeticService;
+    private final ClanProperties clanProperties;
 
     public List<ClanWarRewardItemResponse> list() {
         return rewardItemRepository.findAllWithItems().stream().map(ClanMapper::toWarRewardItemResponse).toList();
@@ -79,7 +81,7 @@ public class ClanWarRewardService {
                         ranks.getOrDefault(p.getUser().getId(), 0), breakXp.getOrDefault(p.getUser().getId(), 0.0)))
                 .toList();
         return new ClanWarRewardsResponse(pool.stream().map(ClanMapper::toWarRewardItemResponse).toList(),
-                clanRewards, players);
+                clanProperties.getWar().getWinClanXp(), clanProperties.getWar().getWinStanding(), clanRewards, players);
     }
 
     @Transactional

@@ -159,7 +159,7 @@ class ResponseJsonShapeTest {
 
     @Test
     void warRewardsNestTheClanAndThePlayerWithPlainWholeNumbers() {
-        JsonNode rewards = json(new ClanWarRewardsResponse(List.of(),
+        JsonNode rewards = json(new ClanWarRewardsResponse(List.of(), 345.0, 1000.0,
                 List.of(new ClanWarRewardsResponse.ClanReward(CLAN, 351.0, 1000.0, List.of())),
                 List.of(new ClanWarRewardsResponse.PlayerReward(PLAYER, CLAN, 85.0, List.of()))));
 

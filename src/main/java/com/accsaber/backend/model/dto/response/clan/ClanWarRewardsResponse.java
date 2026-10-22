@@ -6,6 +6,8 @@ import com.accsaber.backend.model.dto.response.common.PlayerRef;
 
 public record ClanWarRewardsResponse(
         List<ClanWarRewardItemResponse> pool,
+        double winClanXp,
+        double winStanding,
         List<ClanReward> clans,
         List<PlayerReward> players) {
 
