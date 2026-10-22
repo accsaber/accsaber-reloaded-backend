@@ -75,7 +75,7 @@ class ClanWarDamage {
         return new ClanWarStrikeRulesResponse(config.getGuard(), config.getBaseDamage(), config.getEscalation(),
                 config.getDisparityExponent(), config.getMissingScoreMultiplier(), config.getChipDamage(),
                 config.getChipWindow(), config.getChipSkillExponent(), config.getMinChipDamage(),
-                config.getMissingScoreEscalation(), config.getChipEscalation());
+                config.getMissingScoreEscalation(), config.getChipEscalation(), config.getBrokenDuration().toHours());
     }
 
     double hitDamage(Streak streak, double attackerSkill, double victimSkill, boolean missingScore) {

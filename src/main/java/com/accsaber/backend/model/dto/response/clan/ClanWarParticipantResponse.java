@@ -14,6 +14,7 @@ public record ClanWarParticipantResponse(
         double guard,
         int guardCycle,
         int breaksSuffered,
+        Instant brokenAt,
         double contribution,
         Instant joinedAt,
         Instant leftAt) {

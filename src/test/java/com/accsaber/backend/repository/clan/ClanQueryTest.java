@@ -35,6 +35,7 @@ import com.accsaber.backend.model.entity.chat.ChatMessage;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWarAid;
 import com.accsaber.backend.model.entity.clan.war.ClanWarAidStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarRewardItem;
 import com.accsaber.backend.model.entity.clan.ClanRival;
 import com.accsaber.backend.model.entity.clan.ClanAllianceStatus;
@@ -763,6 +764,43 @@ class ClanQueryTest {
     private void warState(UUID warId, String sql, Object value) {
         entityManager.createNativeQuery("UPDATE clan_wars SET " + sql + " WHERE id = ?2")
                 .setParameter(1, value).setParameter(2, warId).executeUpdate();
+    }
+
+    @Test
+    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, in active wars only")
+    void brokenGuardsComeBack() {
+        Instant now = Instant.now();
+        UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        UUID active = war(current, owls, lapiz);
+        UUID preparing = war(current, lapiz, owls);
+        warState(active, "status = 'active', starts_at = ?1", now.minus(10, ChronoUnit.DAYS));
+        warState(preparing, "status = 'preparing', starts_at = ?1", now.plus(1, ChronoUnit.DAYS));
+        User lapizStar = user(76561190000000312L, "Lapiz Star");
+        User member = user(76561190000000313L, "Member");
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
+                + "broken_at, left_at) VALUES (?1, ?2, ?3, 1, 0, ?4, ?5)";
+        entityManager.createNativeQuery(participant).setParameter(1, active).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
+                .executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, active).setParameter(2, lapizStar.getId())
+                .setParameter(3, lapiz.getId()).setParameter(4, now.minus(1, ChronoUnit.DAYS)).setParameter(5, null)
+                .executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, active).setParameter(2, member.getId())
+                .setParameter(3, owls.getId()).setParameter(4, now.minus(9, ChronoUnit.DAYS)).setParameter(5, now)
+                .executeUpdate();
+        entityManager.createNativeQuery(participant).setParameter(1, preparing).setParameter(2, founder.getId())
+                .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
+                .executeUpdate();
+        Instant cutoff = now.minus(7, ChronoUnit.DAYS);
+
+        assertThat(warRepository.findGuardsDue(cutoff)).containsExactly(active);
+        assertThat(participantRepository.restoreGuards(active, cutoff, 100.0)).isEqualTo(1);
+
+        assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(), ClanWarParticipant::getGuard,
+                ClanWarParticipant::getGuardCycle, p -> p.getBrokenAt() == null).containsExactlyInAnyOrder(
+                        tuple(founder.getId(), 100.0, 1, true), tuple(lapizStar.getId(), 0.0, 0, false),
+                        tuple(member.getId(), 0.0, 0, false));
+        assertThat(warRepository.findGuardsDue(cutoff)).isEmpty();
     }
 
     @Test

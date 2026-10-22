@@ -85,7 +85,8 @@ public final class ClanMapper {
         return new ClanWarParticipantResponse(ClanRefCache.playerRef(participant.getUser()), clan,
                 ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, strikePreview,
                 participant.getStandingWeight(), participant.getGuard(),
-                participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getContribution(),
+                participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getBrokenAt(),
+                participant.getContribution(),
                 participant.getJoinedAt(), participant.getLeftAt());
     }
 

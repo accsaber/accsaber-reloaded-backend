@@ -101,6 +101,14 @@ public class ClanWarRosterService {
         announce(war, sides, ChatEvent.war_started);
     }
 
+    @Transactional
+    public void restoreGuards(UUID warId, Instant brokenBefore) {
+        ClanWar war = warRepository.findByIdForUpdate(warId).orElse(null);
+        if (war != null && war.getStatus() == ClanWarStatus.active) {
+            participantRepository.restoreGuards(warId, brokenBefore, clanProperties.getWar().getGuard());
+        }
+    }
+
     private void announce(ClanWar war, List<ClanWarSide> sides, ChatEvent event) {
         for (ClanWarSide side : sides) {
             if (side.getLeftAt() == null) {

@@ -37,7 +37,7 @@ public class ClanProperties {
     public static class War {
         private Duration pickWindow = Duration.ofHours(24);
         private Duration prepDuration = Duration.ofHours(24);
-        private int drawAfterQuietDays = 7;
+        private int drawAfterQuietDays = 10;
         private double punchDownFloor = 0.5;
         private int poolSize = 10;
         private double maxUnderdogShare = 0.85;
@@ -64,6 +64,7 @@ public class ClanProperties {
         private double extraChipChance = 0.25;
         private double allyStakeShare = 0.3;
         private Duration maxDuration = Duration.ofDays(28);
+        private Duration brokenDuration = Duration.ofDays(7);
         private Duration engagementWindow = Duration.ofDays(14);
         private double engagementFull = 0.5;
         private Duration redeclareCooldown = Duration.ofDays(7);

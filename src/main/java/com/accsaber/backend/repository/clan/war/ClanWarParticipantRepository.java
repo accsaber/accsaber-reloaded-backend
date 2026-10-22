@@ -68,6 +68,13 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
             """)
     List<ClanWarParticipant> findByWarIdInContributionOrder(@Param("warId") UUID warId);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE ClanWarParticipant p SET p.guard = :guard, p.guardCycle = p.guardCycle + 1, p.brokenAt = NULL
+            WHERE p.war.id = :warId AND p.leftAt IS NULL AND p.brokenAt < :cutoff
+            """)
+    int restoreGuards(@Param("warId") UUID warId, @Param("cutoff") Instant cutoff, @Param("guard") double guard);
+
     @Modifying(flushAutomatically = true)
     @Query("""
             UPDATE ClanWarParticipant p SET p.xpAwarded = :xp, p.rewardedAt = :now

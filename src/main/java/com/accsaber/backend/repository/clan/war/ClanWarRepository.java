@@ -136,6 +136,15 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
 
     @Query(value = """
             SELECT w.id FROM clan_wars w
+            WHERE w.status = 'active'
+              AND EXISTS (SELECT 1 FROM clan_war_participants p
+                          WHERE p.war_id = w.id AND p.left_at IS NULL AND p.broken_at < :cutoff)
+            ORDER BY w.starts_at
+            """, nativeQuery = true)
+    List<UUID> findGuardsDue(@Param("cutoff") Instant cutoff);
+
+    @Query(value = """
+            SELECT w.id FROM clan_wars w
             JOIN clan_war_participants p ON p.war_id = w.id AND p.user_id = :userId AND p.left_at IS NULL
             JOIN clan_war_pool pool ON pool.war_id = w.id AND pool.map_difficulty_id = :mapDifficultyId
             WHERE w.status = 'active'
