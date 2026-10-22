@@ -463,7 +463,7 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.25 * 1.25, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.2 * 1.2, within(1e-9));
         }
 
         @Test
