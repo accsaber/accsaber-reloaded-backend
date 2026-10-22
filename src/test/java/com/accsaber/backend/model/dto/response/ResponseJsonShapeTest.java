@@ -184,7 +184,7 @@ class ResponseJsonShapeTest {
     @Test
     void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
         ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null, 80.0,
-                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 0, 40.0, 80.0, 2.0,
+                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 0, 40.0, 80.0, 2.0, 12.5, 10.0,
                         new ClanWarStrikeMapResponse(null)), 1.0, 100.0, 0, 0, T2,
                 0.0, T1, null);
 

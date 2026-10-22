@@ -126,8 +126,9 @@ class ClanWarDamage {
         return best;
     }
 
-    Map<Long, ClanWarStrikePreviewResponse> previews(Viewer viewer, Collection<ClanWarParticipant> victims,
-            Map<Long, Double> skills) {
+    Map<Long, ClanWarStrikePreviewResponse> previews(Viewer viewer, Field field, double engagement) {
+        List<ClanWarParticipant> victims = field.enemies();
+        Map<Long, Double> skills = field.skills();
         if (victims.isEmpty()) {
             return Map.of();
         }
@@ -140,8 +141,10 @@ class ClanWarDamage {
             double victimSkill = skills.getOrDefault(victimId, 0.0);
             double disparity = disparity(attackerSkill, victimSkill);
             Streak streak = cycleHits.getOrDefault(victimId, Streak.NONE);
+            double standing = field.standing().applyAsDouble(victim);
             return new ClanWarStrikePreviewResponse(hit(streak, disparity), hitsToBreak(victim.getGuard(), streak,
-                    disparity), streak.hits(), streak.missing(), streak.chips(), skill(attackerSkill), skill(victimSkill), disparity, onMap.get(victimId));
+                    disparity), streak.hits(), streak.missing(), streak.chips(), skill(attackerSkill), skill(victimSkill), disparity,
+                    standing, standing * engagement, onMap.get(victimId));
         }));
     }
 

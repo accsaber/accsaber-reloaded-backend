@@ -195,7 +195,10 @@ public class ClanWarRosterService {
         if (viewerSide == null) {
             return Map.of();
         }
-        return warDamage.previews(viewer, ClanWarDamage.enemies(rows, sideByClan, viewerSide.getTeam()), skills);
+        ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewer.userId(),
+                ClanWarDamage.enemies(rows, sideByClan, viewerSide.getTeam()), skills,
+                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy));
+        return warDamage.previews(viewer, field, stakeService.engagement(war, viewerSide.getTeam().opponent()));
     }
 
     public List<Long> fighterIds(UUID warId) {

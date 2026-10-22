@@ -334,6 +334,8 @@ class ClanWarRosterServiceTest {
         UUID enemyScore = UUID.randomUUID();
         when(hitRepository.findActiveScores(List.of(map), List.of(11L)))
                 .thenReturn(List.of(victimScore(map, enemyScore, 11L, 950_000)));
+        when(stakeService.breakAmount(any(), any(), eq(enemy))).thenReturn(40.0);
+        when(stakeService.engagement(war, ClanWarTeam.defend)).thenReturn(0.5);
 
         Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), 1L, map, PageRequest.of(0, 50))
                 .stream().collect(Collectors.toMap(row -> Long.valueOf(row.player().id()), Function.identity()));
@@ -345,6 +347,8 @@ class ClanWarRosterServiceTest {
             assertThat(preview.damage()).isEqualTo(30.0);
             assertThat(preview.hitsToBreak()).isEqualTo(3);
             assertThat(preview.onMap().targetScore()).isEqualTo(950_000);
+            assertThat(preview.standingTaken()).isEqualTo(40.0);
+            assertThat(preview.standingGained()).isEqualTo(20.0);
         });
     }
 
