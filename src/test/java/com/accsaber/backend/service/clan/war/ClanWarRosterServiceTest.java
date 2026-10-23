@@ -1,7 +1,6 @@
 package com.accsaber.backend.service.clan.war;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -14,7 +13,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -25,7 +23,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,13 +32,12 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import com.accsaber.backend.config.ClanProperties;
-import com.accsaber.backend.exception.ForbiddenException;
-import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarOrder;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
@@ -143,7 +139,7 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void startingSettlesTheStakesAndEnrolsBothTeamsWithTheirWeights() {
+    void startingSettlesTheStakesAndLetsTheLighterTeamTakeLongerToDrain() {
         teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 0.6),
                 new MemberStrength(attacker.getId(), 2L, 70, 0.4)),
                 List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
@@ -155,7 +151,8 @@ class ClanWarRosterServiceTest {
         verify(scoreGate).refreshAfterCommit();
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).hasSize(3);
-        assertThat(participants.get(1L).getStandingWeight()).isEqualTo(0.6);
+        assertThat(participants.get(1L).getStandingWeight()).isCloseTo(8100.0 / 13000, within(1e-12));
+        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(Math.pow(6400.0 / 13000, 0.25), within(1e-12));
         assertThat(participants.get(1L).getClan()).isSameAs(attacker);
         assertThat(participants.get(1L).getTarget()).isNull();
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_started, null, defender, war));
@@ -175,24 +172,13 @@ class ClanWarRosterServiceTest {
         service.prepare(war);
 
         assertThat(war.getStatus()).isEqualTo(ClanWarStatus.preparing);
-        assertThat(war.getStartsAt()).isCloseTo(Instant.now().plus(Duration.ofHours(24)), within(1, ChronoUnit.MINUTES));
+        assertThat(war.getStartsAt()).isBetween(Instant.now().plus(Duration.ofHours(24)).minusSeconds(60),
+                Instant.now().plus(Duration.ofHours(48)));
         assertThat(saved()).containsOnlyKeys(1L, 11L);
         verify(stakeService, never()).rebalance(any());
         verify(feed).war(war);
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_preparing, null, defender, war));
         verify(chatChannel).announce(defender, ChatNotice.ofWar(ChatEvent.war_preparing, null, attacker, war));
-    }
-
-    @Test
-    void aWarWithNoPickPhaseGetsThePickWindowAddedToItsPrep() {
-        war.setStatus(ClanWarStatus.picking);
-        war.setPicksDueAt(null);
-        teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0)),
-                List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
-
-        service.prepare(war);
-
-        assertThat(war.getStartsAt()).isCloseTo(Instant.now().plus(Duration.ofHours(48)), within(1, ChronoUnit.MINUTES));
     }
 
     @Test
@@ -235,7 +221,7 @@ class ClanWarRosterServiceTest {
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).containsOnlyKeys(1L, 11L, 21L);
         assertThat(participants.get(21L).getClan()).isSameAs(ally);
-        assertThat(participants.get(21L).getStandingWeight()).isEqualTo(0.3);
+        assertThat(participants.get(21L).getStandingWeight()).isCloseTo(3600.0 / 10000, within(1e-12));
     }
 
     @Test
@@ -246,6 +232,8 @@ class ClanWarRosterServiceTest {
         stayer.setGuard(40);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
         enemy.setTarget(leaver.getUser());
+        enemy.setOrder(ClanWarOrder.target);
+        enemy.setOrderedTarget(leaver.getUser());
         when(warRepository.findRosteredIds(attacker.getId())).thenReturn(List.of(war.getId()));
         when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(leaver, stayer, enemy));
         teams(List.of(new MemberStrength(attacker.getId(), 4L, 95, 0.8),
@@ -257,9 +245,10 @@ class ClanWarRosterServiceTest {
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants.get(1L).getLeftAt()).isNotNull();
         assertThat(participants.get(2L).getGuard()).isEqualTo(40);
-        assertThat(participants.get(2L).getStandingWeight()).isEqualTo(0.2);
-        assertThat(participants.get(4L).getStandingWeight()).isEqualTo(0.8);
-        assertThat(participants.get(11L).getTarget()).isNull();
+        assertThat(participants.get(2L).getStandingWeight()).isCloseTo(3600.0 / 12625, within(1e-12));
+        assertThat(participants.get(4L).getStandingWeight()).isCloseTo(9025.0 / 12625, within(1e-12));
+        assertThat(participants.get(11L)).extracting(ClanWarParticipant::getTarget, ClanWarParticipant::getOrder,
+                ClanWarParticipant::getOrderedTarget).containsExactly(null, ClanWarOrder.auto, null);
     }
 
     @Test
@@ -350,50 +339,6 @@ class ClanWarRosterServiceTest {
             assertThat(preview.standingTaken()).isEqualTo(40.0);
             assertThat(preview.standingGained()).isEqualTo(20.0);
         });
-    }
-
-    @Nested
-    class Picks {
-
-        private ClanWarParticipant chooser;
-        private ClanWarParticipant enemy;
-
-        @BeforeEach
-        void twoFighters() {
-            chooser = participant(1L, attacker, 1.0);
-            enemy = participant(11L, defender, 1.0);
-            lenient().when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(chooser, enemy));
-            lenient().when(participantRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-        }
-
-        @Test
-        void aPlayerCanPickAnEnemyFarBelowThem() {
-            when(participantRepository.findOverallSkills(anyCollection())).thenReturn(List.of(
-                    skill(1L, 80), skill(11L, 5)));
-
-            service.choose(war.getId(), 1L, 11L);
-
-            assertThat(chooser.getTarget()).isSameAs(enemy.getUser());
-        }
-
-        @Test
-        void aTeammateIsNotATarget() {
-            assertThatThrownBy(() -> service.choose(war.getId(), 1L, 1L)).isInstanceOf(ValidationException.class);
-        }
-
-        @Test
-        void sendingNothingClearsThePick() {
-            chooser.setTarget(enemy.getUser());
-
-            service.choose(war.getId(), 1L, null);
-
-            assertThat(chooser.getTarget()).isNull();
-        }
-
-        @Test
-        void onlyFightersCanPick() {
-            assertThatThrownBy(() -> service.choose(war.getId(), 99L, 11L)).isInstanceOf(ForbiddenException.class);
-        }
     }
 
     private static ClanWarHitRepository.VictimScoreView victimScore(UUID map, UUID scoreId, Long userId, int score) {

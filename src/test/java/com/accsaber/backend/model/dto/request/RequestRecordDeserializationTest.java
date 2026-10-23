@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.request.campaign.CampaignModifierRequireme
 import com.accsaber.backend.model.dto.request.campaign.CampaignVoteRequest;
 import com.accsaber.backend.model.dto.request.campaign.InviteCampaignCollaboratorRequest;
 import com.accsaber.backend.model.dto.request.clan.ChooseClanWarTargetRequest;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.dto.request.clan.ClanCapacityRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanWarModeRequest;
 import com.accsaber.backend.model.dto.request.clan.CreateClanAllianceRequest;
@@ -119,7 +120,8 @@ class RequestRecordDeserializationTest {
                 Arguments.of("{\"modifierId\":\"" + A + "\",\"requirement\":\"REQUIRED\"}",
                         new CampaignModifierRequirementRequest(A, CampaignModifierRequirement.REQUIRED)),
                 Arguments.of("{\"direction\":\"UP\"}", new CampaignVoteRequest(CampaignVoteDirection.UP)),
-                Arguments.of("{\"userId\":\"76561198000000000\"}", new ChooseClanWarTargetRequest("76561198000000000")),
+                Arguments.of("{\"targeting\":\"manual\",\"userId\":\"76561198000000000\"}",
+                        new ChooseClanWarTargetRequest(ClanWarTargeting.manual, "76561198000000000")),
                 Arguments.of("{\"discordId\":\"d\",\"tierName\":\"Gold\",\"assignedAt\":\"2026-01-02T03:04:05Z\"}",
                         new ClaimByRoleSignalRequest("d", "Gold", Instant.parse("2026-01-02T03:04:05Z"))),
                 Arguments.of("{\"kofiTransactionId\":\"k\",\"userId\":42}", new ClaimSupporterEventRequest("k", 42L)),

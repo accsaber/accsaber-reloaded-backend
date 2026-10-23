@@ -181,12 +181,13 @@ class ClanWarPoolServiceTest {
     class Seed {
 
         @Test
-        void aRandomArenaFillsTheWholePoolAndGoesStraightToPreparation() {
-            ClanWar war = war(ClanArena.random, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 10, 0, 0));
+        void aModernRandomArenaFillsTheWholePoolFromRecentMapsAndGoesStraightToPreparation() {
+            ClanWar war = war(ClanArena.modern_random, ClanWarStatus.picking, new ClanArenaSpec(null, null, null, 10, 0, 0));
 
             service.seed(war, List.of());
 
-            verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null);
+            verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null,
+                    Instant.parse("2024-01-01T00:00:00Z"));
             verify(rosterService).prepare(war);
         }
 
@@ -197,7 +198,7 @@ class ClanWarPoolServiceTest {
 
             service.seed(war, List.of());
 
-            verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null);
+            verify(poolRepository).insertRandom(war.getId(), null, "random", 10, null, null, null, null);
             assertThat(war.getStatus()).isEqualTo(ClanWarStatus.picking);
             assertThat(war.getRuleset()).isEqualTo(ClanRuleset.berserker);
         }
@@ -263,7 +264,7 @@ class ClanWarPoolServiceTest {
             service.submitPicks(war.getId(), 3L, List.of(shared, fresh), false);
 
             verify(accessService).require(defender.getId(), 3L, ClanPermission.SUBMIT_PICKS);
-            verify(poolRepository).insertRandom(war.getId(), defender.getId(), "replacement", 1, null, null, null);
+            verify(poolRepository).insertRandom(war.getId(), defender.getId(), "replacement", 1, null, null, null, null);
             assertThat(side.getPicksSubmittedAt()).isNotNull();
             assertThat(side.getLeadUser()).isSameAs(officer);
             verify(rosterService).prepare(war);
@@ -320,7 +321,7 @@ class ClanWarPoolServiceTest {
 
             service.closePicks(war.getId());
 
-            verify(poolRepository).insertRandom(war.getId(), null, "random", 3, null, null, null);
+            verify(poolRepository).insertRandom(war.getId(), null, "random", 3, null, null, null, null);
             verify(rosterService).prepare(war);
             assertThat(war.getRuleset()).isEqualTo(ClanRuleset.duel);
         }
@@ -333,7 +334,7 @@ class ClanWarPoolServiceTest {
 
             service.closePicks(war.getId());
 
-            verify(poolRepository, never()).insertRandom(any(), any(), anyString(), anyInt(), any(), any(), any());
+            verify(poolRepository, never()).insertRandom(any(), any(), anyString(), anyInt(), any(), any(), any(), any());
         }
     }
 

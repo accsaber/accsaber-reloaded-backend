@@ -60,19 +60,22 @@ class ClanChatUnreadQueryTest {
     }
 
     @Test
-    @DisplayName("counts messages after since that the reader did not write, events included, up to the cap")
+    @DisplayName("counts messages after since that the reader did not write up to the cap, events kept or split out")
     void countsOthersMessagesUpToTheCap() {
-        assertThat(chatRepository.countClanUnread(clanId, 1L, before, 99)).isEqualTo(3);
-        assertThat(chatRepository.countClanUnread(clanId, 1L, before, 2)).isEqualTo(2);
-        assertThat(chatRepository.countClanUnread(clanId, 1L, Instant.now().plus(1, ChronoUnit.MINUTES), 99))
+        assertThat(chatRepository.countClanUnread(clanId, 1L, before, null, 99)).isEqualTo(3);
+        assertThat(chatRepository.countClanUnread(clanId, 1L, before, false, 99)).isEqualTo(2);
+        assertThat(chatRepository.countClanUnread(clanId, 1L, before, true, 99)).isEqualTo(1);
+        assertThat(chatRepository.countClanUnread(clanId, 1L, before, null, 2)).isEqualTo(2);
+        assertThat(chatRepository.countClanUnread(clanId, 1L, Instant.now().plus(1, ChronoUnit.MINUTES), null, 99))
                 .isZero();
     }
 
     @Test
     @DisplayName("latest message time is the newest row, or null for an empty clan")
     void latestMessageTime() {
-        assertThat(chatRepository.findLatestClanMessageAt(clanId)).isAfter(before);
-        assertThat(chatRepository.findLatestClanMessageAt(UUID.randomUUID())).isNull();
+        assertThat(chatRepository.findLatestClanMessageAt(clanId, null)).isAfter(before);
+        assertThat(chatRepository.findLatestClanMessageAt(clanId, false)).isAfter(before);
+        assertThat(chatRepository.findLatestClanMessageAt(UUID.randomUUID(), null)).isNull();
     }
 
     private User user(long id) {

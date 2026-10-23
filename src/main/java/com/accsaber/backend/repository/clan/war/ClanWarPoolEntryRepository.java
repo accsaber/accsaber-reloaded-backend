@@ -1,5 +1,6 @@
 package com.accsaber.backend.repository.clan.war;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -50,10 +51,12 @@ public interface ClanWarPoolEntryRepository extends JpaRepository<ClanWarPoolEnt
             """ + LEGAL_DIFFICULTIES + """
               AND NOT EXISTS (SELECT 1 FROM clan_war_pool p
                               WHERE p.war_id = CAST(:warId AS uuid) AND p.map_difficulty_id = md.id)
+              AND (CAST(:rankedSince AS timestamptz) IS NULL OR md.ranked_at >= CAST(:rankedSince AS timestamptz))
             ORDER BY random()
             LIMIT :count
             """, nativeQuery = true)
     int insertRandom(@Param("warId") UUID warId, @Param("pickedBy") UUID pickedBy, @Param("source") String source,
             @Param("count") int count, @Param("categoryId") UUID categoryId,
-            @Param("complexityMin") Double complexityMin, @Param("complexityMax") Double complexityMax);
+            @Param("complexityMin") Double complexityMin, @Param("complexityMax") Double complexityMax,
+            @Param("rankedSince") Instant rankedSince);
 }

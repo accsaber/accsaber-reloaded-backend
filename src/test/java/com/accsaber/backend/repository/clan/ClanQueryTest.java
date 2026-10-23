@@ -767,7 +767,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, in active wars only")
+    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, and a wiped team brings every broken guard back")
     void brokenGuardsComeBack() {
         Instant now = Instant.now();
         UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
@@ -792,15 +792,26 @@ class ClanQueryTest {
                 .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
                 .executeUpdate();
         Instant cutoff = now.minus(7, ChronoUnit.DAYS);
+        Instant longAgo = now.minus(9, ChronoUnit.DAYS);
 
-        assertThat(warRepository.findGuardsDue(cutoff)).containsExactly(active);
-        assertThat(participantRepository.restoreGuards(active, cutoff, 100.0)).isEqualTo(1);
+        assertThat(warRepository.findGuardsDue(cutoff, longAgo)).containsExactly(active);
+        assertThat(participantRepository.restoreGuards(active, cutoff, longAgo, 100.0)).isEqualTo(1);
 
         assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(), ClanWarParticipant::getGuard,
                 ClanWarParticipant::getGuardCycle, p -> p.getBrokenAt() == null).containsExactlyInAnyOrder(
                         tuple(founder.getId(), 100.0, 1, true), tuple(lapizStar.getId(), 0.0, 0, false),
                         tuple(member.getId(), 0.0, 0, false));
-        assertThat(warRepository.findGuardsDue(cutoff)).isEmpty();
+        assertThat(warRepository.findGuardsDue(cutoff, longAgo)).isEmpty();
+
+        Instant wipedBefore = now.minus(2, ChronoUnit.DAYS);
+        entityManager.createNativeQuery("UPDATE clan_war_participants SET guard = 0, broken_at = ?1 WHERE war_id = ?2 "
+                + "AND user_id = ?3").setParameter(1, now.minus(3, ChronoUnit.DAYS)).setParameter(2, active)
+                .setParameter(3, founder.getId()).executeUpdate();
+        assertThat(warRepository.findGuardsDue(cutoff, wipedBefore)).containsExactly(active);
+        assertThat(participantRepository.restoreGuards(active, cutoff, wipedBefore, 100.0)).isEqualTo(2);
+        assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(),
+                ClanWarParticipant::getGuardCycle).containsExactlyInAnyOrder(tuple(founder.getId(), 2),
+                        tuple(lapizStar.getId(), 1), tuple(member.getId(), 0));
     }
 
     @Test
@@ -873,7 +884,9 @@ class ClanQueryTest {
                 .containsExactlyInAnyOrder(mid.getId(), hard.getId());
         assertThat(poolRepository.findLegal(List.of(easy.getId()), overall().getId(), null, null)).isEmpty();
 
-        assertThat(poolRepository.insertRandom(warId, lapiz.getId(), "replacement", 5, trueAcc, 5.0, 13.0))
+        assertThat(poolRepository.insertRandom(warId, lapiz.getId(), "replacement", 5, trueAcc, 5.0, 13.0,
+                Instant.now().plus(1, ChronoUnit.DAYS))).isZero();
+        assertThat(poolRepository.insertRandom(warId, lapiz.getId(), "replacement", 5, trueAcc, 5.0, 13.0, null))
                 .isEqualTo(1);
         entityManager.clear();
 
@@ -894,7 +907,7 @@ class ClanQueryTest {
         UUID warId = war(current, owls, lapiz);
 
         assertThat(poolRepository.findLegal(List.of(banned.getId()), trueAcc, null, null)).isEmpty();
-        assertThat(poolRepository.insertRandom(warId, null, "random", 5, trueAcc, 7.9, 8.1)).isZero();
+        assertThat(poolRepository.insertRandom(warId, null, "random", 5, trueAcc, 7.9, 8.1, null)).isZero();
     }
 
     @Test
@@ -971,7 +984,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("the war play sweep finds pooled plays since the war started until each one is marked scored")
+    @DisplayName("the war play sweep finds pooled plays without a speed up since the war started until each one is marked scored")
     void unscoredPlaysUntilMarked() {
         MapDifficulty pooled = rankedAt(6.0);
         UUID current = season(Instant.now().minus(1, ChronoUnit.DAYS), Instant.now().plus(30, ChronoUnit.DAYS));
@@ -986,7 +999,10 @@ class ClanQueryTest {
         UUID play = score(founder, pooled, 10.0, started.plusSeconds(60));
         score(founder, pooled, 10.0, started.minusSeconds(60));
         score(founder, pooled, 10.0, started.plusSeconds(120), true);
+        UUID fasterSong = score(founder, pooled, 10.0, started.plusSeconds(180));
         entityManager.flush();
+        entityManager.createNativeQuery("INSERT INTO score_modifier_links (score_id, modifier_id) "
+                + "SELECT ?1, id FROM modifiers WHERE code = 'FS'").setParameter(1, fasterSong).executeUpdate();
         Instant since = Instant.now().minus(1, ChronoUnit.DAYS);
         Instant settled = Instant.now().plusSeconds(60);
 

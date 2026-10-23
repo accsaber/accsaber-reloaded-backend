@@ -48,7 +48,7 @@ class ClanWarDamage {
         }
     }
 
-    record Viewer(UUID warId, Long userId, UUID mapDifficultyId) {
+    record Viewer(UUID warId, Long userId, UUID clanId, UUID mapDifficultyId) {
     }
 
     record Field(UUID warId, Long attackerId, List<ClanWarParticipant> enemies, Map<Long, Double> skills,
@@ -75,7 +75,8 @@ class ClanWarDamage {
         return new ClanWarStrikeRulesResponse(config.getGuard(), config.getBaseDamage(), config.getEscalation(),
                 config.getDisparityExponent(), config.getMissingScoreMultiplier(), config.getChipDamage(),
                 config.getChipWindow(), config.getChipSkillExponent(), config.getMinChipDamage(),
-                config.getMissingScoreEscalation(), config.getChipEscalation(), config.getBrokenDuration().toHours());
+                config.getMissingScoreEscalation(), config.getChipEscalation(), config.getBrokenDuration().toHours(),
+                config.getWipeDuration().toHours());
     }
 
     double hitDamage(Streak streak, double attackerSkill, double victimSkill, boolean missingScore) {

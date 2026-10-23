@@ -12,5 +12,6 @@ public record ClanWarStrikeRulesResponse(
         double minChipDamage,
         double missingScoreEscalation,
         double chipEscalation,
-        long brokenDurationHours) {
+        long brokenDurationHours,
+        long wipeDurationHours) {
 }

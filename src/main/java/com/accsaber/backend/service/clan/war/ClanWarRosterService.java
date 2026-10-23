@@ -1,15 +1,18 @@
 package com.accsaber.backend.service.clan.war;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,16 +25,14 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.config.ClanProperties;
-import com.accsaber.backend.exception.ConflictException;
-import com.accsaber.backend.exception.ForbiddenException;
 import com.accsaber.backend.exception.ResourceNotFoundException;
-import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.clan.war.ClanWarOrder;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
@@ -75,9 +76,8 @@ public class ClanWarRosterService {
     public void prepare(ClanWar war) {
         war.setStatus(ClanWarStatus.preparing);
         ClanProperties.War config = clanProperties.getWar();
-        Duration prep = war.getPicksDueAt() == null ? config.getPrepDuration().plus(config.getPickWindow())
-                : config.getPrepDuration();
-        war.setStartsAt(Instant.now().plus(prep));
+        long spread = config.getPrepMax().minus(config.getPrepMin()).toSeconds();
+        war.setStartsAt(Instant.now().plus(config.getPrepMin()).plusSeconds(ThreadLocalRandom.current().nextLong(spread + 1)));
         warRepository.saveAndFlush(war);
         List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
         sync(war, sides);
@@ -102,10 +102,10 @@ public class ClanWarRosterService {
     }
 
     @Transactional
-    public void restoreGuards(UUID warId, Instant brokenBefore) {
+    public void restoreGuards(UUID warId, Instant brokenBefore, Instant wipedBefore) {
         ClanWar war = warRepository.findByIdForUpdate(warId).orElse(null);
         if (war != null && war.getStatus() == ClanWarStatus.active) {
-            participantRepository.restoreGuards(warId, brokenBefore, clanProperties.getWar().getGuard());
+            participantRepository.restoreGuards(warId, brokenBefore, wipedBefore, clanProperties.getWar().getGuard());
         }
     }
 
@@ -136,37 +136,6 @@ public class ClanWarRosterService {
                 .ifPresent(war -> sync(war, sideRepository.findByWarId(warId)));
     }
 
-    @Transactional
-    public ClanWarParticipantResponse choose(UUID warId, Long playerId, Long targetUserId) {
-        ClanWar war = warRepository.lockOrThrow(warId);
-        if (war.getStatus() == ClanWarStatus.ended) {
-            throw new ConflictException("This war is already over");
-        }
-        if (war.getRuleset() != ClanRuleset.duel) {
-            throw new ConflictException("Only duels have targets");
-        }
-        Map<Long, ClanWarParticipant> roster = participantRepository.findActiveByWarId(warId).stream()
-                .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity()));
-        ClanWarParticipant chooser = roster.get(playerId);
-        if (chooser == null) {
-            throw new ForbiddenException("You are not fighting in this war");
-        }
-        double chooserSkill = skills(List.of(playerId)).getOrDefault(playerId, 0.0);
-        if (targetUserId == null) {
-            chooser.setTarget(null);
-        } else {
-            Map<UUID, ClanWarTeam> teams = teams(sideRepository.findByWarId(warId));
-            ClanWarParticipant target = roster.get(targetUserId);
-            if (target == null || teams.get(target.getClan().getId()) == teams.get(chooser.getClan().getId())) {
-                throw new ValidationException("userId", "must be an enemy still fighting in this war");
-            }
-            chooser.setTarget(target.getUser());
-        }
-        participantRepository.saveAndFlush(chooser);
-        return ClanMapper.toWarParticipantResponse(chooser, cosmeticService.publicRefs(List.of(chooser.getClan()))
-                .get(chooser.getClan().getId()), chooserSkill, null);
-    }
-
     @Transactional(readOnly = true)
     public Page<ClanWarParticipantResponse> participants(UUID warId, Long viewerId, UUID mapDifficultyId,
             Pageable pageable) {
@@ -179,19 +148,20 @@ public class ClanWarRosterService {
             userIds.add(viewerId);
         }
         Map<Long, Double> skills = userIds.isEmpty() ? Map.of() : skills(userIds);
+        UUID viewerClanId = viewerId == null ? null : participantRepository.findOpenClanId(warId, viewerId).orElse(null);
         Map<Long, ClanWarStrikePreviewResponse> previews = strikePreviews(war, sides,
-                new ClanWarDamage.Viewer(warId, viewerId, mapDifficultyId), page.getContent(), skills);
+                new ClanWarDamage.Viewer(warId, viewerId, viewerClanId, mapDifficultyId), page.getContent(), skills);
         return page.map(p -> ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()),
-                skills.getOrDefault(p.getUser().getId(), 0.0), previews.get(p.getUser().getId())));
+                new ClanMapper.WarParticipantStats(skills.getOrDefault(p.getUser().getId(), 0.0),
+                        previews.get(p.getUser().getId()), p.getClan().getId().equals(viewerClanId))));
     }
 
     private Map<Long, ClanWarStrikePreviewResponse> strikePreviews(ClanWar war, List<ClanWarSide> sides,
             ClanWarDamage.Viewer viewer, List<ClanWarParticipant> rows, Map<Long, Double> skills) {
         Map<UUID, ClanWarSide> sideByClan = sides.stream()
                 .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
-        ClanWarSide viewerSide = viewer.userId() == null || !war.rostered() ? null
-                : participantRepository.findOpenClanId(war.getId(), viewer.userId()).map(sideByClan::get)
-                        .filter(ClanWarSide::fighting).orElse(null);
+        ClanWarSide viewerSide = viewer.clanId() == null || !war.rostered() ? null
+                : Optional.ofNullable(sideByClan.get(viewer.clanId())).filter(ClanWarSide::fighting).orElse(null);
         if (viewerSide == null) {
             return Map.of();
         }
@@ -219,11 +189,11 @@ public class ClanWarRosterService {
         ClanWarParticipant viewer = roster.stream().filter(p -> p.getUser().getId().equals(viewerId)).findFirst()
                 .orElse(null);
         ClanWarSide viewerSide = viewer == null ? null : sideByClan.get(viewer.getClan().getId());
-        if (viewerSide == null || !viewerSide.fighting()) {
+        if (viewerSide == null || !viewerSide.fighting() || viewer.halted()) {
             return Map.of();
         }
         List<ClanWarParticipant> enemies = ClanWarDamage.enemies(roster, sideByClan, viewerSide.getTeam());
-        Long pickedId = viewer.getTarget() == null ? null : viewer.getTarget().getId();
+        Long pickedId = viewer.aim() == null ? null : viewer.aim().getId();
         Optional<User> picked = enemies.stream().map(ClanWarParticipant::getUser)
                 .filter(user -> user.getId().equals(pickedId)).findFirst();
         if (picked.isPresent()) {
@@ -241,13 +211,18 @@ public class ClanWarRosterService {
     public void sync(ClanWar war, List<ClanWarSide> sides) {
         Map<UUID, ClanWarTeam> teams = teams(sides);
         Map<Long, MemberStrength> roster = new HashMap<>();
+        Map<ClanWarTeam, Double> teamHeft = new EnumMap<>(ClanWarTeam.class);
         for (ClanWarTeam team : ClanWarTeam.values()) {
             List<UUID> clanIds = sides.stream()
                     .filter(side -> side.getTeam() == team && side.fighting())
                     .map(side -> side.getClan().getId())
                     .toList();
-            strengthService.memberStrengths(clanIds).forEach(member -> roster.put(member.userId(), member));
+            List<MemberStrength> members = strengthService.memberStrengths(clanIds);
+            members.forEach(member -> roster.put(member.userId(), member));
+            teamHeft.put(team, members.stream().mapToDouble(ClanWarRosterService::heft).sum());
         }
+        Map<ClanWarTeam, Double> divisors = divisors(teamHeft);
+        ToDoubleFunction<MemberStrength> weight = member -> heft(member) / divisors.get(teams.get(member.clanId()));
         Map<UUID, ClanWarSide> sideByClan = sides.stream()
                 .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
         Map<Long, ClanWarParticipant> existing = participantRepository.findByWarId(war.getId()).stream()
@@ -258,7 +233,7 @@ public class ClanWarRosterService {
             boolean stillIn = member != null && member.clanId().equals(participant.getClan().getId());
             participant.setLeftAt(stillIn ? null : participant.getLeftAt() != null ? participant.getLeftAt() : now);
             if (stillIn) {
-                participant.setStandingWeight(member.share());
+                participant.setStandingWeight(weight.applyAsDouble(member));
             }
         }
         for (MemberStrength member : roster.values()) {
@@ -267,7 +242,7 @@ public class ClanWarRosterService {
                         .war(war)
                         .user(userRepository.getReferenceById(member.userId()))
                         .clan(sideByClan.get(member.clanId()).getClan())
-                        .standingWeight(member.share())
+                        .standingWeight(weight.applyAsDouble(member))
                         .guard(clanProperties.getWar().getGuard())
                         .build());
             }
@@ -277,18 +252,39 @@ public class ClanWarRosterService {
         scoreGate.refreshAfterCommit();
     }
 
+    private Map<ClanWarTeam, Double> divisors(Map<ClanWarTeam, Double> teamHeft) {
+        double pull = clanProperties.getWar().getBreakWeightPull();
+        double heaviest = Collections.max(teamHeft.values());
+        Map<ClanWarTeam, Double> divisors = new EnumMap<>(ClanWarTeam.class);
+        teamHeft.forEach((team, heft) -> divisors.put(team, Math.pow(heft, 1 - pull) * Math.pow(heaviest, pull)));
+        return divisors;
+    }
+
+    private static double heft(MemberStrength member) {
+        double skill = ClanWarDamage.skill(member.skill());
+        return skill * skill;
+    }
+
     private void clearIllegalTargets(Map<Long, ClanWarParticipant> participants, Map<UUID, ClanWarTeam> teams) {
         for (ClanWarParticipant participant : participants.values()) {
-            if (participant.getTarget() == null) {
-                continue;
-            }
-            ClanWarParticipant target = participants.get(participant.getTarget().getId());
-            boolean legal = participant.getLeftAt() == null && target != null && target.getLeftAt() == null
-                    && teams.get(target.getClan().getId()) != teams.get(participant.getClan().getId());
-            if (!legal) {
+            if (!legal(participant, participant.getTarget(), participants, teams)) {
                 participant.setTarget(null);
             }
+            if (!legal(participant, participant.getOrderedTarget(), participants, teams)) {
+                participant.setOrder(ClanWarOrder.auto);
+                participant.setOrderedTarget(null);
+            }
         }
+    }
+
+    private static boolean legal(ClanWarParticipant participant, User aim, Map<Long, ClanWarParticipant> participants,
+            Map<UUID, ClanWarTeam> teams) {
+        if (aim == null) {
+            return true;
+        }
+        ClanWarParticipant target = participants.get(aim.getId());
+        return participant.getLeftAt() == null && target != null && target.getLeftAt() == null
+                && teams.get(target.getClan().getId()) != teams.get(participant.getClan().getId());
     }
 
     private Map<Long, Double> skills(List<Long> userIds) {

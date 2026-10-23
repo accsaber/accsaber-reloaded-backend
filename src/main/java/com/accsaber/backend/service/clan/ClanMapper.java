@@ -11,6 +11,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanRivalResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanSeasonRewardResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarAidResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarOrdersResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRefResponse;
@@ -80,10 +81,15 @@ public final class ClanMapper {
                 hit.isBroke(), hit.getStandingMoved(), hit.getXpAwarded(), hit.getCreatedAt());
     }
 
-    public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant, PublicClanResponse clan, Double skill,
-            ClanWarStrikePreviewResponse strikePreview) {
+    public record WarParticipantStats(double skill, ClanWarStrikePreviewResponse strikePreview, boolean showOrders) {
+    }
+
+    public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant, PublicClanResponse clan,
+            WarParticipantStats stats) {
+        ClanWarOrdersResponse orders = stats.showOrders() ? new ClanWarOrdersResponse(participant.getTargeting(),
+                participant.getOrder(), ClanRefCache.playerRef(participant.getOrderedTarget())) : null;
         return new ClanWarParticipantResponse(ClanRefCache.playerRef(participant.getUser()), clan,
-                ClanRefCache.playerRef(participant.getTarget()), skill == null ? 0.0 : skill, strikePreview,
+                ClanRefCache.playerRef(participant.getTarget()), orders, stats.skill(), stats.strikePreview(),
                 participant.getStandingWeight(), participant.getGuard(),
                 participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getBrokenAt(),
                 participant.getContribution(),

@@ -137,11 +137,12 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
     @Query(value = """
             SELECT w.id FROM clan_wars w
             WHERE w.status = 'active'
-              AND EXISTS (SELECT 1 FROM clan_war_participants p
-                          WHERE p.war_id = w.id AND p.left_at IS NULL AND p.broken_at < :cutoff)
+              AND EXISTS (SELECT 1 FROM clan_war_participants p WHERE p.war_id = w.id AND
+            """ + ClanWarParticipantRepository.GUARD_DUE + """
+            )
             ORDER BY w.starts_at
             """, nativeQuery = true)
-    List<UUID> findGuardsDue(@Param("cutoff") Instant cutoff);
+    List<UUID> findGuardsDue(@Param("cutoff") Instant cutoff, @Param("wipedBefore") Instant wipedBefore);
 
     @Query(value = """
             SELECT w.id FROM clan_wars w
@@ -208,6 +209,8 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
               AND NOT s.partial
               AND NOT s.reweight_derivative
               AND s.supersedes_reason IS DISTINCT FROM 'Campaign attempt'
+              AND NOT EXISTS (SELECT 1 FROM score_modifier_links l JOIN modifiers m ON m.id = l.modifier_id
+                              WHERE l.score_id = s.id AND m.code IN ('FS', 'SF'))
               AND NOT EXISTS (SELECT 1 FROM clan_war_scored_plays sp WHERE sp.war_id = w.id AND sp.score_id = s.id)
             ORDER BY COALESCE(s.time_set, s.created_at)
             LIMIT :limit

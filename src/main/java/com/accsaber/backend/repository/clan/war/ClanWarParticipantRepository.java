@@ -68,12 +68,23 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
             """)
     List<ClanWarParticipant> findByWarIdInContributionOrder(@Param("warId") UUID warId);
 
+    String GUARD_DUE = """
+            p.left_at IS NULL AND p.broken_at IS NOT NULL AND (p.broken_at < :cutoff OR EXISTS (
+                SELECT 1 FROM clan_war_participants tp
+                JOIN clan_war_sides ts ON ts.war_id = tp.war_id AND ts.clan_id = tp.clan_id
+                WHERE tp.war_id = p.war_id AND tp.left_at IS NULL
+                  AND ts.left_at IS NULL AND NOT (ts.stake > 0 AND ts.stake_remaining <= 0)
+                GROUP BY ts.team
+                HAVING bool_and(COALESCE(tp.broken_at < :wipedBefore, false))))
+            """;
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            UPDATE ClanWarParticipant p SET p.guard = :guard, p.guardCycle = p.guardCycle + 1, p.brokenAt = NULL
-            WHERE p.war.id = :warId AND p.leftAt IS NULL AND p.brokenAt < :cutoff
-            """)
-    int restoreGuards(@Param("warId") UUID warId, @Param("cutoff") Instant cutoff, @Param("guard") double guard);
+    @Query(value = """
+            UPDATE clan_war_participants p SET guard = :guard, guard_cycle = p.guard_cycle + 1, broken_at = NULL
+            WHERE p.war_id = :warId AND
+            """ + GUARD_DUE, nativeQuery = true)
+    int restoreGuards(@Param("warId") UUID warId, @Param("cutoff") Instant cutoff,
+            @Param("wipedBefore") Instant wipedBefore, @Param("guard") double guard);
 
     @Modifying(flushAutomatically = true)
     @Query("""

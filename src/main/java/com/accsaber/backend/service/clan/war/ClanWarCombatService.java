@@ -107,7 +107,7 @@ public class ClanWarCombatService {
     public void onScoreSubmitted(ScoreSubmittedEvent event) {
         ScoreResponse score = event.score();
         Long userId = Long.valueOf(score.getUserId());
-        if (score.isPartial() || !scoreGate.mayMatter(userId, score.getMapDifficultyId())) {
+        if (score.isPartial() || !scoreGate.mayMatter(score)) {
             return;
         }
         Play play = Play.of(score);
@@ -149,7 +149,7 @@ public class ClanWarCombatService {
             return;
         }
         restoreGuard(battle.attacker(), play);
-        if (war.getRetreatAt() != null && battle.team(battle.attacker()) == ClanWarTeam.attack) {
+        if (battle.attacker().halted() || war.getRetreatAt() != null && battle.team(battle.attacker()) == ClanWarTeam.attack) {
             return;
         }
         List<ClanWarParticipant> enemies = enemies(battle);
@@ -220,10 +220,10 @@ public class ClanWarCombatService {
     }
 
     private Optional<Strike> picked(Battle battle, List<ClanWarParticipant> enemies) {
-        if (battle.attacker().getTarget() == null) {
+        if (battle.attacker().aim() == null) {
             return Optional.empty();
         }
-        Long targetId = battle.attacker().getTarget().getId();
+        Long targetId = battle.attacker().aim().getId();
         return enemies.stream().filter(e -> e.getUser().getId().equals(targetId)).findFirst()
                 .map(target -> option(battle, target));
     }

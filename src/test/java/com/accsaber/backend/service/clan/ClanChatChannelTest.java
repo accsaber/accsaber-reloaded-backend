@@ -74,17 +74,17 @@ class ClanChatChannelTest {
         Instant since = Instant.parse("2026-10-14T20:00:00Z");
         Instant latest = Instant.parse("2026-10-14T20:11:05Z");
         when(chatService.requireParticipant(channel, owls.getId(), 7L)).thenReturn(1L);
-        when(chatRepository.countClanUnread(owls.getId(), 1L, since, 99)).thenReturn(3);
-        when(chatRepository.findLatestClanMessageAt(owls.getId())).thenReturn(latest);
+        when(chatRepository.countClanUnread(owls.getId(), 1L, since, false, 99)).thenReturn(3);
+        when(chatRepository.findLatestClanMessageAt(owls.getId(), false)).thenReturn(latest);
 
-        assertThat(channel.unread(owls.getId(), 7L, since)).isEqualTo(new ChatUnreadResponse(3, latest));
+        assertThat(channel.unread(owls.getId(), 7L, since, false)).isEqualTo(new ChatUnreadResponse(3, latest));
     }
 
     @Test
     void unreadStopsAtTheMembershipCheck() {
         when(chatService.requireParticipant(channel, owls.getId(), 9L)).thenThrow(new ForbiddenException("no"));
 
-        assertThatThrownBy(() -> channel.unread(owls.getId(), 9L, Instant.now()))
+        assertThatThrownBy(() -> channel.unread(owls.getId(), 9L, Instant.now(), null))
                 .isInstanceOf(ForbiddenException.class);
         verifyNoInteractions(chatRepository);
     }

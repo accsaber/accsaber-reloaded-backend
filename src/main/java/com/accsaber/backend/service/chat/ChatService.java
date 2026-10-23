@@ -45,8 +45,11 @@ public class ChatService {
     }
 
     public Page<ChatMessageResponse> getTranscript(ChatChannel channel, UUID channelId, Pageable pageable) {
-        Page<ChatMessage> page = channel.findMessages(channelId, pageable);
-        return new PageImpl<>(channel.toResponses(page.getContent()), pageable, page.getTotalElements());
+        return responses(channel, channel.findMessages(channelId, pageable));
+    }
+
+    public Page<ChatMessageResponse> responses(ChatChannel channel, Page<ChatMessage> page) {
+        return new PageImpl<>(channel.toResponses(page.getContent()), page.getPageable(), page.getTotalElements());
     }
 
     @Transactional

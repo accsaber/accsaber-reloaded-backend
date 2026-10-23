@@ -26,6 +26,7 @@ import com.accsaber.backend.model.dto.request.clan.DeclareClanWarRequest;
 import com.accsaber.backend.model.dto.request.clan.ChooseClanWarTargetRequest;
 import com.accsaber.backend.model.dto.request.clan.ClanWarHitFilter;
 import com.accsaber.backend.model.dto.request.clan.OfferClanWarAidRequest;
+import com.accsaber.backend.model.dto.request.clan.OrderClanWarTargetRequest;
 import com.accsaber.backend.model.dto.request.clan.RequestClanWarAidRequest;
 import com.accsaber.backend.model.dto.request.clan.ResolveClanWarAidRequest;
 import com.accsaber.backend.model.dto.request.clan.SubmitClanWarPicksRequest;
@@ -45,6 +46,7 @@ import com.accsaber.backend.service.clan.war.ClanWarPoolService;
 import com.accsaber.backend.service.clan.war.ClanWarRewardService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
+import com.accsaber.backend.service.clan.war.ClanWarTargetingService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,6 +64,7 @@ public class ClanWarController {
     private final ClanWarCoalitionService coalitionService;
     private final ClanWarRosterService rosterService;
     private final ClanWarRewardService rewardService;
+    private final ClanWarTargetingService targetingService;
 
     @Operation(summary = "List clan wars",
             description = "Newest first. clanId filters to one clan, open=true hides finished wars.")
@@ -212,21 +215,36 @@ public class ClanWarController {
         return ResponseEntity.ok(coalitionService.leave(warId, clanId, principal.getUserId()));
     }
 
-    @Operation(summary = "Pick your duel target",
-            description = "Any enemy still fighting whose skill is at least 0.8 times yours. Send null to clear it. "
-                    + "A play that cannot hit or chip your pick goes to the closest score instead.")
+    @Operation(summary = "Choose how your plays pick a target",
+            description = "follow (the default) does what your commanders order, auto strikes the best option, "
+                    + "manual strikes userId, any enemy still fighting in a duel. userId only counts for manual, "
+                    + "so your pick is kept while you follow or go auto. A play that cannot hit or chip the target "
+                    + "goes auto instead.")
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/wars/{warId}/target")
     public ResponseEntity<ClanWarParticipantResponse> target(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
             @Valid @RequestBody ChooseClanWarTargetRequest request) {
-        return ResponseEntity.ok(rosterService.choose(warId, principal.getUserId(),
-                request.userId() == null ? null : Long.valueOf(request.userId())));
+        return ResponseEntity.ok(targetingService.choose(warId, principal.getUserId(), request));
+    }
+
+    @Operation(summary = "Order one of your clan's fighters",
+            description = "Commanders and up. auto lets them strike the best option, target sends them at "
+                    + "targetUserId (duels only) and halt stops their plays from striking at all. "
+                    + "Only fighters in follow mode obey it.")
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/wars/{warId}/orders")
+    public ResponseEntity<ClanWarParticipantResponse> order(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID warId,
+            @Valid @RequestBody OrderClanWarTargetRequest request) {
+        return ResponseEntity.ok(targetingService.order(warId, principal.getUserId(), request));
     }
 
     @Operation(summary = "War participants",
-            description = "Players still in first, then by skill. target is who they picked. "
+            description = "Players still in first, then by skill. target is who they picked by hand. "
+                    + "orders (targeting mode and the commander's order) is only filled for the viewer's own clan. "
                     + "strikePreview is the viewer's next hit on an enemy; "
                     + "mapDifficultyId adds that enemy's score on the map.")
     @GetMapping("/wars/{warId}/participants")

@@ -21,20 +21,31 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan", "war" })
     Page<ChatMessage> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
 
+    @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan", "war" })
+    Page<ChatMessage> findByClan_IdAndEventIsNullOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
+
+    @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan", "war" })
+    Page<ChatMessage> findByClan_IdAndEventIsNotNullOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
+
     @Query(value = """
             SELECT COUNT(*) FROM (
                 SELECT 1 FROM chat_messages
                 WHERE clan_id = :clanId
                   AND created_at >= date_trunc('milliseconds', CAST(:since AS timestamptz)) + INTERVAL '1 millisecond'
                   AND user_id IS DISTINCT FROM :userId
+                  AND (CAST(:events AS boolean) IS NULL OR (event IS NOT NULL) = CAST(:events AS boolean))
                 LIMIT :cap
             ) unread
             """, nativeQuery = true)
     int countClanUnread(@Param("clanId") UUID clanId, @Param("userId") Long userId,
-            @Param("since") Instant since, @Param("cap") int cap);
+            @Param("since") Instant since, @Param("events") Boolean events, @Param("cap") int cap);
 
-    @Query("SELECT MAX(m.createdAt) FROM ChatMessage m WHERE m.clan.id = :clanId")
-    Instant findLatestClanMessageAt(@Param("clanId") UUID clanId);
+    @Query(value = """
+            SELECT MAX(created_at) FROM chat_messages
+            WHERE clan_id = :clanId
+              AND (CAST(:events AS boolean) IS NULL OR (event IS NOT NULL) = CAST(:events AS boolean))
+            """, nativeQuery = true)
+    Instant findLatestClanMessageAt(@Param("clanId") UUID clanId, @Param("events") Boolean events);
 
     @Modifying(flushAutomatically = true)
     @Query(value = """

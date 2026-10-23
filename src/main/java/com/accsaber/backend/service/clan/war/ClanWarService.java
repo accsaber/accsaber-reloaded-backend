@@ -31,7 +31,6 @@ import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.clan.ClanWarModeAxis;
-import com.accsaber.backend.model.entity.clan.war.ClanArena;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
@@ -114,7 +113,7 @@ public class ClanWarService {
                 .arena(request.getArena())
                 .arenaSpec(spec)
                 .ruleset(request.getRuleset())
-                .picksDueAt(request.getArena() == ClanArena.random && request.getRuleset() == ClanRuleset.duel ? null
+                .picksDueAt(request.getArena().randomPool() && request.getRuleset() == ClanRuleset.duel ? null
                         : Instant.now().plus(clanProperties.getWar().getPickWindow()))
                 .build());
         stakeService.rebalance(sideRepository.saveAllAndFlush(List.of(

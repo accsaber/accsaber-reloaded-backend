@@ -23,7 +23,10 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarOrdersResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
+import com.accsaber.backend.model.entity.clan.war.ClanWarOrder;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRewardsResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeMapResponse;
@@ -183,12 +186,14 @@ class ResponseJsonShapeTest {
 
     @Test
     void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
-        ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null, 80.0,
+        ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, null, null,
+                new ClanWarOrdersResponse(ClanWarTargeting.follow, ClanWarOrder.halt, null), 80.0,
                 new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 0, 40.0, 80.0, 2.0, 12.5, 10.0,
                         new ClanWarStrikeMapResponse(null)), 1.0, 100.0, 0, 0, T2,
                 0.0, T1, null);
 
         JsonNode preview = json(row).get("strikePreview");
+        assertThat(json(row).get("orders").get("order").asString()).isEqualTo("halt");
 
         assertNestedPlayer(json(row));
         assertThat(preview.get("damage").toString()).isEqualTo("30");
@@ -198,9 +203,10 @@ class ResponseJsonShapeTest {
         assertThat(preview.get("onMap").has("hitUsed")).isFalse();
         assertThat(json(row).get("brokenAt").isString()).isTrue();
         JsonNode rules = json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0, 1.0, 1.25, 1.05,
-                168));
+                168, 48));
         assertThat(rules.get("guard").toString()).isEqualTo("100");
         assertThat(rules.get("brokenDurationHours").asInt()).isEqualTo(168);
+        assertThat(rules.get("wipeDurationHours").asInt()).isEqualTo(48);
     }
 
     @Test

@@ -8,6 +8,7 @@ public record ClanWarParticipantResponse(
         PlayerRef player,
         PublicClanResponse clan,
         PlayerRef target,
+        ClanWarOrdersResponse orders,
         double skill,
         ClanWarStrikePreviewResponse strikePreview,
         double standingWeight,

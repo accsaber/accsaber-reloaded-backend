@@ -53,10 +53,15 @@ public class ClanChatChannel implements ChatChannel {
                 .build());
     }
 
-    public ChatUnreadResponse unread(UUID clanId, Long playerId, Instant since) {
+    public ChatUnreadResponse unread(UUID clanId, Long playerId, Instant since, Boolean events) {
         Long userId = chatService.requireParticipant(this, clanId, playerId);
-        return new ChatUnreadResponse(chatRepository.countClanUnread(clanId, userId, since, UNREAD_CAP),
-                chatRepository.findLatestClanMessageAt(clanId));
+        return new ChatUnreadResponse(chatRepository.countClanUnread(clanId, userId, since, events, UNREAD_CAP),
+                chatRepository.findLatestClanMessageAt(clanId, events));
+    }
+
+    public Page<ChatMessageResponse> messages(UUID clanId, Long playerId, Boolean events, Pageable pageable) {
+        chatService.requireParticipant(this, clanId, playerId);
+        return chatService.responses(this, page(clanId, events, pageable));
     }
 
     @Override
@@ -66,7 +71,15 @@ public class ClanChatChannel implements ChatChannel {
 
     @Override
     public Page<ChatMessage> findMessages(UUID clanId, Pageable pageable) {
-        return chatRepository.findByClan_IdOrderByCreatedAtDesc(clanId, pageable);
+        return page(clanId, null, pageable);
+    }
+
+    private Page<ChatMessage> page(UUID clanId, Boolean events, Pageable pageable) {
+        if (events == null) {
+            return chatRepository.findByClan_IdOrderByCreatedAtDesc(clanId, pageable);
+        }
+        return events ? chatRepository.findByClan_IdAndEventIsNotNullOrderByCreatedAtDesc(clanId, pageable)
+                : chatRepository.findByClan_IdAndEventIsNullOrderByCreatedAtDesc(clanId, pageable);
     }
 
     @Override

@@ -45,10 +45,12 @@ import com.accsaber.backend.model.entity.clan.ClanXpSource;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
+import com.accsaber.backend.model.entity.clan.war.ClanWarOrder;
 import com.accsaber.backend.model.entity.clan.war.ClanWarOutcome;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.score.Score;
@@ -256,7 +258,7 @@ class ClanWarCombatServiceTest {
 
         @Test
         void aPlayThePlayerMightFightWithRunsOneTransactionPerWar() {
-            when(scoreGate.mayMatter(1L, MAP)).thenReturn(true);
+            when(scoreGate.mayMatter(any())).thenReturn(true);
             when(warRepository.findActiveIdsFighting(1L, MAP)).thenReturn(List.of(war.getId()));
             doAnswer(inv -> {
                 inv.<Consumer<TransactionStatus>>getArgument(0).accept(null);
@@ -311,7 +313,7 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            double damage = 25.0 * Math.pow(1.5, 3) * 49.0 / 50.0;
+            double damage = 25.0 * Math.pow(1.45, 3) * 49.0 / 50.0;
             assertThat(savedHits).singleElement().satisfies(hit -> {
                 assertThat(hit.getVictim().getId()).isEqualTo(12L);
                 assertThat(hit.getDamage()).isCloseTo(damage, within(1e-9));
@@ -345,6 +347,7 @@ class ClanWarCombatServiceTest {
             join(12L, blue, 0.5, 50);
             scores.put(11L, 900_000);
             scores.put(12L, 940_000);
+            attacker.setTargeting(ClanWarTargeting.manual);
             attacker.setTarget(victim.getUser());
 
             service.fight(war.getId(), play(950_000, true));
@@ -353,15 +356,26 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aPickTheRunCannotTouchFallsBackToTheClosestScore() {
+        void anOrderedTargetTheRunCannotTouchFallsBackToAuto() {
             join(12L, blue, 0.5, 50);
             scores.put(11L, 999_000);
             scores.put(12L, 940_000);
-            attacker.setTarget(victim.getUser());
+            attacker.setOrder(ClanWarOrder.target);
+            attacker.setOrderedTarget(victim.getUser());
 
             service.fight(war.getId(), play(950_000, true));
 
             assertThat(savedHits).singleElement().extracting(hit -> hit.getVictim().getId()).isEqualTo(12L);
+        }
+
+        @Test
+        void aHaltedFollowerStrikesNobody() {
+            scores.put(11L, 900_000);
+            attacker.setOrder(ClanWarOrder.halt);
+
+            service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits).isEmpty();
         }
 
         @Test
@@ -452,7 +466,7 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.5 * 2.0, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.45 * 1.45 * 2.0, within(1e-9));
         }
 
         @Test
@@ -463,7 +477,7 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.5 * 1.2 * 1.2, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.45 * 1.2 * 1.2, within(1e-9));
         }
 
         @Test

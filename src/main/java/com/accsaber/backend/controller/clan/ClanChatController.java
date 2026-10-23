@@ -42,26 +42,30 @@ public class ClanChatController {
 
     @Operation(summary = "Read clan chat",
             description = "Members only, newest first. Messages have content, clan events have an event like "
-                    + "member_joined instead. Live feed at /ws/clans/chat?clanId=...&token=...")
+                    + "member_joined instead. events=false keeps only messages, events=true only clan events, "
+                    + "leave it out for both. Live feed at /ws/clans/chat?clanId=...&token=...")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/chat")
     public ResponseEntity<Page<ChatMessageResponse>> messages(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
+            @RequestParam(required = false) Boolean events,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(chatService.getMessages(clanChatChannel, clanId, principal.getUserId(), pageable));
+        return ResponseEntity.ok(clanChatChannel.messages(clanId, principal.getUserId(), events, pageable));
     }
 
     @Operation(summary = "Unread clan chat count",
             description = "Members only. Messages after since that you didn't write, capped at 99, plus the newest "
-                    + "message time. Cheap enough to poll instead of reading the chat.")
+                    + "message time. events filters both the same way as reading the chat. "
+                    + "Cheap enough to poll instead of reading the chat.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{clanId}/chat/unread")
     public ResponseEntity<ChatUnreadResponse> unread(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID clanId,
-            @RequestParam Instant since) {
-        return ResponseEntity.ok(clanChatChannel.unread(clanId, principal.getUserId(), since));
+            @RequestParam Instant since,
+            @RequestParam(required = false) Boolean events) {
+        return ResponseEntity.ok(clanChatChannel.unread(clanId, principal.getUserId(), since, events));
     }
 
     @Operation(summary = "Post in clan chat", description = "Members only. Chat rate limit applies.")

@@ -76,7 +76,7 @@ public class ClanWarPoolService {
         ClanArena arena = request.getArena();
         assertArenaTargets(request);
         int poolSize = clanProperties.getWar().getPoolSize();
-        if (arena == ClanArena.random) {
+        if (arena.randomPool()) {
             return new ClanArenaSpec(null, null, null, poolSize, 0, 0);
         }
         double underdog = underdogShare(attackerStanding, defenderStanding, clanProperties.getWar().getMaxUnderdogShare());
@@ -95,7 +95,7 @@ public class ClanWarPoolService {
     @Transactional
     public void seed(ClanWar war, List<UUID> attackerPicks) {
         ClanArenaSpec spec = war.getArenaSpec();
-        if (war.getArena() == ClanArena.random) {
+        if (war.getArena().randomPool()) {
             if (!attackerPicks.isEmpty()) {
                 throw new ValidationException("mapDifficultyIds", "a random arena takes no picks");
             }
@@ -225,7 +225,7 @@ public class ClanWarPoolService {
                     throw new ValidationException("complexityMin", "a complexity turf war needs a range and nothing else");
                 }
             }
-            case mixed, random -> {
+            case mixed, random, modern_random -> {
                 if (category || complexity) {
                     throw new ValidationException("arena", "only turf wars take a category or a complexity range");
                 }
@@ -265,8 +265,10 @@ public class ClanWarPoolService {
             return;
         }
         ClanArenaSpec spec = war.getArenaSpec();
+        Instant rankedSince = war.getArena() == ClanArena.modern_random
+                ? clanProperties.getWar().getModernRankedSince() : null;
         poolRepository.insertRandom(war.getId(), pickedBy, source.name(), count, spec.categoryId(),
-                spec.complexityMin(), spec.complexityMax());
+                spec.complexityMin(), spec.complexityMax(), rankedSince);
     }
 
     private void lock(ClanWar war, boolean berserkerAccepted) {

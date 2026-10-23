@@ -11,6 +11,8 @@ import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -52,6 +54,20 @@ public class ClanWarParticipant {
     @JoinColumn(name = "target_user_id")
     private User target;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private ClanWarTargeting targeting = ClanWarTargeting.follow;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_kind", nullable = false)
+    @Builder.Default
+    private ClanWarOrder order = ClanWarOrder.auto;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ordered_target_user_id")
+    private User orderedTarget;
+
     @Column(name = "standing_weight", nullable = false)
     private double standingWeight;
 
@@ -82,6 +98,18 @@ public class ClanWarParticipant {
 
     @Column(name = "rewarded_at")
     private Instant rewardedAt;
+
+    public User aim() {
+        return switch (targeting) {
+            case manual -> target;
+            case auto -> null;
+            case follow -> orderedTarget;
+        };
+    }
+
+    public boolean halted() {
+        return targeting == ClanWarTargeting.follow && order == ClanWarOrder.halt;
+    }
 
     @Getter
     @Setter

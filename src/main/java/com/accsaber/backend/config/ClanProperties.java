@@ -1,6 +1,7 @@
 package com.accsaber.backend.config;
 
 import java.time.Duration;
+import java.time.Instant;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -36,20 +37,23 @@ public class ClanProperties {
     @Setter
     public static class War {
         private Duration pickWindow = Duration.ofHours(24);
-        private Duration prepDuration = Duration.ofHours(24);
+        private Duration prepMin = Duration.ofHours(24);
+        private Duration prepMax = Duration.ofHours(48);
+        private Instant modernRankedSince = Instant.parse("2024-01-01T00:00:00Z");
         private int drawAfterQuietDays = 10;
         private double punchDownFloor = 0.5;
         private int poolSize = 10;
         private double maxUnderdogShare = 0.85;
         private double guard = 100.0;
         private double baseDamage = 15.0;
-        private double escalation = 1.5;
+        private double escalation = 1.45;
         private double disparityExponent = 1.0;
         private double missingScoreMultiplier = 0.3;
         private double missingScoreEscalation = 1.2;
         private double chipEscalation = 1.05;
         private double breakShare = 0.5;
         private double breakDecay = 0.75;
+        private double breakWeightPull = 0.25;
         private double breakContribution = 50.0;
         private double breakXp = 50.0;
         private double breakClanXp = 6.0;
@@ -65,6 +69,7 @@ public class ClanProperties {
         private double allyStakeShare = 0.3;
         private Duration maxDuration = Duration.ofDays(28);
         private Duration brokenDuration = Duration.ofDays(7);
+        private Duration wipeDuration = Duration.ofDays(2);
         private Duration engagementWindow = Duration.ofDays(14);
         private double engagementFull = 0.5;
         private Duration redeclareCooldown = Duration.ofDays(7);
