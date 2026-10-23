@@ -276,7 +276,8 @@ class ResponseJsonShapeTest {
     void discordLinkNestsThePlayer() {
         JsonNode link = json(DiscordLinkResponse.builder().discordId("123").player(PLAYER).createdAt(T1).build());
 
-        assertNestedPlayer(link);
+        assertThat(link.get("player")).isEqualTo(json(PLAYER));
+        assertThat(link.get("userId").asString()).isEqualTo(PLAYER.id());
         assertThat(link.get("discordId").asString()).isEqualTo("123");
         assertThat(link.has("playerName")).isFalse();
     }

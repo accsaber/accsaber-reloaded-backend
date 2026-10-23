@@ -14,4 +14,8 @@ public class DiscordLinkResponse {
     String discordId;
     PlayerRef player;
     Instant createdAt;
+
+    public String getUserId() {
+        return player.id();
+    }
 }
