@@ -494,9 +494,12 @@ public class ScoreService {
         Instant playAt = partial || request.getTimeSet() == null
                 ? Instant.EPOCH
                 : request.getTimeSet();
+        Instant recent = Instant.now().minus(Duration.ofDays(1));
+        Instant since = playAt.equals(Instant.EPOCH) || playAt.isAfter(recent)
+                ? recent
+                : playAt.minus(PLAY_MATCH_WINDOW);
         List<Score> matches = scoreRepository.findRecentMatchingPlay(userId, mapDifficultyId,
-                request.getScoreNoMods(), partial, campaignAttempt,
-                Instant.now().minus(Duration.ofDays(1)),
+                request.getScoreNoMods(), partial, campaignAttempt, since,
                 playAt.minus(PLAY_MATCH_WINDOW), playAt.plus(PLAY_MATCH_WINDOW),
                 PageRequest.of(0, 1));
         return matches.isEmpty() ? Optional.empty() : Optional.of(matches.get(0));

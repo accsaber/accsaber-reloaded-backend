@@ -449,10 +449,12 @@ class ScoreServiceTest {
                         request.setTimeSet(playedAt);
                         scoreService.submit(request);
 
+                        ArgumentCaptor<Instant> since = ArgumentCaptor.forClass(Instant.class);
                         ArgumentCaptor<Instant> from = ArgumentCaptor.forClass(Instant.class);
                         ArgumentCaptor<Instant> to = ArgumentCaptor.forClass(Instant.class);
-                        verify(scoreRepository).findRecentMatchingPlay(any(), any(), any(), anyBoolean(), anyBoolean(), any(),
-                                        from.capture(), to.capture(), any());
+                        verify(scoreRepository).findRecentMatchingPlay(any(), any(), any(), anyBoolean(), anyBoolean(),
+                                        since.capture(), from.capture(), to.capture(), any());
+                        assertThat(since.getValue()).isEqualTo(playedAt.minusSeconds(10));
                         assertThat(from.getValue()).isEqualTo(playedAt.minusSeconds(10));
                         assertThat(to.getValue()).isEqualTo(playedAt.plusSeconds(10));
                 }
