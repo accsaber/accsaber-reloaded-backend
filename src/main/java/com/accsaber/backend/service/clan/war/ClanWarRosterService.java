@@ -98,6 +98,20 @@ public class ClanWarRosterService {
         announce(war, sides, ChatEvent.war_started);
     }
 
+    public Map<ClanWarTeam, Double> lastStand(ClanWar war) {
+        if (war.getStatus() != ClanWarStatus.active) {
+            return null;
+        }
+        List<ClanWarParticipant> roster = participantRepository.findActiveByWarId(war.getId());
+        Map<UUID, ClanWarSide> sideByClan = sideRepository.findByWarId(war.getId()).stream()
+                .collect(Collectors.toMap(side -> side.getClan().getId(), Function.identity()));
+        Map<ClanWarTeam, Double> factors = new EnumMap<>(ClanWarTeam.class);
+        for (ClanWarTeam team : ClanWarTeam.values()) {
+            factors.put(team, warDamage.lastStand(roster, sideByClan, team));
+        }
+        return factors;
+    }
+
     @Transactional
     public void restoreGuards(UUID warId, Instant brokenBefore, Instant wipedBefore) {
         ClanWar war = warRepository.findByIdForUpdate(warId).orElse(null);

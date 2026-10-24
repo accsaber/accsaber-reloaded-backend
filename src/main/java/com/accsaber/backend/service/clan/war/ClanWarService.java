@@ -74,6 +74,7 @@ public class ClanWarService {
     private final ClanLevelService levelService;
     private final ClanStandingService standingService;
     private final ClanWarPoolService poolService;
+    private final ClanWarRosterService rosterService;
     private final ClanWarResponses warResponses;
     private final ClanFeed feed;
     private final ClanNotifier notifier;
@@ -264,6 +265,6 @@ public class ClanWarService {
                         point.getHits(), point.getBreaks(), point.getStandingMoved()))
                 .toList();
         return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId),
-                timeline, ClanWarDamage.rules(clanProperties.getWar()));
+                timeline, ClanWarDamage.rules(clanProperties.getWar()), rosterService.lastStand(war));
     }
 }

@@ -98,6 +98,8 @@ class ClanWarServiceTest {
     @Mock
     private ClanWarPoolService poolService;
     @Mock
+    private ClanWarRosterService rosterService;
+    @Mock
     private ClanChatChannel chatChannel;
     @Mock
     private ClanWarScoreGate scoreGate;
@@ -123,7 +125,7 @@ class ClanWarServiceTest {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarService(warRepository, sideRepository, hitRepository,
                 allianceRepository, memberRepository, roster, accessService, levelService, standingService,
-                poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
+                poolService, rosterService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
                 scoreGate, aidRepository, stakeService, eventPublisher, clanProperties);
         lenient().when(accessService.player(1L)).thenReturn(commander);
         lenient().when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)

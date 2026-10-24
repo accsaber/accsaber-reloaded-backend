@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarOrdersResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
@@ -54,6 +55,7 @@ import com.accsaber.backend.model.entity.campaign.CampaignStatus;
 import com.accsaber.backend.model.entity.campaign.CampaignVoteDirection;
 import com.accsaber.backend.model.entity.campaign.UserCampaignStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.map.BatchStatus;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.staff.StaffRole;
@@ -185,6 +187,15 @@ class ResponseJsonShapeTest {
         assertThat(retreating.get("wipedAt").asString()).isEqualTo("2026-02-03T04:05:06Z");
         assertThat(open.has("retreatAt")).isFalse();
         assertThat(open.has("wipedAt")).isFalse();
+    }
+
+    @Test
+    void warDetailCarriesEachTeamsLastStand() {
+        JsonNode detail = json(new ClanWarDetailResponse(null, List.of(), List.of(), null,
+                java.util.Map.of(ClanWarTeam.attack, 1.0, ClanWarTeam.defend, 0.75)));
+
+        assertThat(detail.get("lastStand").get("attack").toString()).isEqualTo("1");
+        assertThat(detail.get("lastStand").get("defend").toString()).isEqualTo("0.75");
     }
 
     @Test
