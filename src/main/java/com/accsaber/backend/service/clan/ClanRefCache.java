@@ -57,6 +57,11 @@ public class ClanRefCache {
                 user.getCdnAvatarUrl(), user.getCountry(), forUser(user.getId()), membership);
     }
 
+    public static PlayerRef bareRef(User user) {
+        return user == null ? null : new PlayerRef(String.valueOf(user.getId()), user.getName(), user.getAvatarUrl(),
+                user.getCdnAvatarUrl(), user.getCountry(), null, null);
+    }
+
     public static PlayerRef playerRef(Long userId, String name, String avatarUrl, String cdnAvatarUrl,
             String country) {
         if (userId == null) {

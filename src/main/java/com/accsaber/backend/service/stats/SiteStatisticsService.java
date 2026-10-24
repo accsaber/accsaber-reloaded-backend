@@ -74,10 +74,10 @@ public class SiteStatisticsService {
                 String sql = SiteStatisticsQueries.highestAvgAp(categoryId, country, minScores, params);
                 return queryRunner.paged(sql, params, pageable, row -> MapAvgApResponse.builder()
                                 .map(mapRef(row, 0))
-                                .averageWeightedAp((Double) row[11])
-                                .scoreCount(((Number) row[12]).longValue())
-                                .latestScoreTimeSet(row[13] != null ? (Instant) row[13] : null)
-                                .latestScoreId(row[14] != null ? (UUID) row[14] : null)
+                                .averageWeightedAp((Double) row[13])
+                                .scoreCount(((Number) row[14]).longValue())
+                                .latestScoreTimeSet(row[15] != null ? (Instant) row[15] : null)
+                                .latestScoreId(row[16] != null ? (UUID) row[16] : null)
                                 .build());
         }
 
@@ -87,9 +87,9 @@ public class SiteStatisticsService {
                 String sql = SiteStatisticsQueries.mostRetriedMaps(categoryId, country, params);
                 return queryRunner.paged(sql, params, pageable, row -> MapRetryResponse.builder()
                                 .map(mapRef(row, 0))
-                                .supersededCount(((Number) row[11]).longValue())
-                                .latestScoreTimeSet(row[12] != null ? (Instant) row[12] : null)
-                                .latestScoreId(row[13] != null ? (UUID) row[13] : null)
+                                .supersededCount(((Number) row[13]).longValue())
+                                .latestScoreTimeSet(row[14] != null ? (Instant) row[14] : null)
+                                .latestScoreId(row[15] != null ? (UUID) row[15] : null)
                                 .build());
         }
 
@@ -113,9 +113,9 @@ public class SiteStatisticsService {
                 return queryRunner.paged(sql, params, pageable, row -> UserMapImprovementsResponse.builder()
                                 .player(playerRef(row, 0))
                                 .map(mapRef(row, 5))
-                                .improvementCount(((Number) row[16]).longValue())
-                                .latestScoreTimeSet(row[17] != null ? ((Instant) row[17]) : null)
-                                .latestScoreId(row[18] != null ? (UUID) row[18] : null)
+                                .improvementCount(((Number) row[18]).longValue())
+                                .latestScoreTimeSet(row[19] != null ? ((Instant) row[19]) : null)
+                                .latestScoreId(row[20] != null ? (UUID) row[20] : null)
                                 .build());
         }
 

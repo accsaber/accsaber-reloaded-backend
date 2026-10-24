@@ -92,6 +92,9 @@ public class ClanWar {
     @Column(name = "retreat_at")
     private Instant retreatAt;
 
+    @Column(name = "wiped_at")
+    private Instant wipedAt;
+
     @Column(name = "ended_at")
     private Instant endedAt;
 

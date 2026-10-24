@@ -68,7 +68,6 @@ import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
-import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,8 +104,6 @@ class ClanWarServiceTest {
     @Mock
     private ClanWarHitRepository hitRepository;
     @Mock
-    private MapService mapService;
-    @Mock
     private ClanWarAidRepository aidRepository;
     @Mock
     private ClanWarStakeService stakeService;
@@ -124,7 +121,7 @@ class ClanWarServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
-        service = new ClanWarService(warRepository, sideRepository, hitRepository, mapService,
+        service = new ClanWarService(warRepository, sideRepository, hitRepository,
                 allianceRepository, memberRepository, roster, accessService, levelService, standingService,
                 poolService, new ClanWarResponses(sideRepository, cosmeticService), feed, notifier, chatChannel,
                 scoreGate, aidRepository, stakeService, eventPublisher, clanProperties);

@@ -37,7 +37,6 @@ import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanPermission;
 
@@ -52,8 +51,6 @@ class ClanWarTargetingServiceTest {
     private ClanWarParticipantRepository participantRepository;
     @Mock
     private ClanAccessService accessService;
-    @Mock
-    private ClanCosmeticService cosmeticService;
     @Mock
     private ClanFeed feed;
 

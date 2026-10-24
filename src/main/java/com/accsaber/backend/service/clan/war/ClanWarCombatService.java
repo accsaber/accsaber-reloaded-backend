@@ -95,7 +95,7 @@ public class ClanWarCombatService {
     private record Battle(ClanWar war, List<ClanWarSide> sides, Map<UUID, ClanWarSide> sideByClan,
             Map<Long, ClanWarParticipant> roster, ClanWarParticipant attacker, Play play, Map<Long, Double> skills,
             Map<Long, ClanWarHitRepository.VictimScoreView> victimScores, Integer maxScore,
-            Map<Long, ClanWarHitRepository.Streak> cycleHits) {
+            Map<Long, ClanWarHitRepository.Streak> cycleHits, double lastStand) {
 
         ClanWarTeam team(ClanWarParticipant participant) {
             return sideByClan.get(participant.getClan().getId()).getTeam();
@@ -188,8 +188,10 @@ public class ClanWarCombatService {
                 .findActiveScores(List.of(difficultyId), fighters).stream()
                 .collect(Collectors.toMap(ClanWarHitRepository.VictimScoreView::getUserId, Function.identity()));
         Integer maxScore = mapDifficultyRepository.findById(difficultyId).map(MapDifficulty::getMaxScore).orElse(null);
+        ClanWarTeam victimTeam = sideByClan.get(attacker.getClan().getId()).getTeam().opponent();
         return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore,
-                hitRepository.cycleHits(war.getId(), fighters));
+                hitRepository.cycleHits(war.getId(), fighters),
+                warDamage.lastStand(roster.values(), sideByClan, victimTeam));
     }
 
     private List<ClanWarParticipant> enemies(Battle battle) {
@@ -234,15 +236,18 @@ public class ClanWarCombatService {
     }
 
     private Strike hit(Battle battle, ClanWarParticipant enemy, Kind kind) {
-        double damage = warDamage.hitDamage(battle.cycleHits().getOrDefault(enemy.getUser().getId(), ClanWarHitRepository.Streak.NONE),
-                skill(battle, battle.attacker()), skill(battle, enemy), kind == Kind.MISSING);
+        double disparity = warDamage.disparity(skill(battle, battle.attacker()), skill(battle, enemy));
+        double damage = warDamage.hitDamage(
+                battle.cycleHits().getOrDefault(enemy.getUser().getId(), ClanWarHitRepository.Streak.NONE),
+                battle.play().mapDifficultyId(), disparity, kind == Kind.MISSING) * battle.lastStand();
         return new Strike(enemy, kind, damage, standing(battle, enemy));
     }
 
     private Strike chip(Battle battle, ClanWarParticipant enemy) {
         Double gap = chipGap(battle, enemy);
         return gap == null ? null : new Strike(enemy, Kind.CHIP,
-                warDamage.chip(gap, skill(battle, battle.attacker()), skill(battle, enemy)), standing(battle, enemy));
+                warDamage.chip(gap, skill(battle, battle.attacker()), skill(battle, enemy)) * battle.lastStand(),
+                standing(battle, enemy));
     }
 
     private double standing(Battle battle, ClanWarParticipant enemy) {
@@ -313,6 +318,7 @@ public class ClanWarCombatService {
         hit.setStandingMoved(applied);
         victim.setBreaksSuffered(victim.getBreaksSuffered() + 1);
         victim.setBrokenAt(Instant.now());
+        markWipe(battle, victimTeam, victim.getBrokenAt());
         double engagement = stakeService.engagement(war, victimTeam);
         String sourceId = hit.getId().toString();
         UUID seasonId = war.getSeason().getId();
@@ -349,6 +355,14 @@ public class ClanWarCombatService {
                 chipper.setContribution(chipper.getContribution() + config.getBreakContribution() * scale);
             }
         });
+    }
+
+    private void markWipe(Battle battle, ClanWarTeam team, Instant at) {
+        List<ClanWarParticipant> fighters = ClanWarDamage.team(battle.roster().values(), battle.sideByClan(), team);
+        if (battle.war().getWipedAt() == null && !fighters.isEmpty()
+                && fighters.stream().allMatch(p -> p.getBrokenAt() != null)) {
+            battle.war().setWipedAt(at);
+        }
     }
 
     private double sizeShare(Battle battle) {

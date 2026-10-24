@@ -70,7 +70,7 @@ public class StatsQueryRunner {
         return new MapDifficultyRef((UUID) row[offset], (UUID) row[offset + 1], (String) row[offset + 2],
                 (String) row[offset + 3], (String) row[offset + 4], (String) row[offset + 5], (String) row[offset + 6],
                 (String) row[offset + 7], Difficulty.fromDbValue((String) row[offset + 8]), (UUID) row[offset + 9],
-                (String) row[offset + 10]);
+                (String) row[offset + 10], (String) row[offset + 11], (String) row[offset + 12]);
     }
 
     @SuppressWarnings("unchecked")

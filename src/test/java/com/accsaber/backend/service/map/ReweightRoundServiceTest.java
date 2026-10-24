@@ -150,6 +150,6 @@ class ReweightRoundServiceTest {
     private static ReweightRoundMapRow row(ReweightRound round, UUID difficultyId, String song, double from,
             double to) {
         return new ReweightRoundMapRow(round.getId(), new MapDifficultyRef(difficultyId, UUID.randomUUID(), song, null,
-                null, null, null, null, Difficulty.EXPERT_PLUS, null, null), from, to);
+                null, null, null, null, Difficulty.EXPERT_PLUS, null, null, null, null), from, to);
     }
 }

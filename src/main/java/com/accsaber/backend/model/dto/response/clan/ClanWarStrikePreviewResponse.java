@@ -9,6 +9,7 @@ public record ClanWarStrikePreviewResponse(
         double attackerSkill,
         double victimSkill,
         double disparity,
+        double lastStand,
         double standingTaken,
         double standingGained,
         ClanWarStrikeMapResponse onMap) {

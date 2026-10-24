@@ -9,9 +9,12 @@ public record ClanWarStrikeRulesResponse(
         double chipDamage,
         double chipWindow,
         double chipSkillExponent,
-        double minChipDamage,
         double missingScoreEscalation,
         double chipEscalation,
+        double mapBreakDecay,
+        double mapBreakFloor,
+        double lastStandDamage,
+        double lastStandFrom,
         long brokenDurationHours,
         long wipeDurationHours) {
 }

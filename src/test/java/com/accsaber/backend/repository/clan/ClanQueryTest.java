@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -767,7 +768,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, and a wiped team brings every broken guard back")
+    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, and a wipe brings back every guard broken by the time it happened")
     void brokenGuardsComeBack() {
         Instant now = Instant.now();
         UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
@@ -804,14 +805,17 @@ class ClanQueryTest {
         assertThat(warRepository.findGuardsDue(cutoff, longAgo)).isEmpty();
 
         Instant wipedBefore = now.minus(2, ChronoUnit.DAYS);
+        warState(active, "wiped_at = ?1", now.minus(3, ChronoUnit.DAYS));
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard = 0, broken_at = ?1 WHERE war_id = ?2 "
                 + "AND user_id = ?3").setParameter(1, now.minus(3, ChronoUnit.DAYS)).setParameter(2, active)
                 .setParameter(3, founder.getId()).executeUpdate();
         assertThat(warRepository.findGuardsDue(cutoff, wipedBefore)).containsExactly(active);
-        assertThat(participantRepository.restoreGuards(active, cutoff, wipedBefore, 100.0)).isEqualTo(2);
+        assertThat(participantRepository.restoreGuards(active, cutoff, wipedBefore, 100.0)).isEqualTo(1);
+        assertThat(warRepository.clearWipe(active, wipedBefore)).isEqualTo(1);
         assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(),
                 ClanWarParticipant::getGuardCycle).containsExactlyInAnyOrder(tuple(founder.getId(), 2),
-                        tuple(lapizStar.getId(), 1), tuple(member.getId(), 0));
+                        tuple(lapizStar.getId(), 0), tuple(member.getId(), 0));
+        assertThat(warRepository.findGuardsDue(cutoff, wipedBefore)).isEmpty();
     }
 
     @Test
@@ -1057,10 +1061,15 @@ class ClanQueryTest {
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
                 .setParameter(5, mine).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
-                .containsExactly(Map.entry(lapizStar.getId(), new ClanWarHitRepository.Streak(1, 1, 1)));
+                .containsExactly(Map.entry(lapizStar.getId(),
+                        new ClanWarHitRepository.Streak(1, 1, 2, Set.of(map.getId()), Map.of())));
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
+        entityManager.createNativeQuery("UPDATE clan_war_hits SET broke = true WHERE war_id = ?1 AND chip").setParameter(1, warId).executeUpdate();
+        assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId())))
+                .containsExactly(Map.entry(lapizStar.getId(),
+                        new ClanWarHitRepository.Streak(0, 0, 0, Set.of(), Map.of(map.getId(), 1L))));
         assertThat(entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
                 .setParameter(5, mine).setParameter(6, theirs).setParameter(7, true).executeUpdate()).isEqualTo(1);

@@ -28,7 +28,6 @@ import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanAccessService;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanPermission;
@@ -43,7 +42,6 @@ public class ClanWarTargetingService {
     private final ClanWarSideRepository sideRepository;
     private final ClanWarParticipantRepository participantRepository;
     private final ClanAccessService accessService;
-    private final ClanCosmeticService cosmeticService;
     private final ClanFeed feed;
 
     private record Roster(ClanWar war, Map<Long, ClanWarParticipant> fighters, Map<UUID, ClanWarTeam> teams) {
@@ -107,7 +105,6 @@ public class ClanWarTargetingService {
         participantRepository.saveAndFlush(participant);
         double skill = participantRepository.findOverallSkills(List.of(participant.getUser().getId())).stream()
                 .findFirst().map(ClanMemberRepository.MemberSkillView::getSkill).orElse(0.0);
-        return ClanMapper.toWarParticipantResponse(participant, cosmeticService.publicRefs(List.of(participant.getClan()))
-                .get(participant.getClan().getId()), new ClanMapper.WarParticipantStats(skill, null, true));
+        return ClanMapper.toWarParticipantResponse(participant, new ClanMapper.WarParticipantStats(skill, null, true));
     }
 }

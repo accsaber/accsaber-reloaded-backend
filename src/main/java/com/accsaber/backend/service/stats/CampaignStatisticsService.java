@@ -100,7 +100,7 @@ public class CampaignStatisticsService {
                 + " GROUP BY ucs.campaign_difficulty_id, ucs.user_id"
                 + ")"
                 + " SELECT cd.id, md.id, m.id, m.song_name, m.song_subname, m.song_author, m.map_author,"
-                + " m.cover_url, m.cdn_cover_url, md.difficulty, c.id, c.name, cd.barrier, cd.terminal,"
+                + " m.cover_url, m.cdn_cover_url, md.difficulty, c.id, c.name, m.beatsaver_code, md.characteristic, cd.barrier, cd.terminal,"
                 + " cd.requirement_type, cd.requirement_value, cd.xp,"
                 + " (SELECT COUNT(*) FROM participants p WHERE NOT EXISTS ("
                 + "   SELECT 1 FROM campaign_difficulty_paths pth"
@@ -122,20 +122,20 @@ public class CampaignStatisticsService {
                 + " ORDER BY cleared ASC, cd.position_y, cd.position_x";
 
         return queryRunner.list(sql, params, row -> {
-            long unlocked = num(row[17]);
-            long cleared = num(row[18]);
+            long unlocked = num(row[19]);
+            long cleared = num(row[20]);
             return CampaignNodeDifficultyResponse.builder()
                     .campaignDifficultyId((UUID) row[0])
                     .map(mapRef(row, 1))
-                    .barrier((Boolean) row[12])
-                    .terminal((Boolean) row[13])
-                    .requirementType(row[14] == null ? null : CampaignRequirementType.valueOf((String) row[14]))
-                    .requirementValue(dbl(row[15]))
-                    .xp(row[16] == null ? 0.0 : ((Number) row[16]).doubleValue())
+                    .barrier((Boolean) row[14])
+                    .terminal((Boolean) row[15])
+                    .requirementType(row[16] == null ? null : CampaignRequirementType.valueOf((String) row[16]))
+                    .requirementValue(dbl(row[17]))
+                    .xp(row[18] == null ? 0.0 : ((Number) row[18]).doubleValue())
                     .unlocked(unlocked)
                     .cleared(cleared)
                     .clearRate(rate(cleared, unlocked))
-                    .medianDaysToClear(dbl(row[19]))
+                    .medianDaysToClear(dbl(row[21]))
                     .build();
         });
     }

@@ -57,7 +57,8 @@ public interface MapDifficultyComplexityRepository extends JpaRepository<MapDiff
         @Query("""
                         SELECT new com.accsaber.backend.model.dto.projection.ReweightRoundMapRow(
                                 c.round.id, d.id, m.id, m.songName, m.songSubName, m.songAuthor, m.mapAuthor,
-                                m.coverUrl, m.cdnCoverUrl, d.difficulty, cat.id, cat.name, p.complexity, c.complexity)
+                                m.coverUrl, m.cdnCoverUrl, d.difficulty, cat.id, cat.name, m.beatsaverCode, d.characteristic,
+                                p.complexity, c.complexity)
                         FROM MapDifficultyComplexity c
                         JOIN c.mapDifficulty d
                         JOIN d.map m

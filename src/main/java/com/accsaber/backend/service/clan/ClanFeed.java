@@ -16,7 +16,6 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
 import com.accsaber.backend.model.event.ClanFeedEvent;
 import com.accsaber.backend.service.clan.war.ClanWarResponses;
-import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedBroadcast;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
@@ -28,7 +27,6 @@ public class ClanFeed {
 
     private final ClanWarResponses warResponses;
     private final ClanCosmeticService cosmeticService;
-    private final MapService mapService;
     private final ApplicationEventPublisher eventPublisher;
 
     public void war(ClanWar war) {
@@ -44,9 +42,7 @@ public class ClanFeed {
     }
 
     public void hit(ClanWar war, ClanWarHit hit, List<UUID> rooms) {
-        UUID difficultyId = hit.getMapDifficulty().getId();
-        ClanWarHitResponse response = ClanMapper.toWarHitResponse(hit,
-                mapService.getDifficultyResponsesPublic(List.of(difficultyId)).get(difficultyId));
+        ClanWarHitResponse response = ClanMapper.toWarHitResponse(hit);
         eventPublisher.publishEvent(new ClanFeedEvent(rooms, ClanFeedBroadcast.hit(war.getId(), response)));
         if (hit.isBroke()) {
             everyone(new ClanFeedBroadcast(ClanFeedType.war_break, war.getId(), response));

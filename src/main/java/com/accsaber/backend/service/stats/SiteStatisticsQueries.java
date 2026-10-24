@@ -36,7 +36,7 @@ final class SiteStatisticsQueries {
     static String highestAvgAp(UUID categoryId, String country, int minScores, Map<String, Object> params) {
         String sql = """
                 SELECT d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
-                        d.difficulty, c.id AS cat_id, c.name AS cat_name,
+                        d.difficulty, c.id AS cat_id, c.name AS cat_name, m.beatsaver_code, d.characteristic,
                         AVG(s.weighted_ap) AS avg_weighted_ap, COUNT(*) AS score_count,
                         MAX(s.time_set) AS latest_time_set,
                         (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id
@@ -51,7 +51,7 @@ final class SiteStatisticsQueries {
         sql += categoryFilter(categoryId, params);
         sql += countryClause("u.country", country, params);
         sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
-                " d.difficulty, c.id, c.name HAVING COUNT(*) >= :minScores" +
+                " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic HAVING COUNT(*) >= :minScores" +
                 " ORDER BY avg_weighted_ap DESC, score_count DESC, m.song_name ASC";
         params.put("minScores", (long) minScores);
         return sql;
@@ -60,7 +60,7 @@ final class SiteStatisticsQueries {
     static String mostRetriedMaps(UUID categoryId, String country, Map<String, Object> params) {
         String sql = """
                 SELECT d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
-                        d.difficulty, c.id AS cat_id, c.name AS cat_name,
+                        d.difficulty, c.id AS cat_id, c.name AS cat_name, m.beatsaver_code, d.characteristic,
                         COUNT(*) AS superseded_count,
                         MAX(s.time_set) AS latest_time_set,
                         (SELECT s2.id FROM scores s2 WHERE s2.map_difficulty_id = d.id
@@ -75,7 +75,7 @@ final class SiteStatisticsQueries {
         sql += categoryFilter(categoryId, params);
         sql += countryClause("u.country", country, params);
         sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
-                " d.difficulty, c.id, c.name ORDER BY superseded_count DESC, m.song_name ASC";
+                " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic ORDER BY superseded_count DESC, m.song_name ASC";
         return sql;
     }
 
@@ -102,7 +102,7 @@ final class SiteStatisticsQueries {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         d.id AS diff_id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
-                        d.difficulty, c.id AS cat_id, c.name AS cat_name,
+                        d.difficulty, c.id AS cat_id, c.name AS cat_name, m.beatsaver_code, d.characteristic,
                         COUNT(*) AS improvement_count,
                         MAX(s.time_set) AS latest_time_set,
                         (SELECT s2.id FROM scores s2 WHERE s2.user_id = u.id AND s2.map_difficulty_id = d.id
@@ -119,7 +119,7 @@ final class SiteStatisticsQueries {
         sql += countryClause("u.country", country, params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
                 " d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
-                " d.difficulty, c.id, c.name ORDER BY improvement_count DESC, u.name ASC, m.song_name ASC";
+                " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic ORDER BY improvement_count DESC, u.name ASC, m.song_name ASC";
         return sql;
     }
 

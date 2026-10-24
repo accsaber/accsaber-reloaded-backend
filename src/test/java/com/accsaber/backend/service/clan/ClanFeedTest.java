@@ -24,7 +24,6 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarSideResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarTeamResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
-import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarHit;
@@ -33,7 +32,6 @@ import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanFeedEvent;
 import com.accsaber.backend.service.clan.war.ClanWarResponses;
-import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,8 +41,6 @@ class ClanFeedTest {
     private ClanWarResponses warResponses;
     @Mock
     private ClanCosmeticService cosmeticService;
-    @Mock
-    private MapService mapService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -64,7 +60,7 @@ class ClanFeedTest {
     private ClanWarResponse warResponse() {
         ClanWarResponse response = new ClanWarResponse(war.getId(), null, null, null, null, null, null,
                 team(war.getAttackerClan(), ClanWarTeam.attack), team(war.getDefenderClan(), ClanWarTeam.defend),
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         when(warResponses.of(war)).thenReturn(response);
         return response;
     }
@@ -77,11 +73,9 @@ class ClanFeedTest {
 
     private ClanWarHit hit(boolean broke) {
         UUID difficultyId = UUID.randomUUID();
-        PublicMapDifficultyResponse difficulty = PublicMapDifficultyResponse.builder().id(difficultyId).build();
-        when(mapService.getDifficultyResponsesPublic(List.of(difficultyId)))
-                .thenReturn(Map.of(difficultyId, difficulty));
         return ClanWarHit.builder().id(UUID.randomUUID()).war(war).attacker(User.builder().id(1L).build())
-                .victim(User.builder().id(2L).build()).mapDifficulty(MapDifficulty.builder().id(difficultyId).build())
+                .victim(User.builder().id(2L).build()).mapDifficulty(MapDifficulty.builder().id(difficultyId)
+                        .map(com.accsaber.backend.model.entity.map.Map.builder().id(UUID.randomUUID()).build()).build())
                 .damage(25.0).guardAfter(broke ? 0.0 : 75.0).broke(broke).build();
     }
 
@@ -124,7 +118,8 @@ class ClanFeedTest {
         assertThat(event.payload().type()).isEqualTo(ClanFeedType.hit);
         assertThat(event.payload().data()).isInstanceOfSatisfying(ClanWarHitResponse.class, response -> {
             assertThat(response.id()).isEqualTo(hit.getId());
-            assertThat(response.difficulty().getId()).isEqualTo(hit.getMapDifficulty().getId());
+            assertThat(response.map().id()).isEqualTo(hit.getMapDifficulty().getId());
+            assertThat(response.attacker().clan()).isNull();
         });
     }
 

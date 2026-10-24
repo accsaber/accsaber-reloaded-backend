@@ -144,6 +144,11 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             """, nativeQuery = true)
     List<UUID> findGuardsDue(@Param("cutoff") Instant cutoff, @Param("wipedBefore") Instant wipedBefore);
 
+    @Modifying
+    @Query(value = "UPDATE clan_wars SET wiped_at = NULL WHERE id = :warId AND wiped_at < :wipedBefore",
+            nativeQuery = true)
+    int clearWipe(@Param("warId") UUID warId, @Param("wipedBefore") Instant wipedBefore);
+
     @Query(value = """
             SELECT w.id FROM clan_wars w
             JOIN clan_war_participants p ON p.war_id = w.id AND p.user_id = :userId AND p.left_at IS NULL

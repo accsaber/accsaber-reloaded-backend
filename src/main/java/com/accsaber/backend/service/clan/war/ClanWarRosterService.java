@@ -28,7 +28,6 @@ import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
-import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
@@ -46,7 +45,6 @@ import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanNotifier;
@@ -66,7 +64,6 @@ public class ClanWarRosterService {
     private final ClanStrengthService strengthService;
     private final ClanWarStakeService stakeService;
     private final ClanWarDamage warDamage;
-    private final ClanCosmeticService cosmeticService;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
     private final ClanFeed feed;
@@ -106,6 +103,7 @@ public class ClanWarRosterService {
         ClanWar war = warRepository.findByIdForUpdate(warId).orElse(null);
         if (war != null && war.getStatus() == ClanWarStatus.active) {
             participantRepository.restoreGuards(warId, brokenBefore, wipedBefore, clanProperties.getWar().getGuard());
+            warRepository.clearWipe(warId, wipedBefore);
         }
     }
 
@@ -141,7 +139,6 @@ public class ClanWarRosterService {
             Pageable pageable) {
         ClanWar war = warRepository.findById(warId).orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
         List<ClanWarSide> sides = sideRepository.findByWarId(warId);
-        Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(sides.stream().map(ClanWarSide::getClan).toList());
         Page<ClanWarParticipant> page = participantRepository.findPageByWarId(warId, pageable);
         List<Long> userIds = page.getContent().stream().map(p -> p.getUser().getId()).collect(Collectors.toList());
         if (viewerId != null) {
@@ -151,8 +148,7 @@ public class ClanWarRosterService {
         UUID viewerClanId = viewerId == null ? null : participantRepository.findOpenClanId(warId, viewerId).orElse(null);
         Map<Long, ClanWarStrikePreviewResponse> previews = strikePreviews(war, sides,
                 new ClanWarDamage.Viewer(warId, viewerId, viewerClanId, mapDifficultyId), page.getContent(), skills);
-        return page.map(p -> ClanMapper.toWarParticipantResponse(p, clans.get(p.getClan().getId()),
-                new ClanMapper.WarParticipantStats(skills.getOrDefault(p.getUser().getId(), 0.0),
+        return page.map(p -> ClanMapper.toWarParticipantResponse(p, new ClanMapper.WarParticipantStats(skills.getOrDefault(p.getUser().getId(), 0.0),
                         previews.get(p.getUser().getId()), p.getClan().getId().equals(viewerClanId))));
     }
 
@@ -167,7 +163,9 @@ public class ClanWarRosterService {
         }
         ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewer.userId(),
                 ClanWarDamage.enemies(rows, sideByClan, viewerSide.getTeam()), skills,
-                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy));
+                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy),
+                warDamage.lastStand(participantRepository.findActiveByWarId(war.getId()), sideByClan,
+                        viewerSide.getTeam().opponent()));
         return warDamage.previews(viewer, field, stakeService.engagement(war, viewerSide.getTeam().opponent()));
     }
 
@@ -203,7 +201,8 @@ public class ClanWarRosterService {
         List<Long> fighters = Stream.concat(enemies.stream().map(p -> p.getUser().getId()), Stream.of(viewerId))
                 .toList();
         ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewerId, enemies, skills(fighters),
-                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy));
+                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy),
+                warDamage.lastStand(roster, sideByClan, viewerSide.getTeam().opponent()));
         return warDamage.bestPairings(field, difficultyIds).entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> new Pairing(entry.getValue().getUser(), false)));
     }

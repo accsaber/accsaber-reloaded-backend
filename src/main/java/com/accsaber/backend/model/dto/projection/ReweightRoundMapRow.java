@@ -9,8 +9,8 @@ public record ReweightRoundMapRow(UUID roundId, MapDifficultyRef map, Double fro
 
     public ReweightRoundMapRow(UUID roundId, UUID mapDifficultyId, UUID mapId, String songName, String songSubName,
             String songAuthor, String mapAuthor, String coverUrl, String cdnCoverUrl, Difficulty difficulty,
-            UUID categoryId, String categoryName, Double from, Double to) {
+            UUID categoryId, String categoryName, String beatsaverCode, String characteristic, Double from, Double to) {
         this(roundId, new MapDifficultyRef(mapDifficultyId, mapId, songName, songSubName, songAuthor, mapAuthor,
-                coverUrl, cdnCoverUrl, difficulty, categoryId, categoryName), from, to);
+                coverUrl, cdnCoverUrl, difficulty, categoryId, categoryName, beatsaverCode, characteristic), from, to);
     }
 }

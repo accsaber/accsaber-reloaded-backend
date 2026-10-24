@@ -18,8 +18,8 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarRefResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarRewardItemResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanXpGrantResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.item.ItemResponse;
-import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.clan.ClanAlliance;
 import com.accsaber.backend.model.entity.clan.ClanAuditEntry;
 import com.accsaber.backend.model.entity.clan.ClanJoinRequest;
@@ -75,21 +75,21 @@ public final class ClanMapper {
                 aid.getResolvedAt());
     }
 
-    public static ClanWarHitResponse toWarHitResponse(ClanWarHit hit, PublicMapDifficultyResponse difficulty) {
-        return new ClanWarHitResponse(hit.getId(), ClanRefCache.playerRef(hit.getAttacker()), ClanRefCache.playerRef(hit.getVictim()),
-                hit.getVictimCycle(), difficulty, hit.getVictimScore() == null, hit.isChip(), hit.getDamage(), hit.getGuardAfter(),
+    public static ClanWarHitResponse toWarHitResponse(ClanWarHit hit) {
+        return new ClanWarHitResponse(hit.getId(), ClanRefCache.bareRef(hit.getAttacker()), ClanRefCache.bareRef(hit.getVictim()),
+                hit.getVictimCycle(), MapDifficultyRef.of(hit.getMapDifficulty()), hit.getVictimScore() == null, hit.isChip(), hit.getDamage(), hit.getGuardAfter(),
                 hit.isBroke(), hit.getStandingMoved(), hit.getXpAwarded(), hit.getCreatedAt());
     }
 
     public record WarParticipantStats(double skill, ClanWarStrikePreviewResponse strikePreview, boolean showOrders) {
     }
 
-    public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant, PublicClanResponse clan,
+    public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant,
             WarParticipantStats stats) {
         ClanWarOrdersResponse orders = stats.showOrders() ? new ClanWarOrdersResponse(participant.getTargeting(),
-                participant.getOrder(), ClanRefCache.playerRef(participant.getOrderedTarget())) : null;
-        return new ClanWarParticipantResponse(ClanRefCache.playerRef(participant.getUser()), clan,
-                ClanRefCache.playerRef(participant.getTarget()), orders, stats.skill(), stats.strikePreview(),
+                participant.getOrder(), ClanRefCache.bareRef(participant.getOrderedTarget())) : null;
+        return new ClanWarParticipantResponse(ClanRefCache.bareRef(participant.getUser()),
+                participant.getClan().getId(), ClanRefCache.bareRef(participant.getTarget()), orders, stats.skill(), stats.strikePreview(),
                 participant.getStandingWeight(), participant.getGuard(),
                 participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getBrokenAt(),
                 participant.getContribution(),

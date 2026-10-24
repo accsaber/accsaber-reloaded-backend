@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -52,7 +53,6 @@ import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanChatChannel;
-import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
@@ -80,8 +80,6 @@ class ClanWarRosterServiceTest {
     @Mock
     private ClanWarStakeService stakeService;
     @Mock
-    private ClanCosmeticService cosmeticService;
-    @Mock
     private ClanChatChannel chatChannel;
     @Mock
     private ClanWarScoreGate scoreGate;
@@ -99,7 +97,7 @@ class ClanWarRosterServiceTest {
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarRosterService(warRepository, sideRepository, participantRepository, userRepository,
-                strengthService, stakeService, new ClanWarDamage(hitRepository, clanProperties), cosmeticService,
+                strengthService, stakeService, new ClanWarDamage(hitRepository, clanProperties),
                 chatChannel, scoreGate, feed, notifier, clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.preparing).startsAt(Instant.now().minusSeconds(1))
@@ -292,7 +290,7 @@ class ClanWarRosterServiceTest {
         when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, fresh, worn));
         when(participantRepository.findOverallSkills(anyCollection()))
                 .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
-        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, 0)));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, 0, Set.of(), Map.of())));
         UUID open = UUID.randomUUID();
         UUID played = UUID.randomUUID();
         when(hitRepository.findActiveScores(anyCollection(), anyCollection()))
@@ -333,7 +331,7 @@ class ClanWarRosterServiceTest {
         assertThat(rows.get(12L).strikePreview()).isNull();
         assertThat(rows.get(11L).strikePreview()).satisfies(preview -> {
             assertThat(preview.disparity()).isEqualTo(2.0);
-            assertThat(preview.damage()).isEqualTo(30.0);
+            assertThat(preview.damage()).isEqualTo(24.0);
             assertThat(preview.hitsToBreak()).isEqualTo(3);
             assertThat(preview.onMap().targetScore()).isEqualTo(950_000);
             assertThat(preview.standingTaken()).isEqualTo(40.0);

@@ -24,7 +24,6 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarTimelinePointResponse;
-import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.ClanMember;
@@ -56,7 +55,6 @@ import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
-import com.accsaber.backend.service.map.MapService;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
 
 import lombok.RequiredArgsConstructor;
@@ -69,7 +67,6 @@ public class ClanWarService {
     private final ClanWarRepository warRepository;
     private final ClanWarSideRepository sideRepository;
     private final ClanWarHitRepository hitRepository;
-    private final MapService mapService;
     private final ClanAllianceRepository allianceRepository;
     private final ClanMemberRepository memberRepository;
     private final ClanRoster roster;
@@ -207,9 +204,7 @@ public class ClanWarService {
         }
         Page<ClanWarHit> page = hitRepository.findPageByWarId(warId, filter.userId(), filter.clanId(),
                 filter.chip(), pageable);
-        Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(
-                page.getContent().stream().map(hit -> hit.getMapDifficulty().getId()).toList());
-        return page.map(hit -> ClanMapper.toWarHitResponse(hit, difficulties.get(hit.getMapDifficulty().getId())));
+        return page.map(ClanMapper::toWarHitResponse);
     }
 
     private void end(ClanWar war, ClanWarOutcome outcome, User actor) {

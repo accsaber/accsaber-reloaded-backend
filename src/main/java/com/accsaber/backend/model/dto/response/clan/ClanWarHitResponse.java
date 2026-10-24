@@ -3,15 +3,15 @@ package com.accsaber.backend.model.dto.response.clan;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
-import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 
 public record ClanWarHitResponse(
         UUID id,
         PlayerRef attacker,
         PlayerRef victim,
         int victimCycle,
-        PublicMapDifficultyResponse difficulty,
+        MapDifficultyRef map,
         boolean missingScore,
         boolean chip,
         double damage,
