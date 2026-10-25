@@ -16,12 +16,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -138,14 +138,12 @@ class ClanWarCombatServiceTest {
     void setUp() {
         ClanProperties.War rules = clanProperties.getWar();
         rules.setBaseDamage(25.0);
-        rules.setMissingScoreMultiplier(0.5);
         rules.setBreakShare(0.2);
-        rules.setBreakDecay(0.5);
         rules.setBreakXp(200.0);
         rules.setBreakClanXp(150.0);
         rules.setExtraChipChance(0.0);
         ClanWarStakeService stakeService = new ClanWarStakeService(sideRepository, participantRepository,
-                strengthService, standingService, clanProperties);
+                hitRepository, strengthService, standingService, clanProperties);
         service = new ClanWarCombatService(warRepository, clanRepository, sideRepository, participantRepository, hitRepository,
                 scoreRepository, mapDifficultyRepository, scoreGate, warService, rosterService, stakeService,
                 new ClanWarDamage(hitRepository, clanProperties),
@@ -199,6 +197,22 @@ class ClanWarCombatServiceTest {
         ScoreResponse response = ScoreResponse.builder().id(UUID.randomUUID()).userId("1").mapDifficultyId(MAP)
                 .score(score).active(active).timeSet(setAt).build();
         return ClanWarCombatService.Play.of(response);
+    }
+
+    private static ClanWarHitRepository.DealtView life(Long userId, int life, double dealt) {
+        return new ClanWarHitRepository.DealtView() {
+            public Long getUserId() {
+                return userId;
+            }
+
+            public int getLife() {
+                return life;
+            }
+
+            public double getDealt() {
+                return dealt;
+            }
+        };
     }
 
     private static ClanWarHitRepository.VictimScoreView victimScore(Long userId, int score) {
@@ -312,11 +326,11 @@ class ClanWarCombatServiceTest {
             join(12L, blue, 0.5, 49);
             scores.put(11L, 940_000);
             scores.put(12L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new Streak(3, 0, 0, Set.of(), Map.of())));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new Streak(3, 0, Map.of(), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
-            double damage = 25.0 * Math.pow(1.45, 3) * 49.0 / 50.0;
+            double damage = 25.0 * Math.pow(1.3, 3) * 49.0 / 50.0;
             assertThat(savedHits).singleElement().satisfies(hit -> {
                 assertThat(hit.getVictim().getId()).isEqualTo(12L);
                 assertThat(hit.getDamage()).isCloseTo(damage, within(1e-9));
@@ -335,7 +349,7 @@ class ClanWarCombatServiceTest {
             low.setGuard(10.0);
             scores.put(11L, 900_000);
             scores.put(12L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0, 0, Set.of(), Map.of())));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0, Map.of(), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -441,23 +455,39 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void anEnemyWithNoScoreOnTheMapIsHitSofter() {
+        void anEnemyWithNoScoreOnTheMapTakesFlatBaseDamage() {
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 4, Map.of(), Map.of())));
+
             service.fight(war.getId(), play(950_000, false));
 
             assertThat(savedHits).singleElement().satisfies(hit -> {
-                assertThat(hit.getDamage()).isEqualTo(12.5);
+                assertThat(hit.getDamage()).isEqualTo(25.0);
                 assertThat(hit.getVictimScore()).isNull();
             });
         }
 
         @Test
-        void aSkillGapNeverScalesAHitOnSomeoneWithNoScore() {
+        void aHitOnSomeoneWithNoScoreIsFlatBaseWhateverTheSkillGapAndOnlyTheMapPenaltyLowersIt() {
             skills.put(1L, 1.0);
             skills.put(11L, 100.0);
 
             service.fight(war.getId(), play(950_000, false));
 
-            assertThat(savedHits).singleElement().extracting(ClanWarHit::getDamage).isEqualTo(12.5);
+            assertThat(savedHits).singleElement().extracting(ClanWarHit::getDamage).isEqualTo(25.0);
+            savedHits.clear();
+            skills.put(1L, 100.0);
+            skills.put(11L, 50.0);
+
+            service.fight(war.getId(), play(950_000, false));
+
+            assertThat(savedHits).singleElement().extracting(ClanWarHit::getDamage).isEqualTo(25.0);
+            savedHits.clear();
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
+                    .thenReturn(Map.of(11L, new Streak(0, 0, Map.of(), Map.of(MAP, 1L))));
+
+            service.fight(war.getId(), play(950_000, false));
+
+            assertThat(savedHits).singleElement().extracting(ClanWarHit::getDamage).isEqualTo(25.0 * 0.75);
         }
 
         @Test
@@ -466,29 +496,29 @@ class ClanWarCombatServiceTest {
             scores.put(11L, 900_000);
             skills.put(1L, 40.0);
             skills.put(11L, 80.0);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0, 0, Set.of(), Map.of())));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(2, 0, Map.of(), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.45 * 1.45 * 2.0, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.3 * 1.3 * 2.0, within(1e-9));
         }
 
         @Test
-        void hitsOnSomeoneWithNoScoreEscalateTheStreakByTheSmallerStep() {
+        void hitsOnSomeoneWithNoScoreBuildTheStreakLikeChips() {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(1, 2, 0, Set.of(), Map.of())));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(1, 2, Map.of(), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.45 * 1.2 * 1.2, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 1.3 * 1.05 * 1.05, within(1e-9));
         }
 
         @Test
         void chipsSoftenTheTargetForTheNextHit() {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
-            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(0, 0, 4, Set.of(), Map.of())));
+            when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(11L, new Streak(0, 4, Map.of(), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -496,15 +526,15 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aMapAlreadyHitThisGuardLifeDealsBaseDamage() {
+        void aMapAlreadyHitThisGuardLifeKeepsOnlyAShareOfTheStreakBonus() {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
             when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
-                    .thenReturn(Map.of(11L, new Streak(2, 1, 4, Set.of(MAP), Map.of())));
+                    .thenReturn(Map.of(11L, new Streak(2, 5, Map.of(MAP, 1L), Map.of())));
 
             service.fight(war.getId(), play(950_000, true));
 
-            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0, within(1e-9));
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * (1 + (1.3 * 1.3 * Math.pow(1.05, 5) - 1) * 0.4), within(1e-9));
         }
 
         @ParameterizedTest
@@ -513,7 +543,7 @@ class ClanWarCombatServiceTest {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
             when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
-                    .thenReturn(Map.of(11L, new Streak(0, 0, 0, Set.of(), Map.of(MAP, breaks))));
+                    .thenReturn(Map.of(11L, new Streak(0, 0, Map.of(), Map.of(MAP, breaks))));
 
             service.fight(war.getId(), play(950_000, true));
 
@@ -525,6 +555,7 @@ class ClanWarCombatServiceTest {
             victim.setGuard(500.0);
             scores.put(11L, 900_000);
             join(12L, blue, 0.1, 50);
+            scores.put(12L, 900_000);
             for (long id = 13; id <= 16; id++) {
                 join(id, blue, 0.1, 50).setBrokenAt(Instant.now());
             }
@@ -627,6 +658,9 @@ class ClanWarCombatServiceTest {
             victim.setGuard(10.0);
             victim.setBreaksSuffered(1);
             scores.put(11L, 900_000);
+            clanProperties.getWar().setBountyFloor(0.0);
+            lenient().when(hitRepository.findDealtPerLife(eq(war.getId()), anyCollection()))
+                    .thenReturn(List.of(life(11L, 0, 0.0), life(11L, 1, 0.0)));
             ClanWarHit earlierChip = ClanWarHit.builder().attacker(User.builder().id(2L).build()).damage(90.0).build();
             lenient().when(hitRepository.findByWar_IdAndVictim_IdAndVictimCycle(war.getId(), 11L, 0))
                     .thenAnswer(inv -> {
@@ -650,9 +684,9 @@ class ClanWarCombatServiceTest {
             verify(standingService).applyAll(season.getId(), Map.of(blue.getId(), -50.0, red.getId(), 50.0),
                     ClanStandingSource.war_break, source);
             verify(levelService).grantXp(red.getId(), new ClanXpAward(150.0, ClanXpSource.war_break, source, true));
-            verify(levelUpAwardService).addClanXp(1L, 20.0);
-            verify(levelUpAwardService).addClanXp(2L, 180.0);
-            assertThat(attacker.getContribution()).isEqualTo(10.0 + 50.0);
+            verify(levelUpAwardService).addClanXp(1L, 10.0);
+            verify(levelUpAwardService).addClanXp(2L, 90.0);
+            assertThat(attacker.getContribution()).isEqualTo(10.0 + 25.0);
             verify(warService, never()).end(any(), any());
             verify(rosterService, never()).sync(any(), any());
             verify(feed).war(war);
@@ -702,8 +736,8 @@ class ClanWarCombatServiceTest {
             verify(standingService).applyAll(season.getId(), Map.of(blue.getId(), -50.0, red.getId(), 25.0),
                     ClanStandingSource.war_break, source);
             verify(levelService).grantXp(red.getId(), new ClanXpAward(75.0, ClanXpSource.war_break, source, true));
-            verify(levelUpAwardService).addClanXp(1L, 10.0);
-            verify(levelUpAwardService).addClanXp(2L, 90.0);
+            verify(levelUpAwardService).addClanXp(1L, 5.0);
+            verify(levelUpAwardService).addClanXp(2L, 45.0);
         }
 
         @Test
@@ -723,10 +757,21 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void breakingTheLastPlayerStandingStampsTheWipe() {
+        void breakingTheLastPlayerStandingStampsTheWipeAndSetsEveryComeback() {
+            Instant now = Instant.now();
+            ClanWarParticipant almostBack = join(3L, red, 0.5, 50);
+            almostBack.breakGuard(now.minus(Duration.ofDays(6)), Duration.ofDays(6).plusHours(3));
+            Instant soon = almostBack.getReviveAt();
+            ClanWarParticipant longOut = join(4L, red, 0.5, 50);
+            longOut.breakGuard(now.minus(Duration.ofDays(2)), Duration.ofDays(7));
+
             service.fight(war.getId(), play(950_000, true));
 
             assertThat(war.getWipedAt()).isNotNull().isEqualTo(victim.getBrokenAt());
+            Instant back = war.getWipedAt().plus(Duration.ofDays(2));
+            assertThat(victim.getReviveAt()).isEqualTo(back);
+            assertThat(almostBack.getReviveAt()).isEqualTo(soon);
+            assertThat(longOut.getReviveAt()).isEqualTo(back);
         }
 
         @Test
@@ -763,11 +808,11 @@ class ClanWarCombatServiceTest {
             service.fight(war.getId(), play(950_000, true));
 
             ClanWarHit breaking = savedHits.getFirst();
-            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 10.0 / 100.0);
-            verify(levelUpAwardService).addClanXp(1L, 40.0);
-            verify(levelUpAwardService).addClanXp(2L, 360.0);
-            assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0);
-            assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0);
+            assertThat(breaking.getXpAwarded()).isEqualTo(200.0 * 2.0 * 0.5 * 10.0 / 100.0);
+            verify(levelUpAwardService).addClanXp(1L, 20.0);
+            verify(levelUpAwardService).addClanXp(2L, 180.0);
+            assertThat(attacker.getContribution()).isEqualTo(10.0 * 2.0 + 50.0 * 2.0 * 0.5);
+            assertThat(chipper.getContribution()).isEqualTo(50.0 * 2.0 * 0.5);
         }
     }
 }

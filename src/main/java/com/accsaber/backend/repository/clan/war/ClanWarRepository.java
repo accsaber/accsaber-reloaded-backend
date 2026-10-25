@@ -59,14 +59,23 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             JOIN FETCH w.attackerClan JOIN FETCH w.defenderClan JOIN FETCH w.declaredBy
             WHERE (:clanId IS NULL OR EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId))
               AND (:open = false OR w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended)
+              AND (CAST(:search AS string) IS NULL OR EXISTS (
+                  SELECT 1 FROM ClanWarSide q WHERE q.war = w
+                    AND (search_normalize(q.clan.name) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
+                         OR q.clan.tag LIKE CONCAT('%', UPPER(CAST(:search AS string)), '%'))))
             ORDER BY w.declaredAt DESC
             """,
             countQuery = """
             SELECT COUNT(w) FROM ClanWar w
             WHERE (:clanId IS NULL OR EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId))
               AND (:open = false OR w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended)
+              AND (CAST(:search AS string) IS NULL OR EXISTS (
+                  SELECT 1 FROM ClanWarSide q WHERE q.war = w
+                    AND (search_normalize(q.clan.name) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
+                         OR q.clan.tag LIKE CONCAT('%', UPPER(CAST(:search AS string)), '%'))))
             """)
-    Page<ClanWar> findPage(@Param("clanId") UUID clanId, @Param("open") boolean open, Pageable pageable);
+    Page<ClanWar> findPage(@Param("clanId") UUID clanId, @Param("open") boolean open, @Param("search") String search,
+            Pageable pageable);
 
     @Query("""
             SELECT w.id FROM ClanWar w
@@ -137,12 +146,11 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
     @Query(value = """
             SELECT w.id FROM clan_wars w
             WHERE w.status = 'active'
-              AND EXISTS (SELECT 1 FROM clan_war_participants p WHERE p.war_id = w.id AND
-            """ + ClanWarParticipantRepository.GUARD_DUE + """
-            )
+              AND EXISTS (SELECT 1 FROM clan_war_participants p
+                          WHERE p.war_id = w.id AND p.left_at IS NULL AND p.broken_at IS NOT NULL)
             ORDER BY w.starts_at
             """, nativeQuery = true)
-    List<UUID> findGuardsDue(@Param("cutoff") Instant cutoff, @Param("wipedBefore") Instant wipedBefore);
+    List<UUID> findWithBrokenGuards();
 
     @Modifying
     @Query(value = "UPDATE clan_wars SET wiped_at = NULL WHERE id = :warId AND wiped_at < :wipedBefore",

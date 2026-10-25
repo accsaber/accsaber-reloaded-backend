@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,6 +190,7 @@ public class ClanWarCombatService {
                 .collect(Collectors.toMap(ClanWarHitRepository.VictimScoreView::getUserId, Function.identity()));
         Integer maxScore = mapDifficultyRepository.findById(difficultyId).map(MapDifficulty::getMaxScore).orElse(null);
         ClanWarTeam victimTeam = sideByClan.get(attacker.getClan().getId()).getTeam().opponent();
+        stakeService.loadBounties(war.getId(), roster.values());
         return new Battle(war, sides, sideByClan, roster, attacker, play, skills, victimScores, maxScore,
                 hitRepository.cycleHits(war.getId(), fighters),
                 warDamage.lastStand(roster.values(), sideByClan, victimTeam));
@@ -239,7 +241,7 @@ public class ClanWarCombatService {
         double disparity = warDamage.disparity(skill(battle, battle.attacker()), skill(battle, enemy));
         double damage = warDamage.hitDamage(
                 battle.cycleHits().getOrDefault(enemy.getUser().getId(), ClanWarHitRepository.Streak.NONE),
-                battle.play().mapDifficultyId(), disparity, kind == Kind.MISSING) * battle.lastStand();
+                battle.play().mapDifficultyId(), disparity * battle.lastStand(), kind == Kind.MISSING);
         return new Strike(enemy, kind, damage, standing(battle, enemy));
     }
 
@@ -317,7 +319,7 @@ public class ClanWarCombatService {
         victimSide.setStakeRemaining(victimSide.getStakeRemaining() - applied);
         hit.setStandingMoved(applied);
         victim.setBreaksSuffered(victim.getBreaksSuffered() + 1);
-        victim.setBrokenAt(Instant.now());
+        victim.breakGuard(Instant.now(), config.getBrokenDuration());
         markWipe(battle, victimTeam, victim.getBrokenAt());
         double engagement = stakeService.engagement(war, victimTeam);
         String sourceId = hit.getId().toString();
@@ -327,7 +329,7 @@ public class ClanWarCombatService {
                 applied * engagement), ClanStandingSource.war_break, sourceId);
         levelService.grantXp(attackerClanId, new ClanXpAward(config.getBreakClanXp() * share * engagement,
                 ClanXpSource.war_break, sourceId, true));
-        payChippers(battle, victim, share * engagement);
+        payChippers(battle, victim, share * engagement * victim.getBounty());
         sideRepository.save(victimSide);
         if (victimSide.fallen()) {
             rosterService.sync(war, battle.sides());
@@ -358,10 +360,20 @@ public class ClanWarCombatService {
     }
 
     private void markWipe(Battle battle, ClanWarTeam team, Instant at) {
-        List<ClanWarParticipant> fighters = ClanWarDamage.team(battle.roster().values(), battle.sideByClan(), team);
-        if (battle.war().getWipedAt() == null && !fighters.isEmpty()
-                && fighters.stream().allMatch(p -> p.getBrokenAt() != null)) {
-            battle.war().setWipedAt(at);
+        Collection<ClanWarParticipant> roster = battle.roster().values();
+        List<ClanWarParticipant> fighters = ClanWarDamage.team(roster, battle.sideByClan(), team);
+        if (battle.war().getWipedAt() != null || fighters.isEmpty()
+                || fighters.stream().anyMatch(p -> p.getBrokenAt() == null)) {
+            return;
+        }
+        battle.war().setWipedAt(at);
+        Instant back = at.plus(clanProperties.getWar().getWipeDuration());
+        for (ClanWarTeam side : ClanWarTeam.values()) {
+            double speed = warDamage.reviveSpeed(roster, battle.sideByClan(), side);
+            ClanWarDamage.team(roster, battle.sideByClan(), side).stream()
+                    .filter(p -> p.getBrokenAt() != null)
+                    .forEach(p -> p.comeBackAt(side == team || p.getReviveAt() == null || p.getReviveAt().isAfter(back)
+                            ? back : p.getReviveAt(), speed));
         }
     }
 
@@ -379,9 +391,7 @@ public class ClanWarCombatService {
         if (attacker.getBrokenAt() == null || !play.setAt().isAfter(attacker.getBrokenAt())) {
             return;
         }
-        attacker.setGuard(clanProperties.getWar().getGuard());
-        attacker.setGuardCycle(attacker.getGuardCycle() + 1);
-        attacker.setBrokenAt(null);
+        attacker.restoreGuard(clanProperties.getWar().getGuard());
     }
 
     private void announce(ClanWar war, ClanWarParticipant attacker, ClanWarParticipant victim, ChatEvent event) {

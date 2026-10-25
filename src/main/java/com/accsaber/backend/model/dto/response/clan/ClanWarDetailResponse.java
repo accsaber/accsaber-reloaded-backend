@@ -7,5 +7,5 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 
 public record ClanWarDetailResponse(ClanWarResponse war, List<ClanWarPoolEntryResponse> pool,
         List<ClanWarTimelinePointResponse> timeline, ClanWarStrikeRulesResponse strikeRules,
-        Map<ClanWarTeam, Double> lastStand) {
+        Map<ClanWarTeam, ClanWarLastStandResponse> lastStand) {
 }

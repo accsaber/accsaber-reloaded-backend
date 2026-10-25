@@ -81,7 +81,8 @@ public final class ClanMapper {
                 hit.isBroke(), hit.getStandingMoved(), hit.getXpAwarded(), hit.getCreatedAt());
     }
 
-    public record WarParticipantStats(double skill, ClanWarStrikePreviewResponse strikePreview, boolean showOrders) {
+    public record WarParticipantStats(double skill, ClanWarStrikePreviewResponse strikePreview, boolean showOrders,
+            Double breakStanding) {
     }
 
     public static ClanWarParticipantResponse toWarParticipantResponse(ClanWarParticipant participant,
@@ -91,7 +92,7 @@ public final class ClanMapper {
         return new ClanWarParticipantResponse(ClanRefCache.bareRef(participant.getUser()),
                 participant.getClan().getId(), ClanRefCache.bareRef(participant.getTarget()), orders, stats.skill(), stats.strikePreview(),
                 participant.getStandingWeight(), participant.getGuard(),
-                participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getBrokenAt(),
+                participant.getGuardCycle(), participant.getBreaksSuffered(), participant.getBounty(), stats.breakStanding(), participant.getBrokenAt(), participant.getReviveAt(),
                 participant.getContribution(),
                 participant.getJoinedAt(), participant.getLeftAt());
     }

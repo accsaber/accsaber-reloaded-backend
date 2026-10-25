@@ -3,10 +3,8 @@ package com.accsaber.backend.repository.clan.war;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -43,25 +41,23 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
 
         UUID getMapDifficultyId();
 
-        boolean getHit();
-
-        boolean getMissing();
+        long getMapHits();
 
         long getChips();
 
         long getBreaks();
     }
 
-    record Streak(long hits, long missing, long chips, Set<UUID> maps, Map<UUID, Long> mapBreaks) {
+    record Streak(long hits, long chips, Map<UUID, Long> mapHits, Map<UUID, Long> mapBreaks) {
 
-        public static final Streak NONE = new Streak(0, 0, 0, Set.of(), Map.of());
+        public static final Streak NONE = new Streak(0, 0, Map.of(), Map.of());
 
-        public boolean repeats(UUID mapDifficultyId) {
-            return mapDifficultyId != null && maps.contains(mapDifficultyId);
+        public long hitsOn(UUID mapDifficultyId) {
+            return mapDifficultyId == null ? 0 : mapHits.getOrDefault(mapDifficultyId, 0L);
         }
 
-        public Streak on(UUID mapDifficultyId) {
-            return repeats(mapDifficultyId) ? NONE : this;
+        public boolean repeats(UUID mapDifficultyId) {
+            return hitsOn(mapDifficultyId) > 0;
         }
 
         public long breaksOn(UUID mapDifficultyId) {
@@ -69,16 +65,15 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
         }
 
         private Streak plus(CycleHitsView view) {
-            Set<UUID> hitMaps = new HashSet<>(maps);
-            if (view.getHit() || view.getMissing()) {
-                hitMaps.add(view.getMapDifficultyId());
+            Map<UUID, Long> hitMaps = new HashMap<>(mapHits);
+            if (view.getMapHits() > 0) {
+                hitMaps.put(view.getMapDifficultyId(), view.getMapHits());
             }
             Map<UUID, Long> breaks = new HashMap<>(mapBreaks);
             if (view.getBreaks() > 0) {
                 breaks.put(view.getMapDifficultyId(), view.getBreaks());
             }
-            return new Streak(hits + (view.getHit() ? 1 : 0), missing + (view.getMissing() ? 1 : 0),
-                    chips + view.getChips(), hitMaps, breaks);
+            return new Streak(hits + (view.getMapHits() > 0 ? 1 : 0), chips + view.getChips(), hitMaps, breaks);
         }
     }
 
@@ -96,10 +91,9 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
                 WHERE h.war_id = :warId AND h.victim_user_id IN (:victimIds)
             )
             SELECT s.victim_user_id AS victimId, s.map_difficulty_id AS mapDifficultyId,
-                   bool_or(NOT s.chip AND s.victim_score_id IS NOT NULL AND s.in_cycle) AS hit,
-                   bool_or(NOT s.chip AND s.victim_score_id IS NULL AND s.in_cycle) AS missing,
-                   COUNT(*) FILTER (WHERE s.chip AND s.in_cycle)
-                       + GREATEST(0, COUNT(*) FILTER (WHERE NOT s.chip AND s.in_cycle) - 1) AS chips,
+                   COUNT(*) FILTER (WHERE NOT s.chip AND s.victim_score_id IS NOT NULL AND s.in_cycle) AS mapHits,
+                   COUNT(*) FILTER (WHERE s.in_cycle AND (s.chip OR s.victim_score_id IS NULL))
+                       + GREATEST(0, COUNT(*) FILTER (WHERE NOT s.chip AND s.victim_score_id IS NOT NULL AND s.in_cycle) - 1) AS chips,
                    (SELECT COUNT(*) FROM scoped b
                     WHERE b.victim_user_id = s.victim_user_id AND b.broke_on = s.map_difficulty_id) AS breaks
             FROM scoped s
@@ -116,6 +110,38 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
         }
         return streaks;
     }
+
+    interface DealtView {
+        Long getUserId();
+
+        int getLife();
+
+        double getDealt();
+    }
+
+    @Query(value = """
+            WITH breaks AS (
+                SELECT b.victim_user_id AS user_id, b.created_at,
+                       ROW_NUMBER() OVER (PARTITION BY b.victim_user_id ORDER BY b.created_at, b.id) AS life
+                FROM clan_war_hits b
+                WHERE b.war_id = :warId AND b.broke AND b.victim_user_id IN (:userIds)
+            ), lives AS (
+                SELECT p.user_id, 0 AS life FROM clan_war_participants p
+                WHERE p.war_id = :warId AND p.user_id IN (:userIds)
+                UNION ALL
+                SELECT user_id, life FROM breaks
+            )
+            SELECT l.user_id AS userId, l.life AS life, COALESCE(SUM(h.damage), 0) AS dealt
+            FROM lives l
+            LEFT JOIN breaks s ON s.user_id = l.user_id AND s.life = l.life
+            LEFT JOIN breaks e ON e.user_id = l.user_id AND e.life = l.life + 1
+            LEFT JOIN clan_war_hits h ON h.war_id = :warId AND h.attacker_user_id = l.user_id
+                 AND (s.created_at IS NULL OR h.created_at > s.created_at)
+                 AND (e.created_at IS NULL OR h.created_at <= e.created_at)
+            GROUP BY l.user_id, l.life
+            ORDER BY l.user_id, l.life
+            """, nativeQuery = true)
+    List<DealtView> findDealtPerLife(@Param("warId") UUID warId, @Param("userIds") Collection<Long> userIds);
 
     interface BreakXpView {
         Long getUserId();
@@ -146,7 +172,7 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
               AND (:chip IS NULL OR h.chip = :chip)
               AND (:clanId IS NULL OR EXISTS (
                   SELECT 1 FROM ClanWarParticipant p
-                  WHERE p.war = h.war AND p.clan.id = :clanId AND (p.user = h.attacker OR p.user = h.victim)))
+                  WHERE p.war = h.war AND p.clan.id = :clanId AND p.user = h.attacker))
             ORDER BY h.createdAt DESC
             """,
             countQuery = """

@@ -1,6 +1,7 @@
 package com.accsaber.backend.model.entity.clan.war;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,6 +20,7 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -83,6 +85,16 @@ public class ClanWarParticipant {
     @Column(name = "broken_at")
     private Instant brokenAt;
 
+    @Transient
+    @Builder.Default
+    private double bounty = 1.0;
+
+    @Column(name = "revive_at")
+    private Instant reviveAt;
+
+    @Column(name = "revive_speed")
+    private Double reviveSpeed;
+
     @Column(nullable = false)
     private double contribution;
 
@@ -109,6 +121,34 @@ public class ClanWarParticipant {
 
     public boolean halted() {
         return targeting == ClanWarTargeting.follow && order == ClanWarOrder.halt;
+    }
+
+    public void breakGuard(Instant at, Duration reviveIn) {
+        brokenAt = at;
+        reviveAt = at.plus(reviveIn);
+        reviveSpeed = 1.0;
+    }
+
+    public void comeBackAt(Instant at, double speed) {
+        reviveAt = at;
+        reviveSpeed = speed;
+    }
+
+    public void restoreGuard(double full) {
+        guard = full;
+        guardCycle++;
+        brokenAt = null;
+        reviveAt = null;
+        reviveSpeed = null;
+    }
+
+    public void reviveAtSpeed(double speed, Instant now) {
+        if (brokenAt == null || reviveSpeed == null || reviveSpeed == speed) {
+            return;
+        }
+        long remaining = Math.max(0, Duration.between(now, reviveAt).toMillis());
+        reviveAt = now.plusMillis(Math.round(remaining * reviveSpeed / speed));
+        reviveSpeed = speed;
     }
 
     @Getter

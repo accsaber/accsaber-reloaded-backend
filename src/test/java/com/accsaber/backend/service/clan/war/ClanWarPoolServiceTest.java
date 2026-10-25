@@ -350,9 +350,9 @@ class ClanWarPoolServiceTest {
         when(cosmeticService.publicRefs(anyCollection())).thenAnswer(inv -> inv.<Collection<Clan>>getArgument(0)
                 .stream().collect(Collectors.toMap(Clan::getId, clan -> PublicClanResponse.of(clan, List.of()))));
 
-        assertThat(service.pool(war, attacker.getId(), null)).hasSize(2);
-        assertThat(service.pool(war, defender.getId(), null)).hasSize(1);
-        assertThat(service.pool(war, null, null)).hasSize(1);
+        assertThat(service.pool(war, attacker.getId(), ClanWarView.of(null))).hasSize(2);
+        assertThat(service.pool(war, defender.getId(), ClanWarView.of(null))).hasSize(1);
+        assertThat(service.pool(war, null, ClanWarView.of(null))).hasSize(1);
     }
 
     @Test
@@ -367,14 +367,14 @@ class ClanWarPoolServiceTest {
         when(cosmeticService.publicRefs(anyCollection())).thenReturn(Map.of());
         User near = User.builder().id(8L).name("Near").build();
         User low = User.builder().id(9L).name("Low").build();
-        when(rosterService.pairings(war, 7L, List.of(played.getId(), unplayed.getId()))).thenReturn(Map.of(
-                played.getId(), new ClanWarRosterService.Pairing(near, false, 12.0),
-                unplayed.getId(), new ClanWarRosterService.Pairing(low, true, 3.6)));
+        when(rosterService.pairings(war, ClanWarView.of(7L), List.of(played.getId(), unplayed.getId()))).thenReturn(Map.of(
+                played.getId(), new ClanWarDamage.Pairing(near, false, 12.0, 1.0, false),
+                unplayed.getId(), new ClanWarDamage.Pairing(low, true, 3.6, 0.75, true)));
         when(scoreRepository.findActiveByUsersAndMapDifficultyIdIn(anyCollection(), anyCollection())).thenReturn(List.of(
                 score(7L, played, 985_000), score(8L, played, 990_000), score(9L, played, 980_000),
                 score(9L, unplayed, 970_000)));
 
-        var rows = service.pool(war, null, 7L);
+        var rows = service.pool(war, null, ClanWarView.of(7L));
 
         assertThat(rows.get(0).viewerScore().getAccuracy()).isEqualTo(0.985);
         assertThat(rows.get(0).target().name()).isEqualTo("Near");
@@ -384,6 +384,8 @@ class ClanWarPoolServiceTest {
         assertThat(rows.get(1).target().name()).isEqualTo("Low");
         assertThat(rows.get(1).targetScore().getScore()).isEqualTo(970_000);
         assertThat(rows.get(1).targetPicked()).isTrue();
+        assertThat(rows.get(1).targetMapPenalty()).isEqualTo(0.75);
+        assertThat(rows.get(1).targetRepeatMap()).isTrue();
     }
 
     private static Score score(Long userId, MapDifficulty difficulty, int value) {

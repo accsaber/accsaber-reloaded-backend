@@ -24,6 +24,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcas
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarLastStandResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarOrdersResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
@@ -190,12 +191,13 @@ class ResponseJsonShapeTest {
     }
 
     @Test
-    void warDetailCarriesEachTeamsLastStand() {
+    void warDetailCarriesEachTeamsLastStandAndReviveSpeed() {
         JsonNode detail = json(new ClanWarDetailResponse(null, List.of(), List.of(), null,
-                java.util.Map.of(ClanWarTeam.attack, 1.0, ClanWarTeam.defend, 0.75)));
+                java.util.Map.of(ClanWarTeam.attack, new ClanWarLastStandResponse(1.0, 1.0),
+                        ClanWarTeam.defend, new ClanWarLastStandResponse(0.75, 2.25))));
 
-        assertThat(detail.get("lastStand").get("attack").toString()).isEqualTo("1");
-        assertThat(detail.get("lastStand").get("defend").toString()).isEqualTo("0.75");
+        assertThat(detail.get("lastStand").get("attack").toString()).isEqualTo("{\"damage\":1,\"reviveSpeed\":1}");
+        assertThat(detail.get("lastStand").get("defend").get("reviveSpeed").toString()).isEqualTo("2.25");
     }
 
     @Test
@@ -212,14 +214,17 @@ class ResponseJsonShapeTest {
     void warParticipantNestsTheStrikePreviewWithPlainWholeNumbers() {
         ClanWarParticipantResponse row = new ClanWarParticipantResponse(PLAYER, A, null,
                 new ClanWarOrdersResponse(ClanWarTargeting.follow, ClanWarOrder.halt, null), 80.0,
-                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 0, 40.0, 80.0, 2.0, 0.5, 12.5, 10.0,
-                        new ClanWarStrikeMapResponse(null, true, 0.75)), 1.0, 100.0, 0, 0, T2,
+                new ClanWarStrikePreviewResponse(30.0, 3, 0, 0, 40.0, 80.0, 2.0, 0.5, 12.5, 10.0,
+                        new ClanWarStrikeMapResponse(null, true, 0.75)), 1.0, 100.0, 0, 0, 1.25, 42.0, T2, T2,
                 0.0, T1, null);
 
         JsonNode preview = json(row).get("strikePreview");
         assertThat(json(row).get("orders").get("order").asString()).isEqualTo("halt");
         assertThat(json(row).get("clanId").asString()).isEqualTo(A.toString());
         assertThat(json(row).has("clan")).isFalse();
+        assertThat(json(row).get("bounty").toString()).isEqualTo("1.25");
+        assertThat(json(row).get("breakStanding").toString()).isEqualTo("42");
+        assertThat(json(row).get("reviveAt").asString()).isEqualTo(json(row).get("brokenAt").asString());
 
         assertNestedPlayer(json(row));
         assertThat(preview.get("damage").toString()).isEqualTo("30");
@@ -231,7 +236,7 @@ class ResponseJsonShapeTest {
         assertThat(preview.get("onMap").get("mapPenalty").toString()).isEqualTo("0.75");
         assertThat(preview.get("lastStand").toString()).isEqualTo("0.5");
         assertThat(json(row).get("brokenAt").isString()).isTrue();
-        JsonNode rules = json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 0.5, 8.0, 0.3, 1.0, 1.25, 1.05,
+        JsonNode rules = json(new ClanWarStrikeRulesResponse(100.0, 15.0, 1.5, 1.0, 8.0, 0.3, 1.0, 1.05, 0.4,
                 0.75, 0.5, 0.5, 0.5, 168, 48));
         assertThat(rules.get("guard").toString()).isEqualTo("100");
         assertThat(rules.get("brokenDurationHours").asInt()).isEqualTo(168);

@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -151,7 +150,7 @@ class ClanWarRosterServiceTest {
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).hasSize(3);
         assertThat(participants.get(1L).getStandingWeight()).isCloseTo(8100.0 / 13000, within(1e-12));
-        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(Math.pow(6400.0 / 13000, 0.25), within(1e-12));
+        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(6400.0 / 13000, within(1e-12));
         assertThat(participants.get(1L).getClan()).isSameAs(attacker);
         assertThat(participants.get(1L).getTarget()).isNull();
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_started, null, defender, war));
@@ -291,21 +290,122 @@ class ClanWarRosterServiceTest {
         when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, fresh, worn));
         when(participantRepository.findOverallSkills(anyCollection()))
                 .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
-        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, 0, Set.of(), Map.of())));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection())).thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, Map.of(), Map.of())));
         UUID open = UUID.randomUUID();
         UUID played = UUID.randomUUID();
         when(hitRepository.findActiveScores(anyCollection(), anyCollection()))
                 .thenReturn(List.of(victimScore(played, UUID.randomUUID(), 12L, 900_000)));
 
-        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(open, played));
+        Map<UUID, ClanWarDamage.Pairing> pairings = service.pairings(war, ClanWarView.of(1L), List.of(open, played));
 
-        assertThat(pairings.get(open).target().getId()).isEqualTo(12L);
-        assertThat(pairings.get(open).picked()).isFalse();
+        assertThat(pairings.get(open).damage()).isEqualTo(10.0);
         assertThat(pairings.get(played).target().getId()).isEqualTo(12L);
+        assertThat(pairings.get(played).picked()).isFalse();
     }
 
     @Test
-    void aPickedTargetsPairingCarriesTheDamageOfEachMapWithRepeatsLosingTheStreak() {
+    void theSweepSpeedsUpEveryRunningReviveByHowOutnumberedTheTeamIs() {
+        war.setStatus(ClanWarStatus.active);
+        Instant now = Instant.now();
+        Instant wipedBefore = now.minus(Duration.ofDays(2));
+        List<ClanWarParticipant> broken = List.of(participant(12L, defender, 0.25), participant(13L, defender, 0.25),
+                participant(14L, defender, 0.25));
+        broken.forEach(p -> p.breakGuard(now.minus(Duration.ofDays(1)), Duration.ofDays(7)));
+        List<ClanWarParticipant> roster = new ArrayList<>(broken);
+        roster.add(participant(1L, attacker, 1.0));
+        roster.add(participant(11L, defender, 0.25));
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(roster);
+
+        service.restoreGuards(war.getId(), now, wipedBefore);
+
+        assertThat(broken).allSatisfy(p -> {
+            assertThat(p.getReviveSpeed()).isEqualTo(3.5);
+            assertThat(p.getReviveAt()).isEqualTo(now.plusMillis(Math.round(Duration.ofDays(6).toMillis() / 3.5)));
+        });
+        verify(participantRepository).restoreGuards(war.getId(), now, clanProperties.getWar().getGuard());
+    }
+
+    @Test
+    void autoGoesForTheMostStandingPerHitAndReportsTheMapPenalty() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant hard = participant(11L, defender, 0.5);
+        ClanWarParticipant rich = participant(12L, defender, 0.5);
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, hard, rich));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 60), skill(12L, 50)));
+        when(stakeService.breakAmount(any(), any(), eq(hard))).thenReturn(10.0);
+        when(stakeService.breakAmount(any(), any(), eq(rich))).thenReturn(100.0);
+        UUID map = UUID.randomUUID();
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
+                .thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(0, 0, Map.of(), Map.of(map, 1L))));
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of(
+                victimScore(map, UUID.randomUUID(), 11L, 900_000), victimScore(map, UUID.randomUUID(), 12L, 900_000)));
+
+        ClanWarDamage.Pairing pairing = service.pairings(war, ClanWarView.of(1L), List.of(map)).get(map);
+
+        assertThat(pairing.target().getId()).isEqualTo(12L);
+        assertThat(pairing.mapPenalty()).isEqualTo(0.75);
+    }
+
+    @Test
+    void aFocusPairsEveryMapWithThatEnemyWithoutCountingAsAPick() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant fresh = participant(11L, defender, 0.5);
+        ClanWarParticipant worn = participant(12L, defender, 0.5);
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, fresh, worn));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
+                .thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(2, 0, Map.of(), Map.of())));
+        UUID played = UUID.randomUUID();
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of(
+                victimScore(played, UUID.randomUUID(), 11L, 900_000), victimScore(played, UUID.randomUUID(), 12L, 900_000)));
+
+        Map<UUID, ClanWarDamage.Pairing> pairings = service.pairings(war, new ClanWarView(1L, null, 11L),
+                List.of(played));
+
+        assertThat(pairings.get(played).target().getId()).isEqualTo(11L);
+        assertThat(pairings.get(played).picked()).isFalse();
+    }
+
+    @Test
+    void viewingAsAnotherClansFighterHidesTheirCommandersOrders() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant mate = participant(2L, attacker, 1.0);
+        ClanWarParticipant enemy = participant(11L, defender, 1.0);
+        mate.setOrder(ClanWarOrder.halt);
+        enemy.setOrder(ClanWarOrder.halt);
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, mate, enemy));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(2L, 50), skill(11L, 50)));
+        UUID map = UUID.randomUUID();
+
+        assertThat(service.pairings(war, new ClanWarView(1L, 2L, null), List.of(map))).isEmpty();
+        assertThat(service.pairings(war, new ClanWarView(1L, 11L, null), List.of(map))).containsKey(map);
+    }
+
+    @Test
+    void droppingJustUnderHalfJumpsStraightToDoubleReviveSpeed() {
+        war.setStatus(ClanWarStatus.active);
+        Instant now = Instant.now();
+        List<ClanWarParticipant> roster = new ArrayList<>();
+        roster.add(participant(1L, attacker, 1.0));
+        for (long id = 11; id <= 20; id++) {
+            roster.add(participant(id, defender, 0.1));
+        }
+        ClanWarParticipant broken = roster.get(1);
+        for (ClanWarParticipant p : roster.subList(1, 7)) {
+            p.breakGuard(now.minus(Duration.ofDays(1)), Duration.ofDays(7));
+        }
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(roster);
+
+        service.restoreGuards(war.getId(), now, now.minus(Duration.ofDays(2)));
+
+        assertThat(broken.getReviveSpeed()).isCloseTo(2.0 + 1.5 * 0.25, within(1e-9));
+    }
+
+    @Test
+    void aPickedTargetsPairingCarriesTheDamageOfEachMapWithRepeatsKeepingAShareOfTheStreak() {
         ClanWarParticipant me = participant(1L, attacker, 1.0);
         ClanWarParticipant target = participant(11L, defender, 1.0);
         me.setTargeting(ClanWarTargeting.manual);
@@ -316,14 +416,17 @@ class ClanWarRosterServiceTest {
         when(participantRepository.findOverallSkills(anyCollection()))
                 .thenReturn(List.of(skill(1L, 50), skill(11L, 50)));
         when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
-                .thenReturn(Map.of(11L, new ClanWarHitRepository.Streak(0, 9, 0, Set.of(repeat), Map.of())));
-        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of());
+                .thenReturn(Map.of(11L, new ClanWarHitRepository.Streak(2, 0, Map.of(repeat, 1L), Map.of())));
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of(
+                victimScore(repeat, UUID.randomUUID(), 11L, 900_000), victimScore(fresh, UUID.randomUUID(), 11L, 900_000)));
 
-        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(repeat, fresh));
+        Map<UUID, ClanWarDamage.Pairing> pairings = service.pairings(war, ClanWarView.of(1L), List.of(repeat, fresh));
 
         assertThat(pairings.get(repeat).picked()).isTrue();
-        assertThat(pairings.get(repeat).damage()).isCloseTo(12 * 0.3, within(1e-9));
-        assertThat(pairings.get(fresh).damage()).isCloseTo(12 * Math.pow(1.2, 9) * 0.3, within(1e-9));
+        assertThat(pairings.get(repeat).repeatMap()).isTrue();
+        assertThat(pairings.get(fresh).repeatMap()).isFalse();
+        assertThat(pairings.get(repeat).damage()).isCloseTo(10 * (1 + (1.3 * 1.3 - 1) * 0.4), within(1e-9));
+        assertThat(pairings.get(fresh).damage()).isCloseTo(10 * 1.3 * 1.3, within(1e-9));
     }
 
     @Test
@@ -347,15 +450,16 @@ class ClanWarRosterServiceTest {
         when(stakeService.breakAmount(any(), any(), eq(enemy))).thenReturn(40.0);
         when(stakeService.engagement(war, ClanWarTeam.defend)).thenReturn(0.5);
 
-        Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), 1L, map, PageRequest.of(0, 50))
+        Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), ClanWarView.of(1L), map, PageRequest.of(0, 50))
                 .stream().collect(Collectors.toMap(row -> Long.valueOf(row.player().id()), Function.identity()));
 
         assertThat(rows.get(2L).strikePreview()).isNull();
+        assertThat(rows.get(11L).breakStanding()).isEqualTo(40.0);
         assertThat(rows.get(12L).strikePreview()).isNull();
         assertThat(rows.get(11L).strikePreview()).satisfies(preview -> {
             assertThat(preview.disparity()).isEqualTo(2.0);
-            assertThat(preview.damage()).isEqualTo(24.0);
-            assertThat(preview.hitsToBreak()).isEqualTo(3);
+            assertThat(preview.damage()).isEqualTo(20.0);
+            assertThat(preview.hitsToBreak()).isEqualTo(4);
             assertThat(preview.onMap().targetScore()).isEqualTo(950_000);
             assertThat(preview.standingTaken()).isEqualTo(40.0);
             assertThat(preview.standingGained()).isEqualTo(20.0);

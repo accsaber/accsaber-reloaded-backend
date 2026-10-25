@@ -4,7 +4,6 @@ public record ClanWarStrikePreviewResponse(
         double damage,
         int hitsToBreak,
         long hitsThisCycle,
-        long noScoreHitsThisCycle,
         long chipsThisCycle,
         double attackerSkill,
         double victimSkill,

@@ -60,7 +60,7 @@ class ClanWarSchedulerTest {
         UUID retreated = UUID.randomUUID();
         when(warRepository.findRetreatsDue(any())).thenReturn(List.of(retreated));
         UUID guardsDue = UUID.randomUUID();
-        when(warRepository.findGuardsDue(any(), any())).thenReturn(List.of(guardsDue));
+        when(warRepository.findWithBrokenGuards()).thenReturn(List.of(guardsDue));
         UUID unsettled = UUID.randomUUID();
         when(warRepository.findEndedUnsettled(20)).thenReturn(List.of(unsettled));
         doThrow(new IllegalStateException("boom")).when(poolService).closePicks(brokenPick);

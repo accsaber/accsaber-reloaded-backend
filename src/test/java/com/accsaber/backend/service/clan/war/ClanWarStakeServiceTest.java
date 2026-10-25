@@ -30,6 +30,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanStandingService;
@@ -43,6 +44,8 @@ class ClanWarStakeServiceTest {
     private ClanWarSideRepository sideRepository;
     @Mock
     private ClanWarParticipantRepository participantRepository;
+    @Mock
+    private ClanWarHitRepository hitRepository;
     @Mock
     private ClanStrengthService strengthService;
     @Mock
@@ -59,7 +62,7 @@ class ClanWarStakeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ClanWarStakeService(sideRepository, participantRepository, strengthService, standingService,
+        service = new ClanWarStakeService(sideRepository, participantRepository, hitRepository, strengthService, standingService,
                 clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).season(season).attackerClan(stars).defenderClan(genx)
                 .startsAt(Instant.parse("2026-11-01T00:00:00Z")).build();
@@ -162,6 +165,20 @@ class ClanWarStakeServiceTest {
             ClanWarParticipant victim = ClanWarParticipant.builder().standingWeight(1.0).build();
 
             assertThat(service.breakAmount(List.of(side), side, victim)).isEqualTo(30.0);
+        }
+
+        @Test
+        void aBountyCarriesHalfOfWhatItWasIntoTheNextLifeAndClimbsBackWithDamageDealt() {
+            assertThat(service.bounty(List.of())).isEqualTo(1.0);
+            assertThat(service.bounty(List.of(0.0))).isEqualTo(1.0);
+            assertThat(service.bounty(List.of(0.0, 0.0))).isCloseTo(0.25 + 0.75 * 0.5, within(1e-9));
+            assertThat(service.bounty(List.of(100_000.0, 0.0))).isCloseTo(0.25 + 1.5 * 0.5, within(1e-9));
+            assertThat(service.bounty(List.of(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))).isCloseTo(0.25, within(0.01));
+            assertThat(service.bounty(List.of(0.0, 150.0))).isCloseTo(1.75 - (1.75 - 0.625) * Math.exp(-1), within(1e-9));
+            ClanWarSide side = side(genx, ClanWarTeam.defend, 1000, 1000);
+            ClanWarParticipant victim = ClanWarParticipant.builder().standingWeight(0.1).bounty(0.25).build();
+
+            assertThat(service.breakAmount(List.of(side), side, victim)).isCloseTo(1000 * 0.4 * 0.1 * 0.25, within(1e-9));
         }
 
         @Test

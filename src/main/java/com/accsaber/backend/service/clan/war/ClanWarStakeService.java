@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +17,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWar;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
+import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarSideRepository;
 import com.accsaber.backend.service.clan.ClanStandingService;
@@ -30,6 +32,7 @@ public class ClanWarStakeService {
 
     private final ClanWarSideRepository sideRepository;
     private final ClanWarParticipantRepository participantRepository;
+    private final ClanWarHitRepository hitRepository;
     private final ClanStrengthService strengthService;
     private final ClanStandingService standingService;
     private final ClanProperties clanProperties;
@@ -75,8 +78,31 @@ public class ClanWarStakeService {
     public double breakAmount(List<ClanWarSide> sides, ClanWarSide victimSide, ClanWarParticipant victim) {
         ClanProperties.War config = clanProperties.getWar();
         double moved = fullTeamStake(sides, victimSide.getTeam()) * config.getBreakShare() * victim.getStandingWeight()
-                * Math.pow(config.getBreakDecay(), victim.getBreaksSuffered()) * risk(victimSide);
+                * victim.getBounty() * risk(victimSide);
         return Math.min(victimSide.getStakeRemaining(), Math.max(0.0, moved));
+    }
+
+    public void loadBounties(UUID warId, Collection<ClanWarParticipant> participants) {
+        if (participants.isEmpty()) {
+            return;
+        }
+        Map<Long, List<Double>> lives = hitRepository.findDealtPerLife(warId,
+                participants.stream().map(p -> p.getUser().getId()).toList()).stream()
+                .collect(Collectors.groupingBy(ClanWarHitRepository.DealtView::getUserId,
+                        Collectors.mapping(ClanWarHitRepository.DealtView::getDealt, Collectors.toList())));
+        participants.forEach(p -> p.setBounty(bounty(lives.getOrDefault(p.getUser().getId(), List.of()))));
+    }
+
+    double bounty(List<Double> dealtPerLife) {
+        ClanProperties.War config = clanProperties.getWar();
+        double bounty = 1.0;
+        for (int life = 0; life < dealtPerLife.size(); life++) {
+            double start = life == 0 ? 1.0 : config.getBountyFloor()
+                    + (bounty - config.getBountyFloor()) * config.getBountyCarry();
+            bounty = config.getBountyCap() - (config.getBountyCap() - start)
+                    * Math.exp(-dealtPerLife.get(life) / config.getBountyDamageScale());
+        }
+        return bounty;
     }
 
     public double risk(ClanWarSide side) {

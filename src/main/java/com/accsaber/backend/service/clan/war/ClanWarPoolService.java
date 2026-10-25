@@ -145,7 +145,8 @@ public class ClanWarPoolService {
         lock(war, false);
     }
 
-    public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId, Long viewerId) {
+    public List<ClanWarPoolEntryResponse> pool(ClanWar war, UUID viewerClanId, ClanWarView view) {
+        Long viewerId = view.perspective();
         List<ClanWarPoolEntry> entries = poolRepository.findByWarId(war.getId()).stream()
                 .filter(entry -> war.getStatus() != ClanWarStatus.picking
                         || entry.getSource() == ClanWarPoolSource.pick
@@ -154,23 +155,24 @@ public class ClanWarPoolService {
         List<UUID> difficultyIds = entries.stream().map(entry -> entry.getMapDifficulty().getId()).toList();
         Map<UUID, PublicMapDifficultyResponse> difficulties = mapService.getDifficultyResponsesPublic(difficultyIds);
         Map<UUID, PublicClanResponse> clans = cosmeticService.publicRefs(war.leads());
-        Map<UUID, ClanWarRosterService.Pairing> pairings = rosterService.pairings(war, viewerId, difficultyIds);
+        Map<UUID, ClanWarDamage.Pairing> pairings = rosterService.pairings(war, view, difficultyIds);
         Map<UUID, Map<Long, Score>> scores = scores(viewerId, pairings.values(), difficultyIds);
         return entries.stream().map(entry -> {
             UUID difficultyId = entry.getMapDifficulty().getId();
             Map<Long, Score> onMap = scores.getOrDefault(difficultyId, Map.of());
-            ClanWarRosterService.Pairing pairing = pairings.get(difficultyId);
+            ClanWarDamage.Pairing pairing = pairings.get(difficultyId);
             User target = pairing == null ? null : pairing.target();
             return new ClanWarPoolEntryResponse(difficulties.get(difficultyId),
                     entry.getPickedByClan() == null ? null : clans.get(entry.getPickedByClan().getId()),
                     entry.getSource(), summary(viewerId == null ? null : onMap.get(viewerId)),
                     target == null ? null : ClanRefCache.playerRef(target),
                     summary(target == null ? null : onMap.get(target.getId())), pairing != null && pairing.picked(),
-                    pairing == null ? null : pairing.damage());
+                    pairing == null ? null : pairing.damage(), pairing == null ? null : pairing.mapPenalty(),
+                    pairing == null ? null : pairing.repeatMap());
         }).toList();
     }
 
-    private Map<UUID, Map<Long, Score>> scores(Long viewerId, Collection<ClanWarRosterService.Pairing> pairings,
+    private Map<UUID, Map<Long, Score>> scores(Long viewerId, Collection<ClanWarDamage.Pairing> pairings,
             List<UUID> difficultyIds) {
         Set<Long> userIds = pairings.stream().map(pairing -> pairing.target().getId())
                 .collect(Collectors.toCollection(HashSet::new));

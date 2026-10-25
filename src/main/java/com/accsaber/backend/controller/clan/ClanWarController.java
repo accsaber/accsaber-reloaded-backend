@@ -47,6 +47,7 @@ import com.accsaber.backend.service.clan.war.ClanWarRewardService;
 import com.accsaber.backend.service.clan.war.ClanWarRosterService;
 import com.accsaber.backend.service.clan.war.ClanWarService;
 import com.accsaber.backend.service.clan.war.ClanWarTargetingService;
+import com.accsaber.backend.service.clan.war.ClanWarView;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -67,13 +68,15 @@ public class ClanWarController {
     private final ClanWarTargetingService targetingService;
 
     @Operation(summary = "List clan wars",
-            description = "Newest first. clanId filters to one clan, open=true hides finished wars.")
+            description = "Newest first. clanId filters to one clan, open=true hides finished wars, search matches "
+                    + "any clan's name or tag.")
     @GetMapping("/wars")
     public ResponseEntity<Page<ClanWarResponse>> wars(
             @RequestParam(required = false) UUID clanId,
             @RequestParam(defaultValue = "false") boolean open,
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(warService.list(clanId, open, pageable));
+        return ResponseEntity.ok(warService.list(clanId, open, search, pageable));
     }
 
     @Operation(summary = "Declare war",
@@ -91,12 +94,16 @@ public class ClanWarController {
 
     @Operation(summary = "Get a war",
             description = "While the defense picks, everyone sees the attacker's picks but not its random maps. From "
-                    + "preparation on everyone sees all.")
+                    + "preparation on everyone sees all. as views it as another fighter, focus pairs the pool with one "
+                    + "enemy.")
     @GetMapping("/wars/{warId}")
     public ResponseEntity<ClanWarDetailResponse> war(
             @AuthenticationPrincipal PlayerUserDetails principal,
-            @PathVariable UUID warId) {
-        return ResponseEntity.ok(warService.get(warId, principal != null ? principal.getUserId() : null));
+            @PathVariable UUID warId,
+            @RequestParam(required = false) Long as,
+            @RequestParam(required = false) Long focus) {
+        return ResponseEntity.ok(warService.get(warId,
+                new ClanWarView(principal != null ? principal.getUserId() : null, as, focus)));
     }
 
     @Operation(summary = "Submit defense picks",
@@ -110,7 +117,7 @@ public class ClanWarController {
             @PathVariable UUID warId,
             @Valid @RequestBody SubmitClanWarPicksRequest request) {
         poolService.submitPicks(warId, principal.getUserId(), request.getMapDifficultyIds(), request.isBerserker());
-        return ResponseEntity.ok(warService.get(warId, principal.getUserId()));
+        return ResponseEntity.ok(warService.get(warId, ClanWarView.of(principal.getUserId())));
     }
 
     @Operation(summary = "Retreat from a war",
@@ -130,7 +137,7 @@ public class ClanWarController {
 
     @Operation(summary = "War hits",
             description = "Newest first. missingScore hits softer, broke marks the hit that emptied a guard. userId "
-                    + "keeps only hits that player dealt or took, clanId only hits that clan's fighters dealt or took, "
+                    + "keeps only hits that player dealt or took, clanId only hits that clan's fighters dealt, "
                     + "chip=true only chips and chip=false only full hits.")
     @GetMapping("/wars/{warId}/hits")
     public ResponseEntity<Page<ClanWarHitResponse>> hits(
@@ -246,14 +253,15 @@ public class ClanWarController {
             description = "Players still in first, then by skill. target is who they picked by hand. "
                     + "orders (targeting mode and the commander's order) is only filled for the viewer's own clan. "
                     + "strikePreview is the viewer's next hit on an enemy; "
-                    + "mapDifficultyId adds that enemy's score on the map.")
+                    + "mapDifficultyId adds that enemy's score on the map. as views it as another fighter.")
     @GetMapping("/wars/{warId}/participants")
     public ResponseEntity<Page<ClanWarParticipantResponse>> participants(
             @AuthenticationPrincipal PlayerUserDetails principal,
             @PathVariable UUID warId,
             @RequestParam(required = false) UUID mapDifficultyId,
+            @RequestParam(required = false) Long as,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(rosterService.participants(warId, principal != null ? principal.getUserId() : null,
-                mapDifficultyId, pageable));
+        return ResponseEntity.ok(rosterService.participants(warId,
+                new ClanWarView(principal != null ? principal.getUserId() : null, as, null), mapDifficultyId, pageable));
     }
 }

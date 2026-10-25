@@ -2,7 +2,6 @@ package com.accsaber.backend.service.clan.war;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -56,6 +55,7 @@ import com.accsaber.backend.service.clan.ClanPermission;
 import com.accsaber.backend.service.clan.ClanRoster;
 import com.accsaber.backend.service.clan.ClanStandingService;
 import com.accsaber.backend.model.dto.response.clan.ClanFeedType;
+import com.accsaber.backend.util.Texts;
 
 import lombok.RequiredArgsConstructor;
 
@@ -122,7 +122,7 @@ public class ClanWarService {
         chatChannel.announce(attacker, ChatNotice.ofWar(ChatEvent.war_declared, actor, defender, war));
         chatChannel.announce(defender, ChatNotice.ofWar(ChatEvent.war_received, actor, attacker, war));
         notifier.warDeclared(war);
-        return detail(war, clanId, actor.getId());
+        return detail(war, clanId, ClanWarView.of(actor.getId()));
     }
 
     @Transactional
@@ -185,18 +185,18 @@ public class ClanWarService {
         warRepository.findOpenIdsBySeasonId(seasonId).forEach(warId -> end(warId, ClanWarOutcome.season_ended));
     }
 
-    public Page<ClanWarResponse> list(UUID clanId, boolean open, Pageable pageable) {
-        Page<ClanWar> page = warRepository.findPage(clanId, open, pageable);
+    public Page<ClanWarResponse> list(UUID clanId, boolean open, String search, Pageable pageable) {
+        Page<ClanWar> page = warRepository.findPage(clanId, open, Texts.trimToNull(search), pageable);
         return new PageImpl<>(warResponses.of(page.getContent()), pageable, page.getTotalElements());
     }
 
-    public ClanWarDetailResponse get(UUID warId, Long viewerId) {
+    public ClanWarDetailResponse get(UUID warId, ClanWarView view) {
         ClanWar war = warRepository.findWithRefsById(warId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClanWar", warId));
-        UUID viewerClanId = viewerId == null ? null : memberRepository.findOpenByUserId(viewerId)
+        UUID viewerClanId = view.viewerId() == null ? null : memberRepository.findOpenByUserId(view.viewerId())
                 .map(member -> member.getClan().getId())
                 .orElse(null);
-        return detail(war, viewerClanId, viewerId);
+        return detail(war, viewerClanId, view);
     }
 
     public Page<ClanWarHitResponse> hits(UUID warId, ClanWarHitFilter filter, Pageable pageable) {
@@ -259,12 +259,12 @@ public class ClanWarService {
         }
     }
 
-    private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId, Long viewerId) {
+    private ClanWarDetailResponse detail(ClanWar war, UUID viewerClanId, ClanWarView view) {
         List<ClanWarTimelinePointResponse> timeline = hitRepository.findHourlyTimeline(war.getId()).stream()
                 .map(point -> new ClanWarTimelinePointResponse(point.getAt(), point.getClanId(), point.getDamage(),
                         point.getHits(), point.getBreaks(), point.getStandingMoved()))
                 .toList();
-        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, viewerId),
+        return new ClanWarDetailResponse(warResponses.of(war), poolService.pool(war, viewerClanId, view),
                 timeline, ClanWarDamage.rules(clanProperties.getWar()), rosterService.lastStand(war));
     }
 }

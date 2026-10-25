@@ -19,6 +19,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarStrikeRulesResponse;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
+import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository.Streak;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository.VictimScoreView;
@@ -32,7 +33,8 @@ class ClanWarDamage {
     private static final double MIN_SKILL = 1.0;
 
     static final Comparator<Strike> BEST = Comparator.comparing(Strike::breaks)
-            .thenComparingDouble(strike -> strike.breaks() ? strike.standing() : strike.damage());
+            .thenComparingDouble(Strike::worth)
+            .thenComparingDouble(Strike::damage);
 
     private final ClanWarHitRepository hitRepository;
     private final ClanProperties clanProperties;
@@ -46,6 +48,13 @@ class ClanWarDamage {
         boolean breaks() {
             return damage >= victim.getGuard();
         }
+
+        double worth() {
+            return victim.getGuard() <= 0 ? standing : Math.min(1.0, damage / victim.getGuard()) * standing;
+        }
+    }
+
+    record Pairing(User target, boolean picked, double damage, double mapPenalty, boolean repeatMap) {
     }
 
     record Viewer(UUID warId, Long userId, UUID clanId, UUID mapDifficultyId) {
@@ -79,18 +88,21 @@ class ClanWarDamage {
 
     static ClanWarStrikeRulesResponse rules(ClanProperties.War config) {
         return new ClanWarStrikeRulesResponse(config.getGuard(), config.getBaseDamage(), config.getEscalation(),
-                config.getDisparityExponent(), config.getMissingScoreMultiplier(), config.getChipDamage(),
+                config.getDisparityExponent(), config.getChipDamage(),
                 config.getChipWindow(), config.getChipSkillExponent(),
-                config.getMissingScoreEscalation(), config.getChipEscalation(), config.getMapBreakDecay(),
+                config.getChipEscalation(), config.getRepeatMapShare(), config.getMapBreakDecay(),
                 config.getMapBreakFloor(), config.getLastStandDamage(), config.getLastStandFrom(),
                 config.getBrokenDuration().toHours(), config.getWipeDuration().toHours());
     }
 
-    double hitDamage(Streak streak, UUID mapDifficultyId, double disparity, boolean missingScore) {
-        Streak onMap = streak.on(mapDifficultyId);
-        double scale = missingScore ? clanProperties.getWar().getMissingScoreMultiplier() : disparity;
-        return escalated(onMap.hits(), onMap.missing(), onMap.chips()) * scale
-                * mapPenalty(streak.breaksOn(mapDifficultyId));
+    double hitDamage(Streak streak, UUID mapDifficultyId, double scale, boolean missingScore) {
+        double penalty = mapPenalty(streak.breaksOn(mapDifficultyId));
+        if (missingScore) {
+            return clanProperties.getWar().getBaseDamage() * penalty;
+        }
+        double bonus = escalated(streak.hits(), streak.chips()) / clanProperties.getWar().getBaseDamage() - 1.0;
+        double share = Math.pow(clanProperties.getWar().getRepeatMapShare(), streak.hitsOn(mapDifficultyId));
+        return clanProperties.getWar().getBaseDamage() * (1.0 + bonus * share) * scale * penalty;
     }
 
     double chip(double gap, double attackerSkill, double victimSkill) {
@@ -101,17 +113,31 @@ class ClanWarDamage {
     }
 
     double lastStand(Collection<ClanWarParticipant> roster, Map<UUID, ClanWarSide> sideByClan, ClanWarTeam team) {
-        ClanProperties.War config = clanProperties.getWar();
-        List<ClanWarParticipant> fighters = team(roster, sideByClan, team);
-        long alive = fighters.stream().filter(p -> p.getBrokenAt() == null).count();
-        double full = config.getLastStandFrom() * fighters.size();
-        if (alive >= full) {
+        return 1.0 - (1.0 - clanProperties.getWar().getLastStandDamage()) * pressure(roster, sideByClan, team);
+    }
+
+    double reviveSpeed(Collection<ClanWarParticipant> roster, Map<UUID, ClanWarSide> sideByClan, ClanWarTeam team) {
+        double pressure = pressure(roster, sideByClan, team);
+        if (pressure <= 0.0) {
             return 1.0;
         }
-        if (alive <= 1) {
-            return config.getLastStandDamage();
+        ClanProperties.War config = clanProperties.getWar();
+        return config.getLastStandReviveStart()
+                + (config.getLastStandReviveSpeed() - config.getLastStandReviveStart()) * pressure;
+    }
+
+    private double pressure(Collection<ClanWarParticipant> roster, Map<UUID, ClanWarSide> sideByClan,
+            ClanWarTeam team) {
+        List<ClanWarParticipant> fighters = team(roster, sideByClan, team);
+        long alive = fighters.stream().filter(p -> p.getBrokenAt() == null).count();
+        double full = clanProperties.getWar().getLastStandFrom() * fighters.size();
+        if (alive >= full) {
+            return 0.0;
         }
-        return config.getLastStandDamage() + (1.0 - config.getLastStandDamage()) * (alive - 1) / (full - 1);
+        if (alive <= 1) {
+            return 1.0;
+        }
+        return 1.0 - (alive - 1) / (full - 1);
     }
 
     private double mapPenalty(long breaks) {
@@ -119,17 +145,19 @@ class ClanWarDamage {
         return Math.max(config.getMapBreakFloor(), Math.pow(config.getMapBreakDecay(), breaks));
     }
 
-    Map<UUID, Strike> bestPairings(Field field, Collection<UUID> difficultyIds) {
+    Map<UUID, Pairing> bestPairings(Field field, Collection<UUID> difficultyIds, boolean picked) {
         List<Long> enemyIds = field.enemies().stream().map(enemy -> enemy.getUser().getId()).toList();
         Map<Long, Streak> cycleHits = hitRepository.cycleHits(field.warId(), enemyIds);
         Map<UUID, Map<Long, VictimScoreView>> scores = hitRepository.findActiveScores(difficultyIds, enemyIds).stream()
                 .collect(Collectors.groupingBy(VictimScoreView::getMapDifficultyId,
                         Collectors.toMap(VictimScoreView::getUserId, Function.identity())));
-        Map<UUID, Strike> best = new HashMap<>();
+        Map<UUID, Pairing> best = new HashMap<>();
         for (UUID difficultyId : difficultyIds) {
             Strike strike = bestOn(field, difficultyId, scores.getOrDefault(difficultyId, Map.of()), cycleHits);
             if (strike != null) {
-                best.put(difficultyId, strike);
+                Streak streak = cycleHits.getOrDefault(strike.victim().getUser().getId(), Streak.NONE);
+                best.put(difficultyId, new Pairing(strike.victim().getUser(), picked, strike.damage(),
+                        mapPenalty(streak.breaksOn(difficultyId)), streak.repeats(difficultyId)));
             }
         }
         return best;
@@ -144,8 +172,8 @@ class ClanWarDamage {
             VictimScoreView score = onMap.get(enemyId);
             double disparity = disparity(attackerSkill, field.skills().getOrDefault(enemyId, 0.0));
             Strike strike = new Strike(enemy, score == null ? Kind.MISSING : Kind.HIT,
-                    hitDamage(cycleHits.getOrDefault(enemyId, Streak.NONE), difficultyId, disparity, score == null)
-                            * field.lastStand(),
+                    hitDamage(cycleHits.getOrDefault(enemyId, Streak.NONE), difficultyId,
+                            disparity * field.lastStand(), score == null),
                     field.standing().applyAsDouble(enemy));
             if (best == null || BEST.compare(strike, best) > 0) {
                 best = strike;
@@ -171,11 +199,12 @@ class ClanWarDamage {
             Streak streak = cycleHits.getOrDefault(victimId, Streak.NONE);
             ClanWarStrikeMapResponse map = onMap.get(victimId);
             boolean missing = map != null && map.targetScore() == null;
-            double damage = hitDamage(streak, viewer.mapDifficultyId(), disparity, missing) * field.lastStand();
+            double damage = hitDamage(streak, viewer.mapDifficultyId(), disparity * field.lastStand(), missing);
             double standing = field.standing().applyAsDouble(victim);
-            return new ClanWarStrikePreviewResponse(damage,
-                    hitsToBreak(victim.getGuard(), streak, disparity, field.lastStand()), streak.hits(),
-                    streak.missing(), streak.chips(), skill(attackerSkill), skill(victimSkill), disparity,
+            int hitsToBreak = missing ? (int) Math.ceil(victim.getGuard() / damage)
+                    : hitsToBreak(victim.getGuard(), streak, disparity, field.lastStand());
+            return new ClanWarStrikePreviewResponse(damage, hitsToBreak, streak.hits(),
+                    streak.chips(), skill(attackerSkill), skill(victimSkill), disparity,
                     field.lastStand(), standing, standing * engagement, map);
         }));
     }
@@ -199,7 +228,7 @@ class ClanWarDamage {
     private int hitsToBreak(double guard, Streak streak, double disparity, double lastStand) {
         int hits = 0;
         for (double left = guard; left > 0; hits++) {
-            left -= escalated(streak.hits() + hits, streak.missing(), streak.chips()) * disparity * lastStand;
+            left -= escalated(streak.hits() + hits, streak.chips()) * disparity * lastStand;
         }
         return hits;
     }
@@ -208,10 +237,9 @@ class ClanWarDamage {
         return Math.pow(skill(victimSkill) / skill(attackerSkill), clanProperties.getWar().getDisparityExponent());
     }
 
-    private double escalated(long hits, long missing, long chips) {
+    private double escalated(long hits, long chips) {
         ClanProperties.War config = clanProperties.getWar();
         return config.getBaseDamage() * Math.pow(config.getEscalation(), hits)
-                * Math.pow(config.getMissingScoreEscalation(), missing)
                 * Math.pow(config.getChipEscalation(), chips);
     }
 }

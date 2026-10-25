@@ -105,6 +105,6 @@ public class ClanWarTargetingService {
         participantRepository.saveAndFlush(participant);
         double skill = participantRepository.findOverallSkills(List.of(participant.getUser().getId())).stream()
                 .findFirst().map(ClanMemberRepository.MemberSkillView::getSkill).orElse(0.0);
-        return ClanMapper.toWarParticipantResponse(participant, new ClanMapper.WarParticipantStats(skill, null, true));
+        return ClanMapper.toWarParticipantResponse(participant, new ClanMapper.WarParticipantStats(skill, null, true, null));
     }
 }

@@ -16,7 +16,10 @@ public record ClanWarParticipantResponse(
         double guard,
         int guardCycle,
         int breaksSuffered,
+        double bounty,
+        Double breakStanding,
         Instant brokenAt,
+        Instant reviveAt,
         double contribution,
         Instant joinedAt,
         Instant leftAt) {

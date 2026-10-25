@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -768,7 +767,7 @@ class ClanQueryTest {
     }
 
     @Test
-    @DisplayName("a guard broken longer than the cutoff comes back with a fresh cycle, and a wipe brings back every guard broken by the time it happened")
+    @DisplayName("a guard whose revive time passed comes back with a fresh cycle, and a wipe stamp clears once its comeback passed")
     void brokenGuardsComeBack() {
         Instant now = Instant.now();
         UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
@@ -779,7 +778,7 @@ class ClanQueryTest {
         User lapizStar = user(76561190000000312L, "Lapiz Star");
         User member = user(76561190000000313L, "Member");
         String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
-                + "broken_at, left_at) VALUES (?1, ?2, ?3, 1, 0, ?4, ?5)";
+                + "broken_at, left_at, revive_at, revive_speed) VALUES (?1, ?2, ?3, 1, 0, ?4, ?5, ?4 + INTERVAL '7 days', 1)";
         entityManager.createNativeQuery(participant).setParameter(1, active).setParameter(2, founder.getId())
                 .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
                 .executeUpdate();
@@ -792,30 +791,20 @@ class ClanQueryTest {
         entityManager.createNativeQuery(participant).setParameter(1, preparing).setParameter(2, founder.getId())
                 .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
                 .executeUpdate();
-        Instant cutoff = now.minus(7, ChronoUnit.DAYS);
-        Instant longAgo = now.minus(9, ChronoUnit.DAYS);
 
-        assertThat(warRepository.findGuardsDue(cutoff, longAgo)).containsExactly(active);
-        assertThat(participantRepository.restoreGuards(active, cutoff, longAgo, 100.0)).isEqualTo(1);
+        assertThat(warRepository.findWithBrokenGuards()).containsExactly(active);
+        assertThat(participantRepository.restoreGuards(active, now, 100.0)).isEqualTo(1);
 
         assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(), ClanWarParticipant::getGuard,
                 ClanWarParticipant::getGuardCycle, p -> p.getBrokenAt() == null).containsExactlyInAnyOrder(
                         tuple(founder.getId(), 100.0, 1, true), tuple(lapizStar.getId(), 0.0, 0, false),
                         tuple(member.getId(), 0.0, 0, false));
-        assertThat(warRepository.findGuardsDue(cutoff, longAgo)).isEmpty();
+        assertThat(participantRepository.findByWarId(active)).filteredOn(p -> p.getUser().getId().equals(founder.getId()))
+                .extracting(ClanWarParticipant::getReviveAt).containsOnlyNulls();
 
         Instant wipedBefore = now.minus(2, ChronoUnit.DAYS);
         warState(active, "wiped_at = ?1", now.minus(3, ChronoUnit.DAYS));
-        entityManager.createNativeQuery("UPDATE clan_war_participants SET guard = 0, broken_at = ?1 WHERE war_id = ?2 "
-                + "AND user_id = ?3").setParameter(1, now.minus(3, ChronoUnit.DAYS)).setParameter(2, active)
-                .setParameter(3, founder.getId()).executeUpdate();
-        assertThat(warRepository.findGuardsDue(cutoff, wipedBefore)).containsExactly(active);
-        assertThat(participantRepository.restoreGuards(active, cutoff, wipedBefore, 100.0)).isEqualTo(1);
         assertThat(warRepository.clearWipe(active, wipedBefore)).isEqualTo(1);
-        assertThat(participantRepository.findByWarId(active)).extracting(p -> p.getUser().getId(),
-                ClanWarParticipant::getGuardCycle).containsExactlyInAnyOrder(tuple(founder.getId(), 2),
-                        tuple(lapizStar.getId(), 0), tuple(member.getId(), 0));
-        assertThat(warRepository.findGuardsDue(cutoff, wipedBefore)).isEmpty();
     }
 
     @Test
@@ -849,14 +838,16 @@ class ClanQueryTest {
         assertThat(warRepository.existsOpenForClan(owls.getId())).isTrue();
         assertThat(warRepository.findRosteredIds(owls.getId())).containsExactlyInAnyOrder(quiet, preparing);        assertThat(warRepository.findActiveStartedBefore(now.minus(9, ChronoUnit.DAYS))).containsExactly(quiet);
         assertThat(warRepository.findActiveStartedBefore(now.minus(11, ChronoUnit.DAYS))).isEmpty();
-        assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(warRepository.findPage(owls.getId(), true, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
         assertThat(sideRepository.existsOpenAllySide(owls.getId())).isTrue();
         assertThat(sideRepository.existsOpenAllySide(lapiz.getId())).isFalse();
         assertThat(sideRepository.findOpenAllyWarIds(owls.getId())).containsExactly(preparing);
 
         warState(quiet, "status = 'ended', outcome = 'drawn', ended_at = ?1", now);
-        assertThat(warRepository.findPage(owls.getId(), true, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(2);
-        assertThat(warRepository.findPage(null, false, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(warRepository.findPage(owls.getId(), true, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(2);
+        assertThat(warRepository.findPage(null, false, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
+        assertThat(warRepository.findPage(null, false, "riv", PageRequest.of(0, 10)).getTotalElements()).isEqualTo(2);
+        assertThat(warRepository.findPage(null, false, "nobody", PageRequest.of(0, 10)).getTotalElements()).isZero();
         assertThat(sideRepository.findByWarId(preparing)).extracting(s -> s.getClan().getId(), s -> s.getTeam().name())
                 .containsExactlyInAnyOrder(tuple(lapiz.getId(), "attack"), tuple(rival.getId(), "defend"),
                         tuple(owls.getId(), "attack"));
@@ -1050,8 +1041,10 @@ class ClanQueryTest {
                 .satisfies(found -> assertThat(found.isChip()).isTrue());
         assertThat(hitRepository.findPageByWarId(warId, null, null, false, page)).singleElement()
                 .satisfies(found -> assertThat(found.isChip()).isFalse());
-        assertThat(hitRepository.findPageByWarId(warId, null, lapiz.getId(), null, page).getTotalElements())
+        assertThat(hitRepository.findPageByWarId(warId, null, owls.getId(), null, page).getTotalElements())
                 .isEqualTo(2);
+        assertThat(hitRepository.findPageByWarId(warId, null, lapiz.getId(), null, page).getTotalElements())
+                .isZero();
         UUID outsider = clan("Rivals", "RIV", "rivals").getId();
         assertThat(hitRepository.findPageByWarId(warId, null, outsider, null, page).getTotalElements()).isZero();
 
@@ -1062,14 +1055,19 @@ class ClanQueryTest {
                 .setParameter(5, mine).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
                 .containsExactly(Map.entry(lapizStar.getId(),
-                        new ClanWarHitRepository.Streak(1, 1, 2, Set.of(map.getId()), Map.of())));
+                        new ClanWarHitRepository.Streak(1, 2, Map.of(map.getId(), 1L), Map.of())));
         entityManager.createNativeQuery("UPDATE clan_war_participants SET guard_cycle = 1 WHERE user_id = ?1")
                 .setParameter(1, lapizStar.getId()).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId()))).isEmpty();
         entityManager.createNativeQuery("UPDATE clan_war_hits SET broke = true WHERE war_id = ?1 AND chip").setParameter(1, warId).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId())))
                 .containsExactly(Map.entry(lapizStar.getId(),
-                        new ClanWarHitRepository.Streak(0, 0, 0, Set.of(), Map.of(map.getId(), 1L))));
+                        new ClanWarHitRepository.Streak(0, 0, Map.of(), Map.of(map.getId(), 1L))));
+        assertThat(hitRepository.findDealtPerLife(warId, List.of(founder.getId(), lapizStar.getId())))
+                .extracting(ClanWarHitRepository.DealtView::getUserId, ClanWarHitRepository.DealtView::getLife,
+                        ClanWarHitRepository.DealtView::getDealt)
+                .containsExactlyInAnyOrder(tuple(founder.getId(), 0, 14.0), tuple(lapizStar.getId(), 0, 0.0),
+                        tuple(lapizStar.getId(), 1, 0.0));
         assertThat(entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
                 .setParameter(5, mine).setParameter(6, theirs).setParameter(7, true).executeUpdate()).isEqualTo(1);

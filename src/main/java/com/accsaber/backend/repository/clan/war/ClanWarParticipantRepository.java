@@ -68,19 +68,13 @@ public interface ClanWarParticipantRepository extends JpaRepository<ClanWarParti
             """)
     List<ClanWarParticipant> findByWarIdInContributionOrder(@Param("warId") UUID warId);
 
-    String GUARD_DUE = """
-            p.left_at IS NULL AND p.broken_at IS NOT NULL AND (p.broken_at < :cutoff OR EXISTS (
-                SELECT 1 FROM clan_wars ww
-                WHERE ww.id = p.war_id AND ww.wiped_at < :wipedBefore AND p.broken_at <= ww.wiped_at))
-            """;
-
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            UPDATE clan_war_participants p SET guard = :guard, guard_cycle = p.guard_cycle + 1, broken_at = NULL
-            WHERE p.war_id = :warId AND
-            """ + GUARD_DUE, nativeQuery = true)
-    int restoreGuards(@Param("warId") UUID warId, @Param("cutoff") Instant cutoff,
-            @Param("wipedBefore") Instant wipedBefore, @Param("guard") double guard);
+            UPDATE clan_war_participants p SET guard = :guard, guard_cycle = p.guard_cycle + 1, broken_at = NULL,
+                   revive_at = NULL, revive_speed = NULL
+            WHERE p.war_id = :warId AND p.left_at IS NULL AND p.broken_at IS NOT NULL AND p.revive_at <= :now
+            """, nativeQuery = true)
+    int restoreGuards(@Param("warId") UUID warId, @Param("now") Instant now, @Param("guard") double guard);
 
     @Modifying(flushAutomatically = true)
     @Query("""

@@ -46,10 +46,8 @@ public class ClanWarScheduler {
         each(warRepository.findPicksDue(now), poolService::closePicks);
         each(warRepository.findStartsDue(now), rosterService::start);
         each(warRepository.findRetreatsDue(now), warId -> warService.end(warId, ClanWarOutcome.retreated));
-        Instant brokenBefore = now.minus(clanProperties.getWar().getBrokenDuration());
         Instant wipedBefore = now.minus(clanProperties.getWar().getWipeDuration());
-        each(warRepository.findGuardsDue(brokenBefore, wipedBefore),
-                warId -> rosterService.restoreGuards(warId, brokenBefore, wipedBefore));
+        each(warRepository.findWithBrokenGuards(), warId -> rosterService.restoreGuards(warId, now, wipedBefore));
         Instant quietCutoff = now.minus(clanProperties.getWar().getDrawAfterQuietDays(), ChronoUnit.DAYS);
         each(warRepository.findQuietSince(quietCutoff), warId -> warService.end(warId, ClanWarOutcome.drawn));
         each(warRepository.findActiveStartedBefore(now.minus(clanProperties.getWar().getMaxDuration())),
