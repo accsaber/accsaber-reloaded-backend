@@ -42,6 +42,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarOrder;
 import com.accsaber.backend.model.entity.clan.war.ClanWarParticipant;
 import com.accsaber.backend.model.entity.clan.war.ClanWarSide;
 import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
+import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
@@ -301,6 +302,28 @@ class ClanWarRosterServiceTest {
         assertThat(pairings.get(open).target().getId()).isEqualTo(12L);
         assertThat(pairings.get(open).picked()).isFalse();
         assertThat(pairings.get(played).target().getId()).isEqualTo(12L);
+    }
+
+    @Test
+    void aPickedTargetsPairingCarriesTheDamageOfEachMapWithRepeatsLosingTheStreak() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant target = participant(11L, defender, 1.0);
+        me.setTargeting(ClanWarTargeting.manual);
+        me.setTarget(target.getUser());
+        UUID repeat = UUID.randomUUID();
+        UUID fresh = UUID.randomUUID();
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, target));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 50)));
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
+                .thenReturn(Map.of(11L, new ClanWarHitRepository.Streak(0, 9, 0, Set.of(repeat), Map.of())));
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of());
+
+        Map<UUID, ClanWarRosterService.Pairing> pairings = service.pairings(war, 1L, List.of(repeat, fresh));
+
+        assertThat(pairings.get(repeat).picked()).isTrue();
+        assertThat(pairings.get(repeat).damage()).isCloseTo(12 * 0.3, within(1e-9));
+        assertThat(pairings.get(fresh).damage()).isCloseTo(12 * Math.pow(1.2, 9) * 0.3, within(1e-9));
     }
 
     @Test

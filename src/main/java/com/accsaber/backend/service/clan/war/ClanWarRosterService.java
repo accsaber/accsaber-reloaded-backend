@@ -187,7 +187,7 @@ public class ClanWarRosterService {
         return participantRepository.findOpenUserIds(warId);
     }
 
-    public record Pairing(User target, boolean picked) {
+    public record Pairing(User target, boolean picked, double damage) {
     }
 
     public Map<UUID, Pairing> pairings(ClanWar war, Long viewerId, Collection<UUID> difficultyIds) {
@@ -206,11 +206,10 @@ public class ClanWarRosterService {
         }
         List<ClanWarParticipant> enemies = ClanWarDamage.enemies(roster, sideByClan, viewerSide.getTeam());
         Long pickedId = viewer.aim() == null ? null : viewer.aim().getId();
-        Optional<User> picked = enemies.stream().map(ClanWarParticipant::getUser)
-                .filter(user -> user.getId().equals(pickedId)).findFirst();
+        Optional<ClanWarParticipant> picked = enemies.stream()
+                .filter(enemy -> enemy.getUser().getId().equals(pickedId)).findFirst();
         if (picked.isPresent()) {
-            return difficultyIds.stream()
-                    .collect(Collectors.toMap(Function.identity(), id -> new Pairing(picked.get(), true)));
+            enemies = List.of(picked.get());
         }
         List<Long> fighters = Stream.concat(enemies.stream().map(p -> p.getUser().getId()), Stream.of(viewerId))
                 .toList();
@@ -218,7 +217,8 @@ public class ClanWarRosterService {
                 enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy),
                 warDamage.lastStand(roster, sideByClan, viewerSide.getTeam().opponent()));
         return warDamage.bestPairings(field, difficultyIds).entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> new Pairing(entry.getValue().getUser(), false)));
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> new Pairing(entry.getValue().victim().getUser(),
+                        picked.isPresent(), entry.getValue().damage())));
     }
 
     public void sync(ClanWar war, List<ClanWarSide> sides) {

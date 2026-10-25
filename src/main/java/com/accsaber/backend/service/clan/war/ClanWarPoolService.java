@@ -165,7 +165,8 @@ public class ClanWarPoolService {
                     entry.getPickedByClan() == null ? null : clans.get(entry.getPickedByClan().getId()),
                     entry.getSource(), summary(viewerId == null ? null : onMap.get(viewerId)),
                     target == null ? null : ClanRefCache.playerRef(target),
-                    summary(target == null ? null : onMap.get(target.getId())), pairing != null && pairing.picked());
+                    summary(target == null ? null : onMap.get(target.getId())), pairing != null && pairing.picked(),
+                    pairing == null ? null : pairing.damage());
         }).toList();
     }
 

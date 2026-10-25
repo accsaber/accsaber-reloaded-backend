@@ -119,17 +119,17 @@ class ClanWarDamage {
         return Math.max(config.getMapBreakFloor(), Math.pow(config.getMapBreakDecay(), breaks));
     }
 
-    Map<UUID, ClanWarParticipant> bestPairings(Field field, Collection<UUID> difficultyIds) {
+    Map<UUID, Strike> bestPairings(Field field, Collection<UUID> difficultyIds) {
         List<Long> enemyIds = field.enemies().stream().map(enemy -> enemy.getUser().getId()).toList();
         Map<Long, Streak> cycleHits = hitRepository.cycleHits(field.warId(), enemyIds);
         Map<UUID, Map<Long, VictimScoreView>> scores = hitRepository.findActiveScores(difficultyIds, enemyIds).stream()
                 .collect(Collectors.groupingBy(VictimScoreView::getMapDifficultyId,
                         Collectors.toMap(VictimScoreView::getUserId, Function.identity())));
-        Map<UUID, ClanWarParticipant> best = new HashMap<>();
+        Map<UUID, Strike> best = new HashMap<>();
         for (UUID difficultyId : difficultyIds) {
             Strike strike = bestOn(field, difficultyId, scores.getOrDefault(difficultyId, Map.of()), cycleHits);
             if (strike != null) {
-                best.put(difficultyId, strike.victim());
+                best.put(difficultyId, strike);
             }
         }
         return best;

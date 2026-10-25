@@ -7,5 +7,5 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarPoolSource;
 
 public record ClanWarPoolEntryResponse(PublicMapDifficultyResponse difficulty, PublicClanResponse pickedBy,
         ClanWarPoolSource source, MyScoreSummary viewerScore, PlayerRef target, MyScoreSummary targetScore,
-        boolean targetPicked) {
+        boolean targetPicked, Double targetDamage) {
 }

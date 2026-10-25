@@ -368,8 +368,8 @@ class ClanWarPoolServiceTest {
         User near = User.builder().id(8L).name("Near").build();
         User low = User.builder().id(9L).name("Low").build();
         when(rosterService.pairings(war, 7L, List.of(played.getId(), unplayed.getId()))).thenReturn(Map.of(
-                played.getId(), new ClanWarRosterService.Pairing(near, false),
-                unplayed.getId(), new ClanWarRosterService.Pairing(low, true)));
+                played.getId(), new ClanWarRosterService.Pairing(near, false, 12.0),
+                unplayed.getId(), new ClanWarRosterService.Pairing(low, true, 3.6)));
         when(scoreRepository.findActiveByUsersAndMapDifficultyIdIn(anyCollection(), anyCollection())).thenReturn(List.of(
                 score(7L, played, 985_000), score(8L, played, 990_000), score(9L, played, 980_000),
                 score(9L, unplayed, 970_000)));
