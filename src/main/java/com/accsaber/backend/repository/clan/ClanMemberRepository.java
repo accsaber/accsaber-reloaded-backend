@@ -146,13 +146,24 @@ public interface ClanMemberRepository extends JpaRepository<ClanMember, UUID> {
         double getSkill();
     }
 
-    @Query("""
-            SELECT m.clan.id AS clanId, m.user.id AS userId, COALESCE(s.skillLevel, 0.0) AS skill
-            FROM ClanMember m LEFT JOIN UserCategorySkill s ON s.user = m.user AND s.category.id = :overallId
-            WHERE m.clan.id IN :clanIds AND m.leftAt IS NULL
-            """)
+    @Query(value = """
+            SELECT m.clan_id AS clanId, m.user_id AS userId, COALESCE(s.skill_level, 0.0) AS skill
+            FROM clan_members m
+            LEFT JOIN user_category_skills s ON s.user_id = m.user_id AND s.category_id = :overallId
+            WHERE m.clan_id IN (:clanIds) AND m.left_at IS NULL
+              AND (CAST(:warId AS uuid) IS NULL
+                   OR EXISTS (SELECT 1 FROM clan_war_participants p
+                              JOIN clan_wars w ON w.id = p.war_id AND w.status = 'active'
+                              WHERE p.war_id = CAST(:warId AS uuid) AND p.user_id = m.user_id
+                                AND p.left_at IS NULL)
+                   OR NOT EXISTS (SELECT 1 FROM user_settings us
+                                  JOIN clan_wars w ON w.id = CAST(:warId AS uuid)
+                                  WHERE us.user_id = m.user_id AND us.key = 'clans.warParticipation'
+                                    AND (us.value = CAST('false' AS jsonb)
+                                         OR (w.status = 'active' AND us.updated_at > w.starts_at))))
+            """, nativeQuery = true)
     List<ClanMemberSkillView> findOpenMemberSkillsByClans(@Param("clanIds") Collection<UUID> clanIds,
-            @Param("overallId") UUID overallId);
+            @Param("overallId") UUID overallId, @Param("warId") UUID warId);
 
     @Query(value = """
             SELECT pair.clan_id AS clanId, MAX(s.skill_level) AS skill

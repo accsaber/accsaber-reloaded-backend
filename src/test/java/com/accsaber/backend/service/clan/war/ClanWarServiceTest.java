@@ -218,6 +218,15 @@ class ClanWarServiceTest {
         }
 
         @Test
+        void aClanTurningPacifistCannotDeclare() {
+            attacker.setPacifistFrom(Instant.now().plus(Duration.ofDays(3)));
+
+            assertThatThrownBy(() -> service.declare(attacker.getId(), 1L, request))
+                    .isInstanceOf(ConflictException.class).hasMessageContaining("turning pacifist");
+            attacker.setPacifistFrom(null);
+        }
+
+        @Test
         void aPacifistClanCannotBeAttacked() {
             defender.setPacifistFrom(Instant.now().minusSeconds(60));
 

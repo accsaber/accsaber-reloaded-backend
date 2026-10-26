@@ -203,6 +203,9 @@ public class ClanWarCoalitionService {
         if (helper.isPacifistAt(Instant.now())) {
             throw new ConflictException("That clan is pacifist");
         }
+        if (team == ClanWarTeam.attack && helper.getPacifistFrom() != null) {
+            throw new ConflictException("That clan is turning pacifist and cannot join an attack");
+        }
         List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
         if (sides.stream().anyMatch(side -> side.getClan().getId().equals(helper.getId()))) {
             throw new ConflictException("That clan has already been in this war");

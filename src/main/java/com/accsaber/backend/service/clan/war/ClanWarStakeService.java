@@ -42,11 +42,12 @@ public class ClanWarStakeService {
         Map<ClanWarTeam, Double> standing = new EnumMap<>(ClanWarTeam.class);
         Map<ClanWarTeam, Map<UUID, Double>> shares = new EnumMap<>(ClanWarTeam.class);
         Map<ClanWarTeam, Double> atRisk = new EnumMap<>(ClanWarTeam.class);
+        UUID warId = sides.get(0).getWar().getId();
         for (ClanWarTeam team : ClanWarTeam.values()) {
             standing.put(team, fighting.get(team).stream()
                     .mapToDouble(side -> standingService.currentStanding(side.getClan()) * risk(side))
                     .sum());
-            Map<UUID, Double> teamShares = weightShares(fighting.get(team));
+            Map<UUID, Double> teamShares = weightShares(fighting.get(team), warId);
             shares.put(team, teamShares);
             atRisk.put(team, fighting.get(team).stream()
                     .mapToDouble(side -> teamShares.getOrDefault(side.getClan().getId(), 0.0) * risk(side))
@@ -177,8 +178,9 @@ public class ClanWarStakeService {
         return byTeam;
     }
 
-    private Map<UUID, Double> weightShares(List<ClanWarSide> team) {
-        return strengthService.memberStrengths(team.stream().map(side -> side.getClan().getId()).toList()).stream()
+    private Map<UUID, Double> weightShares(List<ClanWarSide> team, UUID warId) {
+        return strengthService.memberStrengths(team.stream().map(side -> side.getClan().getId()).toList(), warId)
+                .stream()
                 .collect(Collectors.groupingBy(MemberStrength::clanId, Collectors.summingDouble(MemberStrength::share)));
     }
 }

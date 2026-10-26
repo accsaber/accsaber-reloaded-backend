@@ -50,7 +50,6 @@ import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMedia;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
-import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -309,31 +308,31 @@ class ClanServiceTest {
         }
 
         @Test
-        void outsideASeasonItTakesHoldStraightAway() {
-            when(standingService.currentSeason()).thenReturn(Optional.empty());
+        void withNoAttackInTheLastWeekItTakesHoldStraightAway() {
+            when(warRepository.findLastAttackAt(clanId)).thenReturn(Optional.of(Instant.now().minus(Duration.ofDays(8))));
 
             ClanResponse response = clanService.setPacifism(clanId, PLAYER, true);
 
             verify(accessService).require(clanId, PLAYER, ClanPermission.MANAGE_PACIFISM);
-            assertThat(clan.getPacifistFrom()).isBeforeOrEqualTo(Instant.now());
             assertThat(clan.isPacifistAt(Instant.now())).isTrue();
             assertThat(response.pacifistFrom()).isEqualTo(clan.getPacifistFrom());
-            verify(coalitionService).leaveAll(clanId);
+            verify(coalitionService, never()).leaveAll(any());
         }
 
         @Test
-        void insideASeasonItWaitsOutTheDelay() {
-            when(standingService.currentSeason()).thenReturn(Optional.of(ClanSeason.builder().build()));
+        void aRecentAttackCountsDownFromWhenItEnded() {
+            Instant lastAttack = Instant.now().minus(Duration.ofDays(2));
+            when(warRepository.findLastAttackAt(clanId)).thenReturn(Optional.of(lastAttack));
 
             clanService.setPacifism(clanId, PLAYER, true);
 
-            assertThat(clan.getPacifistFrom()).isAfter(Instant.now().plus(Duration.ofDays(6)));
+            assertThat(clan.getPacifistFrom()).isEqualTo(lastAttack.plus(Duration.ofDays(7)));
             assertThat(clan.isPacifistAt(Instant.now())).isFalse();
         }
 
         @Test
-        void aClanWithAnOpenWarCannotTurnPacifist() {
-            when(warRepository.existsOpenForClan(clanId)).thenReturn(true);
+        void aClanStillAttackingCannotTurnPacifist() {
+            when(warRepository.existsOpenAttackSide(clanId)).thenReturn(true);
 
             assertThatThrownBy(() -> clanService.setPacifism(clanId, PLAYER, true))
                     .isInstanceOf(ConflictException.class);
@@ -347,7 +346,7 @@ class ClanServiceTest {
             clanService.setPacifism(clanId, PLAYER, false);
 
             assertThat(clan.getPacifistFrom()).isNull();
-            verify(warRepository, never()).existsOpenForClan(any());
+            verify(warRepository, never()).existsOpenAttackSide(any());
         }
 
         @Test

@@ -225,8 +225,8 @@ public class ClanWarService {
 
     private void assertCanDeclare(Clan attacker, Clan defender, DeclareClanWarRequest request) {
         Instant now = Instant.now();
-        if (attacker.isPacifistAt(now)) {
-            throw new ConflictException("Your clan is pacifist");
+        if (attacker.getPacifistFrom() != null) {
+            throw new ConflictException("Your clan is pacifist or turning pacifist");
         }
         if (defender.isPacifistAt(now)) {
             throw new ConflictException("That clan is pacifist and cannot be attacked");

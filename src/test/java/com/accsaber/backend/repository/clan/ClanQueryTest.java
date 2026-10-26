@@ -3,6 +3,7 @@ package com.accsaber.backend.repository.clan;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.assertj.core.api.Assertions.within;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -835,7 +836,8 @@ class ClanQueryTest {
         assertThat(warRepository.findOpenIdsBySeasonId(current)).containsExactlyInAnyOrder(picking, preparing, quiet);
         side(preparing, owls, "attack");
         assertThat(warRepository.findOpenIdsLedByClanId(owls.getId())).containsExactlyInAnyOrder(picking, quiet);
-        assertThat(warRepository.existsOpenForClan(owls.getId())).isTrue();
+        assertThat(warRepository.existsOpenAttackSide(owls.getId())).isTrue();
+        assertThat(warRepository.findPreparingIdsForUser(founder.getId())).containsExactly(preparing);
         assertThat(warRepository.findRosteredIds(owls.getId())).containsExactlyInAnyOrder(quiet, preparing);        assertThat(warRepository.findActiveStartedBefore(now.minus(9, ChronoUnit.DAYS))).containsExactly(quiet);
         assertThat(warRepository.findActiveStartedBefore(now.minus(11, ChronoUnit.DAYS))).isEmpty();
         assertThat(warRepository.findPage(owls.getId(), true, null, PageRequest.of(0, 10)).getTotalElements()).isEqualTo(3);
@@ -912,7 +914,7 @@ class ClanQueryTest {
         entityManager.flush();
 
         List<ClanMemberRepository.ClanMemberSkillView> skills = memberRepository.findOpenMemberSkillsByClans(
-                List.of(owls.getId()), overall().getId());
+                List.of(owls.getId()), overall().getId(), null);
 
         assertThat(skills).hasSize(4);
         assertThat(skills).filteredOn(view -> view.getUserId().equals(founder.getId())).singleElement()
@@ -920,6 +922,61 @@ class ClanQueryTest {
         assertThat(skills).filteredOn(view -> !view.getUserId().equals(founder.getId()))
                 .allSatisfy(view -> assertThat(view.getSkill()).isZero());
         assertThat(skills).allSatisfy(view -> assertThat(view.getClanId()).isEqualTo(owls.getId()));
+    }
+
+    @Test
+    @DisplayName("opting out of wars drops a player in prep, keeps a fighter once active and turning it back on mid-war does not add them")
+    void warOptOutRoster() {
+        Instant now = Instant.now();
+        UUID current = season(now.minus(1, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        UUID warId = war(current, owls, lapiz);
+        String setting = "INSERT INTO user_settings (user_id, key, value, updated_at) VALUES "
+                + "(?1, 'clans.warParticipation', CAST(?2 AS jsonb), ?3)";
+        entityManager.createNativeQuery(setting).setParameter(1, member.getId()).setParameter(2, "false")
+                .setParameter(3, now.minus(2, ChronoUnit.DAYS)).executeUpdate();
+        entityManager.createNativeQuery(setting).setParameter(1, officer.getId()).setParameter(2, "false")
+                .setParameter(3, now).executeUpdate();
+        entityManager.createNativeQuery(setting).setParameter(1, commander.getId()).setParameter(2, "true")
+                .setParameter(3, now).executeUpdate();
+        String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard) "
+                + "VALUES (?1, ?2, ?3, 0.5, 100)";
+        for (User fighter : List.of(officer, founder)) {
+            entityManager.createNativeQuery(participant).setParameter(1, warId).setParameter(2, fighter.getId())
+                    .setParameter(3, owls.getId()).executeUpdate();
+        }
+        warState(warId, "status = 'preparing', starts_at = ?1", now.plus(1, ChronoUnit.DAYS));
+        entityManager.flush();
+
+        assertThat(rosterIds(warId)).containsExactlyInAnyOrder(founder.getId(), commander.getId());
+
+        warState(warId, "status = 'active', starts_at = ?1", now.minus(1, ChronoUnit.HOURS));
+        assertThat(rosterIds(warId)).containsExactlyInAnyOrder(founder.getId(), officer.getId());
+        assertThat(memberRepository.findOpenMemberSkillsByClans(List.of(owls.getId()), overall().getId(), null))
+                .hasSize(4);
+    }
+
+    private List<Long> rosterIds(UUID warId) {
+        return memberRepository.findOpenMemberSkillsByClans(List.of(owls.getId()), overall().getId(), warId).stream()
+                .map(ClanMemberRepository.ClanMemberSkillView::getUserId).toList();
+    }
+
+    @Test
+    @DisplayName("pacifism lookups only see attacks, open ones and when the last one ended")
+    void pacifismLooksAtAttacksOnly() {
+        Clan rival = clan("Rivals", "RIV", "rivals");
+        Instant now = Instant.now();
+        UUID current = season(now.minus(20, ChronoUnit.DAYS), now.plus(30, ChronoUnit.DAYS));
+        UUID ended = war(current, owls, rival);
+        warState(ended, "status = 'ended', outcome = 'drawn', ended_at = ?1", now.minus(3, ChronoUnit.DAYS));
+        war(current, lapiz, owls);
+        entityManager.flush();
+
+        assertThat(warRepository.existsOpenAttackSide(owls.getId())).isFalse();
+        assertThat(warRepository.existsOpenAttackSide(lapiz.getId())).isTrue();
+        assertThat(warRepository.findLastAttackAt(owls.getId())).hasValueSatisfying(
+                at -> assertThat(at).isCloseTo(now.minus(3, ChronoUnit.DAYS), within(1, ChronoUnit.SECONDS)));
+        assertThat(warRepository.findLastAttackAt(rival.getId())).isEmpty();
+        assertThat(warRepository.findLastAttackAt(lapiz.getId())).isEmpty();
     }
 
     @Test

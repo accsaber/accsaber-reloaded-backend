@@ -93,12 +93,30 @@ public interface ClanWarRepository extends JpaRepository<ClanWar, UUID> {
             ORDER BY w.id
             """)
     List<UUID> findRosteredIds(@Param("clanId") UUID clanId);
+
     @Query("""
-            SELECT COUNT(w) > 0 FROM ClanWar w
-            WHERE EXISTS (SELECT 1 FROM ClanWarSide s WHERE s.war = w AND s.clan.id = :clanId AND s.leftAt IS NULL)
-              AND w.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended
+            SELECT w.id FROM ClanWar w
+            WHERE w.status = com.accsaber.backend.model.entity.clan.war.ClanWarStatus.preparing
+              AND EXISTS (SELECT 1 FROM ClanWarSide s, ClanMember m
+                          WHERE s.war = w AND s.leftAt IS NULL AND m.clan = s.clan
+                            AND m.user.id = :userId AND m.leftAt IS NULL)
+            ORDER BY w.id
             """)
-    boolean existsOpenForClan(@Param("clanId") UUID clanId);
+    List<UUID> findPreparingIdsForUser(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT COUNT(s) > 0 FROM ClanWarSide s
+            WHERE s.clan.id = :clanId AND s.leftAt IS NULL
+              AND s.team = com.accsaber.backend.model.entity.clan.war.ClanWarTeam.attack
+              AND s.war.status <> com.accsaber.backend.model.entity.clan.war.ClanWarStatus.ended
+            """)
+    boolean existsOpenAttackSide(@Param("clanId") UUID clanId);
+
+    @Query("""
+            SELECT MAX(COALESCE(s.leftAt, s.war.endedAt)) FROM ClanWarSide s
+            WHERE s.clan.id = :clanId AND s.team = com.accsaber.backend.model.entity.clan.war.ClanWarTeam.attack
+            """)
+    Optional<Instant> findLastAttackAt(@Param("clanId") UUID clanId);
 
     @Query("""
             SELECT w.id FROM ClanWar w

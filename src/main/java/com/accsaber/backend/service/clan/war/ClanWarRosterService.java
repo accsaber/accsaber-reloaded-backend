@@ -40,7 +40,9 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
+import com.accsaber.backend.model.event.UserSettingChangedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarParticipantRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarRepository;
@@ -148,6 +150,14 @@ public class ClanWarRosterService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onMembershipChanged(ClanMembershipChangedEvent event) {
         warRepository.findRosteredIds(event.clanId()).forEach(this::resync);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onSettingChanged(UserSettingChangedEvent event) {
+        if (event.key() == UserSettingKey.CLANS_WAR_PARTICIPATION) {
+            warRepository.findPreparingIdsForUser(event.userId()).forEach(this::resync);
+        }
     }
 
     @Transactional
@@ -265,7 +275,7 @@ public class ClanWarRosterService {
                     .filter(side -> side.getTeam() == team && side.fighting())
                     .map(side -> side.getClan().getId())
                     .toList();
-            List<MemberStrength> members = strengthService.memberStrengths(clanIds);
+            List<MemberStrength> members = strengthService.memberStrengths(clanIds, war.getId());
             members.forEach(member -> roster.put(member.userId(), member));
             teamHeft.put(team, members.stream().mapToDouble(ClanWarRosterService::heft).sum());
         }

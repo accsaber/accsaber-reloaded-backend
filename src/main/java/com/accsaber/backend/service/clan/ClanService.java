@@ -140,13 +140,14 @@ public class ClanService {
         if (!enabled) {
             clan.setPacifistFrom(null);
         } else if (clan.getPacifistFrom() == null) {
-            if (warRepository.existsOpenForClan(clanId)) {
-                throw new ConflictException("Finish your clan's wars before turning pacifist");
+            if (warRepository.existsOpenAttackSide(clanId)) {
+                throw new ConflictException("Finish your clan's attacks before turning pacifist");
             }
             Instant now = Instant.now();
-            clan.setPacifistFrom(standingService.currentSeason().isPresent()
-                    ? now.plus(clanProperties.getPacifistDelay()) : now);
-            coalitionService.leaveAll(clanId);
+            clan.setPacifistFrom(warRepository.findLastAttackAt(clanId)
+                    .map(last -> last.plus(clanProperties.getPacifistDelay()))
+                    .filter(now::isBefore)
+                    .orElse(now));
         }
         clanRepository.saveAndFlush(clan);
         return toResponse(clan);

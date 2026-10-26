@@ -97,8 +97,8 @@ public class ClanController {
 
     @Operation(summary = "Turn pacifism on or off",
             description = "Founder only. A pacifist clan cannot declare war, get declared on or help in a war. "
-                    + "Turning it on needs no open wars, and works straight away outside a season or after 7 days "
-                    + "inside one. Turning it off is immediate.")
+                    + "Turning it on needs no open attacks, and works straight away or 7 days after the clan's last "
+                    + "attack. Defending does not count. Turning it off is immediate.")
     @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{clanId}/pacifism")
     public ResponseEntity<ClanResponse> pacifism(

@@ -132,7 +132,7 @@ class ClanStrengthServiceTest {
     @Test
     void memberSharesSplitTheWeightedRosterStrongestFirst() {
         UUID clanId = UUID.randomUUID();
-        when(memberRepository.findOpenMemberSkillsByClans(List.of(clanId), OVERALL)).thenReturn(List.of(
+        when(memberRepository.findOpenMemberSkillsByClans(List.of(clanId), OVERALL, null)).thenReturn(List.of(
                 memberSkill(clanId, 2L, 30.0), memberSkill(clanId, 1L, 60.0), memberSkill(clanId, 3L, 0.0)));
 
         List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(clanId);
@@ -148,10 +148,10 @@ class ClanStrengthServiceTest {
     void aTeamOfClansIsWeighedAsOneRoster() {
         UUID stars = UUID.randomUUID();
         UUID fish = UUID.randomUUID();
-        when(memberRepository.findOpenMemberSkillsByClans(List.of(stars, fish), OVERALL)).thenReturn(List.of(
+        when(memberRepository.findOpenMemberSkillsByClans(List.of(stars, fish), OVERALL, null)).thenReturn(List.of(
                 memberSkill(fish, 2L, 30.0), memberSkill(stars, 1L, 60.0)));
 
-        List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(List.of(stars, fish));
+        List<ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(List.of(stars, fish), null);
 
         assertThat(strengths).extracting(ClanStrengthService.MemberStrength::clanId).containsExactly(stars, fish);
         assertThat(strengths.get(0).share() + strengths.get(1).share()).isEqualTo(1.0);

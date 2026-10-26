@@ -2,6 +2,7 @@ package com.accsaber.backend.service.clan.war;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -76,7 +77,7 @@ class ClanWarStakeServiceTest {
     }
 
     private void weights(MemberStrength... members) {
-        when(strengthService.memberStrengths(anyCollection())).thenAnswer(inv -> {
+        when(strengthService.memberStrengths(anyCollection(), any())).thenAnswer(inv -> {
             List<UUID> clans = new ArrayList<>(inv.getArgument(0));
             return List.of(members).stream().filter(m -> clans.contains(m.clanId())).toList();
         });

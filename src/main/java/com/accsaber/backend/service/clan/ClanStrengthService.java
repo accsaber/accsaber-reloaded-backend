@@ -63,16 +63,16 @@ public class ClanStrengthService {
 
     @Transactional(readOnly = true)
     public List<MemberStrength> memberStrengths(UUID clanId) {
-        return memberStrengths(List.of(clanId));
+        return memberStrengths(List.of(clanId), null);
     }
 
     @Transactional(readOnly = true)
-    public List<MemberStrength> memberStrengths(Collection<UUID> clanIds) {
+    public List<MemberStrength> memberStrengths(Collection<UUID> clanIds, UUID warId) {
         if (clanIds.isEmpty()) {
             return List.of();
         }
         List<ClanMemberRepository.ClanMemberSkillView> rows = memberRepository.findOpenMemberSkillsByClans(clanIds,
-                overallId()).stream()
+                overallId(), warId).stream()
                 .sorted(Comparator.comparingDouble(ClanMemberRepository.ClanMemberSkillView::getSkill).reversed()
                         .thenComparing(ClanMemberRepository.ClanMemberSkillView::getUserId))
                 .toList();

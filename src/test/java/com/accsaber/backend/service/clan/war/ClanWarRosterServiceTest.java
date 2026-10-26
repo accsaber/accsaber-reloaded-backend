@@ -113,7 +113,7 @@ class ClanWarRosterServiceTest {
     }
 
     private void teams(List<MemberStrength> attackers, List<MemberStrength> defenders) {
-        when(strengthService.memberStrengths(anyCollection())).thenAnswer(inv -> {
+        when(strengthService.memberStrengths(anyCollection(), any())).thenAnswer(inv -> {
             Collection<UUID> clans = inv.getArgument(0);
             return clans.contains(attacker.getId()) ? attackers : defenders;
         });
@@ -256,7 +256,7 @@ class ClanWarRosterServiceTest {
         ClanWarParticipant fallen = participant(11L, defender, 1.0);
         when(participantRepository.findByWarId(war.getId())).thenReturn(List.of(participant(1L, attacker, 1.0),
                 fallen));
-        when(strengthService.memberStrengths(anyCollection())).thenAnswer(inv -> {
+        when(strengthService.memberStrengths(anyCollection(), any())).thenAnswer(inv -> {
             Collection<UUID> clans = inv.getArgument(0);
             return clans.contains(attacker.getId()) ? List.of(new MemberStrength(attacker.getId(), 1L, 90, 1.0))
                     : List.of();

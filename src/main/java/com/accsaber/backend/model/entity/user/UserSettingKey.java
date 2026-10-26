@@ -34,6 +34,8 @@ public enum UserSettingKey {
     APPEARANCE_SHOW_STATISTICS_CHART("appearance.showStatisticsChart", Boolean.class, false, false),
     APPEARANCE_CLAN_CHAT_BUBBLE("appearance.clanChatBubble", Boolean.class, true, false),
 
+    CLANS_WAR_PARTICIPATION("clans.warParticipation", Boolean.class, true, false),
+
     SYNC_NAME("sync.name", Boolean.class, true, false),
     SYNC_AVATAR("sync.avatar", Boolean.class, true, false),
 

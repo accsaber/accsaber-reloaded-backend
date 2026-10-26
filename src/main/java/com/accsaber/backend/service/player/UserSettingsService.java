@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSetting;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
+import com.accsaber.backend.model.event.UserSettingChangedEvent;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.repository.user.UserSettingRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,6 +30,7 @@ public class UserSettingsService {
 
     private final UserSettingRepository settingRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public <T> T get(Long userId, UserSettingKey key, Class<T> type) {
         assertType(key, type);
@@ -93,16 +96,7 @@ public class UserSettingsService {
 
     @Transactional
     public void set(Long userId, UserSettingKey key, Object value) {
-        User user = userRepository.requireActive(userId);
-        JsonNode node = MAPPER.valueToTree(value);
-        validate(key, node);
-        UserSetting existing = settingRepository.findByUser_IdAndKey(userId, key.key()).orElse(null);
-        if (existing == null) {
-            settingRepository.save(UserSetting.builder().user(user).key(key.key()).value(node).build());
-        } else {
-            existing.setValue(node);
-            settingRepository.save(existing);
-        }
+        upsert(userRepository.requireActive(userId), key, MAPPER.valueToTree(value));
     }
 
     @Transactional
@@ -120,17 +114,18 @@ public class UserSettingsService {
                 throw new ValidationException(
                         "Setting " + key.key() + " does not belong to group '" + group + "'");
             }
-            JsonNode value = MAPPER.valueToTree(entry.getValue());
-            validate(key, value);
-            UserSetting existing = settingRepository.findByUser_IdAndKey(userId, key.key()).orElse(null);
-            if (existing == null) {
-                settingRepository.save(UserSetting.builder().user(user).key(key.key()).value(value).build());
-            } else {
-                existing.setValue(value);
-                settingRepository.save(existing);
-            }
+            upsert(user, key, MAPPER.valueToTree(entry.getValue()));
         }
         return getGroup(userId, group);
+    }
+
+    private void upsert(User user, UserSettingKey key, JsonNode value) {
+        validate(key, value);
+        UserSetting setting = settingRepository.findByUser_IdAndKey(user.getId(), key.key())
+                .orElseGet(() -> UserSetting.builder().user(user).key(key.key()).build());
+        setting.setValue(value);
+        settingRepository.save(setting);
+        eventPublisher.publishEvent(new UserSettingChangedEvent(user.getId(), key));
     }
 
     private Object serializeForResponse(Object defaultValue) {
