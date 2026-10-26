@@ -778,7 +778,7 @@ class ClanQueryTest {
         User lapizStar = user(76561190000000312L, "Lapiz Star");
         User member = user(76561190000000313L, "Member");
         String participant = "INSERT INTO clan_war_participants (war_id, user_id, clan_id, standing_weight, guard, "
-                + "broken_at, left_at, revive_at, revive_speed) VALUES (?1, ?2, ?3, 1, 0, ?4, ?5, ?4 + INTERVAL '7 days', 1)";
+                + "broken_at, left_at, revive_at, revive_speed) VALUES (?1, ?2, ?3, 1, 0, ?4, ?5, CAST(?4 AS TIMESTAMPTZ) + INTERVAL '7 days', 1)";
         entityManager.createNativeQuery(participant).setParameter(1, active).setParameter(2, founder.getId())
                 .setParameter(3, owls.getId()).setParameter(4, now.minus(8, ChronoUnit.DAYS)).setParameter(5, null)
                 .executeUpdate();
