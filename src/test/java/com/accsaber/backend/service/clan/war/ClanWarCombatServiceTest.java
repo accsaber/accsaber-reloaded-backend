@@ -770,8 +770,11 @@ class ClanWarCombatServiceTest {
             assertThat(war.getWipedAt()).isNotNull().isEqualTo(victim.getBrokenAt());
             Instant back = war.getWipedAt().plus(Duration.ofDays(2));
             assertThat(victim.getReviveAt()).isEqualTo(back);
+            assertThat(victim.getReviveSpeed()).isNull();
             assertThat(almostBack.getReviveAt()).isEqualTo(soon);
+            assertThat(almostBack.getReviveSpeed()).isEqualTo(1.0);
             assertThat(longOut.getReviveAt()).isEqualTo(back);
+            assertThat(longOut.getReviveSpeed()).isNull();
         }
 
         @Test

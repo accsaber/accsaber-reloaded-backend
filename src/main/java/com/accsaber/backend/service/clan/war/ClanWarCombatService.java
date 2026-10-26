@@ -369,11 +369,10 @@ public class ClanWarCombatService {
         battle.war().setWipedAt(at);
         Instant back = at.plus(clanProperties.getWar().getWipeDuration());
         for (ClanWarTeam side : ClanWarTeam.values()) {
-            double speed = warDamage.reviveSpeed(roster, battle.sideByClan(), side);
             ClanWarDamage.team(roster, battle.sideByClan(), side).stream()
-                    .filter(p -> p.getBrokenAt() != null)
-                    .forEach(p -> p.comeBackAt(side == team || p.getReviveAt() == null || p.getReviveAt().isAfter(back)
-                            ? back : p.getReviveAt(), speed));
+                    .filter(p -> p.getBrokenAt() != null
+                            && (side == team || p.getReviveAt() == null || p.getReviveAt().isAfter(back)))
+                    .forEach(p -> p.comeBackAt(back));
         }
     }
 

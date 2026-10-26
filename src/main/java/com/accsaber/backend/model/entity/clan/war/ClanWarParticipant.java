@@ -129,9 +129,9 @@ public class ClanWarParticipant {
         reviveSpeed = 1.0;
     }
 
-    public void comeBackAt(Instant at, double speed) {
+    public void comeBackAt(Instant at) {
         reviveAt = at;
-        reviveSpeed = speed;
+        reviveSpeed = null;
     }
 
     public void restoreGuard(double full) {
