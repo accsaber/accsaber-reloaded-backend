@@ -147,7 +147,9 @@ class ClanWarDamage {
 
     Map<UUID, Pairing> bestPairings(Field field, Collection<UUID> difficultyIds, boolean picked) {
         List<Long> enemyIds = field.enemies().stream().map(enemy -> enemy.getUser().getId()).toList();
-        Map<Long, Streak> cycleHits = hitRepository.cycleHits(field.warId(), enemyIds);
+        Map<Long, Streak> cycleHits = new HashMap<>(hitRepository.cycleHits(field.warId(), enemyIds));
+        field.enemies().stream().filter(enemy -> enemy.getBrokenAt() != null).forEach(enemy -> cycleHits.put(
+                enemy.getUser().getId(), cycleHits.getOrDefault(enemy.getUser().getId(), Streak.NONE).revived()));
         Map<UUID, Map<Long, VictimScoreView>> scores = hitRepository.findActiveScores(difficultyIds, enemyIds).stream()
                 .collect(Collectors.groupingBy(VictimScoreView::getMapDifficultyId,
                         Collectors.toMap(VictimScoreView::getUserId, Function.identity())));

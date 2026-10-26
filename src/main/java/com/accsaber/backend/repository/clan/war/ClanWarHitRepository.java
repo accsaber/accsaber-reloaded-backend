@@ -64,6 +64,10 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
             return mapDifficultyId == null ? 0 : mapBreaks.getOrDefault(mapDifficultyId, 0L);
         }
 
+        public Streak revived() {
+            return new Streak(0, 0, Map.of(), mapBreaks);
+        }
+
         private Streak plus(CycleHitsView view) {
             Map<UUID, Long> hitMaps = new HashMap<>(mapHits);
             if (view.getMapHits() > 0) {

@@ -211,7 +211,7 @@ public class ClanWarRosterService {
             return Map.of();
         }
         ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewer.userId(),
-                ClanWarDamage.enemies(rows, sideByClan, viewerSide.getTeam()), skills,
+                ClanWarDamage.team(rows, sideByClan, viewerSide.getTeam().opponent()), skills,
                 enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy),
                 warDamage.lastStand(participantRepository.findActiveByWarId(war.getId()), sideByClan,
                         viewerSide.getTeam().opponent()));
@@ -241,7 +241,8 @@ public class ClanWarRosterService {
         User aim = ordersVisible ? viewer.aim()
                 : viewer.getTargeting() == ClanWarTargeting.manual ? viewer.getTarget() : null;
         Long pickedId = view.focus() != null ? view.focus() : aim == null ? null : aim.getId();
-        Optional<ClanWarParticipant> picked = enemies.stream()
+        Optional<ClanWarParticipant> picked = (view.focus() == null ? enemies
+                : ClanWarDamage.team(roster, sideByClan, viewerSide.getTeam().opponent())).stream()
                 .filter(enemy -> enemy.getUser().getId().equals(pickedId)).findFirst();
         if (picked.isPresent()) {
             enemies = List.of(picked.get());

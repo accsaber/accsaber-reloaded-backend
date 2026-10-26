@@ -369,6 +369,30 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
+    void aBrokenFocusIsPairedAsIfBackUpWhileAutoSkipsThem() {
+        ClanWarParticipant me = participant(1L, attacker, 1.0);
+        ClanWarParticipant standing = participant(11L, defender, 0.5);
+        ClanWarParticipant broken = participant(12L, defender, 0.5);
+        broken.breakGuard(Instant.now(), Duration.ofDays(7));
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, standing, broken));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 50), skill(12L, 50)));
+        UUID map = UUID.randomUUID();
+        when(hitRepository.cycleHits(eq(war.getId()), anyCollection()))
+                .thenReturn(Map.of(12L, new ClanWarHitRepository.Streak(4, 2, Map.of(map, 1L), Map.of(map, 1L))));
+        when(hitRepository.findActiveScores(anyCollection(), anyCollection())).thenReturn(List.of(
+                victimScore(map, UUID.randomUUID(), 11L, 900_000), victimScore(map, UUID.randomUUID(), 12L, 900_000)));
+
+        ClanWarDamage.Pairing focused = service.pairings(war, new ClanWarView(1L, null, 12L), List.of(map)).get(map);
+
+        assertThat(focused.target().getId()).isEqualTo(12L);
+        assertThat(focused.repeatMap()).isFalse();
+        assertThat(focused.mapPenalty()).isEqualTo(0.75);
+        assertThat(focused.damage()).isCloseTo(10 * 0.75, within(1e-9));
+        assertThat(service.pairings(war, ClanWarView.of(1L), List.of(map)).get(map).target().getId()).isEqualTo(11L);
+    }
+
+    @Test
     void viewingAsAnotherClansFighterHidesTheirCommandersOrders() {
         ClanWarParticipant me = participant(1L, attacker, 1.0);
         ClanWarParticipant mate = participant(2L, attacker, 1.0);
@@ -430,7 +454,7 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatIsLeftToSpendOnAMapAlreadyInPreparation() {
+    void theViewerSeesHowManyFullHitsBreakEachEnemyAndWhatEvenABrokenOneIsWorthOnAMapAlreadyInPreparation() {
         ClanWarParticipant mate = participant(2L, attacker, 0.5);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
         ClanWarParticipant broken = participant(12L, defender, 1.0);
@@ -441,13 +465,14 @@ class ClanWarRosterServiceTest {
         when(participantRepository.findOverallSkills(anyCollection()))
                 .thenReturn(List.of(skill(1L, 40), skill(2L, 40), skill(11L, 80), skill(12L, 80)));
         when(participantRepository.findOpenClanId(war.getId(), 1L)).thenReturn(Optional.of(attacker.getId()));
-        when(hitRepository.findCycleHits(war.getId(), List.of(11L))).thenReturn(List.of());
-        when(hitRepository.cycleHits(war.getId(), List.of(11L))).thenCallRealMethod();
+        when(hitRepository.findCycleHits(war.getId(), List.of(11L, 12L))).thenReturn(List.of());
+        when(hitRepository.cycleHits(war.getId(), List.of(11L, 12L))).thenCallRealMethod();
         UUID map = UUID.randomUUID();
         UUID enemyScore = UUID.randomUUID();
-        when(hitRepository.findActiveScores(List.of(map), List.of(11L)))
+        when(hitRepository.findActiveScores(List.of(map), List.of(11L, 12L)))
                 .thenReturn(List.of(victimScore(map, enemyScore, 11L, 950_000)));
         when(stakeService.breakAmount(any(), any(), eq(enemy))).thenReturn(40.0);
+        when(stakeService.breakAmount(any(), any(), eq(broken))).thenReturn(30.0);
         when(stakeService.engagement(war, ClanWarTeam.defend)).thenReturn(0.5);
 
         Map<Long, ClanWarParticipantResponse> rows = service.participants(war.getId(), ClanWarView.of(1L), map, PageRequest.of(0, 50))
@@ -455,7 +480,9 @@ class ClanWarRosterServiceTest {
 
         assertThat(rows.get(2L).strikePreview()).isNull();
         assertThat(rows.get(11L).breakStanding()).isEqualTo(40.0);
-        assertThat(rows.get(12L).strikePreview()).isNull();
+        assertThat(rows.get(12L).breakStanding()).isEqualTo(30.0);
+        assertThat(rows.get(12L).strikePreview().standingTaken()).isEqualTo(30.0);
+        assertThat(rows.get(12L).strikePreview().standingGained()).isEqualTo(15.0);
         assertThat(rows.get(11L).strikePreview()).satisfies(preview -> {
             assertThat(preview.disparity()).isEqualTo(2.0);
             assertThat(preview.damage()).isEqualTo(20.0);
