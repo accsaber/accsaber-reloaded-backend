@@ -205,8 +205,7 @@ public class ClanWarRosterService {
     private Map<Long, ClanWarStrikePreviewResponse> strikePreviews(ClanWar war, List<ClanWarSide> sides,
             ClanWarDamage.Viewer viewer, List<ClanWarParticipant> rows, Map<Long, Double> skills) {
         Map<UUID, ClanWarSide> sideByClan = byClan(sides);
-        ClanWarSide viewerSide = viewer.clanId() == null || !war.rostered() ? null
-                : Optional.ofNullable(sideByClan.get(viewer.clanId())).filter(ClanWarSide::fighting).orElse(null);
+        ClanWarSide viewerSide = viewer.clanId() == null || !war.rostered() ? null : sideByClan.get(viewer.clanId());
         if (viewerSide == null) {
             return Map.of();
         }
@@ -222,38 +221,52 @@ public class ClanWarRosterService {
         return participantRepository.findOpenUserIds(warId);
     }
 
+    private record Seat(ClanWar war, List<ClanWarSide> sides, List<ClanWarParticipant> roster, Long viewerId) {
+    }
+
     public Map<UUID, ClanWarDamage.Pairing> pairings(ClanWar war, ClanWarView view, Collection<UUID> difficultyIds) {
         Long viewerId = view.perspective();
-        if (viewerId == null || difficultyIds.isEmpty() || !war.rostered() || war.getRuleset() != ClanRuleset.duel) {
+        if (viewerId == null || difficultyIds.isEmpty() || !war.rostered()) {
             return Map.of();
         }
-        List<ClanWarParticipant> roster = participantRepository.findActiveByWarId(war.getId());
-        List<ClanWarSide> sides = sideRepository.findByWarId(war.getId());
-        Map<UUID, ClanWarSide> sideByClan = byClan(sides);
-        ClanWarParticipant viewer = roster.stream().filter(p -> p.getUser().getId().equals(viewerId)).findFirst()
-                .orElse(null);
+        Seat seat = new Seat(war, sideRepository.findByWarId(war.getId()),
+                participantRepository.findActiveByWarId(war.getId()), viewerId);
+        Map<UUID, ClanWarSide> sideByClan = byClan(seat.sides());
+        ClanWarParticipant viewer = seat.roster().stream().filter(p -> p.getUser().getId().equals(viewerId))
+                .findFirst().orElse(null);
         ClanWarSide viewerSide = viewer == null ? null : sideByClan.get(viewer.getClan().getId());
-        boolean ordersVisible = ordersVisible(view, viewer, roster);
-        if (viewerSide == null || !viewerSide.fighting() || (ordersVisible && viewer.halted())) {
+        if (view.focus() != null) {
+            return seat.roster().stream()
+                    .filter(p -> p.getUser().getId().equals(view.focus()) && p.getLeftAt() == null)
+                    .filter(p -> viewerSide == null || sideByClan.get(p.getClan().getId()).getTeam() != viewerSide.getTeam())
+                    .findFirst()
+                    .map(focused -> pair(seat, List.of(focused), false, difficultyIds))
+                    .orElse(Map.of());
+        }
+        if (viewerSide == null || !viewerSide.fighting() || war.getRuleset() != ClanRuleset.duel) {
             return Map.of();
         }
-        List<ClanWarParticipant> enemies = ClanWarDamage.enemies(roster, sideByClan, viewerSide.getTeam());
-        User aim = ordersVisible ? viewer.aim()
+        List<ClanWarParticipant> enemies = ClanWarDamage.enemies(seat.roster(), sideByClan, viewerSide.getTeam());
+        User aim = ordersVisible(view, viewer, seat.roster()) ? viewer.aim()
                 : viewer.getTargeting() == ClanWarTargeting.manual ? viewer.getTarget() : null;
-        Long pickedId = view.focus() != null ? view.focus() : aim == null ? null : aim.getId();
-        Optional<ClanWarParticipant> picked = (view.focus() == null ? enemies
-                : ClanWarDamage.team(roster, sideByClan, viewerSide.getTeam().opponent())).stream()
-                .filter(enemy -> enemy.getUser().getId().equals(pickedId)).findFirst();
-        if (picked.isPresent()) {
-            enemies = List.of(picked.get());
+        Optional<ClanWarParticipant> picked = enemies.stream()
+                .filter(enemy -> aim != null && enemy.getUser().getId().equals(aim.getId())).findFirst();
+        return pair(seat, picked.map(List::of).orElse(enemies), picked.isPresent(), difficultyIds);
+    }
+
+    private Map<UUID, ClanWarDamage.Pairing> pair(Seat seat, List<ClanWarParticipant> enemies, boolean aimed,
+            Collection<UUID> difficultyIds) {
+        if (enemies.isEmpty()) {
+            return Map.of();
         }
-        boolean aimed = picked.isPresent() && view.focus() == null;
-        stakeService.loadBounties(war.getId(), enemies);
-        List<Long> fighters = Stream.concat(enemies.stream().map(p -> p.getUser().getId()), Stream.of(viewerId))
+        Map<UUID, ClanWarSide> sideByClan = byClan(seat.sides());
+        stakeService.loadBounties(seat.war().getId(), enemies);
+        List<Long> fighters = Stream.concat(enemies.stream().map(p -> p.getUser().getId()), Stream.of(seat.viewerId()))
                 .toList();
-        ClanWarDamage.Field field = new ClanWarDamage.Field(war.getId(), viewerId, enemies, skills(fighters),
-                enemy -> stakeService.breakAmount(sides, sideByClan.get(enemy.getClan().getId()), enemy),
-                warDamage.lastStand(roster, sideByClan, viewerSide.getTeam().opponent()));
+        ClanWarDamage.Field field = new ClanWarDamage.Field(seat.war().getId(), seat.viewerId(), enemies,
+                skills(fighters),
+                enemy -> stakeService.breakAmount(seat.sides(), sideByClan.get(enemy.getClan().getId()), enemy),
+                warDamage.lastStand(seat.roster(), sideByClan, sideByClan.get(enemies.get(0).getClan().getId()).getTeam()));
         return warDamage.bestPairings(field, difficultyIds, aimed);
     }
 

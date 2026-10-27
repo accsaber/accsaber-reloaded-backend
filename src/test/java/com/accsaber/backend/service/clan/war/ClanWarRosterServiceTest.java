@@ -369,6 +369,20 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
+    void aFocusIsPairedEvenForAViewerOffTheRosterInABerserkerWar() {
+        war.setRuleset(ClanRuleset.berserker);
+        ClanWarParticipant enemy = participant(11L, defender, 0.5);
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(enemy));
+        when(participantRepository.findOverallSkills(anyCollection()))
+                .thenReturn(List.of(skill(1L, 50), skill(11L, 50)));
+        UUID map = UUID.randomUUID();
+
+        assertThat(service.pairings(war, new ClanWarView(1L, null, 11L), List.of(map)).get(map).target().getId())
+                .isEqualTo(11L);
+        assertThat(service.pairings(war, ClanWarView.of(1L), List.of(map))).isEmpty();
+    }
+
+    @Test
     void aBrokenFocusIsPairedAsIfBackUpWhileAutoSkipsThem() {
         ClanWarParticipant me = participant(1L, attacker, 1.0);
         ClanWarParticipant standing = participant(11L, defender, 0.5);
@@ -393,19 +407,25 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void viewingAsAnotherClansFighterHidesTheirCommandersOrders() {
+    void aHaltedViewerStillGetsPairingsAndOnlyTheirOwnClanSeesOrderedTargets() {
         ClanWarParticipant me = participant(1L, attacker, 1.0);
         ClanWarParticipant mate = participant(2L, attacker, 1.0);
         ClanWarParticipant enemy = participant(11L, defender, 1.0);
-        mate.setOrder(ClanWarOrder.halt);
-        enemy.setOrder(ClanWarOrder.halt);
-        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, mate, enemy));
+        ClanWarParticipant other = participant(12L, defender, 1.0);
+        me.setOrder(ClanWarOrder.halt);
+        mate.setOrder(ClanWarOrder.target);
+        mate.setOrderedTarget(other.getUser());
+        enemy.setOrder(ClanWarOrder.target);
+        enemy.setOrderedTarget(mate.getUser());
+        when(participantRepository.findActiveByWarId(war.getId())).thenReturn(List.of(me, mate, enemy, other));
         when(participantRepository.findOverallSkills(anyCollection()))
-                .thenReturn(List.of(skill(1L, 50), skill(2L, 50), skill(11L, 50)));
+                .thenReturn(List.of(skill(1L, 50), skill(2L, 50), skill(11L, 50), skill(12L, 50)));
         UUID map = UUID.randomUUID();
 
-        assertThat(service.pairings(war, new ClanWarView(1L, 2L, null), List.of(map))).isEmpty();
-        assertThat(service.pairings(war, new ClanWarView(1L, 11L, null), List.of(map))).containsKey(map);
+        assertThat(service.pairings(war, ClanWarView.of(1L), List.of(map))).containsKey(map);
+        assertThat(service.pairings(war, new ClanWarView(1L, 2L, null), List.of(map)).get(map).target().getId())
+                .isEqualTo(12L);
+        assertThat(service.pairings(war, new ClanWarView(1L, 11L, null), List.of(map)).get(map).picked()).isFalse();
     }
 
     @Test
