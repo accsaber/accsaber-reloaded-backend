@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.accsaber.backend.model.dto.request.item.ItemHolderSort;
+import com.accsaber.backend.model.entity.item.ItemRarity;
 
 final class SiteStatisticsQueries {
 
@@ -426,7 +427,6 @@ final class SiteStatisticsQueries {
     }
 
     private static String rarityRank(String column) {
-        return "CASE " + column + " WHEN 'mythic' THEN 6 WHEN 'legendary' THEN 5 WHEN 'epic' THEN 4" +
-                " WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 WHEN 'common' THEN 1 ELSE 0 END";
+        return "CASE " + column + ItemRarity.RANK_SQL_CASES;
     }
 }

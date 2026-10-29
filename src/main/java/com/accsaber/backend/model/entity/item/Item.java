@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
@@ -61,6 +62,9 @@ public class Item {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private ItemRarity rarity = ItemRarity.common;
+
+    @Formula("CASE rarity" + ItemRarity.RANK_SQL_CASES)
+    private Integer rarityRank;
 
     @Column(name = "next_serial", nullable = false)
     @Builder.Default

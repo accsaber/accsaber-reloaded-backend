@@ -154,23 +154,8 @@ public class ItemService {
                 SortAliases.translateEach(pageable, INVENTORY_SORT_EXPRESSIONS));
     }
 
-    private static final String RARITY_ORDER_EXPRESSION = buildRarityOrderExpression();
-
-    private static String buildRarityOrderExpression() {
-        StringBuilder sb = new StringBuilder("CASE i.rarity ");
-        for (ItemRarity r : ItemRarity.values()) {
-            sb.append("WHEN com.accsaber.backend.model.entity.item.ItemRarity.")
-                    .append(r.name())
-                    .append(" THEN ")
-                    .append(r.ordinal())
-                    .append(' ');
-        }
-        sb.append("END");
-        return sb.toString();
-    }
-
     private static final Map<String, String> INVENTORY_SORT_EXPRESSIONS = Map.of(
-            "rarity", RARITY_ORDER_EXPRESSION,
+            "rarity", "i.rarityRank",
             "crate", "ci.name",
             "awardedAt", "l.awardedAt",
             "serialNumber", "l.serialNumber",
