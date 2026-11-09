@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,4 +55,22 @@ public interface UserRelationRepository extends JpaRepository<UserRelation, UUID
             @Param("userId") Long userId,
             @Param("type") UserRelationType type,
             @Param("targetUserIds") Collection<Long> targetUserIds);
+
+    @Modifying
+    @Query(value = """
+            WITH moved AS (
+                UPDATE user_relations SET active = false, updated_at = now()
+                WHERE (user_id = :secondaryId OR target_user_id = :secondaryId) AND active = true
+                RETURNING user_id, target_user_id, type, created_at
+            )
+            INSERT INTO user_relations (user_id, target_user_id, type, active, created_at, updated_at)
+            SELECT CASE WHEN user_id = :secondaryId THEN :primaryId ELSE user_id END,
+                   CASE WHEN target_user_id = :secondaryId THEN :primaryId ELSE target_user_id END,
+                   type, true, created_at, now()
+            FROM moved
+            WHERE user_id <> :primaryId AND target_user_id <> :primaryId
+            ON CONFLICT ON CONSTRAINT unique_user_relation_type
+            DO UPDATE SET active = true, updated_at = now()
+            """, nativeQuery = true)
+    void moveActiveRelations(@Param("secondaryId") Long secondaryId, @Param("primaryId") Long primaryId);
 }

@@ -305,6 +305,8 @@ public class ItemAwardService {
     }
 
     private void notifyItemEarned(Long userId, UserItemLink link, long quantity, ItemSource source) {
+        if (source == ItemSource.crate_drop)
+            return;
         String name = link.getItem().getName();
         String title = quantity > 1
                 ? "You received " + quantity + "x " + name + "!"

@@ -9,6 +9,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import com.accsaber.backend.model.entity.user.UserRelation;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
+import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.security.PlayerUserDetails;
@@ -239,6 +241,12 @@ public class UserRelationService {
         }
         relation.setActive(false);
         relationRepository.save(relation);
+    }
+
+    @EventListener
+    @Transactional
+    public void onPlayersMerged(PlayersMergedEvent event) {
+        relationRepository.moveActiveRelations(event.secondaryUserId(), event.primaryUserId());
     }
 
     private void applyBlockSideEffects(Long userId, Long targetUserId) {
