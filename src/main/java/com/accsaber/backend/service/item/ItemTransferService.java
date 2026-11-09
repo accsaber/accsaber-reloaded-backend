@@ -1,7 +1,9 @@
 package com.accsaber.backend.service.item;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -72,6 +74,32 @@ public class ItemTransferService {
         userItemLinkRepository.delete(source);
         userItemLinkRepository.flush();
         itemEquipService.clearEquippedIfLinkGone(previousOwner, source.getId(), typeKey);
+    }
+
+    public void moveAll(Long fromUserId, Long toUserId) {
+        Map<Boolean, List<UserItemLink>> byOwner = userItemLinkRepository
+                .findByUsersForUpdate(List.of(fromUserId, toUserId)).stream()
+                .collect(Collectors.partitioningBy(l -> l.getUser().getId().equals(toUserId)));
+        Map<UUID, List<UserItemLink>> heldByItem = byOwner.get(true).stream()
+                .collect(Collectors.groupingBy(l -> l.getItem().getId(), Collectors.toCollection(ArrayList::new)));
+        for (UserItemLink link : byOwner.get(false)) {
+            List<UserItemLink> held = heldByItem.computeIfAbsent(link.getItem().getId(), id -> new ArrayList<>());
+            if (link.isEscrowed() || (link.getItem().isUniquePerUser() && !held.isEmpty())) {
+                continue;
+            }
+            UserItemLink stack = ItemAwardService.isInstanced(link) ? null : identicalStack(
+                    held.stream().filter(l -> !l.isEscrowed() && !ItemAwardService.isInstanced(l)).toList(),
+                    link.getModifiers());
+            if (stack == null) {
+                link.setUser(userRepository.getReferenceById(toUserId));
+                userItemLinkRepository.save(link);
+                held.add(link);
+                continue;
+            }
+            stack.setQuantity(stack.getQuantity() + link.getQuantity());
+            userItemLinkRepository.save(stack);
+            userItemLinkRepository.delete(link);
+        }
     }
 
     public UserItemLink escrow(UserItemLink source, long qty) {
@@ -145,8 +173,12 @@ public class ItemTransferService {
     }
 
     private UserItemLink findIdenticalStack(Long userId, UUID itemId, Set<ItemModifier> modifiers) {
+        return identicalStack(userItemLinkRepository.findStacksForUpdate(userId, itemId), modifiers);
+    }
+
+    private static UserItemLink identicalStack(List<UserItemLink> stacks, Set<ItemModifier> modifiers) {
         Set<UUID> targetIds = modifiers.stream().map(ItemModifier::getId).collect(Collectors.toSet());
-        return userItemLinkRepository.findStacksForUpdate(userId, itemId).stream()
+        return stacks.stream()
                 .filter(l -> ItemAwardService.sameModifierSet(l.getModifiers(), targetIds))
                 .findFirst()
                 .orElse(null);

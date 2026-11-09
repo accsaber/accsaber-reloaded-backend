@@ -60,6 +60,44 @@ class ItemTransferServiceTest {
     }
 
     @Test
+    void moveAllKeepsTheOriginalSourceOnAnInstancedItem() {
+        UserItemLink instance = link(SELLER_ID, nonStackable(), 1L);
+        when(userItemLinkRepository.findByUsersForUpdate(List.of(SELLER_ID, BUYER_ID))).thenReturn(List.of(instance));
+
+        transferService.moveAll(SELLER_ID, BUYER_ID);
+
+        assertThat(instance.getUser().getId()).isEqualTo(BUYER_ID);
+        assertThat(instance.getSource()).isEqualTo(ItemSource.manual);
+    }
+
+    @Test
+    void moveAllFoldsAStackIntoTheIdenticalStack() {
+        Item item = stackable();
+        UserItemLink moving = link(SELLER_ID, item, 3L);
+        UserItemLink existing = link(BUYER_ID, item, 4L);
+        when(userItemLinkRepository.findByUsersForUpdate(List.of(SELLER_ID, BUYER_ID)))
+                .thenReturn(List.of(moving, existing));
+
+        transferService.moveAll(SELLER_ID, BUYER_ID);
+
+        assertThat(existing.getQuantity()).isEqualTo(7L);
+        verify(userItemLinkRepository).delete(moving);
+    }
+
+    @Test
+    void moveAllLeavesAUniqueItemThePrimaryAlreadyOwns() {
+        Item item = nonStackable();
+        item.setUniquePerUser(true);
+        UserItemLink duplicate = link(SELLER_ID, item, 1L);
+        when(userItemLinkRepository.findByUsersForUpdate(List.of(SELLER_ID, BUYER_ID)))
+                .thenReturn(List.of(duplicate, link(BUYER_ID, item, 1L)));
+
+        transferService.moveAll(SELLER_ID, BUYER_ID);
+
+        assertThat(duplicate.getUser().getId()).isEqualTo(SELLER_ID);
+    }
+
+    @Test
     void escrowingPartOfAStackSplitsIt() {
         UserItemLink source = link(SELLER_ID, stackable(), 10L);
 

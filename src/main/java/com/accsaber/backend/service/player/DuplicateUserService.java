@@ -257,8 +257,8 @@ public class DuplicateUserService {
         link.setReason(reason);
         linkRepository.save(link);
 
-        duplicateCache.put(secondary.getId(), primary.getId());
         eventPublisher.publishEvent(new PlayersMergedEvent(primary.getId(), secondary.getId()));
+        duplicateCache.put(secondary.getId(), primary.getId());
         log.info("Merged user {} into {}: {} scores reassigned", secondary.getId(), primary.getId(), reassigned);
     }
 

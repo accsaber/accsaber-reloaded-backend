@@ -5,5 +5,6 @@ public enum EssenceReason {
     purchase,
     sale,
     trade_payment,
-    trade_receipt
+    trade_receipt,
+    admin_adjustment
 }

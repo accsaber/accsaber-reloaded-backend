@@ -35,6 +35,10 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         """)
         List<UserItemLink> findStacksForUpdate(@Param("userId") Long userId, @Param("itemId") UUID itemId);
 
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT l FROM UserItemLink l WHERE l.user.id IN :userIds ORDER BY l.id")
+        List<UserItemLink> findByUsersForUpdate(@Param("userIds") Collection<Long> userIds);
+
         @Query(value = """
                         SELECT i, l
                         FROM Item i
