@@ -98,6 +98,18 @@ class ItemTransferServiceTest {
     }
 
     @Test
+    void moveAllLeavesUntradeableItemsBehind() {
+        Item item = nonStackable();
+        item.setTradeable(false);
+        UserItemLink bound = link(SELLER_ID, item, 1L);
+        when(userItemLinkRepository.findByUsersForUpdate(List.of(SELLER_ID, BUYER_ID))).thenReturn(List.of(bound));
+
+        transferService.moveAll(SELLER_ID, BUYER_ID);
+
+        assertThat(bound.getUser().getId()).isEqualTo(SELLER_ID);
+    }
+
+    @Test
     void escrowingPartOfAStackSplitsIt() {
         UserItemLink source = link(SELLER_ID, stackable(), 10L);
 

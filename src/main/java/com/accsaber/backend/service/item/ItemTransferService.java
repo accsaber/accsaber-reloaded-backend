@@ -84,7 +84,8 @@ public class ItemTransferService {
                 .collect(Collectors.groupingBy(l -> l.getItem().getId(), Collectors.toCollection(ArrayList::new)));
         for (UserItemLink link : byOwner.get(false)) {
             List<UserItemLink> held = heldByItem.computeIfAbsent(link.getItem().getId(), id -> new ArrayList<>());
-            if (link.isEscrowed() || (link.getItem().isUniquePerUser() && !held.isEmpty())) {
+            if (link.isEscrowed() || !link.getItem().isTradeable()
+                    || (link.getItem().isUniquePerUser() && !held.isEmpty())) {
                 continue;
             }
             UserItemLink stack = ItemAwardService.isInstanced(link) ? null : identicalStack(
