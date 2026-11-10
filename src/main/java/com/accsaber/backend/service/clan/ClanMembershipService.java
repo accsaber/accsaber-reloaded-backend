@@ -35,6 +35,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
+import com.accsaber.backend.model.event.UserSettingChangedEvent;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -207,6 +208,23 @@ public class ClanMembershipService {
                 roster.seat(clan, userRepository.getReferenceById(event.primaryUserId()), role);
             } else if (role == ClanRole.founder) {
                 promoteSuccessor(clan);
+            }
+        });
+    }
+
+    @EventListener
+    @Transactional
+    public void onSettingChanged(UserSettingChangedEvent event) {
+        if (event.key() != UserSettingKey.CLANS_WAR_PARTICIPATION
+                || settingsService.get(event.userId(), event.key(), Boolean.class)) {
+            return;
+        }
+        memberRepository.findOpenByUserId(event.userId()).ifPresent(member -> {
+            List<Long> members = memberRepository.findOpenUserIds(roster.lock(member.getClan().getId()).getId());
+            long sittingOut = settingsService.getMany(members, event.key(), Boolean.class).values().stream()
+                    .filter(inWars -> !inWars).count();
+            if (sittingOut * 2 > members.size()) {
+                throw new ConflictException("Half of this clan is already sitting out of wars");
             }
         });
     }

@@ -1106,8 +1106,8 @@ class ClanQueryTest {
         assertThat(hitRepository.findPageByWarId(warId, null, outsider, null, page).getTotalElements()).isZero();
 
         entityManager.createNativeQuery("INSERT INTO clan_war_hits (war_id, attacker_user_id, victim_user_id, "
-                + "victim_cycle, map_difficulty_id, attacker_score_id, chip, damage, guard_after) "
-                + "VALUES (?1, ?2, ?3, 0, ?4, ?5, false, 4, 91)").setParameter(1, warId)
+                + "victim_cycle, map_difficulty_id, attacker_score_id, chip, damage, guard_after, victim_bounty) "
+                + "VALUES (?1, ?2, ?3, 0, ?4, ?5, false, 4, 91, 0.5)").setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())
                 .setParameter(5, mine).executeUpdate();
         assertThat(hitRepository.cycleHits(warId, List.of(lapizStar.getId(), founder.getId())))
@@ -1123,7 +1123,7 @@ class ClanQueryTest {
         assertThat(hitRepository.findDealtPerLife(warId, List.of(founder.getId(), lapizStar.getId())))
                 .extracting(ClanWarHitRepository.DealtView::getUserId, ClanWarHitRepository.DealtView::getLife,
                         ClanWarHitRepository.DealtView::getDealt)
-                .containsExactlyInAnyOrder(tuple(founder.getId(), 0, 14.0), tuple(lapizStar.getId(), 0, 0.0),
+                .containsExactlyInAnyOrder(tuple(founder.getId(), 0, 12.0), tuple(lapizStar.getId(), 0, 0.0),
                         tuple(lapizStar.getId(), 1, 0.0));
         assertThat(entityManager.createNativeQuery(hit).setParameter(1, warId)
                 .setParameter(2, founder.getId()).setParameter(3, lapizStar.getId()).setParameter(4, map.getId())

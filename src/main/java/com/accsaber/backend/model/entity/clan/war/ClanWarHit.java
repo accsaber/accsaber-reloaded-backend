@@ -67,6 +67,10 @@ public class ClanWarHit {
     @Column(nullable = false)
     private double damage;
 
+    @Builder.Default
+    @Column(name = "victim_bounty", nullable = false)
+    private double victimBounty = 1.0;
+
     @Column(name = "guard_after", nullable = false)
     private double guardAfter;
 

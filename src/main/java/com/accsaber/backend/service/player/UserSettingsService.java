@@ -123,6 +123,9 @@ public class UserSettingsService {
         validate(key, value);
         UserSetting setting = settingRepository.findByUser_IdAndKey(user.getId(), key.key())
                 .orElseGet(() -> UserSetting.builder().user(user).key(key.key()).build());
+        if (value.equals(setting.getValue())) {
+            return;
+        }
         setting.setValue(value);
         settingRepository.save(setting);
         eventPublisher.publishEvent(new UserSettingChangedEvent(user.getId(), key));

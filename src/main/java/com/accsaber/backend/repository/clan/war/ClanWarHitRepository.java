@@ -135,7 +135,7 @@ public interface ClanWarHitRepository extends JpaRepository<ClanWarHit, UUID> {
                 UNION ALL
                 SELECT user_id, life FROM breaks
             )
-            SELECT l.user_id AS userId, l.life AS life, COALESCE(SUM(h.damage), 0) AS dealt
+            SELECT l.user_id AS userId, l.life AS life, COALESCE(SUM(h.damage * h.victim_bounty), 0) AS dealt
             FROM lives l
             LEFT JOIN breaks s ON s.user_id = l.user_id AND s.life = l.life
             LEFT JOIN breaks e ON e.user_id = l.user_id AND e.life = l.life + 1

@@ -46,6 +46,7 @@ import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
+import com.accsaber.backend.model.event.UserSettingChangedEvent;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
 import com.accsaber.backend.repository.clan.ClanJoinRequestRepository;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
@@ -153,6 +154,48 @@ class ClanMembershipServiceTest {
             assertThatThrownBy(() -> service.setWarParticipation(CLAN_ID, 1L, 2L, false))
                     .isInstanceOf(ForbiddenException.class);
             verify(settingsService, never()).set(any(), any(), any());
+        }
+    }
+
+    @Nested
+    class WarParticipationCap {
+
+        private final UserSettingChangedEvent event = new UserSettingChangedEvent(2L,
+                UserSettingKey.CLANS_WAR_PARTICIPATION);
+
+        private void sittingOut(List<Long> members, Set<Long> out) {
+            when(settingsService.get(2L, UserSettingKey.CLANS_WAR_PARTICIPATION, Boolean.class)).thenReturn(false);
+            ClanMember membership = member(user(2L), ClanRole.member, Instant.now());
+            when(memberRepository.findOpenByUserId(2L)).thenReturn(Optional.of(membership));
+            when(memberRepository.findOpenUserIds(CLAN_ID)).thenReturn(members);
+            when(settingsService.getMany(members, UserSettingKey.CLANS_WAR_PARTICIPATION, Boolean.class))
+                    .thenReturn(members.stream().collect(Collectors.toMap(Function.identity(),
+                            id -> !out.contains(id))));
+        }
+
+        @Test
+        void halfTheClanMaySitOut() {
+            sittingOut(List.of(1L, 2L, 3L, 4L), Set.of(2L, 3L));
+
+            service.onSettingChanged(event);
+
+            verify(roster).lock(CLAN_ID);
+        }
+
+        @Test
+        void oneMoreThanHalfIsRefused() {
+            sittingOut(List.of(1L, 2L, 3L), Set.of(2L, 3L));
+
+            assertThatThrownBy(() -> service.onSettingChanged(event)).isInstanceOf(ConflictException.class);
+        }
+
+        @Test
+        void optingBackInIsNeverChecked() {
+            when(settingsService.get(2L, UserSettingKey.CLANS_WAR_PARTICIPATION, Boolean.class)).thenReturn(true);
+
+            service.onSettingChanged(event);
+
+            verify(memberRepository, never()).findOpenByUserId(any());
         }
     }
 

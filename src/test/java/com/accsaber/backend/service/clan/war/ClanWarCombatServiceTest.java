@@ -689,6 +689,7 @@ class ClanWarCombatServiceTest {
             ClanWarHit breaking = savedHits.getFirst();
             assertThat(breaking.isBroke()).isTrue();
             assertThat(breaking.getDamage()).isEqualTo(10.0);
+            assertThat(breaking.getVictimBounty()).isCloseTo(0.5, within(1e-9));
             assertThat(breaking.getStandingMoved()).isCloseTo(1000 * 0.2 * 0.5 * 0.5, within(1e-9));
             assertThat(blueSide.getStakeRemaining()).isCloseTo(950.0, within(1e-9));
             assertThat(victim.getBreaksSuffered()).isEqualTo(2);

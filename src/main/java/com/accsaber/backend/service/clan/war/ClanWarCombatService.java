@@ -297,6 +297,7 @@ public class ClanWarCombatService {
                 .victimScore(victimScore == null ? null : scoreRepository.getReferenceById(victimScore.getScoreId()))
                 .chip(strike.kind() == Kind.CHIP)
                 .damage(damage)
+                .victimBounty(victim.getBounty())
                 .guardAfter(victim.getGuard())
                 .broke(victim.getGuard() <= 0.0)
                 .build());
