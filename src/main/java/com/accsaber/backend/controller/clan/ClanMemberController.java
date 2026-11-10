@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.clan.CreateClanJoinRequest;
@@ -65,6 +66,19 @@ public class ClanMemberController {
             @Valid @RequestBody UpdateClanMemberRequest request) {
         return ResponseEntity.ok(membershipService.changeRole(clanId, principal.getUserId(), userId,
                 request.role()));
+    }
+
+    @Operation(summary = "Take someone off wars or put them back",
+            description = "Commander and up, lower ranks only. Flips the member's own war participation setting.")
+    @PreAuthorize("isAuthenticated()")
+    @PatchMapping("/{clanId}/members/{userId}/war-participation")
+    public ResponseEntity<PlayerRef> setWarParticipation(
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PathVariable UUID clanId,
+            @PathVariable Long userId,
+            @RequestParam boolean participates) {
+        return ResponseEntity.ok(membershipService.setWarParticipation(clanId, principal.getUserId(), userId,
+                participates));
     }
 
     @Operation(summary = "Leave or kick someone",

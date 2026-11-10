@@ -22,6 +22,7 @@ public enum ClanPermission {
     DECLARE_WAR(ClanRole.commander),
     COALITION(ClanRole.commander),
     ORDER_TARGETS(ClanRole.commander),
+    BENCH(ClanRole.commander),
     PROMOTE_COMMANDER(ClanRole.founder),
     MANAGE_ALLIANCES(ClanRole.founder),
     MANAGE_PACIFISM(ClanRole.founder),

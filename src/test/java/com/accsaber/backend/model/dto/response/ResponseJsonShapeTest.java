@@ -23,6 +23,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignLeaderboardEntry
 import com.accsaber.backend.model.dto.response.campaign.CampaignProgressBroadcast;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanMembershipResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarLastStandResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
@@ -283,6 +284,14 @@ class ResponseJsonShapeTest {
                 .xpEarned(500).itemsAwarded(1).lastCompletedAt(T1).build()));
         assertThat(json(PLAYER).get("id").asString()).isEqualTo("76561198000000001");
         assertThat(json(PLAYER).has("membership")).isFalse();
+    }
+
+    @Test
+    void clanMembershipSaysWhetherTheMemberIsInWars() {
+        JsonNode membership = json(new ClanMembershipResponse(null, T1, T1, true, T1, 0.5, 40.0, 12.0, 3, 1, false));
+
+        assertThat(membership.get("warParticipation").isBoolean()).isTrue();
+        assertThat(membership.get("warParticipation").asBoolean()).isFalse();
     }
 
     @Test

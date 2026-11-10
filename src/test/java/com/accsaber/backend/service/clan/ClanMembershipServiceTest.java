@@ -12,10 +12,13 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -40,6 +43,7 @@ import com.accsaber.backend.model.entity.clan.ClanLeaveReason;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
@@ -49,6 +53,7 @@ import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.player.UserSettingsService;
 
 @ExtendWith(MockitoExtension.class)
 class ClanMembershipServiceTest {
@@ -85,6 +90,8 @@ class ClanMembershipServiceTest {
     private ClanSeasonRepository seasonRepository;
     @Mock
     private ClanStrengthService strengthService;
+    @Mock
+    private UserSettingsService settingsService;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanMembershipService service;
@@ -96,7 +103,10 @@ class ClanMembershipServiceTest {
         lenient().when(clanRepository.requireActive(any())).thenCallRealMethod();
         service = new ClanMembershipService(clanRepository, memberRepository, joinRequestRepository, auditRepository,
                 scoreRepository, userRepository, roster, accessService, levelService, clanService, presenceService,
-                chatChannel, notifier, clanProperties, seasonRepository, strengthService);
+                chatChannel, notifier, clanProperties, seasonRepository, strengthService, settingsService);
+        lenient().when(settingsService.getMany(anyCollection(), any(), eq(Boolean.class)))
+                .thenAnswer(inv -> inv.<Collection<Long>>getArgument(0).stream()
+                        .collect(Collectors.toMap(Function.identity(), id -> true)));
         lenient().when(roster.lock(CLAN_ID)).thenReturn(clan);
         lenient().when(presenceService.visibleOnline(anyCollection())).thenReturn(Set.of());
     }
@@ -117,6 +127,33 @@ class ClanMembershipServiceTest {
 
     private void grants(User user, ClanMember membership) {
         lenient().when(accessService.require(eq(CLAN_ID), eq(user.getId()), any())).thenReturn(membership);
+    }
+
+    @Nested
+    class WarParticipation {
+
+        @Test
+        void aCommanderTakesALowerRankOffWarsThroughTheirOwnSetting() {
+            User commander = user(1L);
+            grants(commander, member(commander, ClanRole.commander, Instant.now()));
+            member(user(2L), ClanRole.member, Instant.now());
+
+            service.setWarParticipation(CLAN_ID, 1L, 2L, false);
+
+            verify(accessService).require(CLAN_ID, 1L, ClanPermission.BENCH);
+            verify(settingsService).set(2L, UserSettingKey.CLANS_WAR_PARTICIPATION, false);
+        }
+
+        @Test
+        void nobodyBenchesTheirOwnRankOrAbove() {
+            User commander = user(1L);
+            grants(commander, member(commander, ClanRole.commander, Instant.now()));
+            member(user(2L), ClanRole.commander, Instant.now());
+
+            assertThatThrownBy(() -> service.setWarParticipation(CLAN_ID, 1L, 2L, false))
+                    .isInstanceOf(ForbiddenException.class);
+            verify(settingsService, never()).set(any(), any(), any());
+        }
     }
 
     @Nested

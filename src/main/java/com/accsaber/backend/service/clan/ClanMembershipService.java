@@ -32,6 +32,7 @@ import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.ClanSeason;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.PlayerBannedEvent;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.clan.ClanAuditEntryRepository;
@@ -41,6 +42,7 @@ import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.clan.ClanSeasonRepository;
 import com.accsaber.backend.repository.score.ScoreRepository;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.player.UserSettingsService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -65,6 +67,7 @@ public class ClanMembershipService {
     private final ClanProperties clanProperties;
     private final ClanSeasonRepository seasonRepository;
     private final ClanStrengthService strengthService;
+    private final UserSettingsService settingsService;
 
     public Page<PlayerRef> roster(UUID clanId, Pageable pageable) {
         Clan clan = clanRepository.requireActive(clanId);
@@ -83,6 +86,8 @@ public class ClanMembershipService {
         Map<Long, ClanStrengthService.MemberStrength> strengths = strengthService.memberStrengths(clan.getId()).stream()
                 .collect(Collectors.toMap(ClanStrengthService.MemberStrength::userId, Function.identity()));
         Map<Long, ClanMemberRepository.MemberSeasonStatsView> stats = seasonStats(clan.getId(), userIds);
+        Map<Long, Boolean> inWars = settingsService.getMany(userIds, UserSettingKey.CLANS_WAR_PARTICIPATION,
+                Boolean.class);
         return members.stream().collect(Collectors.toMap(m -> m.getUser().getId(), m -> {
             Long userId = m.getUser().getId();
             ClanMemberRepository.MemberSeasonStatsView row = stats.get(userId);
@@ -92,7 +97,8 @@ public class ClanMembershipService {
                     lastPlayed.get(userId), strength == null ? 0.0 : strength.share(),
                     strength == null ? 0.0 : strength.skill(),
                     row == null ? 0.0 : row.getPlayXp(),
-                    row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks());
+                    row == null ? 0 : row.getHits(), row == null ? 0 : row.getBreaks(),
+                    inWars.get(userId));
         }));
     }
 
@@ -128,6 +134,16 @@ public class ClanMembershipService {
         memberRepository.saveAndFlush(target);
         auditRepository.save(ClanAuditEntry.builder().clan(clan).actor(actorUser).action(ClanAuditAction.role_changed)
                 .targetUser(target.getUser()).details(Map.<String, Object>of("from", previous, "to", role)).build());
+        return toResponse(target);
+    }
+
+    @Transactional
+    public PlayerRef setWarParticipation(UUID clanId, Long playerId, Long targetUserId, boolean participates) {
+        ClanMember actor = accessService.require(clanId, accessService.player(playerId).getId(),
+                ClanPermission.BENCH);
+        ClanMember target = openMember(clanId, targetUserId);
+        assertOutranks(actor, target);
+        settingsService.set(targetUserId, UserSettingKey.CLANS_WAR_PARTICIPATION, participates);
         return toResponse(target);
     }
 

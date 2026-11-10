@@ -14,5 +14,6 @@ public record ClanMembershipResponse(
         double skill,
         double seasonPlayXp,
         long seasonHits,
-        long seasonBreaks) {
+        long seasonBreaks,
+        boolean warParticipation) {
 }
