@@ -146,7 +146,7 @@ public class ClanWarCombatService {
             return;
         }
         Battle battle = battle(war, play);
-        if (battle == null) {
+        if (battle == null || play.setAt().isBefore(battle.attacker().getJoinedAt())) {
             return;
         }
         restoreGuard(battle.attacker(), play);

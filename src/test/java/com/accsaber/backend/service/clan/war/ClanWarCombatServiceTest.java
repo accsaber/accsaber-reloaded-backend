@@ -183,7 +183,8 @@ class ClanWarCombatServiceTest {
 
     private ClanWarParticipant join(Long userId, Clan clan, double weight, double skill) {
         ClanWarParticipant participant = ClanWarParticipant.builder().war(war).user(User.builder().id(userId).build())
-                .clan(clan).standingWeight(weight).guard(clanProperties.getWar().getGuard()).build();
+                .clan(clan).standingWeight(weight).guard(clanProperties.getWar().getGuard())
+                .joinedAt(war.getStartsAt()).build();
         roster.add(participant);
         skills.put(userId, skill);
         return participant;
@@ -294,6 +295,17 @@ class ClanWarCombatServiceTest {
 
             verify(warRepository, never()).markScored(any(), any());
             verify(participantRepository, never()).findActiveByWarId(any());
+        }
+
+        @Test
+        void aPlaySetBeforeThePlayerJoinedTheWarIsMarkedAndNeverStrikes() {
+            scores.put(11L, 900_000);
+            attacker.setJoinedAt(Instant.now().minusSeconds(60));
+
+            service.fight(war.getId(), play(950_000, true, Instant.now().minusSeconds(600)));
+
+            verify(warRepository).markScored(eq(war.getId()), any());
+            assertThat(savedHits).isEmpty();
         }
 
         @Test
