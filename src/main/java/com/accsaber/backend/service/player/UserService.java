@@ -63,7 +63,6 @@ public class UserService {
     private final UserDuplicateLinkRepository userDuplicateLinkRepository;
     private final SkillService skillService;
     private final UserRelationService userRelationService;
-    private final UserSettingsService userSettingsService;
     private final ItemAwardService itemAwardService;
     private final com.accsaber.backend.service.supporter.SupporterService supporterService;
 
@@ -72,13 +71,9 @@ public class UserService {
     private UserService self;
 
     public UserResponse findByUserId(Long userId) {
-        return findByUserId(userId, null);
-    }
-
-    public UserResponse findByUserId(Long userId, Long viewerUserId) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         User user = userRepository.requireActive(resolved);
-        return toResponse(user, viewerUserId);
+        return toResponse(user);
     }
 
     public Optional<User> findOptionalByUserId(Long userId) {
@@ -290,7 +285,7 @@ public class UserService {
         return userNameHistoryRepository.findByUser_IdOrderByChangedAtDesc(resolved);
     }
 
-    private UserResponse toResponse(User user, Long viewerUserId) {
+    private UserResponse toResponse(User user) {
         LevelResponse levelResponse = levelService.calculateLevel(user.getTotalXp());
         Optional<Score> latestScore = scoreRepository.findFirstByUser_IdAndActiveTrueOrderByTimeSetDesc(user.getId());
         String secondaryId = userDuplicateLinkRepository
@@ -298,15 +293,6 @@ public class UserService {
                 .map(link -> String.valueOf(link.getSecondaryUser().getId()))
                 .orElse(null);
         String primaryId = String.valueOf(user.getId());
-        boolean isSelf = viewerUserId != null && viewerUserId.equals(user.getId());
-        boolean canSeeFollowing = isSelf || canView(viewerUserId, user.getId(),
-                userSettingsService.get(user.getId(),
-                        com.accsaber.backend.model.entity.user.UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY,
-                        com.accsaber.backend.model.entity.user.Visibility.class));
-        boolean canSeeRivals = isSelf || canView(viewerUserId, user.getId(),
-                userSettingsService.get(user.getId(),
-                        com.accsaber.backend.model.entity.user.UserSettingKey.PRIVACY_RIVALS_VISIBILITY,
-                        com.accsaber.backend.model.entity.user.Visibility.class));
         return UserResponse.builder()
                 .id(primaryId)
                 .blId(secondaryId == null ? null : primaryId)
@@ -331,17 +317,8 @@ public class UserService {
                 .hmd(latestScore.map(s -> HmdMapper.normalize(s.getHmd())).orElse(null))
                 .lastActiveTime(latestScore.map(Score::getTimeSet).orElse(null))
                 .createdAt(user.getCreatedAt())
-                .relations(userRelationService.countsFor(user.getId(), isSelf, canSeeFollowing, canSeeRivals))
+                .relations(userRelationService.countsFor(user.getId(), null))
                 .supporterTier(supporterService.findCurrentTierKey(user.getId()).orElse(null))
                 .build();
-    }
-
-    private boolean canView(Long viewerId, Long ownerId,
-            com.accsaber.backend.model.entity.user.Visibility visibility) {
-        return switch (visibility) {
-            case PUBLIC -> true;
-            case PRIVATE -> false;
-            case FOLLOWERS_ONLY -> viewerId != null && userRelationService.isFollowerOf(viewerId, ownerId);
-        };
     }
 }

@@ -15,6 +15,8 @@ public interface UserSettingRepository extends JpaRepository<UserSetting, UUID> 
 
     Optional<UserSetting> findByUser_IdAndKey(Long userId, String key);
 
+    List<UserSetting> findByUser_IdAndKeyIn(Long userId, Collection<String> keys);
+
     List<UserSetting> findByUser_Id(Long userId);
 
     @Query("SELECT s FROM UserSetting s WHERE s.user.id = :userId AND s.key LIKE CONCAT(:prefix, '%')")

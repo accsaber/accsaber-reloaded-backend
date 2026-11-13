@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.accsaber.backend.model.dto.request.UserRelationRequest;
+import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.dto.response.score.ScoreResponse;
 import com.accsaber.backend.model.entity.user.UserRelationType;
@@ -85,6 +86,15 @@ public class UserRelationController {
         Long userId = PlayerUserDetails.require(principal).getUserId();
         relationService.delete(userId, relationId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Relation counts", description = "With a token: blockedCount on your own profile, "
+            + "and the following and rival counts their privacy lets you see.")
+    @GetMapping("/{userId}/relations/counts")
+    public ResponseEntity<UserRelationCounts> getRelationCounts(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal PlayerUserDetails principal) {
+        return ResponseEntity.ok(relationService.countsFor(userId, principal != null ? principal.getUserId() : null));
     }
 
     @Operation(summary = "Someone else's relations", description = "Outgoing by default, incoming is who "

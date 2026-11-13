@@ -1,8 +1,10 @@
 package com.accsaber.backend.service.player;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,6 +39,20 @@ public class UserSettingsService {
         return settingRepository.findByUser_IdAndKey(userId, key.key())
                 .map(s -> deserialize(s.getValue(), type))
                 .orElseGet(() -> type.cast(key.defaultValue()));
+    }
+
+    public <T> Map<UserSettingKey, T> get(Long userId, Collection<UserSettingKey> keys, Class<T> type) {
+        Map<UserSettingKey, T> values = new EnumMap<>(UserSettingKey.class);
+        for (UserSettingKey key : keys) {
+            assertType(key, type);
+            values.put(key, type.cast(key.defaultValue()));
+        }
+        List<String> names = keys.stream().map(UserSettingKey::key).toList();
+        for (UserSetting setting : settingRepository.findByUser_IdAndKeyIn(userId, names)) {
+            UserSettingKey.byKey(setting.getKey())
+                    .ifPresent(key -> values.put(key, deserialize(setting.getValue(), type)));
+        }
+        return values;
     }
 
     public <T> Map<Long, T> getMany(Collection<Long> userIds, UserSettingKey key, Class<T> type) {

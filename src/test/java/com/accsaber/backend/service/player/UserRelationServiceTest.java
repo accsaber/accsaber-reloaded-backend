@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -22,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelation;
@@ -29,6 +32,7 @@ import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
 import com.accsaber.backend.repository.user.UserRelationRepository;
+import com.accsaber.backend.repository.user.UserRelationRepository.RelationCountView;
 import com.accsaber.backend.repository.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -142,6 +146,69 @@ class UserRelationServiceTest {
         private void visibility(Visibility visibility) {
             when(userSettingsService.getMany(anyCollection(), eq(UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY),
                     eq(Visibility.class))).thenReturn(Map.of(OLLIE, visibility));
+        }
+    }
+
+    @Nested
+    class Counts {
+
+        @BeforeEach
+        void setUp() {
+            List<RelationCountView> rows = List.of(
+                    row(UserRelationType.follower, 4, 7),
+                    row(UserRelationType.rival, 2, 3),
+                    row(UserRelationType.blocked, 5, 0));
+            when(relationRepository.countActiveByType(SONIQUE)).thenReturn(rows);
+        }
+
+        @Test
+        void anonymousViewer_getsOnlyWhatPrivacyAllows() {
+            visibility(Visibility.PRIVATE, Visibility.FOLLOWERS_ONLY);
+
+            UserRelationCounts counts = service.countsFor(SONIQUE, null);
+
+            assertThat(counts.getFollowerCount()).isEqualTo(7);
+            assertThat(counts.getRivaledByCount()).isEqualTo(3);
+            assertThat(counts.getFollowingCount()).isNull();
+            assertThat(counts.getRivalCount()).isNull();
+            assertThat(counts.getBlockedCount()).isNull();
+        }
+
+        @Test
+        void follower_seesFollowersOnlyCounts() {
+            visibility(Visibility.PRIVATE, Visibility.FOLLOWERS_ONLY);
+            when(relationRepository.existsByUser_IdAndTargetUser_IdAndTypeAndActiveTrue(VIEWER, SONIQUE,
+                    UserRelationType.follower)).thenReturn(true);
+
+            UserRelationCounts counts = service.countsFor(SONIQUE, VIEWER);
+
+            assertThat(counts.getFollowingCount()).isNull();
+            assertThat(counts.getRivalCount()).isEqualTo(2);
+            assertThat(counts.getBlockedCount()).isNull();
+        }
+
+        @Test
+        void owner_seesEverythingWithoutReadingSettings() {
+            UserRelationCounts counts = service.countsFor(SONIQUE, SONIQUE);
+
+            assertThat(counts.getFollowingCount()).isEqualTo(4);
+            assertThat(counts.getRivalCount()).isEqualTo(2);
+            assertThat(counts.getBlockedCount()).isEqualTo(5);
+            verifyNoInteractions(userSettingsService);
+        }
+
+        private void visibility(Visibility following, Visibility rivals) {
+            when(userSettingsService.get(eq(SONIQUE), anyCollection(), eq(Visibility.class))).thenReturn(Map.of(
+                    UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY, following,
+                    UserSettingKey.PRIVACY_RIVALS_VISIBILITY, rivals));
+        }
+
+        private RelationCountView row(UserRelationType type, long outgoing, long incoming) {
+            RelationCountView row = mock(RelationCountView.class);
+            lenient().when(row.getType()).thenReturn(type);
+            lenient().when(row.getOutgoing()).thenReturn(outgoing);
+            lenient().when(row.getIncoming()).thenReturn(incoming);
+            return row;
         }
     }
 

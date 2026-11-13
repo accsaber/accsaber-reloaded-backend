@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -28,6 +30,7 @@ import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
 import com.accsaber.backend.model.event.PlayersMergedEvent;
 import com.accsaber.backend.repository.user.UserRelationRepository;
+import com.accsaber.backend.repository.user.UserRelationRepository.RelationCountView;
 import com.accsaber.backend.repository.user.UserRepository;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.clan.ClanRefCache;
@@ -38,6 +41,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserRelationService {
+
+    private static final Set<UserSettingKey> VISIBILITY_KEYS = Set.of(
+            UserSettingKey.PRIVACY_FOLLOWING_VISIBILITY, UserSettingKey.PRIVACY_RIVALS_VISIBILITY);
 
     private final UserRelationRepository relationRepository;
     private final UserRepository userRepository;
@@ -80,33 +86,33 @@ public class UserRelationService {
         return findRelationFilterUserIds(principal.getUserId(), relation);
     }
 
-    public UserRelationCounts countsFor(Long userId, boolean isSelf) {
-        return countsFor(userId, isSelf, true, true);
-    }
-
-    public UserRelationCounts countsFor(Long userId, boolean isSelf, boolean canSeeFollowing, boolean canSeeRivals) {
-        long followerCount = relationRepository
-                .countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower);
-        long rivaledByCount = relationRepository
-                .countByTargetUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival);
-        Long followingCount = (canSeeFollowing || isSelf)
-                ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.follower)
-                : null;
-        Long rivalCount = (canSeeRivals || isSelf)
-                ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.rival)
-                : null;
+    public UserRelationCounts countsFor(Long userId, Long viewerUserId) {
+        boolean isSelf = userId.equals(viewerUserId);
+        Map<UserSettingKey, Visibility> visibility = isSelf ? Map.of()
+                : userSettingsService.get(userId, VISIBILITY_KEYS, Visibility.class);
+        boolean follows = visibility.containsValue(Visibility.FOLLOWERS_ONLY) && isFollowerOf(viewerUserId, userId);
+        Map<UserRelationType, RelationCountView> counts = relationRepository.countActiveByType(userId).stream()
+                .collect(Collectors.toMap(RelationCountView::getType, row -> row));
+        Predicate<UserRelationType> listVisible = type -> isSelf
+                || canView(visibility.get(visibilityKey(type)), () -> follows);
         return UserRelationCounts.builder()
-                .followingCount(followingCount)
-                .followerCount(followerCount)
-                .rivalCount(rivalCount)
-                .rivaledByCount(rivaledByCount)
-                .blockedCount(isSelf
-                        ? relationRepository.countByUser_IdAndTypeAndActiveTrue(userId, UserRelationType.blocked)
-                        : null)
+                .followingCount(listVisible.test(UserRelationType.follower)
+                        ? count(counts, UserRelationType.follower, RelationCountView::getOutgoing) : null)
+                .followerCount(count(counts, UserRelationType.follower, RelationCountView::getIncoming))
+                .rivalCount(listVisible.test(UserRelationType.rival)
+                        ? count(counts, UserRelationType.rival, RelationCountView::getOutgoing) : null)
+                .rivaledByCount(count(counts, UserRelationType.rival, RelationCountView::getIncoming))
+                .blockedCount(isSelf ? count(counts, UserRelationType.blocked, RelationCountView::getOutgoing) : null)
                 .build();
     }
 
-    public boolean isFollowerOf(Long viewerId, Long targetUserId) {
+    private static long count(Map<UserRelationType, RelationCountView> counts, UserRelationType type,
+            ToLongFunction<RelationCountView> side) {
+        RelationCountView row = counts.get(type);
+        return row == null ? 0 : side.applyAsLong(row);
+    }
+
+    private boolean isFollowerOf(Long viewerId, Long targetUserId) {
         if (viewerId == null) return false;
         return relationRepository.existsByUser_IdAndTargetUser_IdAndTypeAndActiveTrue(
                 viewerId, targetUserId, UserRelationType.follower);

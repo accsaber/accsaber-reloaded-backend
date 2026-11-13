@@ -30,9 +30,24 @@ public interface UserRelationRepository extends JpaRepository<UserRelation, UUID
 
     List<UserRelation> findByUser_IdAndTargetUser_IdAndActiveTrue(Long userId, Long targetUserId);
 
-    long countByUser_IdAndTypeAndActiveTrue(Long userId, UserRelationType type);
+    interface RelationCountView {
+        UserRelationType getType();
 
-    long countByTargetUser_IdAndTypeAndActiveTrue(Long targetUserId, UserRelationType type);
+        long getOutgoing();
+
+        long getIncoming();
+    }
+
+    @Query("""
+            SELECT r.type AS type,
+                   SUM(CASE WHEN r.user.id = :userId THEN 1 ELSE 0 END) AS outgoing,
+                   SUM(CASE WHEN r.targetUser.id = :userId THEN 1 ELSE 0 END) AS incoming
+            FROM UserRelation r
+            WHERE (r.user.id = :userId OR r.targetUser.id = :userId)
+            AND r.active = true
+            GROUP BY r.type
+            """)
+    List<RelationCountView> countActiveByType(@Param("userId") Long userId);
 
     @Query("""
             SELECT r.targetUser.id FROM UserRelation r

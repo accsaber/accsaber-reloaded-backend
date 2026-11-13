@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.security.StaffPrincipals;
 
 import com.accsaber.backend.model.dto.request.campaign.CampaignFilter;
@@ -69,14 +67,12 @@ public class UserController {
     private final CategoryService categoryService;
 
     @Operation(summary = "Player profile", description = "statistics=true adds all category stats. "
-            + "blockedCount only shows on your own profile.")
+            + "Same for every viewer. relations holds the public counts, the relations counts route has yours.")
     @GetMapping("/{userId}")
     public ResponseEntity<UserResponse> getUser(
             @PathVariable Long userId,
-            @RequestParam(defaultValue = "false") boolean statistics,
-            @AuthenticationPrincipal PlayerUserDetails principal) {
-        Long viewerId = principal != null ? principal.getUserId() : null;
-        UserResponse user = userService.findByUserId(userId, viewerId);
+            @RequestParam(defaultValue = "false") boolean statistics) {
+        UserResponse user = userService.findByUserId(userId);
         if (statistics) {
             user = user.withStatistics(statisticsService.findCategoryStatsByUser(userId));
         }

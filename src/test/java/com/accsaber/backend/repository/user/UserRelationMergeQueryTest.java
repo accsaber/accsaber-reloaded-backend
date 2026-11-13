@@ -67,7 +67,8 @@ class UserRelationMergeQueryTest {
         merge();
 
         assertThat(follows(FAN, PRIMARY)).isTrue();
-        assertThat(relationRepository.countByUser_IdAndTypeAndActiveTrue(FAN, UserRelationType.follower)).isEqualTo(1);
+        assertThat(relationRepository.countActiveByType(FAN)).singleElement()
+                .satisfies(row -> assertThat(row.getOutgoing()).isEqualTo(1));
     }
 
     @Test
@@ -95,8 +96,23 @@ class UserRelationMergeQueryTest {
 
         merge();
 
-        assertThat(relationRepository.countByUser_IdAndTypeAndActiveTrue(SECONDARY, UserRelationType.follower)).isZero();
-        assertThat(relationRepository.countByUser_IdAndTypeAndActiveTrue(PRIMARY, UserRelationType.follower)).isZero();
+        assertThat(relationRepository.countActiveByType(SECONDARY)).isEmpty();
+        assertThat(relationRepository.countActiveByType(PRIMARY)).isEmpty();
+    }
+
+    @Test
+    void countsOutgoingAndIncomingPerTypeAndSkipsInactive() {
+        relation(PRIMARY, IDOL, true);
+        relation(FAN, PRIMARY, true);
+        relation(SECONDARY, PRIMARY, true);
+        relation(IDOL, PRIMARY, false);
+        entityManager.flush();
+
+        assertThat(relationRepository.countActiveByType(PRIMARY)).singleElement().satisfies(row -> {
+            assertThat(row.getType()).isEqualTo(UserRelationType.follower);
+            assertThat(row.getOutgoing()).isEqualTo(1);
+            assertThat(row.getIncoming()).isEqualTo(2);
+        });
     }
 
     private void relation(Long userId, Long targetUserId, boolean active) {
