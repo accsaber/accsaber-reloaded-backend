@@ -106,6 +106,8 @@ class ClanWarRosterServiceTest {
                 .stakeRemaining(5000).build());
         sides.add(ClanWarSide.builder().war(war).clan(defender).team(ClanWarTeam.defend).stake(5000)
                 .stakeRemaining(5000).build());
+        lenient().when(stakeService.breakRisk(any()))
+                .thenAnswer(inv -> inv.<ClanWarSide>getArgument(0).getClan() == ally ? 0.6 : 1.0);
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
         lenient().when(sideRepository.findByWarId(war.getId())).thenAnswer(inv -> List.copyOf(sides));
         lenient().when(userRepository.getReferenceById(anyLong()))
@@ -219,7 +221,8 @@ class ClanWarRosterServiceTest {
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).containsOnlyKeys(1L, 11L, 21L);
         assertThat(participants.get(21L).getClan()).isSameAs(ally);
-        assertThat(participants.get(21L).getStandingWeight()).isCloseTo(3600.0 / 10000, within(1e-12));
+        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(6400.0 / 8560, within(1e-12));
+        assertThat(participants.get(21L).getStandingWeight()).isCloseTo(3600.0 / 8560, within(1e-12));
     }
 
     @Test

@@ -71,16 +71,19 @@ public class ClanWarStakeService {
         sideRepository.saveAll(sides);
     }
 
-    public double fullTeamStake(List<ClanWarSide> sides, ClanWarTeam team) {
-        return sides.stream().filter(side -> side.getTeam() == team).mapToDouble(side -> side.getStake() / risk(side))
-                .sum();
+    public double pot(List<ClanWarSide> sides) {
+        return sides.stream().filter(ClanWarStakeService::lead).mapToDouble(ClanWarSide::getStake).min().orElse(0.0);
     }
 
     public double breakAmount(List<ClanWarSide> sides, ClanWarSide victimSide, ClanWarParticipant victim) {
         ClanProperties.War config = clanProperties.getWar();
-        double moved = fullTeamStake(sides, victimSide.getTeam()) * config.getBreakShare() * victim.getStandingWeight()
-                * victim.getBounty() * risk(victimSide);
+        double moved = pot(sides) * config.getBreakShare() * victim.getStandingWeight() * victim.getBounty()
+                * breakRisk(victimSide);
         return Math.min(victimSide.getStakeRemaining(), Math.max(0.0, moved));
+    }
+
+    public double breakRisk(ClanWarSide side) {
+        return lead(side) ? 1.0 : clanProperties.getWar().getAllyBreakShare();
     }
 
     public void loadBounties(UUID warId, Collection<ClanWarParticipant> participants) {
@@ -107,8 +110,11 @@ public class ClanWarStakeService {
     }
 
     public double risk(ClanWarSide side) {
-        return side.getWar().leadTeamOf(side.getClan().getId()) != null ? 1.0
-                : clanProperties.getWar().getAllyStakeShare();
+        return lead(side) ? 1.0 : clanProperties.getWar().getAllyStakeShare();
+    }
+
+    private static boolean lead(ClanWarSide side) {
+        return side.getWar().leadTeamOf(side.getClan().getId()) != null;
     }
 
     public boolean lost(List<ClanWarSide> sides, ClanWarTeam team) {

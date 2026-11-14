@@ -284,6 +284,7 @@ public class ClanWarRosterService {
         Map<UUID, ClanWarTeam> teams = teams(sides);
         Map<Long, MemberStrength> roster = new HashMap<>();
         Map<ClanWarTeam, Double> teamHeft = new EnumMap<>(ClanWarTeam.class);
+        Map<UUID, ClanWarSide> sideByClan = byClan(sides);
         for (ClanWarTeam team : ClanWarTeam.values()) {
             List<UUID> clanIds = sides.stream()
                     .filter(side -> side.getTeam() == team && side.fighting())
@@ -291,11 +292,12 @@ public class ClanWarRosterService {
                     .toList();
             List<MemberStrength> members = strengthService.memberStrengths(clanIds, war.getId());
             members.forEach(member -> roster.put(member.userId(), member));
-            teamHeft.put(team, members.stream().mapToDouble(ClanWarRosterService::heft).sum());
+            teamHeft.put(team, members.stream()
+                    .mapToDouble(member -> heft(member) * stakeService.breakRisk(sideByClan.get(member.clanId())))
+                    .sum());
         }
         double heaviest = Collections.max(teamHeft.values());
         ToDoubleFunction<MemberStrength> weight = member -> heft(member) / heaviest;
-        Map<UUID, ClanWarSide> sideByClan = byClan(sides);
         Map<Long, ClanWarParticipant> existing = participantRepository.findByWarId(war.getId()).stream()
                 .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity()));
         Instant now = Instant.now();

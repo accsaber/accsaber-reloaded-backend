@@ -200,8 +200,19 @@ class ClanWarStakeServiceTest {
             departed.setLeftAt(Instant.now());
 
             assertThat(service.drainedShare(List.of(lead, departed), ClanWarTeam.defend)).isEqualTo(0.25);
-            assertThat(service.fullTeamStake(List.of(lead, departed), ClanWarTeam.defend))
-                    .isCloseTo(3000.0 + 1000.0 / 0.3, within(1e-9));
+        }
+
+        @Test
+        void equalSkillCostsTheSameOnEitherTeamAndAnAllyCostsItsBreakShare() {
+            ClanWarSide attack = side(stars, ClanWarTeam.attack, 1000, 1000);
+            ClanWarSide defend = side(genx, ClanWarTeam.defend, 1000, 1000);
+            ClanWarSide ally = side(fish, ClanWarTeam.defend, 900, 900);
+            List<ClanWarSide> sides = List.of(attack, defend, ally);
+            ClanWarParticipant fighter = ClanWarParticipant.builder().standingWeight(0.1).build();
+
+            assertThat(service.breakAmount(sides, attack, fighter)).isCloseTo(1000 * 0.4 * 0.1, within(1e-9));
+            assertThat(service.breakAmount(sides, defend, fighter)).isCloseTo(1000 * 0.4 * 0.1, within(1e-9));
+            assertThat(service.breakAmount(sides, ally, fighter)).isCloseTo(1000 * 0.4 * 0.1 * 0.6, within(1e-9));
         }
 
         @Test

@@ -73,6 +73,7 @@ public class ClanProperties {
         private double chipSkillExponent = 2.0;
         private double extraChipChance = 0.25;
         private double allyStakeShare = 0.3;
+        private double allyBreakShare = 0.6;
         private Duration maxDuration = Duration.ofDays(28);
         private Duration brokenDuration = Duration.ofDays(7);
         private Duration wipeDuration = Duration.ofDays(2);

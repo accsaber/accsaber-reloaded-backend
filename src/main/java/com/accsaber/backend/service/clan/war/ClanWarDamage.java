@@ -95,14 +95,14 @@ class ClanWarDamage {
                 config.getBrokenDuration().toHours(), config.getWipeDuration().toHours());
     }
 
-    double hitDamage(Streak streak, UUID mapDifficultyId, double scale, boolean missingScore) {
-        double penalty = mapPenalty(streak.breaksOn(mapDifficultyId));
+    double hitDamage(Streak streak, UUID mapDifficultyId, double disparity, double lastStand, boolean missingScore) {
+        double penalty = mapPenalty(streak.breaksOn(mapDifficultyId)) * lastStand;
         if (missingScore) {
             return clanProperties.getWar().getBaseDamage() * penalty;
         }
         double bonus = escalated(streak.hits(), streak.chips()) / clanProperties.getWar().getBaseDamage() - 1.0;
         double share = Math.pow(clanProperties.getWar().getRepeatMapShare(), streak.hitsOn(mapDifficultyId));
-        return clanProperties.getWar().getBaseDamage() * (1.0 + bonus * share) * scale * penalty;
+        return clanProperties.getWar().getBaseDamage() * (1.0 + bonus * share) * disparity * penalty;
     }
 
     double chip(double gap, double attackerSkill, double victimSkill) {
@@ -175,7 +175,7 @@ class ClanWarDamage {
             double disparity = disparity(attackerSkill, field.skills().getOrDefault(enemyId, 0.0));
             Strike strike = new Strike(enemy, score == null ? Kind.MISSING : Kind.HIT,
                     hitDamage(cycleHits.getOrDefault(enemyId, Streak.NONE), difficultyId,
-                            disparity * field.lastStand(), score == null),
+                            disparity, field.lastStand(), score == null),
                     field.standing().applyAsDouble(enemy));
             if (best == null || BEST.compare(strike, best) > 0) {
                 best = strike;
@@ -201,7 +201,7 @@ class ClanWarDamage {
             Streak streak = cycleHits.getOrDefault(victimId, Streak.NONE);
             ClanWarStrikeMapResponse map = onMap.get(victimId);
             boolean missing = map != null && map.targetScore() == null;
-            double damage = hitDamage(streak, viewer.mapDifficultyId(), disparity * field.lastStand(), missing);
+            double damage = hitDamage(streak, viewer.mapDifficultyId(), disparity, field.lastStand(), missing);
             double standing = field.standing().applyAsDouble(victim);
             int hitsToBreak = missing ? (int) Math.ceil(victim.getGuard() / damage)
                     : hitsToBreak(victim.getGuard(), streak, disparity, field.lastStand());

@@ -241,7 +241,7 @@ public class ClanWarCombatService {
         double disparity = warDamage.disparity(skill(battle, battle.attacker()), skill(battle, enemy));
         double damage = warDamage.hitDamage(
                 battle.cycleHits().getOrDefault(enemy.getUser().getId(), ClanWarHitRepository.Streak.NONE),
-                battle.play().mapDifficultyId(), disparity * battle.lastStand(), kind == Kind.MISSING);
+                battle.play().mapDifficultyId(), disparity, battle.lastStand(), kind == Kind.MISSING);
         return new Strike(enemy, kind, damage, standing(battle, enemy));
     }
 

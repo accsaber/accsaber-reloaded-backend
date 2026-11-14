@@ -479,7 +479,7 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aHitOnSomeoneWithNoScoreIsFlatBaseWhateverTheSkillGapAndOnlyTheMapPenaltyLowersIt() {
+        void aHitOnSomeoneWithNoScoreIsFlatBaseWhateverTheSkillGapAndTheMapPenaltyLowersIt() {
             skills.put(1L, 1.0);
             skills.put(11L, 100.0);
 
@@ -573,6 +573,18 @@ class ClanWarCombatServiceTest {
             }
 
             service.fight(war.getId(), play(950_000, true));
+
+            assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 0.75, within(1e-9));
+        }
+
+        @Test
+        void aHitOnSomeoneWithNoScoreSoftensWithTheLastStandToo() {
+            join(12L, blue, 0.1, 50);
+            for (long id = 13; id <= 16; id++) {
+                join(id, blue, 0.1, 50).setBrokenAt(Instant.now());
+            }
+
+            service.fight(war.getId(), play(950_000, false));
 
             assertThat(savedHits.getFirst().getDamage()).isCloseTo(25.0 * 0.75, within(1e-9));
         }
@@ -708,7 +720,7 @@ class ClanWarCombatServiceTest {
         }
 
         @Test
-        void aBreakOnACoalitionMemberUsesTheWholeTeamStake() {
+        void anAllyJoiningDoesNotChangeWhatALeadsPlayerCosts() {
             Clan ally = Clan.builder().id(UUID.randomUUID()).build();
             ClanWarSide allySide = ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(500.0)
                     .stakeRemaining(500.0).build();
@@ -716,14 +728,13 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            double fullTeamStake = 1000 + 500 / 0.3;
-            assertThat(savedHits.getFirst().getStandingMoved()).isCloseTo(fullTeamStake * 0.2 * 0.5 * 0.5, within(1e-9));
-            assertThat(blueSide.getStakeRemaining()).isCloseTo(1000 - fullTeamStake * 0.05, within(1e-9));
+            assertThat(savedHits.getFirst().getStandingMoved()).isCloseTo(1000 * 0.2 * 0.5 * 0.5, within(1e-9));
+            assertThat(blueSide.getStakeRemaining()).isCloseTo(950.0, within(1e-9));
             assertThat(allySide.getStakeRemaining()).isEqualTo(500.0);
         }
 
         @Test
-        void aBreakOnAnAllysPlayerOnlyMovesTheAllysShare() {
+        void aBreakOnAnAllysPlayerMovesTheAllysBreakShare() {
             Clan ally = Clan.builder().id(UUID.randomUUID()).build();
             ClanWarSide allySide = ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(300.0)
                     .stakeRemaining(300.0).build();
@@ -732,10 +743,8 @@ class ClanWarCombatServiceTest {
 
             service.fight(war.getId(), play(950_000, true));
 
-            double fullTeamStake = 1000 + 300 / 0.3;
-            assertThat(savedHits.getFirst().getStandingMoved())
-                    .isCloseTo(fullTeamStake * 0.2 * 0.5 * 0.5 * 0.3, within(1e-9));
-            assertThat(allySide.getStakeRemaining()).isCloseTo(300 - fullTeamStake * 0.05 * 0.3, within(1e-9));
+            assertThat(savedHits.getFirst().getStandingMoved()).isCloseTo(1000 * 0.2 * 0.5 * 0.5 * 0.6, within(1e-9));
+            assertThat(allySide.getStakeRemaining()).isCloseTo(270.0, within(1e-9));
             assertThat(blueSide.getStakeRemaining()).isEqualTo(1000.0);
         }
 
