@@ -3,6 +3,7 @@ package com.accsaber.backend.service.clan.war;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -168,16 +169,24 @@ public class ClanWarService {
 
     @Transactional
     public void endAtCap(UUID warId) {
+        endActive(warId, sides -> {
+            double attackDrained = stakeService.drainedShare(sides, ClanWarTeam.attack);
+            double defendDrained = stakeService.drainedShare(sides, ClanWarTeam.defend);
+            return defendDrained == attackDrained ? ClanWarOutcome.drawn
+                    : ClanWarOutcome.wonBy(defendDrained > attackDrained ? ClanWarTeam.attack : ClanWarTeam.defend);
+        });
+    }
+
+    @Transactional
+    public void endRetreat(UUID warId) {
+        endActive(warId, sides -> stakeService.drainedShare(sides, ClanWarTeam.attack) >= clanProperties.getWar()
+                .getRetreatWinDrain() ? ClanWarOutcome.wonBy(ClanWarTeam.defend) : ClanWarOutcome.retreated);
+    }
+
+    private void endActive(UUID warId, Function<List<ClanWarSide>, ClanWarOutcome> outcome) {
         warRepository.findByIdForUpdate(warId)
                 .filter(war -> war.getStatus() == ClanWarStatus.active)
-                .ifPresent(war -> {
-                    List<ClanWarSide> sides = sideRepository.findByWarId(warId);
-                    double attackDrained = stakeService.drainedShare(sides, ClanWarTeam.attack);
-                    double defendDrained = stakeService.drainedShare(sides, ClanWarTeam.defend);
-                    ClanWarOutcome outcome = defendDrained == attackDrained ? ClanWarOutcome.drawn
-                            : ClanWarOutcome.wonBy(defendDrained > attackDrained ? ClanWarTeam.attack : ClanWarTeam.defend);
-                    end(war, outcome, null);
-                });
+                .ifPresent(war -> end(war, outcome.apply(sideRepository.findByWarId(warId)), null));
     }
 
     @Transactional

@@ -70,7 +70,7 @@ class ClanWarSchedulerTest {
         verify(poolService).closePicks(duePick);
         verify(rosterService).start(dueStart);
         verify(warService).end(quiet, ClanWarOutcome.drawn);
-        verify(warService).end(retreated, ClanWarOutcome.retreated);
+        verify(warService).endRetreat(retreated);
         verify(rosterService).restoreGuards(eq(guardsDue), any(), any());
         verify(settlementService).settle(unsettled);
     }

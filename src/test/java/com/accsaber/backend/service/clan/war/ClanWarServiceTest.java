@@ -456,6 +456,24 @@ class ClanWarServiceTest {
         }
 
         @Test
+        void aRetreatAfterLosingMostOfTheStakeIsADefenderWin() {
+            when(stakeService.drainedShare(sides, ClanWarTeam.attack)).thenReturn(0.8);
+
+            service.endRetreat(war.getId());
+
+            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.defender_won);
+        }
+
+        @Test
+        void aRetreatBelowTheDrainLineHasNoWinner() {
+            when(stakeService.drainedShare(sides, ClanWarTeam.attack)).thenReturn(0.79);
+
+            service.endRetreat(war.getId());
+
+            assertThat(war.getOutcome()).isEqualTo(ClanWarOutcome.retreated);
+        }
+
+        @Test
         void aWarThatAlreadyEndedIsLeftAlone() {
             war.setStatus(ClanWarStatus.ended);
             war.setOutcome(ClanWarOutcome.retreated);
