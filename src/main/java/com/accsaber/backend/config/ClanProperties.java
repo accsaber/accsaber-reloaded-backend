@@ -82,5 +82,6 @@ public class ClanProperties {
         private Duration redeclareCooldown = Duration.ofDays(7);
         private Duration retreatWindow = Duration.ofHours(24);
         private double retreatWinDrain = 0.8;
+        private double minLeadWeight = 0.45;
     }
 }

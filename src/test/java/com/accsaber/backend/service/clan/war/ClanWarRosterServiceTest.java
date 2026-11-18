@@ -44,6 +44,7 @@ import com.accsaber.backend.model.entity.clan.war.ClanWarStatus;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTargeting;
 import com.accsaber.backend.model.entity.clan.war.ClanWarTeam;
 import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.event.ClanMembershipChangedEvent;
 import com.accsaber.backend.repository.clan.ClanMemberRepository;
 import com.accsaber.backend.repository.clan.war.ClanWarHitRepository;
@@ -56,6 +57,7 @@ import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanStrengthService;
+import com.accsaber.backend.service.player.UserSettingsService;
 import com.accsaber.backend.service.clan.ClanStrengthService.MemberStrength;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,6 +85,8 @@ class ClanWarRosterServiceTest {
     private ClanChatChannel chatChannel;
     @Mock
     private ClanWarScoreGate scoreGate;
+    @Mock
+    private UserSettingsService settingsService;
 
     private final ClanProperties clanProperties = new ClanProperties();
     private ClanWarRosterService service;
@@ -97,7 +101,8 @@ class ClanWarRosterServiceTest {
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarRosterService(warRepository, sideRepository, participantRepository, userRepository,
-                strengthService, stakeService, new ClanWarDamage(hitRepository, clanProperties),
+                strengthService, stakeService, new ClanWarOutmatch(strengthService, settingsService, clanProperties),
+                new ClanWarDamage(hitRepository, clanProperties),
                 chatChannel, scoreGate, feed, notifier, clanProperties);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.preparing).startsAt(Instant.now().minusSeconds(1))
@@ -139,10 +144,43 @@ class ClanWarRosterServiceTest {
     }
 
     @Test
-    void startingSettlesTheStakesAndLetsTheLighterTeamTakeLongerToDrain() {
+    void aForecastWeighsOnlyTheMembersWhoWouldFight() {
+        when(strengthService.memberStrengths(List.of(attacker.getId(), defender.getId()), null)).thenReturn(List.of(
+                new MemberStrength(attacker.getId(), 1L, 90, 0.5), new MemberStrength(attacker.getId(), 2L, 90, 0.5),
+                new MemberStrength(defender.getId(), 11L, 60, 0.5), new MemberStrength(defender.getId(), 12L, 90, 0.5)));
+        when(settingsService.getMany(List.of(1L, 2L, 11L, 12L), UserSettingKey.CLANS_WAR_PARTICIPATION, Boolean.class))
+                .thenReturn(Map.of(1L, true, 2L, true, 11L, true, 12L, false));
+
+        Map<ClanWarTeam, Double> worth = service.forecast(attacker.getId(), defender.getId()).worth();
+
+        assertThat(worth.get(ClanWarTeam.attack)).isEqualTo(1.0);
+        assertThat(worth.get(ClanWarTeam.defend)).isCloseTo(0.45 * 16200 / 3600, within(1e-12));
+    }
+
+    @Test
+    void onlyTheTwoLeadsDecideWhoIsOutmatchedAndAnAllysFightersAreNeverLifted() {
+        war.setStatus(ClanWarStatus.active);
+        sides.add(ClanWarSide.builder().war(war).clan(ally).team(ClanWarTeam.defend).stake(2000)
+                .stakeRemaining(2000).build());
+        teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 0.5),
+                new MemberStrength(attacker.getId(), 2L, 90, 0.5)),
+                List.of(new MemberStrength(defender.getId(), 11L, 50, 0.2),
+                        new MemberStrength(defender.getId(), 12L, 50, 0.2),
+                        new MemberStrength(ally.getId(), 21L, 95, 0.6)));
+
+        resync();
+
+        Map<Long, ClanWarParticipant> participants = saved();
+        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(0.225, within(1e-12));
+        assertThat(participants.get(21L).getStandingWeight()).isCloseTo(9025.0 / 16200, within(1e-12));
+        assertThat(participants.get(1L).getStandingWeight()).isCloseTo(0.5, within(1e-12));
+    }
+
+    @Test
+    void startingSettlesTheStakesAndLiftsAnOutmatchedLeadToTheFloor() {
         teams(List.of(new MemberStrength(attacker.getId(), 1L, 90, 0.6),
                 new MemberStrength(attacker.getId(), 2L, 70, 0.4)),
-                List.of(new MemberStrength(defender.getId(), 11L, 80, 1.0)));
+                List.of(new MemberStrength(defender.getId(), 11L, 70, 1.0)));
 
         service.start(war.getId());
 
@@ -152,7 +190,7 @@ class ClanWarRosterServiceTest {
         Map<Long, ClanWarParticipant> participants = saved();
         assertThat(participants).hasSize(3);
         assertThat(participants.get(1L).getStandingWeight()).isCloseTo(8100.0 / 13000, within(1e-12));
-        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(6400.0 / 13000, within(1e-12));
+        assertThat(participants.get(11L).getStandingWeight()).isCloseTo(0.45, within(1e-12));
         assertThat(participants.get(1L).getClan()).isSameAs(attacker);
         assertThat(participants.get(1L).getTarget()).isNull();
         verify(chatChannel).announce(attacker, ChatNotice.ofWar(ChatEvent.war_started, null, defender, war));

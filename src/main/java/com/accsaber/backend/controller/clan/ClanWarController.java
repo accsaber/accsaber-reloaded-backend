@@ -34,6 +34,7 @@ import com.accsaber.backend.model.dto.request.clan.UpdateClanWarRequest;
 import com.accsaber.backend.model.dto.request.clan.UpdateClanWarSideRequest;
 import com.accsaber.backend.model.dto.response.clan.ClanWarAidResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarForecastResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
@@ -77,6 +78,15 @@ public class ClanWarController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(warService.list(clanId, open, search, pageable));
+    }
+
+    @Operation(summary = "Forecast a war",
+            description = "Each team's outmatched worth if the attacker declared now. An estimate.")
+    @GetMapping("/wars/forecast")
+    public ResponseEntity<ClanWarForecastResponse> forecast(
+            @RequestParam UUID attackerClanId,
+            @RequestParam UUID defenderClanId) {
+        return ResponseEntity.ok(rosterService.forecast(attackerClanId, defenderClanId));
     }
 
     @Operation(summary = "Declare war",

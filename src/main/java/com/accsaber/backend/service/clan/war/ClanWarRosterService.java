@@ -27,6 +27,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.accsaber.backend.config.ClanProperties;
 import com.accsaber.backend.exception.ResourceNotFoundException;
+import com.accsaber.backend.model.dto.response.clan.ClanWarForecastResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarLastStandResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarStrikePreviewResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarParticipantResponse;
@@ -68,6 +69,7 @@ public class ClanWarRosterService {
     private final UserRepository userRepository;
     private final ClanStrengthService strengthService;
     private final ClanWarStakeService stakeService;
+    private final ClanWarOutmatch outmatch;
     private final ClanWarDamage warDamage;
     private final ClanChatChannel chatChannel;
     private final ClanWarScoreGate scoreGate;
@@ -109,12 +111,23 @@ public class ClanWarRosterService {
         }
         List<ClanWarParticipant> roster = participantRepository.findActiveByWarId(war.getId());
         Map<UUID, ClanWarSide> sideByClan = byClan(sideRepository.findByWarId(war.getId()));
+        Map<Long, Double> skills = skills(roster.stream().map(p -> p.getUser().getId()).toList());
+        Map<ClanWarTeam, Double> worth = outmatch.worth(war.getAttackerClan().getId(), war.getDefenderClan().getId(),
+                roster.stream()
+                        .filter(p -> sideByClan.get(p.getClan().getId()).fighting())
+                        .collect(Collectors.groupingBy(p -> p.getClan().getId(), Collectors.summingDouble(
+                                p -> ClanWarOutmatch.heft(skills.getOrDefault(p.getUser().getId(), 0.0))))));
         Map<ClanWarTeam, ClanWarLastStandResponse> teams = new EnumMap<>(ClanWarTeam.class);
         for (ClanWarTeam team : ClanWarTeam.values()) {
             teams.put(team, new ClanWarLastStandResponse(warDamage.lastStand(roster, sideByClan, team),
-                    warDamage.reviveSpeed(roster, sideByClan, team)));
+                    warDamage.reviveSpeed(roster, sideByClan, team), worth.get(team)));
         }
         return teams;
+    }
+
+    @Transactional(readOnly = true)
+    public ClanWarForecastResponse forecast(UUID attackerClanId, UUID defenderClanId) {
+        return new ClanWarForecastResponse(outmatch.forecast(attackerClanId, defenderClanId));
     }
 
     @Transactional
@@ -293,11 +306,18 @@ public class ClanWarRosterService {
             List<MemberStrength> members = strengthService.memberStrengths(clanIds, war.getId());
             members.forEach(member -> roster.put(member.userId(), member));
             teamHeft.put(team, members.stream()
-                    .mapToDouble(member -> heft(member) * stakeService.breakRisk(sideByClan.get(member.clanId())))
+                    .mapToDouble(member -> ClanWarOutmatch.heft(member.skill())
+                            * stakeService.breakRisk(sideByClan.get(member.clanId())))
                     .sum());
         }
         double heaviest = Collections.max(teamHeft.values());
-        ToDoubleFunction<MemberStrength> weight = member -> heft(member) / heaviest;
+        Map<ClanWarTeam, Double> worth = outmatch.worth(war.getAttackerClan().getId(), war.getDefenderClan().getId(),
+                ClanWarOutmatch.clanHeft(roster.values()));
+        ToDoubleFunction<MemberStrength> weight = member -> {
+            ClanWarTeam team = teams.get(member.clanId());
+            boolean lead = member.clanId().equals(war.lead(team).getId());
+            return ClanWarOutmatch.heft(member.skill()) * (lead ? worth.get(team) : 1.0) / heaviest;
+        };
         Map<Long, ClanWarParticipant> existing = participantRepository.findByWarId(war.getId()).stream()
                 .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity()));
         Instant now = Instant.now();
@@ -323,11 +343,6 @@ public class ClanWarRosterService {
         clearIllegalTargets(existing, teams);
         participantRepository.saveAll(existing.values());
         scoreGate.refreshAfterCommit();
-    }
-
-    private static double heft(MemberStrength member) {
-        double skill = ClanWarDamage.skill(member.skill());
-        return skill * skill;
     }
 
     private void clearIllegalTargets(Map<Long, ClanWarParticipant> participants, Map<UUID, ClanWarTeam> teams) {

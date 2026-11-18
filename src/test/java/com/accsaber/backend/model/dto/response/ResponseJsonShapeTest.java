@@ -25,6 +25,7 @@ import com.accsaber.backend.model.dto.response.campaign.CampaignTagResponse;
 import com.accsaber.backend.model.dto.response.campaign.CampaignTextResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanMembershipResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarDetailResponse;
+import com.accsaber.backend.model.dto.response.clan.ClanWarForecastResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarLastStandResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarHitResponse;
 import com.accsaber.backend.model.dto.response.clan.ClanWarOrdersResponse;
@@ -192,12 +193,22 @@ class ResponseJsonShapeTest {
     }
 
     @Test
+    void aWarForecastCarriesEachTeamsWorth() {
+        JsonNode forecast = json(new ClanWarForecastResponse(new java.util.EnumMap<>(
+                java.util.Map.of(ClanWarTeam.attack, 1.0, ClanWarTeam.defend, 1.6))));
+
+        assertThat(forecast.toString()).isEqualTo("{\"worth\":{\"attack\":1,\"defend\":1.6}}");
+    }
+
+    @Test
     void warDetailCarriesEachTeamsLastStandAndReviveSpeed() {
         JsonNode detail = json(new ClanWarDetailResponse(null, List.of(), List.of(), null,
-                java.util.Map.of(ClanWarTeam.attack, new ClanWarLastStandResponse(1.0, 1.0),
-                        ClanWarTeam.defend, new ClanWarLastStandResponse(0.75, 2.25))));
+                java.util.Map.of(ClanWarTeam.attack, new ClanWarLastStandResponse(1.0, 1.0, 1.0),
+                        ClanWarTeam.defend, new ClanWarLastStandResponse(0.75, 2.25, 2.0))));
 
-        assertThat(detail.get("lastStand").get("attack").toString()).isEqualTo("{\"damage\":1,\"reviveSpeed\":1}");
+        assertThat(detail.get("lastStand").get("attack").toString())
+                .isEqualTo("{\"damage\":1,\"reviveSpeed\":1,\"worth\":1}");
+        assertThat(detail.get("lastStand").get("defend").get("worth").toString()).isEqualTo("2");
         assertThat(detail.get("lastStand").get("defend").get("reviveSpeed").toString()).isEqualTo("2.25");
     }
 

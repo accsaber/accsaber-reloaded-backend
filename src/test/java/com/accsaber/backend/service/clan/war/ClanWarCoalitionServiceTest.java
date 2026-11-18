@@ -33,6 +33,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.ClanRole;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
@@ -54,6 +55,7 @@ import com.accsaber.backend.service.clan.ChatNotice;
 import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
+import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanFeed;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
@@ -79,6 +81,8 @@ class ClanWarCoalitionServiceTest {
     private ClanAccessService accessService;
     @Mock
     private ClanStandingService standingService;
+    @Mock
+    private ClanLevelService levelService;
     @Mock
     private ClanCosmeticService cosmeticService;
     @Mock
@@ -109,7 +113,7 @@ class ClanWarCoalitionServiceTest {
     void setUp() {
         lenient().when(warRepository.lockOrThrow(any())).thenCallRealMethod();
         service = new ClanWarCoalitionService(aidRepository, warRepository, sideRepository, allianceRepository,
-                memberRepository, roster, accessService, standingService, cosmeticService, stakeService,
+                memberRepository, roster, accessService, standingService, levelService, cosmeticService, stakeService,
                 rosterService, warService, warResponses, chatChannel, feed, notifier);
         war = ClanWar.builder().id(UUID.randomUUID()).attackerClan(attacker).defenderClan(defender)
                 .ruleset(ClanRuleset.duel).status(ClanWarStatus.active).build();
@@ -122,6 +126,7 @@ class ClanWarCoalitionServiceTest {
         lenient().when(warRepository.findByIdForUpdate(war.getId())).thenReturn(Optional.of(war));
         lenient().when(sideRepository.findByWarId(war.getId())).thenAnswer(inv -> List.copyOf(sides));
         lenient().when(allianceRepository.existsActiveBetween(defender.getId(), ally.getId())).thenReturn(true);
+        lenient().when(levelService.capacityOf(any(), eq(ClanCapacity.ally_slots))).thenReturn(1);
         lenient().when(standingService.currentStanding(attacker)).thenReturn(7000.0);
         lenient().when(standingService.currentStanding(defender)).thenReturn(7000.0);
         lenient().when(standingService.currentStanding(ally)).thenReturn(5000.0);
@@ -257,6 +262,17 @@ class ClanWarCoalitionServiceTest {
 
             assertThatThrownBy(() -> service.offer(war.getId(), 1L, ClanWarTeam.defend))
                     .isInstanceOf(ConflictException.class).hasMessageContaining("has fallen");
+            verify(aidRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void anAllyThatLeftOrFellStillHoldsItsSlotForTheWholeWar() {
+            commandsAlly();
+            sides.add(ClanWarSide.builder().war(war).clan(Clan.builder().id(UUID.randomUUID()).name("Owls").build())
+                    .team(ClanWarTeam.defend).stake(2000.0).stakeRemaining(0.0).leftAt(Instant.now()).build());
+
+            assertThatThrownBy(() -> service.offer(war.getId(), 1L, ClanWarTeam.defend))
+                    .isInstanceOf(ConflictException.class).hasMessageContaining("no ally slots left");
             verify(aidRepository, never()).saveAndFlush(any());
         }
 

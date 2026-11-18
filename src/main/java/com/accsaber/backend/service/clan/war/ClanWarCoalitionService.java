@@ -21,6 +21,7 @@ import com.accsaber.backend.model.dto.response.clan.ClanWarResponse;
 import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.entity.chat.ChatEvent;
 import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanCapacity;
 import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.clan.war.ClanRuleset;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
@@ -42,6 +43,7 @@ import com.accsaber.backend.service.clan.ClanAccessService;
 import com.accsaber.backend.service.clan.ClanChatChannel;
 import com.accsaber.backend.service.clan.ClanCosmeticService;
 import com.accsaber.backend.service.clan.ClanFeed;
+import com.accsaber.backend.service.clan.ClanLevelService;
 import com.accsaber.backend.service.clan.ClanMapper;
 import com.accsaber.backend.service.clan.ClanNotifier;
 import com.accsaber.backend.service.clan.ClanPermission;
@@ -63,6 +65,7 @@ public class ClanWarCoalitionService {
     private final ClanRoster roster;
     private final ClanAccessService accessService;
     private final ClanStandingService standingService;
+    private final ClanLevelService levelService;
     private final ClanCosmeticService cosmeticService;
     private final ClanWarStakeService stakeService;
     private final ClanWarRosterService rosterService;
@@ -213,6 +216,12 @@ public class ClanWarCoalitionService {
         Clan lead = war.lead(team);
         if (sides.stream().anyMatch(side -> side.getClan().getId().equals(lead.getId()) && side.fallen())) {
             throw new ConflictException(lead.getName() + " has fallen and cannot call for more help");
+        }
+        long called = sides.stream()
+                .filter(side -> side.getTeam() == team && war.leadTeamOf(side.getClan().getId()) == null)
+                .count();
+        if (called >= levelService.capacityOf(lead, ClanCapacity.ally_slots)) {
+            throw new ConflictException(lead.getName() + " has no ally slots left in this war");
         }
         if (!allianceRepository.existsActiveBetween(lead.getId(), helper.getId())) {
             throw new ConflictException("Only allies of " + lead.getName() + " can join on their side");
