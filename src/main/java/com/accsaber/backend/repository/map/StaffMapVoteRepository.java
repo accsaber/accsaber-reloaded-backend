@@ -32,7 +32,7 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
                         "WHERE v.mapDifficulty.id IN :ids AND v.active = true " +
                         "AND v.reason IS NOT NULL AND TRIM(v.reason) <> '' " +
                         "GROUP BY v.mapDifficulty.id")
-        List<Object[]> countCommentsByDifficultyIds(@Param("ids") List<UUID> ids);
+        List<Object[]> countVoteReasonsByDifficultyIds(@Param("ids") List<UUID> ids);
 
         @Query("SELECT v.mapDifficulty.id, v.type, v.vote, COUNT(v) FROM StaffMapVote v " +
                         "WHERE v.mapDifficulty.id IN :ids AND v.type IN ('reweight', 'unrank') AND v.active = true " +

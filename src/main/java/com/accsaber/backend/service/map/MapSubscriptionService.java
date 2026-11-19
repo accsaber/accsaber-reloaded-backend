@@ -9,7 +9,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.accsaber.backend.model.dto.response.map.MapSubscriptionResponse;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultySubscription;
 import com.accsaber.backend.model.entity.notification.NotificationType;
@@ -44,8 +43,8 @@ public class MapSubscriptionService {
     }
 
     @Transactional(readOnly = true)
-    public MapSubscriptionResponse status(UUID difficultyId, Long playerId) {
-        return new MapSubscriptionResponse(subscriptionRepository.existsById(key(difficultyId, playerId)));
+    public boolean follows(UUID difficultyId, Long playerId) {
+        return subscriptionRepository.existsById(key(difficultyId, playerId));
     }
 
     public void commented(MapDifficulty difficulty, User author) {

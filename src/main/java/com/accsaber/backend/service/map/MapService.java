@@ -51,6 +51,7 @@ import com.accsaber.backend.model.event.MapDifficultyStatusChangedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.SortAliases;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
+import com.accsaber.backend.repository.chat.ChatMessageRepository;
 import com.accsaber.backend.repository.map.BatchRepository;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
@@ -88,14 +89,16 @@ public class MapService {
     private final PlaylistService playlistService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ChatMessageRepository chatMessageRepository;
 
     record VoteSummary(int rankUpvotes, int rankDownvotes, int rankNeutrals, int criteriaUpvotes,
             int criteriaDownvotes,
             VoteType headCriteriaVote, int reweightUpvotes, int reweightDownvotes,
-            int unrankUpvotes, int unrankDownvotes, Double averageVoteComplexity, int commentCount) {
+            int unrankUpvotes, int unrankDownvotes, Double averageVoteComplexity, int voteReasonCount,
+            int commentCount) {
     }
 
-    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, null, 0);
+    private static final VoteSummary EMPTY_SUMMARY = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, null, 0, 0);
 
     record DifficultyContext(Double complexity, MapDifficultyStatisticsResponse stats,
             PublicStaffUserResponse lastUpdatedBy, PublicStaffUserResponse createdBy, VoteSummary votes,
@@ -253,7 +256,10 @@ public class MapService {
             + " - (SELECT COUNT(v2) FROM StaffMapVote v2 WHERE v2.mapDifficulty = d"
             + " AND v2.type = 'rank' AND v2.vote = 'downvote' AND v2.active = true))";
 
-    private static final String COMMENT_COUNT_SUBQUERY = "(SELECT COUNT(v3) FROM StaffMapVote v3"
+    private static final String COMMENT_COUNT_SUBQUERY = "(SELECT COUNT(cm) FROM ChatMessage cm"
+            + " WHERE cm.mapDifficulty = d)";
+
+    private static final String VOTE_REASON_COUNT_SUBQUERY = "(SELECT COUNT(v3) FROM StaffMapVote v3"
             + " WHERE v3.mapDifficulty = d AND v3.active = true"
             + " AND v3.reason IS NOT NULL AND TRIM(v3.reason) <> '')";
 
@@ -267,6 +273,8 @@ public class MapService {
                 resolved = resolved.and(JpaSort.unsafe(order.getDirection(), RANK_RATING_SUBQUERY));
             } else if ("commentCount".equals(order.getProperty())) {
                 resolved = resolved.and(JpaSort.unsafe(order.getDirection(), COMMENT_COUNT_SUBQUERY));
+            } else if ("voteReasonCount".equals(order.getProperty())) {
+                resolved = resolved.and(JpaSort.unsafe(order.getDirection(), VOTE_REASON_COUNT_SUBQUERY));
             } else {
                 String mapped = JPQL_SORT_MAPPING.get(order.getProperty());
                 if (mapped != null) {
@@ -694,10 +702,9 @@ public class MapService {
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
         java.util.Map<UUID, PublicStaffUserResponse> staff = loadStaffInfo(List.of(difficulty));
-        Double avgComplexity = loadAvgReweightComplexity(List.of(difficultyId)).get(difficultyId);
-        VoteSummary votes = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity, 0);
         return toDifficultyResponse(difficulty, new DifficultyContext(complexity, stats,
-                staff.get(difficulty.getLastUpdatedBy()), staff.get(difficulty.getCreatedBy()), votes,
+                staff.get(difficulty.getLastUpdatedBy()), staff.get(difficulty.getCreatedBy()),
+                loadVoteSummaries(List.of(difficultyId)).get(difficultyId),
                 estimateRepository.findByMapDifficultyId(difficultyId).orElse(null),
                 loadImporters(List.of(difficulty)).get(difficulty.getImportedBy())));
     }
@@ -840,10 +847,10 @@ public class MapService {
 
         java.util.Map<UUID, Double> avgComplexities = loadAvgReweightComplexity(difficultyIds);
 
-        java.util.Map<UUID, Integer> commentCounts = new java.util.HashMap<>();
-        for (Object[] row : voteRepository.countCommentsByDifficultyIds(difficultyIds)) {
-            commentCounts.put((UUID) row[0], ((Long) row[1]).intValue());
-        }
+        java.util.Map<UUID, Integer> voteReasonCounts = countsById(
+                voteRepository.countVoteReasonsByDifficultyIds(difficultyIds));
+        java.util.Map<UUID, Integer> commentCounts = countsById(
+                chatMessageRepository.countByMapDifficultyIds(difficultyIds));
 
         java.util.Map<UUID, VoteSummary> result = new java.util.HashMap<>();
         for (UUID id : difficultyIds) {
@@ -853,9 +860,17 @@ public class MapService {
             int[] unrank = unrankCounts.getOrDefault(id, new int[] { 0, 0 });
             result.put(id, new VoteSummary(rank[0], rank[1], rank[2], crit[0], crit[1], headVotes.get(id),
                     reweight[0], reweight[1], unrank[0], unrank[1], avgComplexities.get(id),
-                    commentCounts.getOrDefault(id, 0)));
+                    voteReasonCounts.getOrDefault(id, 0), commentCounts.getOrDefault(id, 0)));
         }
         return result;
+    }
+
+    private static java.util.Map<UUID, Integer> countsById(List<Object[]> rows) {
+        java.util.Map<UUID, Integer> counts = new java.util.HashMap<>();
+        for (Object[] row : rows) {
+            counts.put((UUID) row[0], ((Long) row[1]).intValue());
+        }
+        return counts;
     }
 
     private java.util.Map<UUID, Double> loadAvgReweightComplexity(List<UUID> difficultyIds) {
@@ -941,6 +956,7 @@ public class MapService {
                 .averageVoteComplexity(
                         d.getStatus() == MapDifficultyStatus.RANKED ? votes.averageVoteComplexity() : null)
                 .commentCount(votes.commentCount())
+                .voteReasonCount(votes.voteReasonCount())
                 .statistics(ctx.stats())
                 .build();
     }
@@ -1002,6 +1018,8 @@ public class MapService {
                 .rankUpvotes(ranked ? null : d.getRankUpvotes())
                 .rankDownvotes(ranked ? null : d.getRankDownvotes())
                 .rankNeutrals(ranked ? null : d.getRankNeutrals())
+                .commentCount(ranked ? null : d.getCommentCount())
+                .voteReasonCount(ranked ? null : d.getVoteReasonCount())
                 .criteriaStatus(ranked ? null : d.getCriteriaStatus())
                 .autoCriteriaStatus(ranked ? null : d.getAutoCriteriaStatus())
                 .statistics(d.getStatistics())

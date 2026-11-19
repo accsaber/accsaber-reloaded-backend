@@ -28,6 +28,22 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
         @Query("SELECT d FROM MapDifficulty d WHERE d.id = :id AND d.active = true")
         Optional<MapDifficulty> findActiveForUpdate(@Param("id") UUID id);
 
+        @Query("""
+                        SELECT d.id FROM MapDifficulty d
+                        WHERE d.map.beatsaverCode = :beatsaverCode AND d.difficulty = :difficulty
+                        AND (CAST(:characteristic AS string) IS NULL
+                             OR LOWER(d.characteristic) = LOWER(CAST(:characteristic AS string)))
+                        AND (d.deactivatedAt IS NOT NULL OR (d.active = true
+                             AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN))
+                        ORDER BY CASE WHEN d.deactivatedAt IS NOT NULL THEN 2
+                                      WHEN d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED THEN 1
+                                      ELSE 0 END,
+                                 d.deactivatedAt DESC, d.createdAt DESC
+                        """)
+        List<UUID> findHubDifficultyIds(@Param("beatsaverCode") String beatsaverCode,
+                        @Param("difficulty") Difficulty difficulty, @Param("characteristic") String characteristic,
+                        Pageable pageable);
+
         default MapDifficulty requireCommentable(UUID id) {
                 return findById(id)
                                 .filter(difficulty -> difficulty.getDeactivatedAt() != null || (difficulty.isActive()

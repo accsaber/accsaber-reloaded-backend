@@ -113,8 +113,12 @@ class MapVersionQueryTest {
         UUID rejected = persistVersion("2025-09-03T00:00:00Z", Difficulty.EXPERT_PLUS, MapDifficultyStatus.QUEUE,
                 "true_acc");
         entityManager.createNativeQuery(
-                "UPDATE map_difficulties SET deactivated_at = now() WHERE map_id IN (?1, ?2)")
-                .setParameter(1, rejectedButUsed).setParameter(2, rejected).executeUpdate();
+                "UPDATE map_difficulties SET deactivated_at = now() - interval '30 days' WHERE map_id = ?1")
+                .setParameter(1, rejectedButUsed).executeUpdate();
+        entityManager.createNativeQuery(
+                "UPDATE map_difficulties SET deactivated_at = now(), updated_at = now() - interval '60 days' "
+                        + "WHERE map_id = ?1")
+                .setParameter(1, rejected).executeUpdate();
         entityManager.createNativeQuery("UPDATE map_difficulties SET active = false WHERE map_id IN (?1, ?2)")
                 .setParameter(1, plainImport).setParameter(2, rejected).executeUpdate();
         entityManager.clear();
@@ -126,6 +130,47 @@ class MapVersionQueryTest {
         assertThat(mapDifficultyRepository.findWithComplexityFiltersWithSearch(null, false, null, every, null, null,
                 null, "what you know", page).map(d -> d.getMap().getId()).getContent())
                 .containsExactlyInAnyOrder(rejectedButUsed, rejected);
+        assertThat(mapDifficultyRepository.findWithComplexityFilters(null, false, null, every, null, null, null,
+                PageRequest.of(0, 25, Sort.by(Sort.Order.desc("deactivatedAt")))).map(d -> d.getMap().getId())
+                .getContent()).containsExactly(rejected, rejectedButUsed);
+    }
+
+    @Test
+    @DisplayName("the hub lookup by code picks the live hub row, then the ranked one, then the latest rejection")
+    void theHubLookupPicksTheLiveRowFirst() {
+        UUID olderRejection = persistVersion("2025-07-01T00:00:00Z", Difficulty.EASY, MapDifficultyStatus.QUEUE,
+                "true_acc");
+        UUID latestRejection = persistVersion("2025-08-01T00:00:00Z", Difficulty.EASY, MapDifficultyStatus.SUGGESTED,
+                "true_acc");
+        reject(olderRejection, 30);
+        reject(latestRejection, 1);
+        entityManager.createNativeQuery("UPDATE map_difficulties SET active = false WHERE map_id = ?1")
+                .setParameter(1, firstVersion).executeUpdate();
+        entityManager.clear();
+
+        assertThat(hubMap(Difficulty.EASY)).isEqualTo(latestRejection);
+
+        entityManager.createNativeQuery("UPDATE map_difficulties SET active = true WHERE map_id = ?1")
+                .setParameter(1, firstVersion).executeUpdate();
+        assertThat(hubMap(Difficulty.EASY)).isEqualTo(firstVersion);
+
+        UUID queued = persistVersion("2025-09-01T00:00:00Z", Difficulty.EASY, MapDifficultyStatus.QUEUE, "true_acc");
+        assertThat(hubMap(Difficulty.EASY)).isEqualTo(queued);
+        assertThat(mapDifficultyRepository.findHubDifficultyIds(CODE, Difficulty.EXPERT_PLUS, null,
+                PageRequest.of(0, 1))).isEmpty();
+    }
+
+    private void reject(UUID mapId, int daysAgo) {
+        entityManager.createNativeQuery("UPDATE map_difficulties SET active = false, "
+                + "deactivated_at = now() - make_interval(days => ?2) WHERE map_id = ?1")
+                .setParameter(1, mapId).setParameter(2, daysAgo).executeUpdate();
+    }
+
+    private UUID hubMap(Difficulty difficulty) {
+        UUID difficultyId = mapDifficultyRepository.findHubDifficultyIds(CODE, difficulty, "standard",
+                PageRequest.of(0, 1)).getFirst();
+        entityManager.clear();
+        return mapDifficultyRepository.findById(difficultyId).orElseThrow().getMap().getId();
     }
 
     private UUID version(Difficulty difficulty, MapDifficultyStatus status) {

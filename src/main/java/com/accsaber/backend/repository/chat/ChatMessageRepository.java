@@ -1,6 +1,8 @@
 package com.accsaber.backend.repository.chat;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -20,6 +22,13 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
     @EntityGraph(attributePaths = { "user" })
     Page<ChatMessage> findByMapDifficulty_IdOrderByCreatedAtDesc(UUID mapDifficultyId, Pageable pageable);
+
+    @Query("""
+            SELECT m.mapDifficulty.id, COUNT(m) FROM ChatMessage m
+            WHERE m.mapDifficulty.id IN :difficultyIds
+            GROUP BY m.mapDifficulty.id
+            """)
+    List<Object[]> countByMapDifficultyIds(@Param("difficultyIds") Collection<UUID> difficultyIds);
 
     boolean existsByMapDifficulty_IdAndCreatedAtAfterAndIdNot(UUID mapDifficultyId, Instant since, UUID id);
 

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,10 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.accsaber.backend.model.dto.response.map.ComplexityEstimateResponse;
 import com.accsaber.backend.model.dto.response.map.LeaderboardPreviewResponse;
 import com.accsaber.backend.service.map.LeaderboardPreviewService;
+import com.accsaber.backend.model.dto.request.map.MapHubLookup;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
+import com.accsaber.backend.model.dto.response.map.MapHubResponse;
 import com.accsaber.backend.model.dto.response.map.MapResponse;
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
+import com.accsaber.backend.model.entity.map.MapVoteAction;
+import com.accsaber.backend.security.StaffPrincipals;
+import com.accsaber.backend.service.map.MapHubService;
 import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
 
@@ -40,6 +46,7 @@ public class RankingMapController {
     private final MapService mapService;
     private final MapImportService mapImportService;
     private final LeaderboardPreviewService leaderboardPreviewService;
+    private final MapHubService mapHubService;
 
     @Operation(summary = "List maps (staff)", description = "Has complexity, submitter and vote breakdowns.")
     @GetMapping
@@ -86,6 +93,33 @@ public class RankingMapController {
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(mapService.findDifficulties(categoryId, batchId, status, complexityMin, complexityMax,
                 search, null, active, pageable));
+    }
+
+    @Operation(summary = "Hub page of a difficulty (staff)", description = "The staff difficulty, its votes "
+            + "with names for one vote type, the first page of comments and whether your player follows it.")
+    @GetMapping("/difficulties/{difficultyId}/hub")
+    public ResponseEntity<MapHubResponse<MapDifficultyResponse>> hub(
+            @PathVariable UUID difficultyId,
+            @RequestParam(defaultValue = "RANK") MapVoteAction type,
+            Authentication authentication,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable comments) {
+        return ResponseEntity.ok(mapHubService.staffDetail(difficultyId, type,
+                StaffPrincipals.linkedUserIdOf(authentication), comments));
+    }
+
+    @Operation(summary = "Hub page of a difficulty by BeatSaver code (staff)", description = "Same pick order as "
+            + "the public one.")
+    @GetMapping("/difficulties/by-code/{beatsaverCode}/hub")
+    public ResponseEntity<MapHubResponse<MapDifficultyResponse>> hubByCode(
+            @PathVariable String beatsaverCode,
+            @RequestParam Difficulty difficulty,
+            @RequestParam(required = false) String characteristic,
+            @RequestParam(defaultValue = "RANK") MapVoteAction type,
+            Authentication authentication,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable comments) {
+        return ResponseEntity.ok(mapHubService.staffDetailByCode(
+                new MapHubLookup(beatsaverCode, difficulty, characteristic), type,
+                StaffPrincipals.linkedUserIdOf(authentication), comments));
     }
 
     @Operation(summary = "Get a difficulty (staff)")

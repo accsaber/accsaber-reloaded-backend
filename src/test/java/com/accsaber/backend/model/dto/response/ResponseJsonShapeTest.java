@@ -43,6 +43,7 @@ import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
 import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
+import com.accsaber.backend.model.dto.response.map.MapHubResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletedResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletionResponse;
@@ -70,6 +71,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import tools.jackson.databind.JsonNode;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
 import tools.jackson.databind.json.JsonMapper;
 
 class ResponseJsonShapeTest {
@@ -202,6 +206,9 @@ class ResponseJsonShapeTest {
         assertThat(json(live).has("deactivatedAt")).isFalse();
         assertThat(json(live).has("deactivationReason")).isFalse();
         assertThat(json(live).has("importedBy")).isFalse();
+        assertThat(json(live).has("commentCount")).isFalse();
+        assertThat(json(PublicMapDifficultyResponse.builder().id(A).commentCount(3).voteReasonCount(0).build())
+                .toString()).contains("\"commentCount\":3", "\"voteReasonCount\":0");
         assertThat(json(rejected).get("deactivationReason").asString()).isEqualTo("Overmapped");
         assertThat(json(rejected).get("importedBy").get("id").asString()).isEqualTo("76561198000000001");
     }
@@ -213,6 +220,19 @@ class ResponseJsonShapeTest {
 
         assertThat(plain.has("rankingTeam")).isFalse();
         assertThat(staff.get("rankingTeam").asBoolean()).isTrue();
+    }
+
+    @Test
+    void theHubPageNestsItsCommentsInTheSamePageShapeTheCommentsRouteGives() {
+        var comments = new PageImpl<>(
+                List.of(new ChatMessageResponse(A, PLAYER, "hi", null, null, null, null, T1, null)),
+                PageRequest.of(0, 50), 1);
+        JsonNode hub = json(new MapHubResponse<>(PublicMapDifficultyResponse.builder().id(A).build(), null,
+                comments, null));
+
+        assertThat(hub.get("comments")).isEqualTo(json(comments));
+        assertThat(hub.get("difficulty").get("id").asString()).isEqualTo(A.toString());
+        assertThat(hub.has("subscribed")).isFalse();
     }
 
     @Test

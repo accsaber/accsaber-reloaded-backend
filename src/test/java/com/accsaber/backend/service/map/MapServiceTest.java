@@ -89,6 +89,9 @@ class MapServiceTest {
         @Mock
         private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
+        @Mock
+        private com.accsaber.backend.repository.chat.ChatMessageRepository chatMessageRepository;
+
         @InjectMocks
         private MapService mapService;
 

@@ -18,22 +18,26 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.accsaber.backend.model.dto.request.chat.SendChatMessageRequest;
 import com.accsaber.backend.model.dto.request.map.CriteriaCheckRequest;
+import com.accsaber.backend.model.dto.request.map.MapHubLookup;
 import com.accsaber.backend.model.dto.request.map.SuggestMapRequest;
 import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.dto.response.map.AutoCriteriaCheckResponse;
-import com.accsaber.backend.model.dto.response.map.MapSubscriptionResponse;
+import com.accsaber.backend.model.dto.response.map.MapHubResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.VoteListResponse;
+import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.security.PlayerUserDetails;
 import com.accsaber.backend.service.chat.ChatService;
 import com.accsaber.backend.service.map.AutoCriteriaService;
 import com.accsaber.backend.service.map.MapChatChannel;
+import com.accsaber.backend.service.map.MapHubService;
 import com.accsaber.backend.service.map.MapSubscriptionService;
 import com.accsaber.backend.service.map.MapSuggestionService;
 import com.accsaber.backend.service.map.MapVotingService;
@@ -55,6 +59,7 @@ public class MapHubController {
     private final ChatService chatService;
     private final MapChatChannel mapChatChannel;
     private final MapSubscriptionService mapSubscriptionService;
+    private final MapHubService mapHubService;
 
     @Operation(summary = "Suggest a map", description = "Needs a BeatLeader leaderboard ID and a category. "
             + "Five open suggestions per player.")
@@ -74,6 +79,31 @@ public class MapHubController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         mapSuggestionService.withdraw(difficultyId, PlayerUserDetails.require(principal).getUserId());
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Everything the hub page of a difficulty shows", description = "The difficulty, its rank "
+            + "votes, the first page of comments and, with a player token, whether you follow it.")
+    @GetMapping("/difficulties/{difficultyId}/hub")
+    public ResponseEntity<MapHubResponse<PublicMapDifficultyResponse>> hub(
+            @PathVariable UUID difficultyId,
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable comments) {
+        return ResponseEntity.ok(mapHubService.detail(difficultyId,
+                principal == null ? null : principal.getUserId(), comments));
+    }
+
+    @Operation(summary = "Hub page of a difficulty by BeatSaver code", description = "Picks the suggested, queued "
+            + "or qualified difficulty first, then the ranked one, then the most recently rejected.")
+    @GetMapping("/difficulties/by-code/{beatsaverCode}/hub")
+    public ResponseEntity<MapHubResponse<PublicMapDifficultyResponse>> hubByCode(
+            @PathVariable String beatsaverCode,
+            @RequestParam Difficulty difficulty,
+            @RequestParam(required = false) String characteristic,
+            @AuthenticationPrincipal PlayerUserDetails principal,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable comments) {
+        return ResponseEntity.ok(mapHubService.detailByCode(
+                new MapHubLookup(beatsaverCode, difficulty, characteristic),
+                principal == null ? null : principal.getUserId(), comments));
     }
 
     @Operation(summary = "Rank votes on a difficulty", description = "No voter names and no complexity, "
@@ -99,15 +129,6 @@ public class MapHubController {
             @AuthenticationPrincipal PlayerUserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(chatService.sendMessage(mapChatChannel, difficultyId,
                 PlayerUserDetails.require(principal).getUserId(), request.getContent()));
-    }
-
-    @Operation(summary = "Am I following this difficulty")
-    @GetMapping("/difficulties/{difficultyId}/subscription")
-    public ResponseEntity<MapSubscriptionResponse> subscription(
-            @PathVariable UUID difficultyId,
-            @AuthenticationPrincipal PlayerUserDetails principal) {
-        return ResponseEntity.ok(mapSubscriptionService.status(difficultyId,
-                PlayerUserDetails.require(principal).getUserId()));
     }
 
     @Operation(summary = "Follow a difficulty", description = "Notifies on new comments, status changes "

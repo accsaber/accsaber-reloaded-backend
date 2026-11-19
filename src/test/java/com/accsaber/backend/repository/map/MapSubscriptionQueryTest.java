@@ -87,6 +87,11 @@ class MapSubscriptionQueryTest {
         assertThat(chatRepository.findByMapDifficulty_IdOrderByCreatedAtDesc(difficultyId,
                 org.springframework.data.domain.PageRequest.of(0, 10)).getContent())
                 .singleElement().satisfies(message -> {
+                    assertThat(chatRepository.countByMapDifficultyIds(List.of(difficultyId, UUID.randomUUID())))
+                            .singleElement().satisfies(row -> {
+                                assertThat(row[0]).isEqualTo(difficultyId);
+                                assertThat(row[1]).isEqualTo(1L);
+                            });
                     assertThat(message.getContent()).isEqualTo("nice map");
                     Instant recently = Instant.now().minusSeconds(300);
                     assertThat(chatRepository.existsByMapDifficulty_IdAndCreatedAtAfterAndIdNot(difficultyId,
