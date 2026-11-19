@@ -246,7 +246,7 @@ public class UserController {
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(mapService.findDifficultiesPublic(categoryService.resolveId(categoryId), status,
-                complexityMin, complexityMax, search, userId, pageable));
+                complexityMin, complexityMax, search, userId, true, pageable));
     }
 
     @Operation(summary = "Maps above an AP mark", description = "Difficulties where "

@@ -3,6 +3,7 @@ package com.accsaber.backend.repository.staff;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -41,6 +42,15 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, UUID> {
     List<StaffUser> findByUserIdAndStatusAndActiveTrue(Long userId, StaffUserStatus status);
 
     boolean existsByUserIdAndActiveTrue(Long userId);
+
+    @Query("""
+            SELECT DISTINCT s.user.id FROM StaffUser s
+            WHERE s.user.id IN :userIds AND s.active = true
+              AND s.status = com.accsaber.backend.model.entity.staff.StaffUserStatus.ACCEPTED
+              AND s.role IN (com.accsaber.backend.model.entity.staff.StaffRole.RANKING,
+                             com.accsaber.backend.model.entity.staff.StaffRole.RANKING_HEAD)
+            """)
+    Set<Long> findRankingTeamUserIds(@Param("userIds") Collection<Long> userIds);
 
     List<StaffUser> findAllByActiveTrue();
 

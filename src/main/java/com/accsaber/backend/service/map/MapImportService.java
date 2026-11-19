@@ -69,7 +69,14 @@ public class MapImportService {
         }
 
         BeatLeaderLeaderboardResponse blLeaderboard = fetchBlLeaderboard(blId);
+        validateLeaderboard(blLeaderboard);
         int maxScore = blLeaderboard.getDifficulty().getMaxScore();
+        if (importRequest.getDifficulty() == null) {
+            importRequest.setDifficulty(parseDifficulty(blLeaderboard.getDifficulty().getDifficultyName()));
+        }
+        if (Texts.blankToNull(importRequest.getCharacteristic()) == null) {
+            importRequest.setCharacteristic(requireCharacteristic(blLeaderboard));
+        }
         SongInfo song = resolveSong(blLeaderboard);
 
         CreateMapDifficultyRequest request = toCreateRequest(importRequest, song, ssId, maxScore);
@@ -78,7 +85,7 @@ public class MapImportService {
                 blId, ssId);
         MapDifficultyResponse response = mapService.importMapDifficulty(request, staffId, status);
 
-        applyInitialComplexity(response.getId(), importRequest, song.songName());
+        applyInitialComplexity(response.getId(), importRequest);
 
         scheduleAutoCriteriaCheck(response.getId());
         scheduleMapCoverMirror(response.getMapId());
@@ -109,25 +116,14 @@ public class MapImportService {
         return request;
     }
 
-    private void applyInitialComplexity(UUID difficultyId, ImportMapFromLeaderboardIdsRequest importRequest,
-            String songName) {
-        Double complexity = importRequest.getComplexity();
-        String reason = "Initial import";
-        if (complexity == null) {
-            complexity = complexityEstimateService.estimateFor(difficultyId).map(Rating::complexity).orElse(null);
-            reason = "Complexity script " + complexityRater.version();
-            if (complexity != null) {
-                log.info("Complexity script priced {} ({}) at {}", songName, importRequest.getDifficulty(), complexity);
-            } else {
-                log.warn("Complexity script could not price {} ({})", songName, importRequest.getDifficulty());
-            }
+    private void applyInitialComplexity(UUID difficultyId, ImportMapFromLeaderboardIdsRequest importRequest) {
+        if (importRequest.getComplexity() == null) {
+            AfterCommit.run(() -> complexityEstimateService.priceImportAsync(difficultyId));
+            return;
         }
-
-        if (complexity != null) {
-            MapDifficulty entity = mapDifficultyRepository.findById(difficultyId)
-                    .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
-            complexityService.setComplexity(entity, complexity, reason, null);
-        }
+        MapDifficulty entity = mapDifficultyRepository.findById(difficultyId)
+                .orElseThrow(() -> new ValidationException("Map difficulty not found after creation"));
+        complexityService.setComplexity(entity, importRequest.getComplexity(), "Initial import", null);
     }
 
     private static final int MAX_CAMPAIGN_IMPORTS_PER_PLAYER = 100;
@@ -152,13 +148,10 @@ public class MapImportService {
         assertCanImportCampaignMap(playerId, ssId);
 
         BeatLeaderLeaderboardResponse blLeaderboard = fetchBlLeaderboard(blId);
-        validateCampaignLeaderboard(blLeaderboard);
+        validateLeaderboard(blLeaderboard);
         Integer maxScore = blLeaderboard.getDifficulty().getMaxScore();
         Difficulty difficulty = parseDifficulty(blLeaderboard.getDifficulty().getDifficultyName());
-        String characteristic = blLeaderboard.getDifficulty().getModeName();
-        if (characteristic == null || characteristic.isBlank()) {
-            throw new ValidationException("BeatLeader leaderboard has no characteristic");
-        }
+        String characteristic = requireCharacteristic(blLeaderboard);
 
         SongInfo song = resolveSong(blLeaderboard);
         Map map = findOrCreateMap(song);
@@ -228,7 +221,15 @@ public class MapImportService {
         }
     }
 
-    private static void validateCampaignLeaderboard(BeatLeaderLeaderboardResponse blLeaderboard) {
+    private static String requireCharacteristic(BeatLeaderLeaderboardResponse blLeaderboard) {
+        String characteristic = blLeaderboard.getDifficulty().getModeName();
+        if (characteristic == null || characteristic.isBlank()) {
+            throw new ValidationException("BeatLeader leaderboard has no characteristic");
+        }
+        return characteristic;
+    }
+
+    private static void validateLeaderboard(BeatLeaderLeaderboardResponse blLeaderboard) {
         if (blLeaderboard.getSong() == null || blLeaderboard.getSong().getHash() == null
                 || blLeaderboard.getDifficulty() == null) {
             throw new ValidationException("BeatLeader leaderboard is missing song or difficulty data");

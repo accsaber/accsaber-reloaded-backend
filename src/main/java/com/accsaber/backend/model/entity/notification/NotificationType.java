@@ -16,7 +16,8 @@ public enum NotificationType {
     clan_membership(UserSettingKey.NOTIFICATIONS_CLAN_MEMBERSHIP),
     clan_alliance(UserSettingKey.NOTIFICATIONS_CLAN_ALLIANCE),
     clan_war(UserSettingKey.NOTIFICATIONS_CLAN_WAR),
-    campaign_invite(UserSettingKey.NOTIFICATIONS_CAMPAIGN_INVITE);
+    campaign_invite(UserSettingKey.NOTIFICATIONS_CAMPAIGN_INVITE),
+    map_followed(UserSettingKey.NOTIFICATIONS_MAP_FOLLOWED);
 
     private final UserSettingKey preference;
 

@@ -40,7 +40,7 @@ public class MapDifficultyComplexityService {
     }
 
     public List<MapComplexityHistoryResponse> getHistoryForMap(UUID mapId) {
-        return complexityRepository.findAllByMapIdOrderByCreatedAtDesc(mapId).stream()
+        return complexityRepository.findRankedHistoryByMapId(mapId).stream()
                 .map(this::toHistoryResponse)
                 .toList();
     }

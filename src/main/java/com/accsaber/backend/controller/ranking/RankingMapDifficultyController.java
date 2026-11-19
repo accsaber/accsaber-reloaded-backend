@@ -20,6 +20,7 @@ import com.accsaber.backend.model.dto.request.map.ApproveReweightRequest;
 import com.accsaber.backend.model.dto.request.map.ApproveUnrankRequest;
 import com.accsaber.backend.model.dto.request.map.BulkReweightRequest;
 import com.accsaber.backend.model.dto.request.map.BulkUnrankRequest;
+import com.accsaber.backend.model.dto.request.map.DeactivateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.LinkLeaderboardAliasRequest;
 import com.accsaber.backend.model.dto.request.map.RefreshMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapCategoryRequest;
@@ -33,6 +34,7 @@ import com.accsaber.backend.service.map.AutoCriteriaService;
 import com.accsaber.backend.service.map.MapDifficultyLeaderboardAliasService;
 import com.accsaber.backend.service.map.MapImportService;
 import com.accsaber.backend.service.map.MapService;
+import com.accsaber.backend.service.map.MapSuggestionService;
 import com.accsaber.backend.service.map.ReweightService;
 import com.accsaber.backend.service.map.UnrankService;
 
@@ -53,6 +55,7 @@ public class RankingMapDifficultyController {
         private final UnrankService unrankService;
         private final AutoCriteriaService autoCriteriaService;
         private final MapDifficultyLeaderboardAliasService leaderboardAliasService;
+        private final MapSuggestionService mapSuggestionService;
 
         @Operation(summary = "Set difficulty status", description = "ranking_head or admin only.")
         @PatchMapping("/{difficultyId}/status")
@@ -114,14 +117,28 @@ public class RankingMapDifficultyController {
                                 StaffPrincipals.staffIdOf(authentication)));
         }
 
-        @Operation(summary = "Deactivate a difficulty", description = "ranking_head or admin only.")
+        @Operation(summary = "Deactivate a difficulty", description = "ranking_head or admin only. The reason is "
+                + "public. Also how a suggestion gets rejected. On one that is already deactivated it rewrites the "
+                + "reason.")
         @PatchMapping("/{difficultyId}/deactivate")
         @PreAuthorize("hasRole('RANKING_HEAD')")
         public ResponseEntity<Void> deactivate(
                         @PathVariable UUID difficultyId,
+                        @Valid @RequestBody DeactivateMapDifficultyRequest request,
                         Authentication authentication) {
-                mapService.deactivate(difficultyId, StaffPrincipals.staffIdOf(authentication));
+                mapService.deactivate(difficultyId, request.reason(), StaffPrincipals.staffIdOf(authentication));
                 return ResponseEntity.noContent().build();
+        }
+
+        @Operation(summary = "Add a suggestion to the queue", description = "SUGGESTED only. Voting opens once "
+                + "it is queued.")
+        @PostMapping("/{difficultyId}/queue")
+        @PreAuthorize("hasRole('RANKING')")
+        public ResponseEntity<MapDifficultyResponse> acceptSuggestion(
+                        @PathVariable UUID difficultyId,
+                        Authentication authentication) {
+                return ResponseEntity.ok(mapSuggestionService.accept(difficultyId,
+                                StaffPrincipals.staffIdOf(authentication)));
         }
 
         @Operation(summary = "Apply a reweight", description = "RANKED only. Scores get adjusted in the "

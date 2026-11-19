@@ -3,6 +3,7 @@ package com.accsaber.backend.model.dto.response.map;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.staff.PublicStaffUserResponse;
 import com.accsaber.backend.model.entity.AutoCriteriaStatus;
 import com.accsaber.backend.model.entity.CriteriaStatus;
@@ -32,6 +33,9 @@ public class MapDifficultyResponse {
     Difficulty difficulty;
     String characteristic;
     boolean active;
+    Instant deactivatedAt;
+    String deactivationReason;
+    PlayerRef importedBy;
     MapDifficultyStatus status;
     CriteriaStatus criteriaStatus;
     AutoCriteriaStatus autoCriteriaStatus;

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -81,6 +82,12 @@ class MapServiceTest {
 
         @Mock
         private PlaylistService playlistService;
+
+        @Mock
+        private com.accsaber.backend.repository.user.UserRepository userRepository;
+
+        @Mock
+        private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
         @InjectMocks
         private MapService mapService;
@@ -246,6 +253,59 @@ class MapServiceTest {
                 }
 
                 @Test
+                void aWithdrawnSuggestionIsHiddenAndComesBackWhenItIsSuggestedAgain() {
+                        Category category = buildCategory();
+                        MapDifficulty suggestion = buildDifficulty(buildMap(), category, MapDifficultyStatus.SUGGESTED);
+
+                        mapService.withdrawSuggestion(suggestion);
+
+                        assertThat(suggestion.isActive()).isFalse();
+                        assertThat(suggestion.getDeactivatedAt()).isNull();
+
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl-id")).thenReturn(Optional.of(suggestion));
+                        when(categoryRepository.findByIdAndActiveTrue(category.getId()))
+                                        .thenReturn(Optional.of(category));
+
+                        MapDifficultyResponse response = mapService.importMapDifficulty(
+                                        buildRequestWithLeaderboards(category.getId(), "bl-id", null), null,
+                                        MapDifficultyStatus.SUGGESTED);
+
+                        assertThat(response.getId()).isEqualTo(suggestion.getId());
+                        assertThat(suggestion.isActive()).isTrue();
+                        verify(mapRepository, never()).save(any(Map.class));
+                }
+
+                @Test
+                void aWithdrawnSuggestionStaysHiddenWhenAnotherUploadTookItsPlace() {
+                        Category category = buildCategory();
+                        MapDifficulty withdrawn = buildDifficulty(buildMap(), category, MapDifficultyStatus.SUGGESTED);
+                        withdrawn.setActive(false);
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl-id")).thenReturn(Optional.of(withdrawn));
+                        when(mapDifficultyRepository.findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
+                                        withdrawn.getMap().getId(), withdrawn.getDifficulty(),
+                                        withdrawn.getCharacteristic()))
+                                        .thenReturn(Optional.of(buildDifficulty(withdrawn.getMap(), category,
+                                                        MapDifficultyStatus.QUEUE)));
+
+                        assertThatThrownBy(() -> mapService.importMapDifficulty(
+                                        buildRequestWithLeaderboards(category.getId(), "bl-id", null), null,
+                                        MapDifficultyStatus.SUGGESTED)).isInstanceOf(ConflictException.class);
+                        assertThat(withdrawn.isActive()).isFalse();
+                }
+
+                @Test
+                void aRejectedCampaignMapCannotBeSuggestedAgain() {
+                        Category category = buildCategory();
+                        MapDifficulty rejected = buildDifficulty(buildMap(), category, MapDifficultyStatus.CAMPAIGN);
+                        rejected.setDeactivatedAt(Instant.now());
+                        when(mapDifficultyRepository.findByBlLeaderboardId("bl-id")).thenReturn(Optional.of(rejected));
+
+                        assertThatThrownBy(() -> mapService.importMapDifficulty(
+                                        buildRequestWithLeaderboards(category.getId(), "bl-id", null), null,
+                                        MapDifficultyStatus.SUGGESTED)).isInstanceOf(ConflictException.class);
+                }
+
+                @Test
                 void promotesCampaignImportInPlace_whenLeaderboardIdMatches() {
                         Category category = buildCategory();
                         CreateMapDifficultyRequest request = buildRequestWithLeaderboards(category.getId(),
@@ -278,12 +338,13 @@ class MapServiceTest {
                 @Test
                 void demotesToCampaign_whenACampaignNodeUsesIt() {
                         MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.QUEUE);
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
+                        when(mapDifficultyRepository.findById(diff.getId())).thenReturn(Optional.of(diff));
                         when(campaignDifficultyRepository.existsByMapDifficulty_IdAndActiveTrue(diff.getId()))
                                         .thenReturn(true);
 
-                        mapService.deactivate(diff.getId(), staffId);
+                        mapService.deactivate(diff.getId(), "Overmapped", staffId);
 
+                        assertThat(diff.getDeactivationReason()).isEqualTo("Overmapped");
                         assertThat(diff.isActive()).isTrue();
                         assertThat(diff.getStatus()).isEqualTo(MapDifficultyStatus.CAMPAIGN);
                         verify(campaignScoreGate).refresh();
@@ -292,12 +353,55 @@ class MapServiceTest {
                 @Test
                 void deactivates_whenNoCampaignUsesIt() {
                         MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.QUEUE);
-                        when(mapDifficultyRepository.findByIdAndActiveTrue(diff.getId())).thenReturn(Optional.of(diff));
+                        when(mapDifficultyRepository.findById(diff.getId())).thenReturn(Optional.of(diff));
 
-                        mapService.deactivate(diff.getId(), staffId);
+                        mapService.deactivate(diff.getId(), " Overmapped ", staffId);
 
+                        assertThat(diff.getDeactivationReason()).isEqualTo("Overmapped");
+                        assertThat(diff.getDeactivatedAt()).isNotNull();
                         assertThat(diff.isActive()).isFalse();
                         assertThat(diff.getStatus()).isEqualTo(MapDifficultyStatus.QUEUE);
+                        verify(eventPublisher).publishEvent(any(Object.class));
+                }
+
+                @Test
+                void rewritesTheReasonOfAnAlreadyDeactivatedDifficultyAndKeepsWhenItWasDeactivated() {
+                        Instant deactivatedAt = Instant.parse("2026-01-02T03:04:05Z");
+                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.QUEUE);
+                        diff.setActive(false);
+                        diff.setDeactivatedAt(deactivatedAt);
+                        when(mapDifficultyRepository.findById(diff.getId())).thenReturn(Optional.of(diff));
+
+                        mapService.deactivate(diff.getId(), "Vision blocks at 1:20", staffId);
+
+                        assertThat(diff.getDeactivationReason()).isEqualTo("Vision blocks at 1:20");
+                        assertThat(diff.getDeactivatedAt()).isEqualTo(deactivatedAt);
+                        assertThat(diff.isActive()).isFalse();
+                        verifyNoInteractions(eventPublisher, campaignDifficultyRepository);
+                }
+
+                @Test
+                void aCampaignMapRejectedEarlierKeepsRunningWhenItsReasonIsRewritten() {
+                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.CAMPAIGN);
+                        diff.setDeactivationReason("Overmapped");
+                        diff.setDeactivatedAt(Instant.now());
+                        when(mapDifficultyRepository.findById(diff.getId())).thenReturn(Optional.of(diff));
+
+                        mapService.deactivate(diff.getId(), "Overmapped, see 0:45", staffId);
+
+                        assertThat(diff.getDeactivationReason()).isEqualTo("Overmapped, see 0:45");
+                        assertThat(diff.isActive()).isTrue();
+                        verifyNoInteractions(eventPublisher);
+                }
+
+                @Test
+                void anOrphanedCampaignImportCannotBeGivenAReason() {
+                        MapDifficulty diff = buildStandaloneDifficulty(MapDifficultyStatus.CAMPAIGN);
+                        diff.setActive(false);
+                        when(mapDifficultyRepository.findById(diff.getId())).thenReturn(Optional.of(diff));
+
+                        assertThatThrownBy(() -> mapService.deactivate(diff.getId(), "nope", staffId))
+                                        .isInstanceOf(ResourceNotFoundException.class);
                 }
         }
 
@@ -431,13 +535,30 @@ class MapServiceTest {
                 }
 
                 @Test
+                @SuppressWarnings("unchecked")
+                void aPublicComplexityFilterOnlyEverMatchesRankedMaps() {
+                        when(mapDifficultyRepository.findWithComplexityFilters(any(), any(Boolean.class), any(), any(),
+                                        any(), any(), any(), any()))
+                                        .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+                        mapService.findDifficultiesPublic(null, List.of(MapDifficultyStatus.QUEUE), 5.0, null, null,
+                                        null, true, pageable);
+
+                        ArgumentCaptor<java.util.Collection<MapDifficultyStatus>> captor = ArgumentCaptor
+                                        .forClass(java.util.Collection.class);
+                        verify(mapDifficultyRepository).findWithComplexityFilters(any(), any(Boolean.class), any(),
+                                        captor.capture(), any(), any(), any(), any());
+                        assertThat(captor.getValue()).containsExactly(MapDifficultyStatus.RANKED);
+                }
+
+                @Test
                 void activeListLeavesStatusesNullSoCampaignImportsStayHidden() {
                         assertThat(capturedStatuses(true, null)).isNull();
                 }
 
                 @Test
-                void deactivatedListLeavesStatusesNullSoCampaignImportsStayHidden() {
-                        assertThat(capturedStatuses(false, null)).isNull();
+                void deactivatedListAsksForEveryStatusAndLeavesTheFilteringToTheQuery() {
+                        assertThat(capturedStatuses(false, null)).containsExactlyInAnyOrder(MapDifficultyStatus.values());
                 }
 
                 @Test

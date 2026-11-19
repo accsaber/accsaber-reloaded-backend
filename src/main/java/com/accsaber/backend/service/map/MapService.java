@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.request.map.CreateMapDifficultyRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapComplexityRequest;
 import com.accsaber.backend.model.dto.request.map.UpdateMapStatusRequest;
+import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.map.MapComplexityHistoryResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.map.MapDifficultyStatisticsResponse;
@@ -44,6 +46,8 @@ import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.model.entity.map.MapVoteAction;
 import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffUser;
+import com.accsaber.backend.model.entity.user.User;
+import com.accsaber.backend.model.event.MapDifficultyStatusChangedEvent;
 import com.accsaber.backend.repository.CategoryRepository;
 import com.accsaber.backend.repository.SortAliases;
 import com.accsaber.backend.repository.campaign.CampaignDifficultyRepository;
@@ -52,6 +56,8 @@ import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.MapRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
+import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.service.clan.ClanRefCache;
 import com.accsaber.backend.service.playlist.PlaylistService;
 import com.accsaber.backend.service.staff.StaffMapper;
 import com.accsaber.backend.service.score.ScoreIngestionService;
@@ -80,6 +86,8 @@ public class MapService {
     private final ScoreIngestionService scoreIngestionService;
     private final com.accsaber.backend.service.score.CampaignScoreGate campaignScoreGate;
     private final PlaylistService playlistService;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     record VoteSummary(int rankUpvotes, int rankDownvotes, int rankNeutrals, int criteriaUpvotes,
             int criteriaDownvotes,
@@ -91,12 +99,12 @@ public class MapService {
 
     record DifficultyContext(Double complexity, MapDifficultyStatisticsResponse stats,
             PublicStaffUserResponse lastUpdatedBy, PublicStaffUserResponse createdBy, VoteSummary votes,
-            MapDifficultyComplexityEstimate estimate) {
+            MapDifficultyComplexityEstimate estimate, PlayerRef importedBy) {
 
         static final DifficultyContext EMPTY = basic(null, null);
 
         static DifficultyContext basic(Double complexity, MapDifficultyStatisticsResponse stats) {
-            return new DifficultyContext(complexity, stats, null, null, EMPTY_SUMMARY, null);
+            return new DifficultyContext(complexity, stats, null, null, EMPTY_SUMMARY, null, null);
         }
     }
 
@@ -107,9 +115,12 @@ public class MapService {
 
     public Page<PublicMapDifficultyResponse> findDifficultiesPublic(UUID categoryId,
             Collection<MapDifficultyStatus> statuses,
-            Double complexityMin, Double complexityMax, String search, Long excludeUserId, Pageable pageable) {
-        return findDifficulties(categoryId, null, statuses, complexityMin, complexityMax, search, excludeUserId,
-                true, pageable)
+            Double complexityMin, Double complexityMax, String search, Long excludeUserId, boolean active,
+            Pageable pageable) {
+        boolean byComplexity = complexityMin != null || complexityMax != null
+                || pageable.getSort().getOrderFor("complexity") != null;
+        return findDifficulties(categoryId, null, byComplexity ? List.of(MapDifficultyStatus.RANKED) : statuses,
+                complexityMin, complexityMax, search, excludeUserId, active, pageable)
                 .map(MapService::toPublicDifficultyResponse);
     }
 
@@ -129,7 +140,7 @@ public class MapService {
         return difficulties.stream()
                 .map(d -> toPublicDifficultyResponse(toDifficultyResponse(d, new DifficultyContext(
                         complexities.get(d.getId()), stats.get(d.getId()), null, null,
-                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), null))))
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), null, null))))
                 .toList();
     }
 
@@ -281,6 +292,9 @@ public class MapService {
             boolean active, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         Collection<MapDifficultyStatus> statusFilter = statuses == null || statuses.isEmpty() ? null : statuses;
+        if (statusFilter == null && !active) {
+            statusFilter = List.of(MapDifficultyStatus.values());
+        }
         Pageable effective = resolveDifficultySort(pageable);
         Page<MapDifficulty> difficulties = hasSearch
                 ? mapDifficultyRepository.findWithComplexityFiltersWithSearch(
@@ -299,10 +313,12 @@ public class MapService {
         java.util.Map<UUID, PublicStaffUserResponse> staffInfo = loadStaffInfo(difficulties.getContent());
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
         java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
+        java.util.Map<Long, PlayerRef> importers = loadImporters(difficulties.getContent());
 
         return difficulties.map(d -> toDifficultyResponse(d, new DifficultyContext(complexities.get(d.getId()),
                 stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()))));
+                voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()),
+                importers.get(d.getImportedBy()))));
     }
 
     public MapResponse findById(UUID mapId) {
@@ -410,8 +426,8 @@ public class MapService {
     @Transactional
     public MapDifficultyResponse importMapDifficulty(CreateMapDifficultyRequest request, UUID staffId,
             MapDifficultyStatus status) {
-        MapDifficulty difficulty = findCampaignImport(request)
-                .map(campaignImport -> promoteCampaignImport(campaignImport, request, staffId, status))
+        MapDifficulty difficulty = findReusableRow(request)
+                .map(existing -> reuseRow(existing, request, staffId, status))
                 .orElseGet(() -> createDifficulty(request, staffId, status));
 
         if (status == MapDifficultyStatus.RANKED) {
@@ -423,21 +439,43 @@ public class MapService {
         return toDifficultyResponse(difficulty, DifficultyContext.EMPTY);
     }
 
-    private Optional<MapDifficulty> findCampaignImport(CreateMapDifficultyRequest request) {
+    private Optional<MapDifficulty> findReusableRow(CreateMapDifficultyRequest request) {
         return Optional.ofNullable(request.getBlLeaderboardId())
                 .flatMap(mapDifficultyRepository::findByBlLeaderboardId)
                 .or(() -> Optional.ofNullable(request.getSsLeaderboardId())
                         .flatMap(mapDifficultyRepository::findBySsLeaderboardId))
-                .filter(existing -> existing.getStatus() == MapDifficultyStatus.CAMPAIGN);
+                .filter(existing -> existing.getStatus() == MapDifficultyStatus.CAMPAIGN || withdrawn(existing));
     }
 
-    private MapDifficulty promoteCampaignImport(MapDifficulty campaignImport, CreateMapDifficultyRequest request,
+    private static boolean withdrawn(MapDifficulty difficulty) {
+        return !difficulty.isActive() && difficulty.getStatus() == MapDifficultyStatus.SUGGESTED
+                && difficulty.getDeactivatedAt() == null;
+    }
+
+    private MapDifficulty reuseRow(MapDifficulty existing, CreateMapDifficultyRequest request,
             UUID staffId, MapDifficultyStatus status) {
-        campaignImport.setCategory(categoryRepository.requireActive(request.getCategoryId()));
-        campaignImport.setBatch(resolveBatch(request.getBatchId()));
-        campaignImport.setActive(true);
-        applyStatus(campaignImport, status, resolveRankedAt(request, status), staffId);
-        return campaignImport;
+        if (status == MapDifficultyStatus.SUGGESTED && existing.getDeactivatedAt() != null) {
+            throw new ConflictException("This map was already rejected from ranking");
+        }
+        if (!existing.isActive() && mapDifficultyRepository.findByMapIdAndDifficultyAndCharacteristicAndActiveTrue(
+                existing.getMap().getId(), existing.getDifficulty(), existing.getCharacteristic()).isPresent()) {
+            throw new ConflictException("Another upload of this difficulty is already in the system");
+        }
+        existing.setCategory(categoryRepository.requireActive(request.getCategoryId()));
+        existing.setBatch(resolveBatch(request.getBatchId()));
+        existing.setActive(true);
+        applyStatus(existing, status, resolveRankedAt(request, status), staffId);
+        return existing;
+    }
+
+    @Transactional
+    public void withdrawSuggestion(MapDifficulty difficulty) {
+        if (usedByCampaign(difficulty)) {
+            applyStatus(difficulty, MapDifficultyStatus.CAMPAIGN, null, null);
+            return;
+        }
+        difficulty.setActive(false);
+        mapDifficultyRepository.save(difficulty);
     }
 
     private MapDifficulty createDifficulty(CreateMapDifficultyRequest request, UUID staffId,
@@ -465,13 +503,21 @@ public class MapService {
                         "A campaign-imported difficulty already exists for this map; promote it instead of importing a new one");
             }
             if (previousVersion.getStatus() != MapDifficultyStatus.RANKED) {
+                if (status == MapDifficultyStatus.SUGGESTED) {
+                    throw new ConflictException("This difficulty is already "
+                            + (previousVersion.getStatus() == MapDifficultyStatus.SUGGESTED ? "suggested"
+                                    : "in the ranking queue"));
+                }
                 if (usedByCampaign(previousVersion)) {
                     throw new ConflictException(
                             "The current version of this difficulty is used by a campaign; repoint its campaign nodes before importing new leaderboard IDs");
                 }
                 previousVersion.setActive(false);
+                previousVersion.setDeactivationReason("Replaced by a newer upload of this difficulty");
+                previousVersion.setDeactivatedAt(Instant.now());
                 previousVersion.setLastUpdatedBy(staffId);
                 mapDifficultyRepository.save(previousVersion);
+                eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(previousVersion));
             }
         }
 
@@ -525,6 +571,9 @@ public class MapService {
         if (request.getStatus() == MapDifficultyStatus.CAMPAIGN) {
             throw new ValidationException("Campaign status can only be set through campaign map import");
         }
+        if (request.getStatus() == MapDifficultyStatus.SUGGESTED) {
+            throw new ValidationException("Suggested status can only be set by a player suggestion");
+        }
         if (oldStatus == MapDifficultyStatus.CAMPAIGN && difficulty.getCategory() == null) {
             throw new ValidationException(
                     "Assign a category before promoting a campaign-imported difficulty");
@@ -543,6 +592,10 @@ public class MapService {
     private void applyStatus(MapDifficulty difficulty, MapDifficultyStatus status, Instant rankedAt, UUID staffId) {
         MapDifficultyStatus oldStatus = difficulty.getStatus();
         difficulty.setStatus(status);
+        if (status != MapDifficultyStatus.CAMPAIGN) {
+            difficulty.setDeactivationReason(null);
+            difficulty.setDeactivatedAt(null);
+        }
         difficulty.setRankedAt(status == MapDifficultyStatus.RANKED ? rankedAt : null);
         difficulty.setLastUpdatedBy(staffId);
         mapDifficultyRepository.save(difficulty);
@@ -550,6 +603,7 @@ public class MapService {
         if (oldStatus == status) {
             return;
         }
+        eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(difficulty));
         if (oldStatus == MapDifficultyStatus.RANKED || status == MapDifficultyStatus.RANKED) {
             scoreIngestionService.refreshRankedLeaderboardIds();
         }
@@ -605,17 +659,28 @@ public class MapService {
     }
 
     @Transactional
-    public void deactivate(UUID difficultyId, UUID staffId) {
-        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+    public void deactivate(UUID difficultyId, String reason, UUID staffId) {
+        MapDifficulty difficulty = mapDifficultyRepository.findById(difficultyId)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
+        boolean rejected = difficulty.getDeactivatedAt() != null;
+        if (!difficulty.isActive() && !rejected) {
+            throw new ResourceNotFoundException("MapDifficulty", difficultyId);
+        }
+        difficulty.setDeactivationReason(reason.trim());
+        difficulty.setLastUpdatedBy(staffId);
+        if (rejected) {
+            mapDifficultyRepository.save(difficulty);
+            return;
+        }
+        difficulty.setDeactivatedAt(Instant.now());
         if (usedByCampaign(difficulty)) {
             difficulty.setBatch(null);
             applyStatus(difficulty, MapDifficultyStatus.CAMPAIGN, null, staffId);
             return;
         }
         difficulty.setActive(false);
-        difficulty.setLastUpdatedBy(staffId);
         mapDifficultyRepository.save(difficulty);
+        eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(difficulty));
     }
 
     private boolean usedByCampaign(MapDifficulty difficulty) {
@@ -623,7 +688,8 @@ public class MapService {
     }
 
     public MapDifficultyResponse getDifficultyResponse(UUID difficultyId) {
-        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrue(difficultyId)
+        MapDifficulty difficulty = mapDifficultyRepository.findById(difficultyId)
+                .filter(found -> found.isActive() || found.getDeactivatedAt() != null)
                 .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", difficultyId));
         Double complexity = complexityService.findActiveComplexity(difficultyId).orElse(null);
         MapDifficultyStatisticsResponse stats = statisticsService.findActive(difficultyId).orElse(null);
@@ -632,7 +698,8 @@ public class MapService {
         VoteSummary votes = new VoteSummary(0, 0, 0, 0, 0, null, 0, 0, 0, 0, avgComplexity, 0);
         return toDifficultyResponse(difficulty, new DifficultyContext(complexity, stats,
                 staff.get(difficulty.getLastUpdatedBy()), staff.get(difficulty.getCreatedBy()), votes,
-                estimateRepository.findByMapDifficultyId(difficultyId).orElse(null)));
+                estimateRepository.findByMapDifficultyId(difficultyId).orElse(null),
+                loadImporters(List.of(difficulty)).get(difficulty.getImportedBy())));
     }
 
     private void checkLeaderboardIdConflict(String blId, String ssId) {
@@ -681,11 +748,13 @@ public class MapService {
         java.util.Map<UUID, PublicStaffUserResponse> staffInfo = loadStaffInfo(difficulties);
         java.util.Map<UUID, VoteSummary> voteSummaries = loadVoteSummaries(ids);
         java.util.Map<UUID, MapDifficultyComplexityEstimate> estimates = loadEstimates(ids);
+        java.util.Map<Long, PlayerRef> importers = loadImporters(difficulties);
 
         return difficulties.stream()
                 .map(d -> toDifficultyResponse(d, new DifficultyContext(complexities.get(d.getId()),
                         stats.get(d.getId()), staffInfo.get(d.getLastUpdatedBy()), staffInfo.get(d.getCreatedBy()),
-                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()))))
+                        voteSummaries.getOrDefault(d.getId(), EMPTY_SUMMARY), estimates.get(d.getId()),
+                        importers.get(d.getImportedBy()))))
                 .toList();
     }
 
@@ -693,7 +762,17 @@ public class MapService {
             MapDifficultyStatisticsResponse stats) {
         java.util.Map<UUID, PublicStaffUserResponse> staff = loadStaffInfo(List.of(difficulty));
         return new DifficultyContext(complexity, stats, staff.get(difficulty.getLastUpdatedBy()),
-                staff.get(difficulty.getCreatedBy()), EMPTY_SUMMARY, null);
+                staff.get(difficulty.getCreatedBy()), EMPTY_SUMMARY, null, null);
+    }
+
+    private java.util.Map<Long, PlayerRef> loadImporters(List<MapDifficulty> difficulties) {
+        List<Long> userIds = difficulties.stream().map(MapDifficulty::getImportedBy).filter(Objects::nonNull)
+                .distinct().toList();
+        if (userIds.isEmpty()) {
+            return new java.util.HashMap<>();
+        }
+        return userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, ClanRefCache::playerRef));
     }
 
     private java.util.Map<UUID, PublicStaffUserResponse> loadStaffInfo(List<MapDifficulty> difficulties) {
@@ -827,6 +906,9 @@ public class MapService {
                 .difficulty(d.getDifficulty())
                 .characteristic(d.getCharacteristic())
                 .active(d.isActive())
+                .deactivatedAt(d.getDeactivatedAt())
+                .deactivationReason(d.getDeactivationReason())
+                .importedBy(ctx.importedBy())
                 .status(d.getStatus())
                 .criteriaStatus(d.getCriteriaStatus())
                 .autoCriteriaStatus(d.getAutoCriteriaStatus())
@@ -923,6 +1005,9 @@ public class MapService {
                 .criteriaStatus(ranked ? null : d.getCriteriaStatus())
                 .autoCriteriaStatus(ranked ? null : d.getAutoCriteriaStatus())
                 .statistics(d.getStatistics())
+                .deactivatedAt(d.getDeactivatedAt())
+                .deactivationReason(d.getDeactivationReason())
+                .importedBy(d.getImportedBy())
                 .build();
     }
 }

@@ -40,6 +40,7 @@ public class ComplexityEstimateService {
     private final NoteAccuracyComplexityRater rater;
     private final ComplexityModelClient modelClient;
     private final ComplexityScenarioService scenarioService;
+    private final MapDifficultyComplexityService complexityService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public record Outcome(Rating rating, boolean repriced) {
@@ -53,6 +54,22 @@ public class ComplexityEstimateService {
         return mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
                 .map(difficulty -> refresh(difficulty, currentModelHash()))
                 .map(Outcome::rating);
+    }
+
+    @Async("taskExecutor")
+    public void priceImportAsync(UUID mapDifficultyId) {
+        MapDifficulty difficulty = mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(mapDifficultyId)
+                .orElse(null);
+        Rating rating = difficulty == null ? null : refresh(difficulty, currentModelHash()).rating();
+        if (rating == null) {
+            log.warn("Complexity script could not price imported difficulty {}", mapDifficultyId);
+            return;
+        }
+        if (complexityService.findActiveComplexity(mapDifficultyId).isPresent()) {
+            return;
+        }
+        complexityService.setComplexity(difficulty, rating.complexity(), "Complexity script " + rater.version(), null);
+        log.info("Complexity script priced imported difficulty {} at {}", mapDifficultyId, rating.complexity());
     }
 
     @Async("backfillExecutor")

@@ -88,6 +88,46 @@ class MapVersionQueryTest {
         assertThat(mapRepository.findByDifficultyFilters(null, null, true, page).getTotalElements()).isZero();
     }
 
+    @Test
+    @DisplayName("a suggestion stays out of the default lists and shows when asked for")
+    void aSuggestionOnlyShowsWhenAskedFor() {
+        UUID suggested = persistVersion("2025-09-01T00:00:00Z", Difficulty.HARD, MapDifficultyStatus.SUGGESTED,
+                "true_acc");
+        PageRequest page = PageRequest.of(0, 25);
+
+        assertThat(mapDifficultyRepository.findByMapIdsWithFilters(List.of(suggested), null, null)).isEmpty();
+        assertThat(mapDifficultyRepository.findWithComplexityFilters(null, true, null, null, null, null, null, page)
+                .map(d -> d.getMap().getId()).getContent()).doesNotContain(suggested);
+        assertThat(mapDifficultyRepository.findWithComplexityFilters(null, true, null,
+                List.of(MapDifficultyStatus.SUGGESTED), null, null, null, page)
+                .map(d -> d.getMap().getId()).getContent()).containsExactly(suggested);
+    }
+
+    @Test
+    @DisplayName("the deactivated list holds rejected maps a campaign still uses, and no plain campaign imports")
+    void theDeactivatedListKeepsRejectedCampaignMaps() {
+        UUID rejectedButUsed = persistVersion("2025-09-01T00:00:00Z", Difficulty.HARD, MapDifficultyStatus.CAMPAIGN,
+                "true_acc");
+        UUID plainImport = persistVersion("2025-09-02T00:00:00Z", Difficulty.EXPERT, MapDifficultyStatus.CAMPAIGN,
+                "true_acc");
+        UUID rejected = persistVersion("2025-09-03T00:00:00Z", Difficulty.EXPERT_PLUS, MapDifficultyStatus.QUEUE,
+                "true_acc");
+        entityManager.createNativeQuery(
+                "UPDATE map_difficulties SET deactivated_at = now() WHERE map_id IN (?1, ?2)")
+                .setParameter(1, rejectedButUsed).setParameter(2, rejected).executeUpdate();
+        entityManager.createNativeQuery("UPDATE map_difficulties SET active = false WHERE map_id IN (?1, ?2)")
+                .setParameter(1, plainImport).setParameter(2, rejected).executeUpdate();
+        entityManager.clear();
+        PageRequest page = PageRequest.of(0, 25);
+        List<MapDifficultyStatus> every = List.of(MapDifficultyStatus.values());
+
+        assertThat(mapDifficultyRepository.findWithComplexityFilters(null, false, null, every, null, null, null, page)
+                .map(d -> d.getMap().getId()).getContent()).containsExactlyInAnyOrder(rejectedButUsed, rejected);
+        assertThat(mapDifficultyRepository.findWithComplexityFiltersWithSearch(null, false, null, every, null, null,
+                null, "what you know", page).map(d -> d.getMap().getId()).getContent())
+                .containsExactlyInAnyOrder(rejectedButUsed, rejected);
+    }
+
     private UUID version(Difficulty difficulty, MapDifficultyStatus status) {
         return mapRepository.findActiveByBeatsaverCodeMatchingDifficulty(CODE, difficulty, "standard", status,
                 PageRequest.of(0, 1)).getFirst().getId();

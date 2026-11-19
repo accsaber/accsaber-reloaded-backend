@@ -41,6 +41,7 @@ import com.accsaber.backend.model.dto.response.clan.PublicClanResponse;
 import com.accsaber.backend.model.dto.response.common.MapDifficultyRef;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
 import com.accsaber.backend.model.dto.response.item.TradeResponse;
+import com.accsaber.backend.model.dto.response.chat.ChatMessageResponse;
 import com.accsaber.backend.model.dto.response.map.BatchResponse;
 import com.accsaber.backend.model.dto.response.map.PublicMapDifficultyResponse;
 import com.accsaber.backend.model.dto.response.milestone.MilestoneCompletedResponse;
@@ -190,6 +191,28 @@ class ResponseJsonShapeTest {
         assertThat(retreating.get("wipedAt").asString()).isEqualTo("2026-02-03T04:05:06Z");
         assertThat(open.has("retreatAt")).isFalse();
         assertThat(open.has("wipedAt")).isFalse();
+    }
+
+    @Test
+    void aLiveDifficultyKeepsItsFrozenShapeAndADeactivatedOneCarriesTheReason() {
+        var live = PublicMapDifficultyResponse.builder().id(A).build();
+        var rejected = PublicMapDifficultyResponse.builder().id(A)
+                .deactivatedAt(T1).deactivationReason("Overmapped").importedBy(PLAYER).build();
+
+        assertThat(json(live).has("deactivatedAt")).isFalse();
+        assertThat(json(live).has("deactivationReason")).isFalse();
+        assertThat(json(live).has("importedBy")).isFalse();
+        assertThat(json(rejected).get("deactivationReason").asString()).isEqualTo("Overmapped");
+        assertThat(json(rejected).get("importedBy").get("id").asString()).isEqualTo("76561198000000001");
+    }
+
+    @Test
+    void aCommentOnlyCarriesTheRankingTeamFlagWhenItIsSet() {
+        JsonNode plain = json(new ChatMessageResponse(A, PLAYER, "hi", null, null, null, null, T1, null));
+        JsonNode staff = json(new ChatMessageResponse(A, PLAYER, "hi", null, null, null, null, T1, true));
+
+        assertThat(plain.has("rankingTeam")).isFalse();
+        assertThat(staff.get("rankingTeam").asBoolean()).isTrue();
     }
 
     @Test

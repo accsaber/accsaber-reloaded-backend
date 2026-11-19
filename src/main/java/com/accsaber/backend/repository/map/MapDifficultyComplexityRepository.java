@@ -50,9 +50,10 @@ public interface MapDifficultyComplexityRepository extends JpaRepository<MapDiff
                         SELECT c FROM MapDifficultyComplexity c
                         JOIN c.mapDifficulty d
                         WHERE d.map.id = :mapId
+                        AND d.status = com.accsaber.backend.model.entity.map.MapDifficultyStatus.RANKED
                         ORDER BY c.createdAt DESC
                         """)
-        List<MapDifficultyComplexity> findAllByMapIdOrderByCreatedAtDesc(@Param("mapId") UUID mapId);
+        List<MapDifficultyComplexity> findRankedHistoryByMapId(@Param("mapId") UUID mapId);
 
         @Query("""
                         SELECT new com.accsaber.backend.model.dto.projection.ReweightRoundMapRow(

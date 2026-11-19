@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +40,8 @@ import com.accsaber.backend.service.score.ScoreImportService;
 import com.accsaber.backend.service.score.ScoreIngestionService;
 import com.accsaber.backend.util.Texts;
 
+import com.accsaber.backend.model.event.MapDifficultyStatusChangedEvent;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -56,6 +59,7 @@ public class BatchService {
     private final CampaignScoreGate campaignScoreGate;
     private final MapService mapService;
     private final PlaylistService playlistService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Page<BatchResponse<MapDifficultyResponse>> findAll(BatchStatus status, String search, Pageable pageable) {
         return toResponsesWithDifficulties(
@@ -142,9 +146,10 @@ public class BatchService {
         if (difficulty.getBatch() != null && !difficulty.getBatch().getId().equals(batchId)) {
             throw new ConflictException("Difficulty is already assigned to another batch");
         }
-        if (difficulty.getStatus() == MapDifficultyStatus.CAMPAIGN) {
+        if (difficulty.getStatus() == MapDifficultyStatus.CAMPAIGN
+                || difficulty.getStatus() == MapDifficultyStatus.SUGGESTED) {
             throw new ValidationException(
-                    "Campaign-imported difficulties must be promoted to queue before batching");
+                    "Campaign-imported and suggested difficulties must be promoted to queue before batching");
         }
 
         difficulty.setBatch(batch);
@@ -189,6 +194,7 @@ public class BatchService {
             d.setRankedAt(releasedAt);
         });
         mapDifficultyRepository.saveAll(difficulties);
+        difficulties.forEach(d -> eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(d)));
         scoreIngestionService.refreshRankedLeaderboardIds();
         campaignScoreGate.refresh();
 

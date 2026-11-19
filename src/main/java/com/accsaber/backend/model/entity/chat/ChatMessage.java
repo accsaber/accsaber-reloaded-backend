@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import com.accsaber.backend.model.entity.campaign.Campaign;
 import com.accsaber.backend.model.entity.clan.Clan;
 import com.accsaber.backend.model.entity.clan.war.ClanWar;
+import com.accsaber.backend.model.entity.map.MapDifficulty;
 import com.accsaber.backend.model.entity.user.User;
 
 import jakarta.persistence.Column;
@@ -47,6 +48,10 @@ public class ChatMessage {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "clan_id")
     private Clan clan;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "map_difficulty_id")
+    private MapDifficulty mapDifficulty;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")

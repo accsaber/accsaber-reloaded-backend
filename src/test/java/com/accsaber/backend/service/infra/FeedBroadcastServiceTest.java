@@ -159,7 +159,7 @@ class FeedBroadcastServiceTest {
         UUID channelId = UUID.randomUUID();
         ChatMessageResponse message = new ChatMessageResponse(UUID.randomUUID(),
                 new PlayerRef("76561198000000000", "Tester", null, null, "us", null, null),
-                "hello team", null, null, null, null, Instant.parse("2026-07-03T21:00:00Z"));
+                "hello team", null, null, null, null, Instant.parse("2026-07-03T21:00:00Z"), null);
 
         service.onChatMessage(new ChatMessageEvent(channelId, message, json -> channel.broadcast(channelId, json)));
 

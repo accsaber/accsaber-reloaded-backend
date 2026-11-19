@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +24,7 @@ public class MapZipCache {
 
     private final BeatSaverClient beatSaverClient;
     private final Path directory;
+    private final Map<String, Object> downloads = new ConcurrentHashMap<>();
 
     public MapZipCache(BeatSaverClient beatSaverClient,
             @Value("${accsaber.maps.zip-cache-path}") String directory) {
@@ -33,7 +36,18 @@ public class MapZipCache {
         if (songHash == null || !SONG_HASH.matcher(songHash).matches()) {
             return Optional.empty();
         }
-        Path file = directory.resolve(songHash.toLowerCase() + ".zip");
+        String key = songHash.toLowerCase();
+        Object lock = downloads.computeIfAbsent(key, hash -> new Object());
+        synchronized (lock) {
+            try {
+                return read(directory.resolve(key + ".zip"), songHash);
+            } finally {
+                downloads.remove(key, lock);
+            }
+        }
+    }
+
+    private Optional<byte[]> read(Path file, String songHash) {
         if (Files.isRegularFile(file)) {
             try {
                 return Optional.of(Files.readAllBytes(file));

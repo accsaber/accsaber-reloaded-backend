@@ -50,7 +50,7 @@ class MapDifficultyComplexityServiceTest {
             MapDifficultyComplexity old = buildComplexity(diff, 6.0, false);
             MapDifficultyComplexity current = buildComplexity(diff, 7.5, true);
             current.setSupersedes(old);
-            when(complexityRepository.findAllByMapIdOrderByCreatedAtDesc(mapId))
+            when(complexityRepository.findRankedHistoryByMapId(mapId))
                     .thenReturn(List.of(current, old));
 
             List<MapComplexityHistoryResponse> history = complexityService.getHistoryForMap(mapId);

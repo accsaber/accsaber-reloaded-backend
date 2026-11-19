@@ -63,7 +63,8 @@ public class MapController {
     }
 
     @Operation(summary = "List difficulties", description = "Status takes more than one value, like "
-            + "status=QUEUE,QUALIFIED.")
+            + "status=QUEUE,QUALIFIED. Suggestions only show with status=SUGGESTED. active=false lists "
+            + "deactivated difficulties with their reason.")
     @GetMapping("/difficulties")
     public ResponseEntity<Page<PublicMapDifficultyResponse>> listDifficulties(
             @RequestParam(required = false) String categoryId,
@@ -71,10 +72,11 @@ public class MapController {
             @RequestParam(required = false) Double complexityMin,
             @RequestParam(required = false) Double complexityMax,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "true") boolean active,
             @PageableDefault(size = 20, sort = "rankedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity
                 .ok(mapService.findDifficultiesPublic(categoryService.resolveId(categoryId), status, complexityMin,
-                        complexityMax, search, null, pageable));
+                        complexityMax, search, null, active, pageable));
     }
 
     @Operation(summary = "All ranked difficulties", description = "Use this to sync a local copy instead of paging "
@@ -85,7 +87,7 @@ public class MapController {
     }
 
     @Operation(summary = "Get a difficulty", description = "Complexity only shows once ranked. Votes and criteria "
-            + "only show before that.")
+            + "only show before that. Deactivated ones come back with deactivatedAt and the reason.")
     @GetMapping("/difficulties/{difficultyId}")
     public ResponseEntity<PublicMapDifficultyResponse> getDifficulty(@PathVariable UUID difficultyId) {
         return ResponseEntity.ok(mapService.getDifficultyResponsePublic(difficultyId));

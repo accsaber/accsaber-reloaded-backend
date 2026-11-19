@@ -99,6 +99,12 @@ public class MapDifficulty {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "deactivation_reason")
+    private String deactivationReason;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
+
     @Column(name = "complexity_pinned", nullable = false)
     @Builder.Default
     private boolean complexityPinned = false;

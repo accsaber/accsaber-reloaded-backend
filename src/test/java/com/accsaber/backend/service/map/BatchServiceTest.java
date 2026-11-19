@@ -80,6 +80,9 @@ class BatchServiceTest {
         @Mock
         private PlaylistService playlistService;
 
+        @Mock
+        private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
         @InjectMocks
         private BatchService batchService;
 

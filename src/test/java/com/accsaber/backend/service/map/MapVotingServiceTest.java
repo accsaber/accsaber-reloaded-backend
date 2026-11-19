@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -33,6 +34,7 @@ import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
+import com.accsaber.backend.model.event.MapVoteCastEvent;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +52,9 @@ class MapVotingServiceTest {
         @Mock
         private MapDifficultyComplexityService complexityService;
 
+        @Mock
+        private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
         @InjectMocks
         private MapVotingService votingService;
 
@@ -58,6 +63,24 @@ class MapVotingServiceTest {
                 ReflectionTestUtils.setField(votingService, "rankThreshold", 3);
                 ReflectionTestUtils.setField(votingService, "reweightThreshold", 3);
                 ReflectionTestUtils.setField(votingService, "unrankThreshold", 3);
+        }
+
+        @Test
+        void publicRankVotesCarryTheReasonButNeverTheVoter() {
+                MapDifficulty diff = buildDifficulty(MapDifficultyStatus.QUEUE);
+                when(voteRepository.findByMapDifficultyIdAndActiveTrue(diff.getId())).thenReturn(List.of(
+                                buildVote(diff, UUID.randomUUID(), VoteType.DOWNVOTE, MapVoteAction.RANK, 6.5,
+                                                "Too many resets")));
+
+                List<VoteResponse> votes = votingService.getAnonymousRankVotes(diff.getId()).getVotes();
+
+                assertThat(votes).singleElement().satisfies(vote -> {
+                        assertThat(vote.getReason()).isEqualTo("Too many resets");
+                        assertThat(vote.getStaff()).isNull();
+                        assertThat(vote.getSuggestedComplexity()).isNull();
+                });
+                assertThat(votes.getFirst().getComplexity()).isNull();
+                verifyNoInteractions(staffUserRepository, complexityService);
         }
 
         @Nested
@@ -144,6 +167,8 @@ class MapVotingServiceTest {
                         assertThat(response.getType()).isEqualTo(MapVoteAction.RANK);
                         assertThat(response.getReason()).isEqualTo("Looks good");
                         assertThat(response.getStaff().getId()).isEqualTo(staffId);
+                        verify(eventPublisher).publishEvent(
+                                new MapVoteCastEvent(diff, VoteType.UPVOTE, false));
                 }
 
                 @Test

@@ -67,7 +67,8 @@ public enum UserSettingKey {
     NOTIFICATIONS_CLAN_MEMBERSHIP("notifications.clanMembership", Boolean.class, true, false),
     NOTIFICATIONS_CLAN_ALLIANCE("notifications.clanAlliance", Boolean.class, true, false),
     NOTIFICATIONS_CLAN_WAR("notifications.clanWar", Boolean.class, true, false),
-    NOTIFICATIONS_CAMPAIGN_INVITE("notifications.campaignInvite", Boolean.class, true, false);
+    NOTIFICATIONS_CAMPAIGN_INVITE("notifications.campaignInvite", Boolean.class, true, false),
+    NOTIFICATIONS_MAP_FOLLOWED("notifications.mapFollowed", Boolean.class, true, false);
 
     public static final String GROUP_PRIVACY = "privacy";
     public static final String GROUP_APPEARANCE = "appearance";

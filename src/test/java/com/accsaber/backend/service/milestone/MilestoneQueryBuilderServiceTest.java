@@ -857,7 +857,7 @@ class MilestoneQueryBuilderServiceTest {
 
                         assertThat(statusCol.type()).isEqualTo("enum");
                         assertThat(statusCol.enumValues()).containsExactlyInAnyOrder("QUEUE", "QUALIFIED", "RANKED",
-                                        "CAMPAIGN");
+                                        "CAMPAIGN", "SUGGESTED");
                 }
 
                 @Test

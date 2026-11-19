@@ -51,7 +51,7 @@ class DbEnumConverterTest {
                         "Unknown batch status: bogus"),
                 Arguments.of(new DifficultyConverter(), new String[] { "Easy", "Normal", "Hard", "Expert", "ExpertPlus" },
                         "Unknown difficulty: bogus"),
-                Arguments.of(new MapDifficultyStatusConverter(), new String[] { "queue", "qualified", "ranked", "campaign" },
+                Arguments.of(new MapDifficultyStatusConverter(), new String[] { "queue", "qualified", "ranked", "campaign", "suggested" },
                         "Unknown map difficulty status: bogus"),
                 Arguments.of(new MapVoteActionConverter(), new String[] { "rank", "reweight", "unrank" },
                         "Unknown map vote action: bogus"),

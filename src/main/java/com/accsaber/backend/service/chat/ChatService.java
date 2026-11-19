@@ -66,6 +66,7 @@ public class ChatService {
     public ChatMessageResponse post(ChatChannel channel, UUID channelId, ChatMessage message) {
         ChatMessageResponse response = channel.toResponses(List.of(chatRepository.save(message))).getFirst();
         channel.prune(channelId);
+        channel.posted(message);
         eventPublisher.publishEvent(new ChatMessageEvent(channelId, response,
                 json -> channel.broadcast(channelId, json)));
         return response;

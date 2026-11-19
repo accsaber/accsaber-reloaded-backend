@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -173,7 +174,7 @@ class MapImportServiceTest {
                 }
 
                 @Test
-                void pricesWithTheScript_whenComplexityOmitted() {
+                void leavesThePricingToTheScriptAfterTheImport_whenComplexityOmitted() {
                         BeatLeaderLeaderboardResponse blLb = buildBlLeaderboard();
                         when(beatLeaderClient.getLeaderboard("bl_123")).thenReturn(Optional.of(blLb));
                         when(beatSaverClient.getMapByHash("abc123hash")).thenReturn(Optional.empty());
@@ -185,18 +186,11 @@ class MapImportServiceTest {
                                                         .id(diffId)
                                                         .status(MapDifficultyStatus.QUEUE)
                                                         .build());
-                        when(complexityEstimateService.estimateFor(diffId))
-                                        .thenReturn(Optional.of(new NoteAccuracyComplexityRater.Rating(8.4, Map.of())));
-                        when(complexityRater.version()).thenReturn("note-acc-2026-09-11");
-
-                        MapDifficulty entity = new MapDifficulty();
-                        when(mapDifficultyRepository.findById(diffId)).thenReturn(Optional.of(entity));
-
                         mapImportService.importByLeaderboardIds(
                                         request("bl_123", "ss_456"), STAFF_ID, MapDifficultyStatus.QUEUE);
 
-                        verify(complexityService).setComplexity(eq(entity), eq(8.4),
-                                        eq("Complexity script note-acc-2026-09-11"), eq(null));
+                        verify(complexityEstimateService).priceImportAsync(diffId);
+                        verifyNoInteractions(complexityService);
                 }
 
                 @Test

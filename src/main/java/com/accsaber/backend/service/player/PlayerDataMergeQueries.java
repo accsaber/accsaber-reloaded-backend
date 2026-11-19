@@ -39,6 +39,7 @@ final class PlayerDataMergeQueries {
             MOVE_UNLESS_HELD.formatted("user_missions", "parent_mission_id", "AND s.status = 'completed'", ""),
             moveRows("mission_contributions", "user_mission_id"),
             moveRows("user_event_profiles", "event_id"),
+            moveRows("map_difficulty_subscriptions", "map_difficulty_id"),
             """
             UPDATE supporter_accounts s SET user_id = :primary
             WHERE s.user_id = :secondary AND NOT EXISTS (SELECT 1 FROM supporter_accounts p WHERE p.user_id = :primary)

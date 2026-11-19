@@ -18,7 +18,7 @@ public interface StaffMapVoteRepository extends JpaRepository<StaffMapVote, UUID
 
         Optional<StaffMapVote> findByMapDifficultyIdAndStaffIdAndActiveTrue(UUID mapDifficultyId, UUID staffId);
 
-        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map LEFT JOIN FETCH d.category WHERE v.mapDifficulty.id = :mapDifficultyId AND v.active = true")
+        @Query("SELECT v FROM StaffMapVote v JOIN FETCH v.mapDifficulty d JOIN FETCH d.map LEFT JOIN FETCH d.category WHERE v.mapDifficulty.id = :mapDifficultyId AND v.active = true ORDER BY v.updatedAt, v.id")
         List<StaffMapVote> findByMapDifficultyIdAndActiveTrue(@Param("mapDifficultyId") UUID mapDifficultyId);
 
         long countByMapDifficultyIdAndTypeAndVoteAndActiveTrue(UUID mapDifficultyId, MapVoteAction type, VoteType vote);

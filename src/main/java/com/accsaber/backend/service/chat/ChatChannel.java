@@ -26,11 +26,18 @@ public interface ChatChannel {
     default void prune(UUID channelId) {
     }
 
+    default void posted(ChatMessage message) {
+    }
+
     void broadcast(UUID channelId, String json);
 
     static ChatMessageResponse toResponse(ChatMessage message, PublicClanResponse clan) {
+        return toResponse(message, clan, null);
+    }
+
+    static ChatMessageResponse toResponse(ChatMessage message, PublicClanResponse clan, Boolean rankingTeam) {
         return new ChatMessageResponse(message.getId(), ClanRefCache.playerRef(message.getUser()), message.getContent(),
                 message.getEvent(), ClanRefCache.playerRef(message.getSubjectUser()), clan,
-                ClanWarRefResponse.of(message.getWar()), message.getCreatedAt());
+                ClanWarRefResponse.of(message.getWar()), message.getCreatedAt(), rankingTeam);
     }
 }

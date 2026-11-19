@@ -61,7 +61,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                                 SELECT DISTINCT d.map.id FROM MapDifficulty d
                                 WHERE d.active = true
                                 AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                                AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                                AND ((:status IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                                      OR d.status = :status)
                         )
                         """, countQuery = """
@@ -70,7 +70,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         WHERE d.active = true
                         AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:status IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status = :status)
                         """)
         Page<Map> findByDifficultyFilters(
@@ -91,7 +91,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                                 SELECT DISTINCT d.map.id FROM MapDifficulty d
                                 WHERE d.active = true
                                 AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                                AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                                AND ((:status IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                                      OR d.status = :status)
                         )
                         """, countQuery = """
@@ -101,7 +101,7 @@ public interface MapRepository extends JpaRepository<Map, UUID> {
                         AND m.active = true
                         AND (:warBanned IS NULL OR m.warBanned = :warBanned)
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:status IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status = :status)
                         AND (search_normalize(m.songName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')
                              OR search_normalize(m.songSubName) LIKE CONCAT('%', search_normalize(CAST(:search AS string)), '%')

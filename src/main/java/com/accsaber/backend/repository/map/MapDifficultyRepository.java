@@ -5,20 +5,35 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.accsaber.backend.model.entity.map.Difficulty;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
+import com.accsaber.backend.exception.ResourceNotFoundException;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 
 public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UUID> {
 
         Optional<MapDifficulty> findByIdAndActiveTrue(UUID id);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT d FROM MapDifficulty d WHERE d.id = :id AND d.active = true")
+        Optional<MapDifficulty> findActiveForUpdate(@Param("id") UUID id);
+
+        default MapDifficulty requireCommentable(UUID id) {
+                return findById(id)
+                                .filter(difficulty -> difficulty.getDeactivatedAt() != null || (difficulty.isActive()
+                                                && difficulty.getStatus() != MapDifficultyStatus.CAMPAIGN))
+                                .orElseThrow(() -> new ResourceNotFoundException("MapDifficulty", id));
+        }
 
         @Query("""
                         SELECT d FROM MapDifficulty d
@@ -134,7 +149,7 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         WHERE d.map.id IN :mapIds AND d.active = true
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND ((:status IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:status IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status = :status)
                         """)
         List<MapDifficulty> findByMapIdsWithFilters(
@@ -173,10 +188,11 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
-                        WHERE d.active = :active
+                        WHERE ((:active = true AND d.active = true)
+                             OR (:active = false AND d.deactivatedAt IS NOT NULL))
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:batchId IS NULL OR d.batch.id = :batchId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:statuses IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -187,10 +203,11 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT COUNT(d) FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
-                        WHERE d.active = :active
+                        WHERE ((:active = true AND d.active = true)
+                             OR (:active = false AND d.deactivatedAt IS NOT NULL))
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:batchId IS NULL OR d.batch.id = :batchId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:statuses IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -212,10 +229,11 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT d FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
-                        WHERE d.active = :active
+                        WHERE ((:active = true AND d.active = true)
+                             OR (:active = false AND d.deactivatedAt IS NOT NULL))
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:batchId IS NULL OR d.batch.id = :batchId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:statuses IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)
@@ -230,10 +248,11 @@ public interface MapDifficultyRepository extends JpaRepository<MapDifficulty, UU
                         SELECT COUNT(d) FROM MapDifficulty d
                         LEFT JOIN MapDifficultyComplexity c ON c.mapDifficulty = d AND c.active = true
                         LEFT JOIN MapDifficultyStatistics mds ON mds.mapDifficulty = d AND mds.active = true
-                        WHERE d.active = :active
+                        WHERE ((:active = true AND d.active = true)
+                             OR (:active = false AND d.deactivatedAt IS NOT NULL))
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (:batchId IS NULL OR d.batch.id = :batchId)
-                        AND ((:statuses IS NULL AND d.status <> com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN)
+                        AND ((:statuses IS NULL AND d.status NOT IN (com.accsaber.backend.model.entity.map.MapDifficultyStatus.CAMPAIGN, com.accsaber.backend.model.entity.map.MapDifficultyStatus.SUGGESTED))
                              OR d.status IN :statuses)
                         AND (:complexityMin IS NULL OR c.complexity >= :complexityMin)
                         AND (:complexityMax IS NULL OR c.complexity <= :complexityMax)

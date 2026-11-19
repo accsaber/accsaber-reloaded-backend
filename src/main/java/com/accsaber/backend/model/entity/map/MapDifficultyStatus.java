@@ -11,7 +11,8 @@ public enum MapDifficultyStatus implements DbEnum {
     QUEUE("queue"),
     QUALIFIED("qualified"),
     RANKED("ranked"),
-    CAMPAIGN("campaign");
+    CAMPAIGN("campaign"),
+    SUGGESTED("suggested");
 
     private final String dbValue;
 

@@ -2,11 +2,13 @@ package com.accsaber.backend.service.map;
 
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,8 @@ import com.accsaber.backend.model.entity.map.StaffMapVote;
 import com.accsaber.backend.model.entity.map.VoteType;
 import com.accsaber.backend.model.entity.staff.StaffRole;
 import com.accsaber.backend.model.entity.staff.StaffUser;
+import com.accsaber.backend.model.event.MapDifficultyStatusChangedEvent;
+import com.accsaber.backend.model.event.MapVoteCastEvent;
 import com.accsaber.backend.repository.map.MapDifficultyRepository;
 import com.accsaber.backend.repository.map.StaffMapVoteRepository;
 import com.accsaber.backend.repository.staff.StaffUserRepository;
@@ -44,6 +48,7 @@ public class MapVotingService {
     private final MapDifficultyRepository mapDifficultyRepository;
     private final StaffUserRepository staffUserRepository;
     private final MapDifficultyComplexityService complexityService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${accsaber.voting.rank-threshold:3}")
     private int rankThreshold;
@@ -55,13 +60,21 @@ public class MapVotingService {
     private int unrankThreshold;
 
     public VoteListResponse getVotes(UUID mapDifficultyId, MapVoteAction type) {
+        return getVotes(mapDifficultyId, type, true);
+    }
+
+    public VoteListResponse getAnonymousRankVotes(UUID mapDifficultyId) {
+        return getVotes(mapDifficultyId, MapVoteAction.RANK, false);
+    }
+
+    private VoteListResponse getVotes(UUID mapDifficultyId, MapVoteAction type, boolean named) {
         List<StaffMapVote> voteEntities = voteRepository.findByMapDifficultyIdAndActiveTrue(mapDifficultyId);
-        java.util.Map<UUID, StaffUser> staff = loadStaff(voteEntities);
-        Double complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
+        java.util.Map<UUID, StaffUser> staff = named ? loadStaff(voteEntities) : java.util.Map.of();
+        Double complexity = named ? complexityService.findActiveComplexity(mapDifficultyId).orElse(null) : null;
 
         List<VoteResponse> votes = voteEntities.stream()
                 .filter(v -> v.getType() == type)
-                .map(v -> toResponse(v, staff.get(v.getStaffId()), complexity))
+                .map(v -> toResponse(v, staff.get(v.getStaffId()), complexity, named))
                 .toList();
 
         boolean rankReady = isThresholdMet(mapDifficultyId, MapVoteAction.RANK, rankThreshold);
@@ -99,7 +112,7 @@ public class MapVotingService {
         java.util.Map<UUID, Double> complexities = complexityService
                 .findActiveComplexitiesForDifficulties(difficultyIds);
         return votes.map(v -> toResponse(v, staff.get(v.getStaffId()),
-                complexities.get(v.getMapDifficulty().getId())));
+                complexities.get(v.getMapDifficulty().getId()), true));
     }
 
     @Transactional
@@ -116,8 +129,9 @@ public class MapVotingService {
             throw new ValidationException("Only RANKING_HEAD or ADMIN can override criteria votes");
         }
 
-        StaffMapVote staffVote = voteRepository
-                .findByMapDifficultyIdAndStaffIdAndActiveTrue(mapDifficultyId, staffId)
+        Optional<StaffMapVote> existingVote = voteRepository
+                .findByMapDifficultyIdAndStaffIdAndActiveTrue(mapDifficultyId, staffId);
+        StaffMapVote staffVote = existingVote
                 .map(existing -> updateVote(existing, vote, type, suggestedComplexity, reason))
                 .orElseGet(() -> buildVote(difficulty, staffId, vote, type, suggestedComplexity, reason));
 
@@ -134,6 +148,7 @@ public class MapVotingService {
 
         if (type == MapVoteAction.RANK) {
             if (difficulty.getStatus() == MapDifficultyStatus.QUEUE) {
+                eventPublisher.publishEvent(new MapVoteCastEvent(difficulty, vote, existingVote.isPresent()));
                 tryAutoQualify(difficulty);
             } else if (difficulty.getStatus() == MapDifficultyStatus.QUALIFIED) {
                 tryAutoDequalify(difficulty);
@@ -141,7 +156,7 @@ public class MapVotingService {
         }
 
         Double complexity = complexityService.findActiveComplexity(mapDifficultyId).orElse(null);
-        return toResponse(saved, loadStaff(List.of(saved)).get(staffId), complexity);
+        return toResponse(saved, loadStaff(List.of(saved)).get(staffId), complexity, true);
     }
 
     @Transactional
@@ -169,6 +184,7 @@ public class MapVotingService {
         }
         difficulty.setStatus(MapDifficultyStatus.QUALIFIED);
         mapDifficultyRepository.save(difficulty);
+        eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(difficulty));
         log.info("Auto-qualified difficulty {}", diffId);
     }
 
@@ -179,6 +195,7 @@ public class MapVotingService {
         }
         difficulty.setStatus(MapDifficultyStatus.QUEUE);
         mapDifficultyRepository.save(difficulty);
+        eventPublisher.publishEvent(new MapDifficultyStatusChangedEvent(difficulty));
         log.info("Auto-dequalified difficulty {}", diffId);
     }
 
@@ -292,7 +309,7 @@ public class MapVotingService {
                 .collect(java.util.stream.Collectors.toMap(StaffUser::getId, s -> s));
     }
 
-    private VoteResponse toResponse(StaffMapVote v, StaffUser staff, Double complexity) {
+    private VoteResponse toResponse(StaffMapVote v, StaffUser staff, Double complexity, boolean staffView) {
         return VoteResponse.builder()
                 .id(v.getId())
                 .map(MapDifficultyRef.of(v.getMapDifficulty()))
@@ -300,7 +317,7 @@ public class MapVotingService {
                 .staff(StaffMapper.toPublicResponse(staff))
                 .vote(v.getVote())
                 .type(v.getType())
-                .suggestedComplexity(v.getSuggestedComplexity())
+                .suggestedComplexity(staffView ? v.getSuggestedComplexity() : null)
                 .criteriaVote(v.getCriteriaVote())
                 .criteriaVoteOverride(v.isCriteriaVoteOverride())
                 .reason(v.getReason())

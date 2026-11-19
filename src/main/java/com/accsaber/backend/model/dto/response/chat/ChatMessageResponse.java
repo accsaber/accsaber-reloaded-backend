@@ -16,5 +16,6 @@ public record ChatMessageResponse(
         PlayerRef subject,
         PublicClanResponse clan,
         ClanWarRefResponse war,
-        Instant createdAt) {
+        Instant createdAt,
+        Boolean rankingTeam) {
 }

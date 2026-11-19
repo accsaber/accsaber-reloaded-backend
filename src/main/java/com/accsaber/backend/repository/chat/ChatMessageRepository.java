@@ -18,6 +18,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @EntityGraph(attributePaths = { "user" })
     Page<ChatMessage> findByCampaign_IdOrderByCreatedAtDesc(UUID campaignId, Pageable pageable);
 
+    @EntityGraph(attributePaths = { "user" })
+    Page<ChatMessage> findByMapDifficulty_IdOrderByCreatedAtDesc(UUID mapDifficultyId, Pageable pageable);
+
+    boolean existsByMapDifficulty_IdAndCreatedAtAfterAndIdNot(UUID mapDifficultyId, Instant since, UUID id);
+
     @EntityGraph(attributePaths = { "user", "subjectUser", "subjectClan", "war" })
     Page<ChatMessage> findByClan_IdOrderByCreatedAtDesc(UUID clanId, Pageable pageable);
 

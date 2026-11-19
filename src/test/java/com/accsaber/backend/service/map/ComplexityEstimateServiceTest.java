@@ -2,6 +2,7 @@ package com.accsaber.backend.service.map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +41,8 @@ class ComplexityEstimateServiceTest {
     private ComplexityModelClient modelClient;
     @Mock
     private ComplexityScenarioService scenarioService;
+    @Mock
+    private MapDifficultyComplexityService complexityService;
     @InjectMocks
     private ComplexityEstimateService service;
 
@@ -81,6 +84,28 @@ class ComplexityEstimateServiceTest {
         assertThat(service.estimateFor(difficulty.getId())).hasValueSatisfying(
                 rating -> assertThat(rating.complexity()).isEqualTo(8.4));
         verify(estimateRepository).save(any());
+    }
+
+    @Test
+    void anImportGetsTheScriptsNumberUnlessSomeoneSetOneFirst() {
+        MapDifficulty priced = MapDifficulty.builder().id(UUID.randomUUID()).build();
+        MapDifficulty setByHand = MapDifficulty.builder().id(UUID.randomUUID()).build();
+        for (MapDifficulty difficulty : List.of(priced, setByHand)) {
+            when(mapDifficultyRepository.findByIdAndActiveTrueWithMapAndCategory(difficulty.getId()))
+                    .thenReturn(Optional.of(difficulty));
+            when(estimateRepository.findByMapDifficultyId(difficulty.getId())).thenReturn(Optional.empty());
+            when(rater.rate(difficulty)).thenReturn(Optional.of(new Rating(8.4, Map.of("meanNoteAccuracy", 0.9))));
+        }
+        when(modelClient.health()).thenReturn(Optional.empty());
+        when(rater.version()).thenReturn("note-acc-2026-09-11");
+        when(complexityService.findActiveComplexity(priced.getId())).thenReturn(Optional.empty());
+        when(complexityService.findActiveComplexity(setByHand.getId())).thenReturn(Optional.of(6.0));
+
+        service.priceImportAsync(priced.getId());
+        service.priceImportAsync(setByHand.getId());
+
+        verify(complexityService).setComplexity(priced, 8.4, "Complexity script note-acc-2026-09-11", null);
+        verify(complexityService, never()).setComplexity(eq(setByHand), any(), any(), any());
     }
 
     @Test
