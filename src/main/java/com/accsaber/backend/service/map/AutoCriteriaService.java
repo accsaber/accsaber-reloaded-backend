@@ -71,16 +71,11 @@ public class AutoCriteriaService {
     }
 
     private static byte[] uploaded(MultipartFile file) {
-        byte[] zip;
         try {
-            zip = file.getBytes();
+            return MapZipSanitizer.sanitize(file.getBytes());
         } catch (IOException e) {
             throw new ValidationException("Could not read the uploaded file");
         }
-        if (zip.length < 4 || zip[0] != 'P' || zip[1] != 'K') {
-            throw new ValidationException("Upload the map as a .zip file");
-        }
-        return zip;
     }
 
     private byte[] cached(String songHash) {
