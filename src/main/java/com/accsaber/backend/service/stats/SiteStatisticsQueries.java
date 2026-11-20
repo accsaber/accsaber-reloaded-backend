@@ -1,7 +1,5 @@
 package com.accsaber.backend.service.stats;
 
-import static com.accsaber.backend.service.stats.StatsQueryRunner.countryClause;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,7 +32,7 @@ final class SiteStatisticsQueries {
     private SiteStatisticsQueries() {
     }
 
-    static String highestAvgAp(UUID categoryId, String country, int minScores, Map<String, Object> params) {
+    static String highestAvgAp(UUID categoryId, SiteStatsFilter filter, int minScores, Map<String, Object> params) {
         String sql = """
                 SELECT d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                         d.difficulty, c.id AS cat_id, c.name AS cat_name, m.beatsaver_code, d.characteristic,
@@ -50,7 +48,7 @@ final class SiteStatisticsQueries {
                 WHERE s.active = true AND u.active = true AND u.banned = false
                 """;
         sql += categoryFilter(categoryId, params);
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                 " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic HAVING COUNT(*) >= :minScores" +
                 " ORDER BY avg_weighted_ap DESC, score_count DESC, m.song_name ASC";
@@ -58,7 +56,7 @@ final class SiteStatisticsQueries {
         return sql;
     }
 
-    static String mostRetriedMaps(UUID categoryId, String country, Map<String, Object> params) {
+    static String mostRetriedMaps(UUID categoryId, SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
                         d.difficulty, c.id AS cat_id, c.name AS cat_name, m.beatsaver_code, d.characteristic,
@@ -74,13 +72,13 @@ final class SiteStatisticsQueries {
                 WHERE s.active = false AND s.supersedes_reason = 'Score improved' AND u.active = true AND u.banned = false
                 """;
         sql += categoryFilter(categoryId, params);
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                 " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic ORDER BY superseded_count DESC, m.song_name ASC";
         return sql;
     }
 
-    static String mostImprovements(UUID categoryId, String country, Map<String, Object> params) {
+    static String mostImprovements(UUID categoryId, SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS improvement_count,
                         MAX(s.time_set) AS latest_time_set,
@@ -94,12 +92,12 @@ final class SiteStatisticsQueries {
         }
         sql += " WHERE s.active = false AND s.supersedes_reason = 'Score improved' AND u.active = true AND u.banned = false";
         sql += categoryFilter(categoryId, params);
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country ORDER BY improvement_count DESC, u.name ASC";
         return sql;
     }
 
-    static String mostMapImprovements(UUID categoryId, String country, Map<String, Object> params) {
+    static String mostMapImprovements(UUID categoryId, SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         d.id AS diff_id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url,
@@ -117,83 +115,83 @@ final class SiteStatisticsQueries {
                         AND u.active = true AND u.banned = false
                 """;
         sql += categoryFilter(categoryId, params);
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
                 " d.id, d.map_id, m.song_name, m.song_subname, m.song_author, m.map_author, m.cover_url, m.cdn_cover_url," +
                 " d.difficulty, c.id, c.name, m.beatsaver_code, d.characteristic ORDER BY improvement_count DESC, u.name ASC, m.song_name ASC";
         return sql;
     }
 
-    static String milestoneCollectors(String country, Map<String, Object> params) {
+    static String milestoneCollectors(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS milestone_count
                 FROM user_milestone_links uml
                 JOIN users u ON u.id = uml.user_id
                 WHERE uml.completed = true AND u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY milestone_count DESC, u.name ASC";
         return sql;
     }
 
-    static String newPlayersPerDay(String trunc, String country, Map<String, Object> params) {
+    static String newPlayersPerDay(String trunc, SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT day, cnt FROM (" +
                 " SELECT date_trunc('" + trunc + "', created_at)::date AS day, COUNT(*) AS cnt" +
                 " FROM users WHERE active = true AND banned = false AND created_at >= :since" +
-                countryClause("country", country, params) +
+                filter.playerClause("", params) +
                 " GROUP BY day) sub WHERE cnt <= 4000 ORDER BY day";
     }
 
-    static String scoresPerDay(String trunc, String country, Map<String, Object> params) {
+    static String scoresPerDay(String trunc, SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT date_trunc('" + trunc + "', s.time_set)::date AS day, COUNT(*) AS cnt" +
                 " FROM scores s JOIN users u ON u.id = s.user_id" +
                 " WHERE u.active = true AND u.banned = false AND s.time_set >= :since" +
-                countryClause("u.country", country, params) +
+                filter.playerClause("u.", params) +
                 " GROUP BY day ORDER BY day";
     }
 
-    static String cumulativeAccounts(String trunc, String country, Map<String, Object> params) {
+    static String cumulativeAccounts(String trunc, SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT day, SUM(cnt) OVER (ORDER BY day) AS cumulative FROM (" +
                 " SELECT date_trunc('" + trunc + "', created_at)::date AS day, COUNT(*) AS cnt" +
                 " FROM users WHERE active = true AND banned = false" +
-                countryClause("country", country, params) + " GROUP BY day" +
+                filter.playerClause("", params) + " GROUP BY day" +
                 ") daily WHERE day >= :since ORDER BY day";
     }
 
-    static String cumulativeScores(String trunc, String country, Map<String, Object> params) {
+    static String cumulativeScores(String trunc, SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT day, SUM(cnt) OVER (ORDER BY day) AS cumulative FROM (" +
                 " SELECT date_trunc('" + trunc + "', time_set)::date AS day, COUNT(*) AS cnt" +
                 " FROM scores s JOIN users u ON u.id = s.user_id" +
                 " WHERE u.active = true AND u.banned = false" +
-                countryClause("u.country", country, params) + " GROUP BY day" +
+                filter.playerClause("u.", params) + " GROUP BY day" +
                 ") daily WHERE day >= :since ORDER BY day";
     }
 
-    static String scoresPerCategory(String country, Map<String, Object> params) {
+    static String scoresPerCategory(SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT c.name, COUNT(*) AS cnt" +
                 " FROM scores s" +
                 " JOIN map_difficulties d ON d.id = s.map_difficulty_id" +
                 " JOIN categories c ON c.id = d.category_id" +
                 " JOIN users u ON u.id = s.user_id" +
                 " WHERE s.active = true AND u.active = true AND u.banned = false" +
-                countryClause("u.country", country, params) +
+                filter.playerClause("u.", params) +
                 " GROUP BY c.name ORDER BY cnt DESC";
     }
 
-    static String playersByHmd(String country, Map<String, Object> params) {
+    static String playersByHmd(SiteStatsFilter filter, Map<String, Object> params) {
         return "SELECT hmd, COUNT(*) AS cnt FROM (" +
                 " SELECT DISTINCT ON (s.user_id) s.hmd" +
                 " FROM scores s" +
                 " JOIN users u ON u.id = s.user_id" +
                 " WHERE s.active = true AND u.active = true AND u.banned = false" +
                 " AND s.hmd IS NOT NULL AND s.hmd != '' AND s.hmd != '0'" +
-                countryClause("u.country", country, params) +
+                filter.playerClause("u.", params) +
                 " ORDER BY s.user_id, s.time_set DESC NULLS LAST" +
                 ") latest GROUP BY hmd ORDER BY cnt DESC";
     }
 
-    static String mostItems(String type, String modifier, String country, Map<String, Object> params) {
+    static String mostItems(String type, String modifier, SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, SUM(l.quantity) AS item_count
                 FROM user_item_links l
@@ -208,7 +206,7 @@ final class SiteStatisticsQueries {
             sql += " AND EXISTS (SELECT 1 FROM user_item_link_modifiers lm" +
                     " JOIN item_modifiers im ON im.id = lm.modifier_id" +
                     " WHERE lm.user_item_link_id = l.id AND im.key = :modifier)";
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY item_count DESC, u.name ASC";
         if (type != null)
@@ -218,7 +216,7 @@ final class SiteStatisticsQueries {
         return sql;
     }
 
-    static String mostCratesOpened(UUID crateId, String country, Map<String, Object> params) {
+    static String mostCratesOpened(UUID crateId, SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS crate_count
                 FROM user_crate_opens o
@@ -227,7 +225,7 @@ final class SiteStatisticsQueries {
                 """;
         if (crateId != null)
             sql += " AND o.crate_item_id = :crateId";
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY crate_count DESC, u.name ASC";
         if (crateId != null)
@@ -235,7 +233,7 @@ final class SiteStatisticsQueries {
         return sql;
     }
 
-    static String rarestUnboxed(String country, Map<String, Object> params) {
+    static String rarestUnboxed(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT l.id, u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         i.id, i.name, i.icon_url, i.rarity, t.key, l.serial_number,
@@ -252,7 +250,7 @@ final class SiteStatisticsQueries {
                 WHERE l.source = 'crate_drop' AND i.tradeable = true
                         AND u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY l.id, u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
                 " i.id, i.name, i.icon_url, i.rarity, t.key, l.serial_number, ue.name" +
                 " ORDER BY modifier_count DESC, " + rarityRank("i.rarity") + " DESC," +
@@ -260,7 +258,7 @@ final class SiteStatisticsQueries {
         return sql;
     }
 
-    static String mostValuableInventory(String country, Map<String, Object> params) {
+    static String mostValuableInventory(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         COALESCE(SUM(i.worth * l.quantity), 0) AS items_value,
@@ -271,14 +269,14 @@ final class SiteStatisticsQueries {
                 LEFT JOIN items i ON i.id = l.item_id AND i.tradeable = true
                 WHERE u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, u.item_essence" +
                 " HAVING COALESCE(SUM(i.worth * l.quantity), 0) + u.item_essence > 0" +
                 " ORDER BY total_value DESC, u.name ASC";
         return sql;
     }
 
-    static String firstEditions(String country, Map<String, Object> params) {
+    static String firstEditions(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country, COUNT(*) AS first_edition_count
                 FROM user_item_links l
@@ -287,13 +285,13 @@ final class SiteStatisticsQueries {
                 WHERE l.serial_number = 1 AND i.tradeable = true
                         AND u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY first_edition_count DESC, u.name ASC";
         return sql;
     }
 
-    static String firstEditionHolders(String country, Map<String, Object> params) {
+    static String firstEditionHolders(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT i.id, i.name, i.icon_url, i.rarity, t.key, l.id, l.serial_number,
                         u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country
@@ -304,12 +302,12 @@ final class SiteStatisticsQueries {
                 WHERE l.serial_number = 1 AND i.tradeable = true
                         AND u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " ORDER BY " + rarityRank("i.rarity") + " DESC, i.name ASC";
         return sql;
     }
 
-    static String mostCompleteCollection(String country, Map<String, Object> params) {
+    static String mostCompleteCollection(SiteStatsFilter filter, Map<String, Object> params) {
         String catalog = "(SELECT COUNT(*) FROM items ci WHERE ci.tradeable = true" +
                 " AND ci.active = true AND ci.visible = true AND ci.deprecated = false)";
         String sql = "SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country," +
@@ -321,7 +319,7 @@ final class SiteStatisticsQueries {
                 " AND i.active = true AND i.visible = true AND i.deprecated = false" +
                 " JOIN users u ON u.id = l.user_id" +
                 " WHERE u.active = true AND u.banned = false";
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY owned_count DESC, u.name ASC";
         return sql;
@@ -375,7 +373,7 @@ final class SiteStatisticsQueries {
         return sql;
     }
 
-    static String biggestTraders(String country, Map<String, Object> params) {
+    static String biggestTraders(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         COUNT(DISTINCT parties.trade_id) AS trade_count,
@@ -389,13 +387,13 @@ final class SiteStatisticsQueries {
                 JOIN user_item_trade_items ti ON ti.trade_id = parties.trade_id
                 WHERE u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " ORDER BY trade_count DESC, items_traded DESC, u.name ASC";
         return sql;
     }
 
-    static String mostEssenceEarned(String country, Map<String, Object> params) {
+    static String mostEssenceEarned(SiteStatsFilter filter, Map<String, Object> params) {
         String sql = """
                 SELECT u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country,
                         COALESCE(SUM(d.essence_gained), 0) AS essence_earned
@@ -404,7 +402,7 @@ final class SiteStatisticsQueries {
                 JOIN users u ON u.id = d.user_id
                 WHERE i.tradeable = true AND u.active = true AND u.banned = false
                 """;
-        sql += countryClause("u.country", country, params);
+        sql += filter.playerClause("u.", params);
         sql += " GROUP BY u.id, u.name, u.avatar_url, u.cdn_avatar_url, u.country" +
                 " HAVING COALESCE(SUM(d.essence_gained), 0) > 0" +
                 " ORDER BY essence_earned DESC, u.name ASC";

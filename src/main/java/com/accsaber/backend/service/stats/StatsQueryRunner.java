@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.stats;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,6 +72,17 @@ public class StatsQueryRunner {
                 (String) row[offset + 3], (String) row[offset + 4], (String) row[offset + 5], (String) row[offset + 6],
                 (String) row[offset + 7], Difficulty.fromDbValue((String) row[offset + 8]), (UUID) row[offset + 9],
                 (String) row[offset + 10], (String) row[offset + 11], (String) row[offset + 12]);
+    }
+
+    public <T> Page<T> paged(Function<Map<String, Object>, String> query, Pageable pageable,
+            Function<Object[], T> mapper) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        return paged(query.apply(params), params, pageable, mapper);
+    }
+
+    public List<DistributionEntryResponse> distribution(Function<Map<String, Object>, String> query) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        return distribution(query.apply(params), params);
     }
 
     @SuppressWarnings("unchecked")

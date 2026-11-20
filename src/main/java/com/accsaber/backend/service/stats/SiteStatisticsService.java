@@ -4,14 +4,13 @@ import static com.accsaber.backend.service.stats.StatsQueryRunner.mapRef;
 import static com.accsaber.backend.service.stats.StatsQueryRunner.playerRef;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -40,17 +39,22 @@ public class SiteStatisticsService {
         private final ScoreQueryService scoreQueryService;
         private final StatsQueryRunner queryRunner;
 
-        @Cacheable(value = "statistics", key = "'streaks:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<ScoreResponse> getTopStreaks(UUID categoryId, String country, Pageable pageable) {
-                Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-                return hydrateScorePage(scoreRepository.findTopStreakIds(categoryId, StatsQueryRunner.normalizeCountry(country),
-                                effective));
+        @CachedSiteStatistic(key = "'streaks:' + #categoryId + ':' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<ScoreResponse> getTopStreaks(UUID categoryId, SiteStatsFilter filter, Pageable pageable) {
+                return topScores(filter, pageable, page -> scoreRepository.findTopStreakIds(categoryId,
+                                filter.country(), filter.userIds(), page));
         }
 
-        @Cacheable(value = "statistics", key = "'maxap:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<ScoreResponse> getTopByAp(UUID categoryId, String country, Pageable pageable) {
+        @CachedSiteStatistic(key = "'maxap:' + #categoryId + ':' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<ScoreResponse> getTopByAp(UUID categoryId, SiteStatsFilter filter, Pageable pageable) {
+                return topScores(filter, pageable, page -> scoreRepository.findTopApIds(categoryId,
+                                filter.country(), filter.userIds(), page));
+        }
+
+        private Page<ScoreResponse> topScores(SiteStatsFilter filter, Pageable pageable,
+                        Function<Pageable, Page<UUID>> ids) {
                 Pageable effective = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-                return hydrateScorePage(scoreRepository.findTopApIds(categoryId, StatsQueryRunner.normalizeCountry(country), effective));
+                return hydrateScorePage(filter.matchesNobody() ? Page.empty(effective) : ids.apply(effective));
         }
 
         private Page<ScoreResponse> hydrateScorePage(Page<UUID> ids) {
@@ -67,65 +71,65 @@ public class SiteStatisticsService {
                 return new PageImpl<>(content, ids.getPageable(), ids.getTotalElements());
         }
 
-        @Cacheable(value = "statistics", key = "'highavgweightedap:' + #categoryId + ':' + #country + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<MapAvgApResponse> getHighestAvgAp(UUID categoryId, String country, int minScores,
+        @CachedSiteStatistic(key = "'highavgweightedap:' + #categoryId + ':' + #filter.country() + ':' + #minScores + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<MapAvgApResponse> getHighestAvgAp(UUID categoryId, SiteStatsFilter filter, int minScores,
                         Pageable pageable) {
-                Map<String, Object> params = new LinkedHashMap<>();
-                String sql = SiteStatisticsQueries.highestAvgAp(categoryId, country, minScores, params);
-                return queryRunner.paged(sql, params, pageable, row -> MapAvgApResponse.builder()
-                                .map(mapRef(row, 0))
-                                .averageWeightedAp((Double) row[13])
-                                .scoreCount(((Number) row[14]).longValue())
-                                .latestScoreTimeSet(row[15] != null ? (Instant) row[15] : null)
-                                .latestScoreId(row[16] != null ? (UUID) row[16] : null)
-                                .build());
+                return queryRunner.paged(
+                        params -> SiteStatisticsQueries.highestAvgAp(categoryId, filter, minScores, params), pageable,
+                        row -> MapAvgApResponse.builder()
+                                        .map(mapRef(row, 0))
+                                        .averageWeightedAp((Double) row[13])
+                                        .scoreCount(((Number) row[14]).longValue())
+                                        .latestScoreTimeSet(row[15] != null ? (Instant) row[15] : null)
+                                        .latestScoreId(row[16] != null ? (UUID) row[16] : null)
+                                        .build());
         }
 
-        @Cacheable(value = "statistics", key = "'mostretried:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<MapRetryResponse> getMostRetriedMaps(UUID categoryId, String country, Pageable pageable) {
-                Map<String, Object> params = new LinkedHashMap<>();
-                String sql = SiteStatisticsQueries.mostRetriedMaps(categoryId, country, params);
-                return queryRunner.paged(sql, params, pageable, row -> MapRetryResponse.builder()
-                                .map(mapRef(row, 0))
-                                .supersededCount(((Number) row[13]).longValue())
-                                .latestScoreTimeSet(row[14] != null ? (Instant) row[14] : null)
-                                .latestScoreId(row[15] != null ? (UUID) row[15] : null)
-                                .build());
+        @CachedSiteStatistic(key = "'mostretried:' + #categoryId + ':' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<MapRetryResponse> getMostRetriedMaps(UUID categoryId, SiteStatsFilter filter, Pageable pageable) {
+                return queryRunner.paged(
+                        params -> SiteStatisticsQueries.mostRetriedMaps(categoryId, filter, params), pageable,
+                        row -> MapRetryResponse.builder()
+                                        .map(mapRef(row, 0))
+                                        .supersededCount(((Number) row[13]).longValue())
+                                        .latestScoreTimeSet(row[14] != null ? (Instant) row[14] : null)
+                                        .latestScoreId(row[15] != null ? (UUID) row[15] : null)
+                                        .build());
         }
 
-        @Cacheable(value = "statistics", key = "'mostimprovements:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<UserImprovementsResponse> getMostImprovements(UUID categoryId, String country, Pageable pageable) {
-                Map<String, Object> params = new LinkedHashMap<>();
-                String sql = SiteStatisticsQueries.mostImprovements(categoryId, country, params);
-                return queryRunner.paged(sql, params, pageable, row -> UserImprovementsResponse.builder()
-                                .player(playerRef(row, 0))
-                                .improvementCount(((Number) row[5]).longValue())
-                                .latestScoreTimeSet(row[6] != null ? ((Instant) row[6]) : null)
-                                .latestScoreId(row[7] != null ? (UUID) row[7] : null)
-                                .build());
-        }
-
-        @Cacheable(value = "statistics", key = "'mostmapimprovements:' + #categoryId + ':' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<UserMapImprovementsResponse> getMostMapImprovements(UUID categoryId, String country,
+        @CachedSiteStatistic(key = "'mostimprovements:' + #categoryId + ':' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<UserImprovementsResponse> getMostImprovements(UUID categoryId, SiteStatsFilter filter,
                         Pageable pageable) {
-                Map<String, Object> params = new LinkedHashMap<>();
-                String sql = SiteStatisticsQueries.mostMapImprovements(categoryId, country, params);
-                return queryRunner.paged(sql, params, pageable, row -> UserMapImprovementsResponse.builder()
-                                .player(playerRef(row, 0))
-                                .map(mapRef(row, 5))
-                                .improvementCount(((Number) row[18]).longValue())
-                                .latestScoreTimeSet(row[19] != null ? ((Instant) row[19]) : null)
-                                .latestScoreId(row[20] != null ? (UUID) row[20] : null)
-                                .build());
+                return queryRunner.paged(
+                        params -> SiteStatisticsQueries.mostImprovements(categoryId, filter, params), pageable,
+                        row -> UserImprovementsResponse.builder()
+                                        .player(playerRef(row, 0))
+                                        .improvementCount(((Number) row[5]).longValue())
+                                        .latestScoreTimeSet(row[6] != null ? ((Instant) row[6]) : null)
+                                        .latestScoreId(row[7] != null ? (UUID) row[7] : null)
+                                        .build());
         }
 
-        @Cacheable(value = "statistics", key = "'milestonecollectors:' + #country + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
-        public Page<MilestoneCollectorResponse> getMilestoneCollectors(String country, Pageable pageable) {
-                Map<String, Object> params = new LinkedHashMap<>();
-                String sql = SiteStatisticsQueries.milestoneCollectors(country, params);
-                return queryRunner.paged(sql, params, pageable, row -> MilestoneCollectorResponse.builder()
-                                .player(playerRef(row, 0))
-                                .milestoneCount(((Number) row[5]).longValue())
-                                .build());
+        @CachedSiteStatistic(key = "'mostmapimprovements:' + #categoryId + ':' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<UserMapImprovementsResponse> getMostMapImprovements(UUID categoryId, SiteStatsFilter filter,
+                        Pageable pageable) {
+                return queryRunner.paged(
+                        params -> SiteStatisticsQueries.mostMapImprovements(categoryId, filter, params), pageable,
+                        row -> UserMapImprovementsResponse.builder()
+                                        .player(playerRef(row, 0))
+                                        .map(mapRef(row, 5))
+                                        .improvementCount(((Number) row[18]).longValue())
+                                        .latestScoreTimeSet(row[19] != null ? ((Instant) row[19]) : null)
+                                        .latestScoreId(row[20] != null ? (UUID) row[20] : null)
+                                        .build());
+        }
+
+        @CachedSiteStatistic(key = "'milestonecollectors:' + #filter.country() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
+        public Page<MilestoneCollectorResponse> getMilestoneCollectors(SiteStatsFilter filter, Pageable pageable) {
+                return queryRunner.paged(params -> SiteStatisticsQueries.milestoneCollectors(filter, params), pageable,
+                        row -> MilestoneCollectorResponse.builder()
+                                        .player(playerRef(row, 0))
+                                        .milestoneCount(((Number) row[5]).longValue())
+                                        .build());
         }
 }

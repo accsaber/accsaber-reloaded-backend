@@ -24,38 +24,38 @@ public class SiteChartStatisticsService {
 
     private final StatsQueryRunner queryRunner;
 
-    @Cacheable(value = "statistics", key = "'newplayersperday:' + #amount + ':' + #unit + ':' + #country")
-    public List<TimeSeriesPointResponse> getNewPlayersPerDay(int amount, String unit, String country) {
-        return timeSeries(amount, unit, (trunc, params) -> SiteStatisticsQueries.newPlayersPerDay(trunc, country, params));
-    }
-
-    @Cacheable(value = "statistics", key = "'scoresperday:' + #amount + ':' + #unit + ':' + #country")
-    public List<TimeSeriesPointResponse> getScoresPerDay(int amount, String unit, String country) {
-        return timeSeries(amount, unit, (trunc, params) -> SiteStatisticsQueries.scoresPerDay(trunc, country, params));
-    }
-
-    @Cacheable(value = "statistics", key = "'cumulativeaccounts:' + #amount + ':' + #unit + ':' + #country")
-    public List<TimeSeriesPointResponse> getCumulativeAccounts(int amount, String unit, String country) {
+    @CachedSiteStatistic(key = "'newplayersperday:' + #amount + ':' + #unit + ':' + #filter.country()")
+    public List<TimeSeriesPointResponse> getNewPlayersPerDay(int amount, String unit, SiteStatsFilter filter) {
         return timeSeries(amount, unit,
-                (trunc, params) -> SiteStatisticsQueries.cumulativeAccounts(trunc, country, params));
+                (trunc, params) -> SiteStatisticsQueries.newPlayersPerDay(trunc, filter, params));
     }
 
-    @Cacheable(value = "statistics", key = "'cumulativescores:' + #amount + ':' + #unit + ':' + #country")
-    public List<TimeSeriesPointResponse> getCumulativeScores(int amount, String unit, String country) {
-        return timeSeries(amount, unit, (trunc, params) -> SiteStatisticsQueries.cumulativeScores(trunc, country, params));
+    @CachedSiteStatistic(key = "'scoresperday:' + #amount + ':' + #unit + ':' + #filter.country()")
+    public List<TimeSeriesPointResponse> getScoresPerDay(int amount, String unit, SiteStatsFilter filter) {
+        return timeSeries(amount, unit, (trunc, params) -> SiteStatisticsQueries.scoresPerDay(trunc, filter, params));
     }
 
-    @Cacheable(value = "statistics", key = "'scorespercategory:' + #country")
-    public List<DistributionEntryResponse> getScoresPerCategory(String country) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        return queryRunner.distribution(SiteStatisticsQueries.scoresPerCategory(country, params), params);
+    @CachedSiteStatistic(key = "'cumulativeaccounts:' + #amount + ':' + #unit + ':' + #filter.country()")
+    public List<TimeSeriesPointResponse> getCumulativeAccounts(int amount, String unit, SiteStatsFilter filter) {
+        return timeSeries(amount, unit,
+                (trunc, params) -> SiteStatisticsQueries.cumulativeAccounts(trunc, filter, params));
     }
 
-    @Cacheable(value = "statistics", key = "'playersbyhmd:' + #country")
-    public List<DistributionEntryResponse> getPlayersByHmd(String country) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        List<DistributionEntryResponse> rows = queryRunner.distribution(
-                SiteStatisticsQueries.playersByHmd(country, params), params);
+    @CachedSiteStatistic(key = "'cumulativescores:' + #amount + ':' + #unit + ':' + #filter.country()")
+    public List<TimeSeriesPointResponse> getCumulativeScores(int amount, String unit, SiteStatsFilter filter) {
+        return timeSeries(amount, unit,
+                (trunc, params) -> SiteStatisticsQueries.cumulativeScores(trunc, filter, params));
+    }
+
+    @CachedSiteStatistic(key = "'scorespercategory:' + #filter.country()")
+    public List<DistributionEntryResponse> getScoresPerCategory(SiteStatsFilter filter) {
+        return queryRunner.distribution(params -> SiteStatisticsQueries.scoresPerCategory(filter, params));
+    }
+
+    @CachedSiteStatistic(key = "'playersbyhmd:' + #filter.country()")
+    public List<DistributionEntryResponse> getPlayersByHmd(SiteStatsFilter filter) {
+        List<DistributionEntryResponse> rows = queryRunner
+                .distribution(params -> SiteStatisticsQueries.playersByHmd(filter, params));
 
         Map<String, Long> aggregated = new LinkedHashMap<>();
         for (DistributionEntryResponse row : rows) {

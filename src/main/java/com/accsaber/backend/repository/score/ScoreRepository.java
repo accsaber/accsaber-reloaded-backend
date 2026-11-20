@@ -584,8 +584,8 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
         @Query(value = "DELETE FROM scores WHERE id IN (:scoreIds)", nativeQuery = true)
         void hardDeleteByIds(@Param("scoreIds") List<UUID> scoreIds);
 
-        @Query(value = """
-                        SELECT s.id FROM Score s
+        String TOP_STREAK_FROM = """
+                        FROM Score s
                         JOIN s.user u
                         JOIN s.mapDifficulty d
                         WHERE s.streak115 IS NOT NULL
@@ -593,6 +593,7 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                         AND u.active = true AND u.banned = false
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
+                        AND (:userIds IS NULL OR s.user.id IN :userIds)
                         AND NOT EXISTS (
                             SELECT 1 FROM Score s2
                             WHERE s2.user.id = s.user.id
@@ -604,50 +605,29 @@ public interface ScoreRepository extends JpaRepository<Score, UUID> {
                                 OR (s2.streak115 = s.streak115 AND s2.ap = s.ap AND s2.score > s.score)
                                 OR (s2.streak115 = s.streak115 AND s2.ap = s.ap AND s2.score = s.score AND s2.id > s.id))
                         )
-                        ORDER BY s.streak115 DESC, s.ap DESC, s.score DESC
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        JOIN s.mapDifficulty d
-                        WHERE s.streak115 IS NOT NULL
-                        AND (s.supersedesReason IS NULL OR s.supersedesReason <> 'Campaign attempt')
-                        AND u.active = true AND u.banned = false
-                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
-                        AND NOT EXISTS (
-                            SELECT 1 FROM Score s2
-                            WHERE s2.user.id = s.user.id
-                            AND s2.mapDifficulty.id = s.mapDifficulty.id
-                            AND s2.streak115 IS NOT NULL
-                            AND (s2.supersedesReason IS NULL OR s2.supersedesReason <> 'Campaign attempt')
-                            AND (s2.streak115 > s.streak115
-                                OR (s2.streak115 = s.streak115 AND s2.ap > s.ap)
-                                OR (s2.streak115 = s.streak115 AND s2.ap = s.ap AND s2.score > s.score)
-                                OR (s2.streak115 = s.streak115 AND s2.ap = s.ap AND s2.score = s.score AND s2.id > s.id))
-                        )
-                        """)
+                        """;
+
+        @Query(value = "SELECT s.id " + TOP_STREAK_FROM + " ORDER BY s.streak115 DESC, s.ap DESC, s.score DESC",
+                        countQuery = "SELECT COUNT(s) " + TOP_STREAK_FROM)
         Page<UUID> findTopStreakIds(@Param("categoryId") UUID categoryId, @Param("country") String country,
+                        @Param("userIds") Collection<Long> userIds,
                         Pageable pageable);
 
-        @Query(value = """
-                        SELECT s.id FROM Score s
+        String TOP_AP_FROM = """
+                        FROM Score s
                         JOIN s.user u
                         JOIN s.mapDifficulty d
                         WHERE s.active = true
                         AND u.active = true AND u.banned = false
                         AND (:categoryId IS NULL OR d.category.id = :categoryId)
                         AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
-                        ORDER BY s.ap DESC, s.score DESC
-                        """, countQuery = """
-                        SELECT COUNT(s) FROM Score s
-                        JOIN s.user u
-                        JOIN s.mapDifficulty d
-                        WHERE s.active = true
-                        AND u.active = true AND u.banned = false
-                        AND (:categoryId IS NULL OR d.category.id = :categoryId)
-                        AND (CAST(:country AS string) IS NULL OR LOWER(u.country) = LOWER(CAST(:country AS string)))
-                        """)
+                        AND (:userIds IS NULL OR s.user.id IN :userIds)
+                        """;
+
+        @Query(value = "SELECT s.id " + TOP_AP_FROM + " ORDER BY s.ap DESC, s.score DESC",
+                        countQuery = "SELECT COUNT(s) " + TOP_AP_FROM)
         Page<UUID> findTopApIds(@Param("categoryId") UUID categoryId, @Param("country") String country,
+                        @Param("userIds") Collection<Long> userIds,
                         Pageable pageable);
 
         @Query("""
