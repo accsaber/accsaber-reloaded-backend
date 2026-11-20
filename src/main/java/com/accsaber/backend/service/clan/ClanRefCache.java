@@ -45,6 +45,18 @@ public class ClanRefCache {
         return userId == null ? null : byUser.get(userId);
     }
 
+    public static List<Long> clanmateIds(Long userId) {
+        Map<Long, PublicClanResponse> snapshot = byUser;
+        PublicClanResponse clan = userId == null ? null : snapshot.get(userId);
+        if (clan == null) {
+            return List.of();
+        }
+        return snapshot.entrySet().stream()
+                .filter(entry -> entry.getValue().id().equals(clan.id()))
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
     public static PlayerRef playerRef(User user) {
         return playerRef(user, null);
     }

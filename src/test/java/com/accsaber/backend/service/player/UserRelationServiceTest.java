@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.player;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,16 +26,24 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.accsaber.backend.exception.ValidationException;
 import com.accsaber.backend.model.dto.response.player.UserRelationCounts;
 import com.accsaber.backend.model.dto.response.player.UserRelationResponse;
+import com.accsaber.backend.model.entity.clan.Clan;
+import com.accsaber.backend.model.entity.clan.ClanMember;
 import com.accsaber.backend.model.entity.user.User;
 import com.accsaber.backend.model.entity.user.UserRelation;
 import com.accsaber.backend.model.entity.user.UserRelationType;
 import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.model.entity.user.Visibility;
+import com.accsaber.backend.repository.clan.ClanEquippedItemRepository;
+import com.accsaber.backend.repository.clan.ClanMemberRepository;
+import com.accsaber.backend.repository.clan.ClanRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository;
 import com.accsaber.backend.repository.user.UserRelationRepository.RelationCountView;
 import com.accsaber.backend.repository.user.UserRepository;
+import com.accsaber.backend.security.PlayerUserDetails;
+import com.accsaber.backend.service.clan.ClanRefCache;
 
 @ExtendWith(MockitoExtension.class)
 class UserRelationServiceTest {
@@ -209,6 +219,64 @@ class UserRelationServiceTest {
             lenient().when(row.getOutgoing()).thenReturn(outgoing);
             lenient().when(row.getIncoming()).thenReturn(incoming);
             return row;
+        }
+    }
+
+    @Nested
+    class ClanRelation {
+
+        private final ClanMemberRepository memberRepository = mock(ClanMemberRepository.class);
+        private final ClanRefCache cache = new ClanRefCache(mock(ClanRepository.class), memberRepository,
+                mock(ClanEquippedItemRepository.class));
+
+        @BeforeEach
+        void setUp() {
+            Clan owls = Clan.builder().id(UUID.randomUUID()).name("Night Owls").tag("NOW").slug("night-owls").build();
+            Clan lapiz = Clan.builder().id(UUID.randomUUID()).name("El Lapiz").tag("LPZ").slug("el-lapiz").build();
+            when(memberRepository.findAllOpenInActiveClans()).thenReturn(List.of(
+                    member(owls, OLLIE), member(owls, SONIQUE), member(lapiz, VIEWER)));
+            cache.reload();
+        }
+
+        @AfterEach
+        void tearDown() {
+            when(memberRepository.findAllOpenInActiveClans()).thenReturn(List.of());
+            cache.reload();
+        }
+
+        @Test
+        void filter_keepsOnlyTheViewersClan() {
+            assertThat(service.resolveRelationFilter(UserRelationType.clan, principal(OLLIE)))
+                    .containsExactlyInAnyOrder(OLLIE, SONIQUE);
+            verifyNoInteractions(relationRepository);
+        }
+
+        @Test
+        void filter_fallsBackToTheViewerAloneWithoutAClan() {
+            assertThat(service.resolveRelationFilter(UserRelationType.clan, principal(99L))).containsExactly(99L);
+        }
+
+        @Test
+        void relationScores_leaveTheViewerOut() {
+            assertThat(service.findActiveTargetUserIdsByTypes(OLLIE, List.of(UserRelationType.clan)))
+                    .containsExactly(SONIQUE);
+        }
+
+        @Test
+        void create_refusesAClanRelation() {
+            assertThatThrownBy(() -> service.create(OLLIE, SONIQUE, UserRelationType.clan))
+                    .isInstanceOf(ValidationException.class);
+            verifyNoInteractions(relationRepository);
+        }
+
+        private ClanMember member(Clan clan, Long userId) {
+            return ClanMember.builder().clan(clan).user(User.builder().id(userId).build()).build();
+        }
+
+        private PlayerUserDetails principal(Long userId) {
+            PlayerUserDetails principal = mock(PlayerUserDetails.class);
+            when(principal.getUserId()).thenReturn(userId);
+            return principal;
         }
     }
 

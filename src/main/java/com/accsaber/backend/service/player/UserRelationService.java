@@ -1,5 +1,8 @@
 package com.accsaber.backend.service.player;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,14 +58,26 @@ public class UserRelationService {
                 .getContent();
     }
 
-    public List<Long> findActiveTargetUserIdsByTypes(Long userId, java.util.Collection<UserRelationType> types) {
+    public List<Long> findActiveTargetUserIdsByTypes(Long userId, Collection<UserRelationType> types) {
         if (types == null || types.isEmpty()) {
             return List.of();
         }
-        return relationRepository.findActiveTargetUserIdsByTypes(userId, types);
+        Set<UserRelationType> stored = EnumSet.copyOf(types);
+        List<Long> targets = new ArrayList<>();
+        if (stored.remove(UserRelationType.clan)) {
+            ClanRefCache.clanmateIds(userId).stream().filter(id -> !id.equals(userId)).forEach(targets::add);
+        }
+        if (!stored.isEmpty()) {
+            targets.addAll(relationRepository.findActiveTargetUserIdsByTypes(userId, stored));
+        }
+        return targets;
     }
 
     private List<Long> findRelationFilterUserIds(Long userId, UserRelationType type) {
+        if (type == UserRelationType.clan) {
+            List<Long> clanmates = ClanRefCache.clanmateIds(userId);
+            return clanmates.isEmpty() ? List.of(userId) : clanmates;
+        }
         List<Long> targets = findActiveTargetUserIds(userId, type);
         if (type == UserRelationType.blocked) {
             return targets;
@@ -70,7 +85,7 @@ public class UserRelationService {
         if (targets.contains(userId)) {
             return targets;
         }
-        List<Long> withSelf = new java.util.ArrayList<>(targets.size() + 1);
+        List<Long> withSelf = new ArrayList<>(targets.size() + 1);
         withSelf.add(userId);
         withSelf.addAll(targets);
         return withSelf;
@@ -200,6 +215,9 @@ public class UserRelationService {
     public UserRelationResponse create(Long userId, Long targetUserId, UserRelationType type) {
         if (userId.equals(targetUserId)) {
             throw new ValidationException("Cannot create a relation to yourself");
+        }
+        if (type == UserRelationType.clan) {
+            throw new ValidationException("Clan relations come from clan membership");
         }
         User target = userRepository.requireActive(targetUserId);
 

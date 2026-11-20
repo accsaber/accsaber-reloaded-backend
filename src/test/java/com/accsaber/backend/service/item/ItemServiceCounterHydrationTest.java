@@ -3,6 +3,7 @@ package com.accsaber.backend.service.item;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import com.accsaber.backend.model.dto.request.item.InventoryFilter;
 import com.accsaber.backend.model.dto.response.item.UserItemResponse;
 import com.accsaber.backend.model.entity.item.Item;
 import com.accsaber.backend.model.entity.item.ItemModifier;
@@ -26,10 +28,12 @@ import com.accsaber.backend.model.entity.item.ItemRarity;
 import com.accsaber.backend.model.entity.item.ItemSource;
 import com.accsaber.backend.model.entity.item.ItemType;
 import com.accsaber.backend.model.entity.item.UserItemLink;
+import com.accsaber.backend.model.entity.user.UserSettingKey;
 import com.accsaber.backend.repository.item.UserItemLinkCounterRepository;
 import com.accsaber.backend.repository.item.UserItemLinkRepository;
 import com.accsaber.backend.repository.item.UserItemTradeItemRepository;
 import com.accsaber.backend.service.player.DuplicateUserService;
+import com.accsaber.backend.service.player.UserSettingsService;
 
 @ExtendWith(MockitoExtension.class)
 class ItemServiceCounterHydrationTest {
@@ -45,8 +49,25 @@ class ItemServiceCounterHydrationTest {
     @Mock
     private UserItemTradeItemRepository tradeItemRepository;
 
+    @Mock
+    private ItemEquipService itemEquipService;
+    @Mock
+    private UserSettingsService userSettingsService;
+
     @InjectMocks
     private ItemService itemService;
+
+    @Test
+    void equippedFilterWithNothingEquippedSkipsTheQuery() {
+        when(duplicateUserService.resolvePrimaryUserId(USER_ID)).thenReturn(USER_ID);
+        when(userSettingsService.getGroup(USER_ID, UserSettingKey.GROUP_EQUIPPED)).thenReturn(Map.of());
+        when(itemEquipService.resolveEquippedLinksByType(USER_ID, Map.of())).thenReturn(Map.of());
+        InventoryFilter equipped = new InventoryFilter(null, null, null, null, null, null, null, null, null, true,
+                false);
+
+        assertThat(itemService.findInventoryHydrated(USER_ID, equipped, PageRequest.of(0, 20))).isEmpty();
+        verifyNoInteractions(userItemLinkRepository);
+    }
 
     @Test
     void collectionCarriesStrangeCounters() {
@@ -70,7 +91,7 @@ class ItemServiceCounterHydrationTest {
                 PageRequest.of(0, 20), 1);
         when(duplicateUserService.resolvePrimaryUserId(USER_ID)).thenReturn(USER_ID);
         when(userItemLinkRepository.findInventoryFiltered(any(), anyBoolean(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any())).thenReturn(page);
+                any(), any(), any(), any(), any(), any(), any())).thenReturn(page);
         when(counterRepository.countersByLink(any()))
                 .thenReturn(Map.of(strange.getId(), Map.of(StrangeTrackingService.STAT_PLAY_COUNT, 7L)));
 

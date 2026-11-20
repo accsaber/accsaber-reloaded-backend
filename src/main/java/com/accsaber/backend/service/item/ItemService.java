@@ -138,8 +138,14 @@ public class ItemService {
     private Page<Object[]> findInventory(Long userId, InventoryFilter filter, Pageable pageable) {
         Long resolved = duplicateUserService.resolvePrimaryUserId(userId);
         InventoryFilter f = filter == null
-                ? new InventoryFilter(null, null, null, null, null, null, null, null, false)
+                ? new InventoryFilter(null, null, null, null, null, null, null, null, null, null, false)
                 : filter;
+        Set<UUID> equippedLinkIds = f.equipped() == null ? Set.of()
+                : linkIds(itemEquipService.resolveEquippedLinksByType(resolved,
+                        userSettingsService.getGroup(resolved, UserSettingKey.GROUP_EQUIPPED)).values());
+        if (equippedLinkIds.isEmpty() && Boolean.TRUE.equals(f.equipped())) {
+            return Page.empty(pageable);
+        }
         return userItemLinkRepository.findInventoryFiltered(
                 resolved,
                 f.includeUnowned(),
@@ -151,6 +157,9 @@ public class ItemService {
                 f.crateItemIdsOrNull(),
                 f.deprecatedEffective(),
                 f.searchOrNull(),
+                f.duplicates(),
+                equippedLinkIds.isEmpty() ? null : f.equipped(),
+                equippedLinkIds.isEmpty() ? null : equippedLinkIds,
                 SortAliases.translateEach(pageable, INVENTORY_SORT_EXPRESSIONS));
     }
 

@@ -159,8 +159,9 @@ public class ItemController {
     }
 
     @Operation(summary = "A player's inventory", description = "Paged, with filters for type, rarity, modifier, "
-            + "tradeable, source and deprecated. Most filters take several values. Sorting by crate puts non crate "
-            + "items last. includeUnowned adds every visible item they lack, with no linkId and quantity 0.")
+            + "tradeable, source, deprecated and equipped. Most filters take several values. Sorting by crate "
+            + "puts non crate items last. includeUnowned adds every visible item they lack, with no linkId and quantity 0. duplicates "
+            + "counts copies among the rows the other filters keep.")
     @GetMapping("/users/{userId}/inventory")
     public ResponseEntity<Page<UserItemResponse>> getInventory(
             @PathVariable Long userId,
@@ -172,10 +173,12 @@ public class ItemController {
             @RequestParam(required = false) List<ItemSource> source,
             @RequestParam(required = false) List<UUID> crateItemId,
             @RequestParam(required = false) Boolean deprecated,
+            @RequestParam(required = false) Boolean duplicates,
+            @RequestParam(required = false) Boolean equipped,
             @RequestParam(defaultValue = "false") boolean includeUnowned,
             @PageableDefault(size = 50, sort = "awardedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         InventoryFilter filter = new InventoryFilter(typeKey, rarity, modifierKey, tradeable, search, source,
-                crateItemId, deprecated, includeUnowned);
+                crateItemId, deprecated, duplicates, equipped, includeUnowned);
         return ResponseEntity.ok(itemService.findInventoryHydrated(userId, filter, pageable));
     }
 

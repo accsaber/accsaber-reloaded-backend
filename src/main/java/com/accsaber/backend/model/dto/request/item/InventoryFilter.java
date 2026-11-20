@@ -16,6 +16,8 @@ public record InventoryFilter(
         List<ItemSource> source,
         List<UUID> crateItemId,
         Boolean deprecated,
+        Boolean duplicates,
+        Boolean equipped,
         boolean includeUnowned) {
 
     public List<String> typeKeysOrNull() {

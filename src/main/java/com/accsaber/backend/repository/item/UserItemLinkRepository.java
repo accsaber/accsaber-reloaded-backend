@@ -39,8 +39,7 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
         @Query("SELECT l FROM UserItemLink l WHERE l.user.id IN :userIds ORDER BY l.id")
         List<UserItemLink> findByUsersForUpdate(@Param("userIds") Collection<Long> userIds);
 
-        @Query(value = """
-                        SELECT i, l
+        String INVENTORY_FROM = """
                         FROM Item i
                         JOIN i.type t
                         LEFT JOIN t.parentType pt
@@ -61,29 +60,25 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         AND (:deprecated IS NULL OR i.deprecated = :deprecated)
                         AND (CAST(:search AS string) IS NULL
                                 OR LOWER(i.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
-                        """, countQuery = """
-                        SELECT COUNT(i)
-                        FROM Item i
-                        JOIN i.type t
-                        LEFT JOIN t.parentType pt
-                        LEFT JOIN UserItemLink l
-                                ON l.item = i AND l.user.id = :userId AND l.escrowed = FALSE
-                        LEFT JOIN UserItemCrateSource cs
-                                ON cs.sourceId = l.sourceId
-                                AND l.source = com.accsaber.backend.model.entity.item.ItemSource.crate_drop
-                        LEFT JOIN cs.crateItem ci
-                        WHERE (l.id IS NOT NULL OR (:includeUnowned = TRUE AND i.visible = TRUE AND i.active = TRUE))
-                        AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
-                        AND (:rarities IS NULL OR i.rarity IN :rarities)
-                        AND (:modifierKeys IS NULL OR EXISTS (
-                                SELECT m FROM l.modifiers m WHERE m.key IN :modifierKeys))
-                        AND (:tradeable IS NULL OR i.tradeable = :tradeable)
-                        AND (:sources IS NULL OR l.source IN :sources)
-                        AND (:crateItemIds IS NULL OR ci.id IN :crateItemIds)
-                        AND (:deprecated IS NULL OR i.deprecated = :deprecated)
-                        AND (CAST(:search AS string) IS NULL
-                                OR LOWER(i.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
-                        """)
+                        AND (:equipped IS NULL
+                                OR :equipped = CASE WHEN l.id IN :equippedLinkIds THEN TRUE ELSE FALSE END)
+                        AND (:duplicates IS NULL OR :duplicates = CASE WHEN (
+                                SELECT COALESCE(SUM(l2.quantity), 0) FROM UserItemLink l2
+                                WHERE l2.item = i AND l2.user.id = :userId AND l2.escrowed = FALSE
+                                AND (:modifierKeys IS NULL OR EXISTS (
+                                        SELECT m2 FROM l2.modifiers m2 WHERE m2.key IN :modifierKeys))
+                                AND (:sources IS NULL OR l2.source IN :sources)
+                                AND (:equipped IS NULL
+                                        OR :equipped = CASE WHEN l2.id IN :equippedLinkIds THEN TRUE ELSE FALSE END)
+                                AND (:crateItemIds IS NULL OR (
+                                        l2.source = com.accsaber.backend.model.entity.item.ItemSource.crate_drop
+                                        AND EXISTS (SELECT cs2 FROM UserItemCrateSource cs2
+                                                WHERE cs2.sourceId = l2.sourceId
+                                                AND cs2.crateItem.id IN :crateItemIds)))
+                                ) > 1 THEN TRUE ELSE FALSE END)
+                        """;
+
+        @Query(value = "SELECT i, l " + INVENTORY_FROM, countQuery = "SELECT COUNT(i) " + INVENTORY_FROM)
         Page<Object[]> findInventoryFiltered(
                         @Param("userId") Long userId,
                         @Param("includeUnowned") boolean includeUnowned,
@@ -95,6 +90,9 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                         @Param("crateItemIds") Collection<UUID> crateItemIds,
                         @Param("deprecated") Boolean deprecated,
                         @Param("search") String search,
+                        @Param("duplicates") Boolean duplicates,
+                        @Param("equipped") Boolean equipped,
+                        @Param("equippedLinkIds") Collection<UUID> equippedLinkIds,
                         Pageable pageable);
 
         boolean existsByUser_IdAndItem_Id(Long userId, UUID itemId);
