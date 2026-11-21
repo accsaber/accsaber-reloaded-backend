@@ -49,7 +49,7 @@ public class ComplexityRaterSpec {
         private int topPlays = 10;
 
         @DecimalMin("0.0")
-        private double maxNudge = 1.5;
+        private double maxNudge = 0.0;
     }
 
     @Data

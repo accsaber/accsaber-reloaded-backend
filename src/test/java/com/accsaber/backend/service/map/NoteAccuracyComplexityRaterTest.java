@@ -232,6 +232,7 @@ class NoteAccuracyComplexityRaterTest {
         NoteAccuracyComplexityRater.Rating chart = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD, null);
         ComplexityScenarioService.BoardEase board = new ComplexityScenarioService.BoardEase(0.2, 50, 500);
 
+        properties.getBoard().setMaxNudge(1.5);
         assertThat(rater.rate(response, "tech_acc", board, null).complexity()).isCloseTo(chart.complexity() - 1.5, within(0.051));
         properties.getBoard().setMaxNudge(0.0);
         assertThat(rater.rate(response, "tech_acc", board, null).complexity()).isCloseTo(chart.complexity() - 2.0, within(0.051));
