@@ -153,7 +153,7 @@ accsaber:
     model-check-interval-ms: 300000
     scenario-refresh-ms: 600000
     rater:
-      version: note-acc-2026-11-21
+      version: note-acc-2026-11-22-bl41
       worst-share: 0.05
       board:
         min-scores: 50
@@ -164,69 +164,81 @@ accsaber:
         max-nudge: 0
       categories:
         true_acc:
-          intercept: 14.889
-          mean-slope: -10.086
-          worst-slope: -2.731
-          reset-slope: -1.414
-          dot-slope: -2.814
-          bottom-up-slope: -2.0
+          intercept: 21.299
+          mean-slope: -12.034
+          worst-slope: 0
+          reset-slope: -0.287
+          dot-slope: -2.698
+          bottom-up-slope: 0
           top-down-slope: 0
-          notes-slope: 0.823
-          njs-slope: 0
-        standard_acc:
-          intercept: 32.945
-          mean-slope: -20.340
-          worst-slope: -1.105
-          reset-slope: 0
-          dot-slope: 0
-          bottom-up-slope: -3.0
-          notes-slope: 0
+          mid-diag-double-slope: 0
+          notes-slope: 0.321
           nps-slope: 0
-          njs-slope: -0.178
-        tech_acc:
-          intercept: 33.240
-          mean-slope: -23.591
+          njs-slope: -0.309
+        standard_acc:
+          intercept: 24.313
+          mean-slope: -15.927
           worst-slope: 0
           reset-slope: 0
-          dot-slope: -2.4
-          bottom-up-slope: -2.0
-          mid-diag-double-slope: 5.0
-          notes-slope: 0
-          njs-slope: 0
-      board-categories:
-        true_acc:
-          intercept: 6.923
-          mean-slope: -3.451
-          worst-slope: -1.641
-          reset-slope: -0.797
-          dot-slope: -0.193
-          bottom-up-slope: -2.0
+          dot-slope: 0
+          bottom-up-slope: 0
           top-down-slope: 0
-          notes-slope: 0.520
-          njs-slope: 0
-          board-slope: -6.702
-        standard_acc:
-          intercept: 17.583
-          mean-slope: -9.621
-          worst-slope: 1.205
+          mid-diag-double-slope: 0
+          notes-slope: 0.598
+          nps-slope: 0
+          njs-slope: -0.17
+        tech_acc:
+          intercept: 35.311
+          mean-slope: -22.487
+          worst-slope: 0
           reset-slope: 0
           dot-slope: 0
-          bottom-up-slope: -3.0
+          bottom-up-slope: -2.199
+          top-down-slope: 0
+          mid-diag-double-slope: 0
           notes-slope: 0
           nps-slope: 0
-          njs-slope: -0.047
-          board-slope: -9.162
-        tech_acc:
-          intercept: 23.030
-          mean-slope: -12.599
-          worst-slope: -0.574
+          njs-slope: -0.156
+      board-categories:
+        true_acc:
+          intercept: 11.188
+          mean-slope: -4.542
+          worst-slope: 0
+          reset-slope: -0.439
+          dot-slope: -0.574
+          bottom-up-slope: 0
+          top-down-slope: 0
+          mid-diag-double-slope: 0
+          notes-slope: 0.321
+          nps-slope: 0
+          njs-slope: -0.309
+          board-slope: -7.145
+        standard_acc:
+          intercept: 12.655
+          mean-slope: -5.81
+          worst-slope: 0
           reset-slope: 0
-          dot-slope: -2.4
-          bottom-up-slope: -2.0
-          mid-diag-double-slope: 5.0
+          dot-slope: 0
+          bottom-up-slope: 0
+          top-down-slope: 0
+          mid-diag-double-slope: 0
+          notes-slope: 0.598
+          nps-slope: 0
+          njs-slope: -0.17
+          board-slope: -10.358
+        tech_acc:
+          intercept: 27.278
+          mean-slope: -14.532
+          worst-slope: 0
+          reset-slope: 0
+          dot-slope: 0
+          bottom-up-slope: -2.199
+          top-down-slope: 0
+          mid-diag-double-slope: 0
           notes-slope: 0
-          njs-slope: 0
-          board-slope: -9.136
+          nps-slope: 0
+          njs-slope: -0.156
+          board-slope: -8.807
   rate-limit:
     capacity: 400
     window-seconds: 60

@@ -16,5 +16,5 @@ import lombok.Setter;
 public class ComplexityRaterProperties extends ComplexityRaterSpec {
 
     @JsonIgnore
-    private String version = "note-acc-2026-11-21";
+    private String version = "note-acc-2026-11-22-bl41";
 }
