@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
@@ -13,11 +12,6 @@ import lombok.Data;
 
 @Data
 public class ComplexityRaterSpec {
-
-    @NotNull
-    @DecimalMin("0.005")
-    @DecimalMax("0.5")
-    private Double worstShare;
 
     @NotNull
     @Valid
@@ -61,22 +55,13 @@ public class ComplexityRaterSpec {
         @NotNull
         private Double meanSlope;
 
-        @NotNull
-        private Double worstSlope;
-
         private double resetSlope;
 
         private double dotSlope;
 
         private double bottomUpSlope;
 
-        private double topDownSlope;
-
-        private double midDiagDoubleSlope;
-
         private double notesSlope;
-
-        private double npsSlope;
 
         private double njsSlope;
 

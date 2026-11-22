@@ -83,7 +83,5 @@ public class ComplexityModelClient {
         private double resetShare;
         private double dotShare;
         private double bottomUpShare;
-        private double topDownShare;
-        private double midDiagDoubleShare;
     }
 }

@@ -154,7 +154,6 @@ accsaber:
     scenario-refresh-ms: 600000
     rater:
       version: note-acc-2026-11-22-bl41
-      worst-share: 0.05
       board:
         min-scores: 50
         full-scores: 70
@@ -166,77 +165,53 @@ accsaber:
         true_acc:
           intercept: 21.299
           mean-slope: -12.034
-          worst-slope: 0
           reset-slope: -0.287
           dot-slope: -2.698
           bottom-up-slope: 0
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0.321
-          nps-slope: 0
           njs-slope: -0.309
         standard_acc:
           intercept: 24.313
           mean-slope: -15.927
-          worst-slope: 0
           reset-slope: 0
           dot-slope: 0
           bottom-up-slope: 0
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0.598
-          nps-slope: 0
           njs-slope: -0.17
         tech_acc:
           intercept: 35.311
           mean-slope: -22.487
-          worst-slope: 0
           reset-slope: 0
           dot-slope: 0
           bottom-up-slope: -2.199
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0
-          nps-slope: 0
           njs-slope: -0.156
       board-categories:
         true_acc:
           intercept: 11.188
           mean-slope: -4.542
-          worst-slope: 0
           reset-slope: -0.439
           dot-slope: -0.574
           bottom-up-slope: 0
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0.321
-          nps-slope: 0
           njs-slope: -0.309
           board-slope: -7.145
         standard_acc:
           intercept: 12.655
           mean-slope: -5.81
-          worst-slope: 0
           reset-slope: 0
           dot-slope: 0
           bottom-up-slope: 0
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0.598
-          nps-slope: 0
           njs-slope: -0.17
           board-slope: -10.358
         tech_acc:
           intercept: 27.278
           mean-slope: -14.532
-          worst-slope: 0
           reset-slope: 0
           dot-slope: 0
           bottom-up-slope: -2.199
-          top-down-slope: 0
-          mid-diag-double-slope: 0
           notes-slope: 0
-          nps-slope: 0
           njs-slope: -0.156
           board-slope: -8.807
   rate-limit:

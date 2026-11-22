@@ -132,7 +132,6 @@ public final class ComplexityComparisonResponse {
     @Builder
     public static class Rater {
         String version;
-        List<Double> worstBands;
         ComplexityRaterSpec rater;
     }
 
