@@ -13,6 +13,9 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import com.accsaber.backend.config.ComplexityRaterProperties;
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
+import com.accsaber.backend.model.dto.response.admin.ComplexityComparisonResponse;
 import com.accsaber.backend.config.PlainDoubleJackson2Module;
 import com.accsaber.backend.config.PlainDoubleJacksonConfig;
 import com.accsaber.backend.model.dto.response.campaign.CampaignBarrierResponse;
@@ -160,6 +163,30 @@ class ResponseJsonShapeTest {
 
         assertSameJson(actual, legacy);
         assertThat(mapper.writeValueAsString(actual)).doesNotContain("difficultyCount");
+    }
+
+    @Test
+    void complexityRaterCarriesTheBotEstimateSlopesAndThePayFairSettings() {
+        ComplexityRaterProperties properties = new ComplexityRaterProperties();
+        ComplexityRaterSpec.Coefficients line = new ComplexityRaterSpec.Coefficients();
+        line.setIntercept(20.0);
+        line.setMeanSlope(-10.0);
+        properties.getCategories().put("tech_acc", line);
+
+        JsonNode payload = json(ComplexityComparisonResponse.Rater.builder().version("v").rater(properties).build());
+        JsonNode spec = payload.get("rater");
+
+        assertThat(payload.get("version").asString()).isEqualTo("v");
+        assertThat(payload.has("worstBands")).isFalse();
+        assertThat(spec.has("version")).isFalse();
+        assertThat(spec.has("boardCategories")).isFalse();
+        assertThat(spec.get("payFair").get("minScores").asInt()).isEqualTo(50);
+        assertThat(spec.get("payFair").get("fullScores").asInt()).isEqualTo(70);
+        assertThat(spec.get("payFair").get("maxWeight").toString()).isEqualTo("0.6");
+        assertThat(spec.get("payFair").has("maxNudge")).isFalse();
+        assertThat(spec.get("categories").get("tech_acc").get("meanSlope").toString()).isEqualTo("-10");
+        assertThat(spec.get("categories").get("tech_acc").has("outerSlope")).isTrue();
+        assertThat(spec.get("categories").get("tech_acc").has("boardSlope")).isFalse();
     }
 
     @Test

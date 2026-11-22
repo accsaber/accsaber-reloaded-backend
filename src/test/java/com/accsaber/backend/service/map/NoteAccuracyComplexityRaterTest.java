@@ -62,7 +62,7 @@ class NoteAccuracyComplexityRaterTest {
     @Test
     void ratesFromTheMeanNoteAccuracy() {
         List<Double> notes = List.of(0.99, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999);
-        NoteAccuracyComplexityRater.Rating rating = rater.rate(response(notes), "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating rating = rater.rate(response(notes), "tech_acc", PayFairBoard.NONE);
 
         double mean = notes.stream().mapToDouble(Double::doubleValue).average().orElseThrow();
         double expected = 40.0 - 10.0 * NoteAccuracyComplexityRater.linearised(mean);
@@ -75,7 +75,7 @@ class NoteAccuracyComplexityRaterTest {
     void repricesStoredInputsOnlyWhenTheModelHashStillMatches() {
         NoteAccuracies response = response(List.of(0.99, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999));
         response.setModelHash("abc123");
-        NoteAccuracyComplexityRater.Rating stored = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating stored = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         JsonNode inputs = new ObjectMapper().valueToTree(stored.inputs());
         MapDifficulty tech = difficulty("tech_acc");
 
@@ -96,10 +96,10 @@ class NoteAccuracyComplexityRaterTest {
         properties.getCategories().get("tech_acc").setResetSlope(-2.0);
         properties.getCategories().get("tech_acc").setDotSlope(-4.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating plain = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating plain = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         response.setResetShare(1.0);
         response.setDotShare(0.5);
-        NoteAccuracyComplexityRater.Rating reset = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating reset = rater.rate(response, "tech_acc", PayFairBoard.NONE);
 
         assertThat(reset.complexity()).isCloseTo(plain.complexity() - 4.0, within(0.051));
         assertThat(reset.inputs()).containsEntry("resetShare", 1.0).containsEntry("dotShare", 0.5);
@@ -110,9 +110,9 @@ class NoteAccuracyComplexityRaterTest {
     void bottomUpSharePricesThroughItsOwnSlopeAndLeavesCleanMapsAlone() {
         properties.getCategories().get("tech_acc").setBottomUpSlope(-4.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         response.setBottomUpShare(0.15);
-        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc", PayFairBoard.NONE);
 
         assertThat(clean.inputs()).containsEntry("bottomUpShare", 0.0);
         assertThat(rated.complexity()).isCloseTo(clean.complexity() - 0.6, within(0.051));
@@ -129,13 +129,13 @@ class NoteAccuracyComplexityRaterTest {
         line.setVerticalStackSlope(2.0);
         line.setOuterSlope(-2.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         response.setCrossoverShare(0.5);
         response.setTopRowShare(0.5);
         response.setDiagonalShare(0.5);
         response.setVerticalStackShare(0.5);
         response.setOuterShare(0.5);
-        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc", PayFairBoard.NONE);
 
         assertThat(rated.complexity()).isCloseTo(clean.complexity() + 2.0, within(0.051));
         assertThat(rated.inputs()).containsEntry("crossoverShare", 0.5).containsEntry("outerShare", 0.5);
@@ -147,10 +147,10 @@ class NoteAccuracyComplexityRaterTest {
         properties.getCategories().get("tech_acc").setNotesSlope(1.0);
         properties.getCategories().get("tech_acc").setNjsSlope(-0.5);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating plain = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating plain = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         response.setNotes(59);
         response.setNjs(4.0);
-        NoteAccuracyComplexityRater.Rating priced = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating priced = rater.rate(response, "tech_acc", PayFairBoard.NONE);
 
         assertThat(priced.complexity()).isCloseTo(plain.complexity() + Math.log(59) - Math.log(8) - 2.0, within(0.1));
         assertThat(priced.inputs()).containsEntry("njs", 4.0);
@@ -159,72 +159,45 @@ class NoteAccuracyComplexityRaterTest {
     }
 
     @Test
-    void theBoardLineBlendsInBetweenTheScoreGates() {
-        Coefficients boardLine = new Coefficients();
-        boardLine.setIntercept(40.0);
-        boardLine.setMeanSlope(-10.0);
-        boardLine.setBoardSlope(-10.0);
-        properties.getBoardCategories().put("tech_acc", boardLine);
-        properties.getBoard().setMaxNudge(0.0);
+    void theBoardTakesOverFromTheChartAsScoresArrive() {
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        NoteAccuracyComplexityRater.Rating chart = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
-        NoteAccuracyComplexityRater.Rating thin = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 5, 500));
-        int halfway = (properties.getBoard().getMinScores() + properties.getBoard().getFullScores()) / 2;
-        NoteAccuracyComplexityRater.Rating half = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 50, halfway));
-        NoteAccuracyComplexityRater.Rating full = rater.rate(response, "tech_acc", new ComplexityScenarioService.BoardEase(0.2, 50, 500));
+        NoteAccuracyComplexityRater.Rating chart = rater.rate(response, "tech_acc", PayFairBoard.NONE);
+        double fair = chart.complexity() + 2.0;
+        NoteAccuracyComplexityRater.Rating thin = rater.rate(response, "tech_acc", new PayFairBoard.Reading(fair, 0.9, 5, 500));
+        NoteAccuracyComplexityRater.Rating early = rater.rate(response, "tech_acc", new PayFairBoard.Reading(fair, 0.9, 10, 49));
+        NoteAccuracyComplexityRater.Rating half = rater.rate(response, "tech_acc", new PayFairBoard.Reading(fair, 0.9, 10, 60));
+        NoteAccuracyComplexityRater.Rating big = rater.rate(response, "tech_acc", new PayFairBoard.Reading(fair, 0.9, 10, 450));
 
         assertThat(thin.complexity()).isEqualTo(chart.complexity());
-        assertThat(full.complexity()).isCloseTo(chart.complexity() - 2.0, within(0.051));
-        assertThat(half.complexity()).isCloseTo(chart.complexity() - 1.0, within(0.051));
-        assertThat(full.inputs()).containsEntry("boardWeight", 1.0).containsEntry("boardPlayers", 50)
-                .containsEntry("scores", 500).containsEntry("boardEase", 0.2);
-        assertThat(thin.inputs()).containsEntry("boardWeight", 0.0);
-        assertThat(chart.inputs().get("boardComplexity")).isNull();
-    }
-
-    @Test
-    void theBoardNudgeIsCappedUnlessTheCapIsOff() {
-        Coefficients boardLine = new Coefficients();
-        boardLine.setIntercept(40.0);
-        boardLine.setMeanSlope(-10.0);
-        boardLine.setBoardSlope(-10.0);
-        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
-        properties.getBoardCategories().put("tech_acc", boardLine);
-        NoteAccuracyComplexityRater.Rating chart = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
-        ComplexityScenarioService.BoardEase board = new ComplexityScenarioService.BoardEase(0.2, 50, 500);
-
-        properties.getBoard().setMaxNudge(1.5);
-        assertThat(rater.rate(response, "tech_acc", board).complexity()).isCloseTo(chart.complexity() - 1.5, within(0.051));
-        properties.getBoard().setMaxNudge(0.0);
-        assertThat(rater.rate(response, "tech_acc", board).complexity()).isCloseTo(chart.complexity() - 2.0, within(0.051));
+        assertThat(early.complexity()).isEqualTo(chart.complexity());
+        assertThat(half.complexity()).isCloseTo(chart.complexity() + 0.6, within(0.051));
+        assertThat(big.complexity()).isCloseTo(chart.complexity() + 1.2, within(0.051));
+        assertThat(half.inputs()).containsEntry("payWeight", 0.3).containsEntry("payAdjustment", 0.6)
+                .containsEntry("payPlays", 10).containsEntry("scores", 60).containsEntry("botEstimate", chart.complexity());
+        assertThat(big.inputs()).containsEntry("payWeight", 0.6);
+        assertThat(thin.inputs()).containsEntry("payWeight", 0.0).containsEntry("payAdjustment", 0.0);
     }
 
     @Test
     void repricingReadsTheLiveBoardInsteadOfTheStoredOne() {
-        Coefficients boardLine = new Coefficients();
-        boardLine.setIntercept(40.0);
-        boardLine.setMeanSlope(-10.0);
-        boardLine.setBoardSlope(-10.0);
-        properties.getBoardCategories().put("tech_acc", boardLine);
-        properties.getBoard().setMaxNudge(0.0);
         NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
         response.setModelHash("abc123");
-        NoteAccuracyComplexityRater.Rating stored = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating stored = rater.rate(response, "tech_acc", PayFairBoard.NONE);
         MapDifficulty tech = difficulty("tech_acc");
-        when(scenarioService.boardEase(20, 10)).thenReturn(java.util.Map.of(tech.getId(),
-                new ComplexityScenarioService.BoardEase(0.2, 50, 500)));
+        when(scenarioService.payFair(properties.getPayFair())).thenReturn(java.util.Map.of(tech.getId(),
+                new PayFairBoard.Reading(stored.complexity() + 2.0, 0.9, 10, 450)));
 
         NoteAccuracyComplexityRater.Rating repriced = rater.reprice(tech, new ObjectMapper().valueToTree(stored.inputs()), "abc123")
                 .orElseThrow();
 
-        assertThat(repriced.complexity()).isCloseTo(stored.complexity() - 2.0, within(0.051));
-        assertThat(repriced.inputs()).containsEntry("scores", 500);
+        assertThat(repriced.complexity()).isCloseTo(stored.complexity() + 1.2, within(0.051));
+        assertThat(repriced.inputs()).containsEntry("scores", 450);
     }
 
     @Test
     void neverGoesBelowZero() {
         List<Double> notes = List.of(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-        NoteAccuracyComplexityRater.Rating rating = rater.rate(response(notes), "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        NoteAccuracyComplexityRater.Rating rating = rater.rate(response(notes), "tech_acc", PayFairBoard.NONE);
         assertThat(rating.complexity()).isZero();
     }
 

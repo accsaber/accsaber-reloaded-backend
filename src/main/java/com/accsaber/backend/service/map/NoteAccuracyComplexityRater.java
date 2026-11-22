@@ -14,7 +14,6 @@ import com.accsaber.backend.config.ComplexityRaterProperties;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec.Coefficients;
 import com.accsaber.backend.model.entity.map.MapDifficulty;
-import com.accsaber.backend.service.map.ComplexityScenarioService.BoardEase;
 import com.accsaber.backend.util.Rounding;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,7 +25,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class NoteAccuracyComplexityRater {
 
-    static final BoardEase NO_BOARD = new BoardEase(0.0, 0, 0);
     private static final List<String> STORED_INPUTS = List.of("meanNoteAccuracy", "resetShare", "dotShare",
             "bottomUpShare", "crossoverShare", "topRowShare", "diagonalShare", "verticalStackShare", "outerShare",
             "njs");
@@ -41,7 +39,7 @@ public class NoteAccuracyComplexityRater {
     }
 
     private record Terms(double mean, double reset, double dot, double bottomUp, double crossover, double topRow,
-            double diagonal, double verticalStack, double outer, int notes, double njs, BoardEase board) {
+            double diagonal, double verticalStack, double outer, int notes, double njs) {
     }
 
     private final MapZipCache zipCache;
@@ -71,7 +69,7 @@ public class NoteAccuracyComplexityRater {
                 || notes.get().getNoteAccuracies().size() < MIN_NOTES) {
             return Optional.empty();
         }
-        return Optional.of(rate(notes.get(), categoryCode, board(difficulty.getId())));
+        return Optional.of(rate(notes.get(), categoryCode, reading(difficulty.getId())));
     }
 
     public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
@@ -81,22 +79,22 @@ public class NoteAccuracyComplexityRater {
             return Optional.empty();
         }
         Map<String, Object> refreshed = JSON.convertValue(inputs, MAP);
-        putBoard(refreshed, board(difficulty.getId()));
+        putReading(refreshed, reading(difficulty.getId()));
         return price(refreshed, properties, difficulty.getCategory().getCode());
     }
 
-    private BoardEase board(UUID difficultyId) {
-        return scenarioService.boardEase(properties.getBoard().getMinPlayerPlays(), properties.getBoard().getTopPlays())
-                .getOrDefault(difficultyId, NO_BOARD);
+    private PayFairBoard.Reading reading(UUID difficultyId) {
+        return scenarioService.payFair(properties.getPayFair()).getOrDefault(difficultyId, PayFairBoard.NONE);
     }
 
-    private static void putBoard(Map<String, Object> inputs, BoardEase board) {
-        inputs.put("boardEase", Rounding.round(board.ease(), 6));
-        inputs.put("boardPlayers", board.players());
-        inputs.put("scores", board.scores());
+    private static void putReading(Map<String, Object> inputs, PayFairBoard.Reading reading) {
+        inputs.put("payFair", Rounding.round(reading.complexity(), 3));
+        inputs.put("payRatio", Rounding.round(reading.payRatio(), 4));
+        inputs.put("payPlays", reading.plays());
+        inputs.put("scores", reading.scores());
     }
 
-    Rating rate(NoteAccuracies notes, String categoryCode, BoardEase board) {
+    Rating rate(NoteAccuracies notes, String categoryCode, PayFairBoard.Reading reading) {
         double mean = notes.getNoteAccuracies().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
         Map<String, Object> inputs = new LinkedHashMap<>();
         inputs.put("model", notes.getModel());
@@ -114,18 +112,18 @@ public class NoteAccuracyComplexityRater {
         inputs.put("diagonalShare", Rounding.round(notes.getDiagonalShare(), 6));
         inputs.put("verticalStackShare", Rounding.round(notes.getVerticalStackShare(), 6));
         inputs.put("outerShare", Rounding.round(notes.getOuterShare(), 6));
-        putBoard(inputs, board);
+        putReading(inputs, reading);
         return price(inputs, properties, categoryCode).orElseThrow();
     }
 
     public static Optional<Rating> price(JsonNode inputs, ComplexityRaterSpec spec, String categoryCode,
-            BoardEase board) {
+            PayFairBoard.Reading reading) {
         if (inputs == null || !inputs.isObject()) {
             return Optional.empty();
         }
         Map<String, Object> values = JSON.convertValue(inputs, MAP);
-        if (board != null) {
-            putBoard(values, board);
+        if (reading != null) {
+            putReading(values, reading);
         }
         return price(values, spec, categoryCode);
     }
@@ -135,26 +133,23 @@ public class NoteAccuracyComplexityRater {
             return Optional.empty();
         }
         double mean = number(inputs, "meanNoteAccuracy", 0.0);
-        BoardEase board = new BoardEase(number(inputs, "boardEase", 0.0), (int) number(inputs, "boardPlayers", 0),
-                (int) number(inputs, "scores", 0));
         Terms terms = new Terms(mean, number(inputs, "resetShare", 0.0), number(inputs, "dotShare", 0.0),
                 number(inputs, "bottomUpShare", 0.0), number(inputs, "crossoverShare", 0.0),
                 number(inputs, "topRowShare", 0.0), number(inputs, "diagonalShare", 0.0),
                 number(inputs, "verticalStackShare", 0.0), number(inputs, "outerShare", 0.0),
-                (int) number(inputs, "notes", 0), number(inputs, "njs", 0.0), board);
+                (int) number(inputs, "notes", 0), number(inputs, "njs", 0.0));
         Coefficients chart = spec.getCategories().get(categoryCode);
-        Coefficients boardLine = spec.getBoardCategories().get(categoryCode);
-        double weight = boardLine == null ? 0.0 : boardWeight(board, spec.getBoard());
-        double chartComplexity = line(chart, terms);
-        double complexity = chartComplexity + nudge(weight, chartComplexity, boardLine, terms, spec.getBoard());
+        double weight = payWeight((int) number(inputs, "payPlays", 0), (int) number(inputs, "scores", 0), spec.getPayFair());
+        double botEstimate = line(chart, terms);
+        double adjustment = weight * (number(inputs, "payFair", botEstimate) - botEstimate);
+        double complexity = botEstimate + adjustment;
         Map<String, Object> out = new LinkedHashMap<>(inputs);
         out.put("meanTerm", Rounding.round(linearised(mean), 6));
         out.put("notesTerm", Rounding.round(Math.log(Math.max(1, terms.notes())), 6));
-        out.put("chartComplexity", Rounding.round(Math.max(0.0, chartComplexity), COMPLEXITY_SCALE));
-        out.put("boardWeight", Rounding.round(weight, 4));
-        out.put("boardComplexity", weight == 0.0 ? null : Rounding.round(Math.max(0.0, line(boardLine, terms)), COMPLEXITY_SCALE));
+        out.put("botEstimate", Rounding.round(Math.max(0.0, botEstimate), COMPLEXITY_SCALE));
+        out.put("payWeight", Rounding.round(weight, 4));
+        out.put("payAdjustment", Rounding.round(adjustment, 2));
         out.put("chart", coefficients(chart));
-        out.put("board", boardLine == null ? null : coefficients(boardLine));
         return Optional.of(new Rating(Rounding.round(Math.max(0.0, complexity), COMPLEXITY_SCALE), out));
     }
 
@@ -170,28 +165,15 @@ public class NoteAccuracyComplexityRater {
                 + c.getVerticalStackSlope() * terms.verticalStack()
                 + c.getOuterSlope() * terms.outer()
                 + c.getNotesSlope() * Math.log(Math.max(1, terms.notes()))
-                + c.getNjsSlope() * terms.njs()
-                + c.getBoardSlope() * terms.board().ease();
+                + c.getNjsSlope() * terms.njs();
     }
 
-    private static double nudge(double weight, double chartComplexity, Coefficients boardLine, Terms terms,
-            ComplexityRaterSpec.Board gate) {
-        if (weight == 0.0) {
+    static double payWeight(int plays, int scores, ComplexityRaterSpec.PayFair settings) {
+        if (plays < settings.getMinPlays() || scores < settings.getMinScores()) {
             return 0.0;
         }
-        double move = weight * (line(boardLine, terms) - chartComplexity);
-        if (gate.getMaxNudge() <= 0.0) {
-            return move;
-        }
-        return Math.max(-gate.getMaxNudge(), Math.min(gate.getMaxNudge(), move));
-    }
-
-    static double boardWeight(BoardEase board, ComplexityRaterSpec.Board gate) {
-        if (board.players() < gate.getMinPlayers() || board.scores() < gate.getMinScores()) {
-            return 0.0;
-        }
-        int span = Math.max(1, gate.getFullScores() - gate.getMinScores());
-        return Math.min(1.0, (board.scores() - gate.getMinScores()) / (double) span);
+        int span = Math.max(1, settings.getFullScores() - settings.getMinScores());
+        return settings.getMaxWeight() * Math.min(1.0, (scores - settings.getMinScores()) / (double) span);
     }
 
     private static double number(Map<String, Object> map, String key, double fallback) {
@@ -212,7 +194,6 @@ public class NoteAccuracyComplexityRater {
         out.put("outerSlope", c.getOuterSlope());
         out.put("notesSlope", c.getNotesSlope());
         out.put("njsSlope", c.getNjsSlope());
-        out.put("boardSlope", c.getBoardSlope());
         return out;
     }
 

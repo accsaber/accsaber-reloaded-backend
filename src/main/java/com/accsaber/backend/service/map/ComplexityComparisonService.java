@@ -194,15 +194,14 @@ public class ComplexityComparisonService {
 
     private Map<UUID, Double> previewComplexities(ComplexityRaterSpec spec) {
         Map<UUID, Double> complexities = new HashMap<>(scenarioService.complexitiesFor(ComplexityScenario.CURRENT));
-        Map<UUID, ComplexityScenarioService.BoardEase> ease = scenarioService.boardEase(
-                spec.getBoard().getMinPlayerPlays(), spec.getBoard().getTopPlays());
+        Map<UUID, PayFairBoard.Reading> readings = scenarioService.payFair(spec.getPayFair());
         for (MapDifficultyComplexityEstimate estimate : estimateService.estimates()) {
             MapDifficulty difficulty = estimate.getMapDifficulty();
             if (difficulty.getCategory() == null) {
                 continue;
             }
             NoteAccuracyComplexityRater.price(estimate.getInputs(), spec, difficulty.getCategory().getCode(),
-                    ease.get(difficulty.getId()))
+                    readings.get(difficulty.getId()))
                     .ifPresent(rating -> complexities.put(difficulty.getId(), rating.complexity()));
         }
         return complexities;

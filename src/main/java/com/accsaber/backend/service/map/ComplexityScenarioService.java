@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.accsaber.backend.model.complexity.ComplexityScenario;
 import com.accsaber.backend.model.dto.projection.ActiveComplexityRow;
 import com.accsaber.backend.model.dto.projection.SimulationScoreRow;
+import com.accsaber.backend.model.dto.request.map.ComplexityRaterSpec;
 import com.accsaber.backend.model.entity.Category;
 import com.accsaber.backend.model.entity.map.MapDifficultyStatus;
 import com.accsaber.backend.repository.CategoryRepository;
@@ -45,14 +46,12 @@ public class ComplexityScenarioService {
     private final MapDifficultyComplexityEstimateRepository estimateRepository;
     private final APCalculationService apCalculationService;
 
-    private static final int EASE_ITERATIONS = 50;
-
     private static final int PREVIEW_CACHE_SIZE = 8;
 
     private final Map<ComplexityScenario, Cached<ScenarioState>> states = new ConcurrentHashMap<>();
     private final Map<String, Cached<ScenarioState>> previews = new ConcurrentHashMap<>();
     private volatile Cached<Pool> pool;
-    private final Map<String, Cached<Map<UUID, BoardEase>>> boardEase = new ConcurrentHashMap<>();
+    private final Map<String, Cached<Map<UUID, PayFairBoard.Reading>>> payFair = new ConcurrentHashMap<>();
 
     public record Play(Long userId, UUID difficultyId, UUID categoryId, double accuracy, double ap,
             double weightedAp, int position, int rank) {
@@ -67,13 +66,6 @@ public class ComplexityScenarioService {
     public record Ladder(int players, double totalAp, int playersWith900, int playersWith1000,
             int playersWith1100, int playsWith1000, int playsWith1100, double topPlayAp) {
     }
-
-    public record BoardEase(double ease, int players, int scores) {
-    }
-
-    private record Observation(Long userId, UUID mapDifficultyId, double linearised) {
-    }
-
 
     public record ScenarioState(Map<UUID, Double> complexities, Map<UUID, List<Play>> playsByDifficulty,
             Map<Long, List<Play>> playsByUser, Map<UUID, Map<Long, PlayerTotal>> totalsByCategory,
@@ -94,7 +86,7 @@ public class ComplexityScenarioService {
         states.clear();
         previews.clear();
         pool = null;
-        boardEase.clear();
+        payFair.clear();
     }
 
     public ScenarioState preview(String key, Supplier<Map<UUID, Double>> complexities) {
@@ -110,87 +102,23 @@ public class ComplexityScenarioService {
         return state;
     }
 
-    public Map<UUID, BoardEase> boardEase(int minPlayerPlays, int topPlays) {
-        String window = minPlayerPlays + ":" + topPlays;
-        Cached<Map<UUID, BoardEase>> cached = boardEase.get(window);
+    public Map<UUID, PayFairBoard.Reading> payFair(ComplexityRaterSpec.PayFair settings) {
+        String key = settings.toString();
+        Cached<Map<UUID, PayFairBoard.Reading>> cached = payFair.get(key);
         if (cached != null && cached.fresh()) {
             return cached.value();
         }
-        Map<UUID, BoardEase> computed = computeBoardEase(loadPool(), minPlayerPlays, topPlays);
-        boardEase.put(window, new Cached<>(computed, Instant.now()));
-        return computed;
-    }
-
-    private static Map<UUID, BoardEase> computeBoardEase(Pool loaded, int minPlayerPlays, int topPlays) {
-        Map<UUID, Integer> scores = new HashMap<>();
-        Map<UUID, Map<Long, List<Observation>>> byCategory = new HashMap<>();
-        for (SimulationScoreRow row : loaded.rows()) {
-            if (row.maxScore() == null || row.maxScore() == 0 || row.score() == null || row.score() <= 0) {
-                continue;
+        Pool loaded = loadPool();
+        Map<UUID, Double> shifts = new HashMap<>();
+        loaded.categories().forEach((id, category) -> {
+            if (category.getScoreCurve() != null && category.getScoreCurve().getShift() != null) {
+                shifts.put(id, category.getScoreCurve().getShift());
             }
-            scores.merge(row.mapDifficultyId(), 1, Integer::sum);
-            double accuracy = (double) row.score() / (double) row.maxScore();
-            if (accuracy >= 1.0) {
-                continue;
-            }
-            byCategory.computeIfAbsent(row.categoryId(), k -> new HashMap<>())
-                    .computeIfAbsent(row.userId(), k -> new ArrayList<>())
-                    .add(new Observation(row.userId(), row.mapDifficultyId(), -Math.log10(1.0 - accuracy)));
-        }
-        Map<UUID, BoardEase> result = new HashMap<>();
-        for (Map<Long, List<Observation>> players : byCategory.values()) {
-            result.putAll(fitEase(players, minPlayerPlays, topPlays, scores));
-        }
-        return result;
-    }
-
-    private static Map<UUID, BoardEase> fitEase(Map<Long, List<Observation>> players, int minPlayerPlays,
-            int topPlays, Map<UUID, Integer> scores) {
-        List<Observation> rows = players.values().stream()
-                .filter(list -> list.size() >= minPlayerPlays)
-                .flatMap(List::stream)
-                .toList();
-        Map<UUID, Integer> count = new HashMap<>();
-        for (Observation row : rows) {
-            count.merge(row.mapDifficultyId(), 1, Integer::sum);
-        }
-        Map<Long, Double> skill = new HashMap<>();
-        Map<UUID, Double> ease = new HashMap<>();
-        for (int it = 0; it < EASE_ITERATIONS; it++) {
-            Map<Long, double[]> userSums = new HashMap<>();
-            for (Observation row : rows) {
-                double[] sum = userSums.computeIfAbsent(row.userId(), k -> new double[2]);
-                sum[0] += row.linearised() - ease.getOrDefault(row.mapDifficultyId(), 0.0);
-                sum[1]++;
-            }
-            userSums.forEach((user, sum) -> skill.put(user, sum[0] / sum[1]));
-            Map<UUID, Double> mapSums = new HashMap<>();
-            for (Observation row : rows) {
-                mapSums.merge(row.mapDifficultyId(), row.linearised() - skill.get(row.userId()), Double::sum);
-            }
-            mapSums.forEach((map, sum) -> ease.put(map, sum / count.get(map)));
-        }
-        Map<UUID, List<Observation>> byMap = rows.stream().collect(Collectors.groupingBy(Observation::mapDifficultyId));
-        Map<UUID, double[]> topSums = new HashMap<>();
-        byMap.forEach((map, plays) -> {
-            double[] sum = new double[2];
-            plays.stream()
-                    .sorted(Comparator.comparingDouble(Observation::linearised).reversed())
-                    .limit(topPlays)
-                    .forEach(row -> {
-                        sum[0] += row.linearised() - skill.get(row.userId());
-                        sum[1]++;
-                    });
-            topSums.put(map, sum);
         });
-        double centre = topSums.values().stream()
-                .filter(sum -> sum[1] >= topPlays)
-                .mapToDouble(sum -> sum[0] / sum[1])
-                .average().orElse(0.0);
-        Map<UUID, BoardEase> result = new HashMap<>();
-        topSums.forEach((map, sum) -> result.put(map,
-                new BoardEase(sum[0] / sum[1] - centre, count.getOrDefault(map, 0), scores.getOrDefault(map, 0))));
-        return result;
+        Map<UUID, PayFairBoard.Reading> computed = PayFairBoard.read(loaded.rows(), shifts,
+                complexitiesFor(ComplexityScenario.CURRENT), settings);
+        payFair.put(key, new Cached<>(computed, Instant.now()));
+        return computed;
     }
 
     public ScenarioState state(ComplexityScenario scenario) {
@@ -211,7 +139,7 @@ public class ComplexityScenarioService {
 
     public void rebuild() {
         pool = null;
-        boardEase.clear();
+        payFair.clear();
         previews.clear();
         for (ComplexityScenario scenario : ComplexityScenario.STORED) {
             build(scenario);
