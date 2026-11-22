@@ -121,6 +121,28 @@ class NoteAccuracyComplexityRaterTest {
     }
 
     @Test
+    void positionAndStackSharesPriceThroughTheirOwnSlopes() {
+        Coefficients line = properties.getCategories().get("tech_acc");
+        line.setCrossoverSlope(2.0);
+        line.setTopRowSlope(1.0);
+        line.setDiagonalSlope(1.0);
+        line.setVerticalStackSlope(2.0);
+        line.setOuterSlope(-2.0);
+        NoteAccuracies response = response(List.of(0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99));
+        NoteAccuracyComplexityRater.Rating clean = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+        response.setCrossoverShare(0.5);
+        response.setTopRowShare(0.5);
+        response.setDiagonalShare(0.5);
+        response.setVerticalStackShare(0.5);
+        response.setOuterShare(0.5);
+        NoteAccuracyComplexityRater.Rating rated = rater.rate(response, "tech_acc", NoteAccuracyComplexityRater.NO_BOARD);
+
+        assertThat(rated.complexity()).isCloseTo(clean.complexity() + 2.0, within(0.051));
+        assertThat(rated.inputs()).containsEntry("crossoverShare", 0.5).containsEntry("outerShare", 0.5);
+        assertThat(chart(rated)).containsEntry("verticalStackSlope", 2.0).containsEntry("outerSlope", -2.0);
+    }
+
+    @Test
     void noteCountAndNjsPriceThroughTheirOwnSlopes() {
         properties.getCategories().get("tech_acc").setNotesSlope(1.0);
         properties.getCategories().get("tech_acc").setNjsSlope(-0.5);

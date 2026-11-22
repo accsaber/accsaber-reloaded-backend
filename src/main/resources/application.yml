@@ -153,7 +153,7 @@ accsaber:
     model-check-interval-ms: 300000
     scenario-refresh-ms: 600000
     rater:
-      version: note-acc-2026-11-22-bl41
+      version: note-acc-2026-11-22-pay
       board:
         min-scores: 50
         full-scores: 70
@@ -163,57 +163,87 @@ accsaber:
         max-nudge: 0
       categories:
         true_acc:
-          intercept: 21.299
-          mean-slope: -12.034
-          reset-slope: -0.287
-          dot-slope: -2.698
+          intercept: 22.54
+          mean-slope: -11.67
+          reset-slope: -0.554
+          dot-slope: -2.508
           bottom-up-slope: 0
-          notes-slope: 0.321
-          njs-slope: -0.309
-        standard_acc:
-          intercept: 24.313
-          mean-slope: -15.927
-          reset-slope: 0
-          dot-slope: 0
-          bottom-up-slope: 0
-          notes-slope: 0.598
-          njs-slope: -0.17
-        tech_acc:
-          intercept: 35.311
-          mean-slope: -22.487
-          reset-slope: 0
-          dot-slope: 0
-          bottom-up-slope: -2.199
+          crossover-slope: 0
+          top-row-slope: 0
+          diagonal-slope: 0
+          vertical-stack-slope: 0
+          outer-slope: 0
           notes-slope: 0
-          njs-slope: -0.156
+          njs-slope: -0.311
+        standard_acc:
+          intercept: 21.039
+          mean-slope: -13.353
+          reset-slope: 0
+          dot-slope: 0
+          bottom-up-slope: 0
+          crossover-slope: 1.661
+          top-row-slope: 1.225
+          diagonal-slope: 0.63
+          vertical-stack-slope: 1.98
+          outer-slope: 0
+          notes-slope: 0.483
+          njs-slope: -0.14
+        tech_acc:
+          intercept: 35.671
+          mean-slope: -21.728
+          reset-slope: 0
+          dot-slope: 0
+          bottom-up-slope: -2.639
+          crossover-slope: 0
+          top-row-slope: 0
+          diagonal-slope: 0.854
+          vertical-stack-slope: 0
+          outer-slope: -2.326
+          notes-slope: 0
+          njs-slope: -0.199
       board-categories:
         true_acc:
-          intercept: 11.188
-          mean-slope: -4.542
-          reset-slope: -0.439
-          dot-slope: -0.574
+          intercept: 14.269
+          mean-slope: -5.497
+          reset-slope: -0.627
+          dot-slope: -0.818
           bottom-up-slope: 0
-          notes-slope: 0.321
-          njs-slope: -0.309
-          board-slope: -7.145
-        standard_acc:
-          intercept: 12.655
-          mean-slope: -5.81
-          reset-slope: 0
-          dot-slope: 0
-          bottom-up-slope: 0
-          notes-slope: 0.598
-          njs-slope: -0.17
-          board-slope: -10.358
-        tech_acc:
-          intercept: 27.278
-          mean-slope: -14.532
-          reset-slope: 0
-          dot-slope: 0
-          bottom-up-slope: -2.199
+          crossover-slope: 0
+          top-row-slope: 0
+          diagonal-slope: 0
+          vertical-stack-slope: 0
+          outer-slope: 0
           notes-slope: 0
-          njs-slope: -0.156
-          board-slope: -8.807
+          njs-slope: -0.311
+          board-slope: -6.481
+        standard_acc:
+          intercept: 14.128
+          mean-slope: -7.358
+          reset-slope: 0
+          dot-slope: 0
+          bottom-up-slope: 0
+          crossover-slope: 1.661
+          top-row-slope: 1.225
+          diagonal-slope: 0.63
+          vertical-stack-slope: 1.98
+          outer-slope: 0
+          notes-slope: 0.483
+          njs-slope: -0.14
+          board-slope: -6.342
+        tech_acc:
+          intercept: 27.507
+          mean-slope: -13.621
+          reset-slope: 0
+          dot-slope: 0
+          bottom-up-slope: -2.639
+          crossover-slope: 0
+          top-row-slope: 0
+          diagonal-slope: 0.854
+          vertical-stack-slope: 0
+          outer-slope: -2.326
+          notes-slope: 0
+          njs-slope: -0.199
+          board-slope: -9.492
   rate-limit:
     capacity: 400
     window-seconds: 60

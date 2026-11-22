@@ -83,5 +83,10 @@ public class ComplexityModelClient {
         private double resetShare;
         private double dotShare;
         private double bottomUpShare;
+        private double crossoverShare;
+        private double topRowShare;
+        private double diagonalShare;
+        private double verticalStackShare;
+        private double outerShare;
     }
 }

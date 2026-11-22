@@ -61,6 +61,16 @@ public class ComplexityRaterSpec {
 
         private double bottomUpSlope;
 
+        private double crossoverSlope;
+
+        private double topRowSlope;
+
+        private double diagonalSlope;
+
+        private double verticalStackSlope;
+
+        private double outerSlope;
+
         private double notesSlope;
 
         private double njsSlope;

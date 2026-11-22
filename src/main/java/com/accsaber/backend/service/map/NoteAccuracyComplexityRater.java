@@ -1,6 +1,7 @@
 package com.accsaber.backend.service.map;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +27,9 @@ import lombok.RequiredArgsConstructor;
 public class NoteAccuracyComplexityRater {
 
     static final BoardEase NO_BOARD = new BoardEase(0.0, 0, 0);
+    private static final List<String> STORED_INPUTS = List.of("meanNoteAccuracy", "resetShare", "dotShare",
+            "bottomUpShare", "crossoverShare", "topRowShare", "diagonalShare", "verticalStackShare", "outerShare",
+            "njs");
     private static final double ACCURACY_CEILING = 0.9999;
     private static final int MIN_NOTES = 8;
     private static final int COMPLEXITY_SCALE = 1;
@@ -36,8 +40,8 @@ public class NoteAccuracyComplexityRater {
     public record Rating(double complexity, Map<String, Object> inputs) {
     }
 
-    private record Terms(double mean, double reset, double dot, double bottomUp, int notes, double njs,
-            BoardEase board) {
+    private record Terms(double mean, double reset, double dot, double bottomUp, double crossover, double topRow,
+            double diagonal, double verticalStack, double outer, int notes, double njs, BoardEase board) {
     }
 
     private final MapZipCache zipCache;
@@ -73,9 +77,7 @@ public class NoteAccuracyComplexityRater {
     public Optional<Rating> reprice(MapDifficulty difficulty, JsonNode inputs, String currentModelHash) {
         if (difficulty.getCategory() == null || inputs == null || currentModelHash == null
                 || !currentModelHash.equals(inputs.path("modelHash").asText(null))
-                || !inputs.hasNonNull("meanNoteAccuracy") || !inputs.hasNonNull("resetShare")
-                || !inputs.hasNonNull("dotShare") || !inputs.hasNonNull("bottomUpShare")
-                || !inputs.hasNonNull("njs")) {
+                || !STORED_INPUTS.stream().allMatch(inputs::hasNonNull)) {
             return Optional.empty();
         }
         Map<String, Object> refreshed = JSON.convertValue(inputs, MAP);
@@ -107,6 +109,11 @@ public class NoteAccuracyComplexityRater {
         inputs.put("resetShare", Rounding.round(notes.getResetShare(), 6));
         inputs.put("dotShare", Rounding.round(notes.getDotShare(), 6));
         inputs.put("bottomUpShare", Rounding.round(notes.getBottomUpShare(), 6));
+        inputs.put("crossoverShare", Rounding.round(notes.getCrossoverShare(), 6));
+        inputs.put("topRowShare", Rounding.round(notes.getTopRowShare(), 6));
+        inputs.put("diagonalShare", Rounding.round(notes.getDiagonalShare(), 6));
+        inputs.put("verticalStackShare", Rounding.round(notes.getVerticalStackShare(), 6));
+        inputs.put("outerShare", Rounding.round(notes.getOuterShare(), 6));
         putBoard(inputs, board);
         return price(inputs, properties, categoryCode).orElseThrow();
     }
@@ -131,8 +138,10 @@ public class NoteAccuracyComplexityRater {
         BoardEase board = new BoardEase(number(inputs, "boardEase", 0.0), (int) number(inputs, "boardPlayers", 0),
                 (int) number(inputs, "scores", 0));
         Terms terms = new Terms(mean, number(inputs, "resetShare", 0.0), number(inputs, "dotShare", 0.0),
-                number(inputs, "bottomUpShare", 0.0), (int) number(inputs, "notes", 0), number(inputs, "njs", 0.0),
-                board);
+                number(inputs, "bottomUpShare", 0.0), number(inputs, "crossoverShare", 0.0),
+                number(inputs, "topRowShare", 0.0), number(inputs, "diagonalShare", 0.0),
+                number(inputs, "verticalStackShare", 0.0), number(inputs, "outerShare", 0.0),
+                (int) number(inputs, "notes", 0), number(inputs, "njs", 0.0), board);
         Coefficients chart = spec.getCategories().get(categoryCode);
         Coefficients boardLine = spec.getBoardCategories().get(categoryCode);
         double weight = boardLine == null ? 0.0 : boardWeight(board, spec.getBoard());
@@ -155,6 +164,11 @@ public class NoteAccuracyComplexityRater {
                 + c.getResetSlope() * terms.reset()
                 + c.getDotSlope() * terms.dot()
                 + c.getBottomUpSlope() * terms.bottomUp()
+                + c.getCrossoverSlope() * terms.crossover()
+                + c.getTopRowSlope() * terms.topRow()
+                + c.getDiagonalSlope() * terms.diagonal()
+                + c.getVerticalStackSlope() * terms.verticalStack()
+                + c.getOuterSlope() * terms.outer()
                 + c.getNotesSlope() * Math.log(Math.max(1, terms.notes()))
                 + c.getNjsSlope() * terms.njs()
                 + c.getBoardSlope() * terms.board().ease();
@@ -191,6 +205,11 @@ public class NoteAccuracyComplexityRater {
         out.put("resetSlope", c.getResetSlope());
         out.put("dotSlope", c.getDotSlope());
         out.put("bottomUpSlope", c.getBottomUpSlope());
+        out.put("crossoverSlope", c.getCrossoverSlope());
+        out.put("topRowSlope", c.getTopRowSlope());
+        out.put("diagonalSlope", c.getDiagonalSlope());
+        out.put("verticalStackSlope", c.getVerticalStackSlope());
+        out.put("outerSlope", c.getOuterSlope());
         out.put("notesSlope", c.getNotesSlope());
         out.put("njsSlope", c.getNjsSlope());
         out.put("boardSlope", c.getBoardSlope());
