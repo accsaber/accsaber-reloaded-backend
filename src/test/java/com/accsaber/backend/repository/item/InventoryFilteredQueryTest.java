@@ -56,6 +56,7 @@ class InventoryFilteredQueryTest {
         Item owned = item("Probe Owned", true);
         item("Probe Missing", true);
         item("Probe Hidden", false);
+        item("Probe Clan", true, "clan_border");
         modifier = entityManager.createQuery("SELECT m FROM ItemModifier m", ItemModifier.class).setMaxResults(1)
                 .getSingleResult();
         UserItemLink modified = link(owned, 1L);
@@ -130,8 +131,12 @@ class InventoryFilteredQueryTest {
     }
 
     private Item item(String name, boolean visible) {
+        return item(name, visible, "profile_border");
+    }
+
+    private Item item(String name, boolean visible, String typeKey) {
         ItemType type = entityManager.createQuery("SELECT t FROM ItemType t WHERE t.key = :key", ItemType.class)
-                .setParameter("key", "profile_border").getSingleResult();
+                .setParameter("key", typeKey).getSingleResult();
         Item item = Item.builder().type(type).name(name).visible(visible).serialized(false).build();
         entityManager.persist(item);
         return item;

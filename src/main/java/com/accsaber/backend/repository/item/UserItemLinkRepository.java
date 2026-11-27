@@ -49,7 +49,8 @@ public interface UserItemLinkRepository extends JpaRepository<UserItemLink, UUID
                                 ON cs.sourceId = l.sourceId
                                 AND l.source = com.accsaber.backend.model.entity.item.ItemSource.crate_drop
                         LEFT JOIN cs.crateItem ci
-                        WHERE (l.id IS NOT NULL OR (:includeUnowned = TRUE AND i.visible = TRUE AND i.active = TRUE))
+                        WHERE (l.id IS NOT NULL OR (:includeUnowned = TRUE AND i.visible = TRUE AND i.active = TRUE
+                                AND (pt IS NULL OR pt.key <> 'clan_cosmetic')))
                         AND (:typeKeys IS NULL OR t.key IN :typeKeys OR pt.key IN :typeKeys)
                         AND (:rarities IS NULL OR i.rarity IN :rarities)
                         AND (:modifierKeys IS NULL OR EXISTS (
