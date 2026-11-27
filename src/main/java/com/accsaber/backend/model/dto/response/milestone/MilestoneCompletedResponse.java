@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.accsaber.backend.model.dto.MilestoneQuerySpec;
 import com.accsaber.backend.model.dto.response.common.PlayerRef;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
@@ -31,8 +31,8 @@ public class MilestoneCompletedResponse {
         private String description;
         private String type;
         private String tier;
-
         private String iconGroup;
+        private MilestoneQuerySpec querySpec;
         private Double xp;
         private List<MilestoneRewardResponse> rewards;
     }

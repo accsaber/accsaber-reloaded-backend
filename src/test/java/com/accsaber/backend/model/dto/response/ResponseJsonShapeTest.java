@@ -358,6 +358,22 @@ class ResponseJsonShapeTest {
     }
 
     @Test
+    void milestoneSocketCarriesTheIconGroupAndQuerySpec() throws Exception {
+        ObjectMapper socketMapper = PlainDoubleJackson2Module.mapper();
+        var spec = new com.accsaber.backend.model.dto.MilestoneQuerySpec(
+                new com.accsaber.backend.model.dto.MilestoneQuerySpec.SelectSpec("MAX", "ap"), "scores", List.of());
+        var frame = socketMapper.readTree(socketMapper.writeValueAsString(MilestoneCompletedResponse.builder()
+                .player(PLAYER).completedAt(T1)
+                .milestones(List.of(MilestoneCompletedResponse.CompletedMilestone.builder()
+                        .iconGroup("STREAK").querySpec(spec).build()))
+                .build()));
+
+        var milestone = frame.get("milestones").get(0);
+        assertThat(milestone.get("iconGroup").asText()).isEqualTo("STREAK");
+        assertThat(milestone.get("querySpec").get("select").get("column").asText()).isEqualTo("ap");
+    }
+
+    @Test
     void statisticsBoardsNestThePlayer() {
         assertNestedPlayer(json(MissionCompletorResponse.builder().player(PLAYER).missionsCompleted(4)
                 .missionXp(120.0).build()));

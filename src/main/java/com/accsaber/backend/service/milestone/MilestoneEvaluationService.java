@@ -230,6 +230,8 @@ public class MilestoneEvaluationService {
                 .description(m.getDescription())
                 .type(m.getType())
                 .tier(m.getTier() != null ? m.getTier().name() : null)
+                .iconGroup(m.getIconGroup())
+                .querySpec(m.getQuerySpec())
                 .xp(m.getXp())
                 .rewards(rewards.get(m.getId()))
                 .build();
